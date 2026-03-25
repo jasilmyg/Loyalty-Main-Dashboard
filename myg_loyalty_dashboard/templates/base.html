@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>myG Loyalty Analytics</title>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Plotly -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+        .sidebar {
+            height: 100vh;
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(10px);
+            border-right: 1px solid #334155;
+            position: fixed;
+            width: 260px;
+            overflow-y: auto;
+        }
+        .sidebar .nav-link {
+            color: #94a3b8;
+            padding: 0.8rem 1.5rem;
+            border-radius: 8px;
+            margin: 0.2rem 1rem;
+            transition: all 0.3s;
+        }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active {
+            color: #fff;
+            background: #3b82f6;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+        .main-content {
+            margin-left: 260px;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+        .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .card-header {
+            background: transparent;
+            border-bottom: 1px solid #334155;
+            font-weight: 600;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border-left: 4px solid #3b82f6;
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #f8fafc;
+        }
+        .stat-label {
+            color: #94a3b8;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        /* Glassmorphism filters */
+        .filter-bar {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(16px);
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+        }
+        .form-control, .form-select {
+            background-color: #0f172a;
+            border-color: #334155;
+            color: #f8fafc;
+        }
+        .form-control:focus, .form-select:focus {
+            background-color: #1e293b;
+            border-color: #3b82f6;
+            color: #fff;
+            box-shadow: 0 0 0 0.25rem rgba(59, 130, 246, 0.25);
+        }
+    </style>
+</head>
+<body>
+
+<div class="d-flex">
+    <!-- Sidebar -->
+    <nav class="sidebar py-4">
+        <div class="px-4 mb-4">
+            <h4 class="text-white fw-bold mb-0">myG <span class="text-primary">Loyalty</span></h4>
+            <small class="text-muted">Analytics Dashboard</small>
+        </div>
+        <ul class="nav flex-column">
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}"><i class="bi bi-graph-up me-2"></i> Sales Overview</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'customers' %}active{% endif %}" href="{% url 'customers' %}"><i class="bi bi-people me-2"></i> Customer Analytics</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'retail_analytics' %}active{% endif %}" href="{% url 'retail_analytics' %}"><i class="bi bi-bar-chart-line me-2"></i> Retail Loyalty Report</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'loyalty_gap' %}active{% endif %}" href="{% url 'loyalty_gap' %}"><i class="bi bi-star me-2"></i> Loyalty & Gap Analysis</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'rfm' %}active{% endif %}" href="{% url 'rfm' %}"><i class="bi bi-pie-chart me-2"></i> RFM Segmentation</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'cohorts' %}active{% endif %}" href="{% url 'cohorts' %}"><i class="bi bi-grid-3x3 me-2"></i> Cohort Retention</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'payments' %}active{% endif %}" href="{% url 'payments' %}"><i class="bi bi-credit-card me-2"></i> Payment Analytics</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'discounts' %}active{% endif %}" href="{% url 'discounts' %}"><i class="bi bi-tag me-2"></i> Discount Analysis</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'staff' %}active{% endif %}" href="{% url 'staff' %}"><i class="bi bi-person-badge me-2"></i> Staff Performance</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'branches' %}active{% endif %}" href="{% url 'branches' %}"><i class="bi bi-shop me-2"></i> Branch Performance</a>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content w-100">
+        <!-- Global Filters -->
+        <div class="filter-bar d-flex justify-content-between align-items-center">
+            <form id="global-filter-form" class="row g-2 w-100 align-items-center">
+                <div class="col-md-2">
+                    <input type="date" class="form-control" name="start_date" id="filter-start" placeholder="Start Date">
+                </div>
+                <div class="col-md-2">
+                    <input type="date" class="form-control" name="end_date" id="filter-end" placeholder="End Date">
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" name="branch" id="filter-branch">
+                        <option value="">All Branches</option>
+                        <!-- Will be populated via js/api or context -->
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <input type="text" class="form-control" name="staff" id="filter-staff" placeholder="Staff Code">
+                </div>
+                <div class="col-md-auto">
+                    <button type="button" class="btn btn-primary px-4" onclick="applyFilters()">Apply Filters</button>
+                    <button type="button" class="btn btn-outline-secondary ms-2" onclick="clearFilters()">Clear</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Page Content -->
+        {% block content %}{% endblock %}
+    </main>
+</div>
+
+<!-- Bootstrap Bundle with Popper -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Loading Overlay -->
+<div id="loading-overlay" class="d-none justify-content-center align-items-center" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px); z-index: 9999; flex-direction: column;">
+    <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <div class="fs-5 fw-bold text-white">Crunching Data...</div>
+    <div class="text-muted small mt-1">Scanning 10M+ records</div>
+</div>
+
+<script>
+    window.showLoading = () => {
+        const el = document.getElementById('loading-overlay');
+        el.classList.remove('d-none');
+        el.classList.add('d-flex');
+    };
+    
+    window.hideLoading = () => {
+        const el = document.getElementById('loading-overlay');
+        el.classList.remove('d-flex');
+        el.classList.add('d-none');
+    };
+
+    function getQueryFilters() {
+        // Collects form values as URL parameters
+        const form = document.getElementById('global-filter-form');
+        const formData = new FormData(form);
+        const params = new URLSearchParams();
+        for (const [key, value] of formData.entries()) {
+            if (value) params.append(key, value);
+        }
+        return params.toString();
+    }
+
+    function applyFilters() {
+        // Broadcasts an event to rerender charts
+        const filterStr = getQueryFilters();
+        window.dispatchEvent(new CustomEvent('filtersUpdated', { detail: filterStr }));
+    }
+
+    function clearFilters() {
+        document.getElementById('global-filter-form').reset();
+        applyFilters();
+    }
+    
+    // Fetch and populate branches across all pages
+    async function loadBranches() {
+        try {
+            const res = await fetch('/api/v1/branches-list/');
+            if (!res.ok) return;
+            const branches = await res.json();
+            const select = document.getElementById('filter-branch');
+            
+            // Get current branch from URL to keep it selected
+            const urlParams = new URLSearchParams(window.location.search);
+            const selectedBranch = urlParams.get('branch');
+            
+            branches.forEach(branch => {
+                const option = document.createElement('option');
+                option.value = branch;
+                option.textContent = branch;
+                if (branch === selectedBranch) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            });
+        } catch (e) {
+            console.error('Error loading branches', e);
+        }
+    }
+    
+    // Auto format numbers
+    const formatCurrency = (amount) => {
+        return new Intl.NumberFormat('en-IN', {
+            style: 'currency',
+            currency: 'INR',
+            maximumFractionDigits: 0
+        }).format(amount);
+    }
+
+    // Initialize global data
+    document.addEventListener('DOMContentLoaded', () => {
+        loadBranches();
+        
+        // Also populate date inputs from URL if present
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('start_date')) document.getElementById('filter-start').value = urlParams.get('start_date');
+        if (urlParams.get('end_date')) document.getElementById('filter-end').value = urlParams.get('end_date');
+        if (urlParams.get('staff')) document.getElementById('filter-staff').value = urlParams.get('staff');
+    });
+</script>
+
+{% block extra_js %}{% endblock %}
+</body>
+</html>

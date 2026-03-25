@@ -1,0 +1,125 @@
+<!-- Business Insights Component -->
+<div class="row mb-3" id="insights-header-row" style="display: none;">
+    <div class="col-12">
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-robot text-primary fs-4"></i>
+            <h5 class="fw-bold text-white m-0">Strategic Business Insights</h5>
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-2">AI-Driven</span>
+        </div>
+        <p class="text-muted small mb-3">Automated analysis of retention, revenue, and customer segments.</p>
+    </div>
+</div>
+
+<div id="insights-container" class="row g-4 mb-5">
+    <!-- Insights will be injected here via JavaScript -->
+</div>
+
+<style>
+    .insight-card {
+        background: #1e293b !important;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        border: none !important;
+    }
+    .insight-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3) !important;
+    }
+    .insight-section-label {
+        font-size: 0.65rem;
+        letter-spacing: 0.05rem;
+        text-transform: uppercase;
+        margin-bottom: 2px;
+    }
+    .insight-p {
+        line-height: 1.4;
+        font-size: 0.85rem;
+    }
+</style>
+
+<script>
+    function getPriorityColor(p) {
+        if (p === 'Critical') return '#ef4444';
+        if (p === 'High') return '#f59e0b';
+        if (p === 'Success') return '#10b981';
+        if (p === 'Medium') return '#3b82f6';
+        if (p === 'Info') return '#6366f1';
+        return '#64748b';
+    }
+
+    async function loadBusinessInsights(filterStr = "", insightType = "") {
+        const container = document.getElementById('insights-container');
+        const header = document.getElementById('insights-header-row');
+        if (!container) return;
+        
+        try {
+            let url = `/api/v1/business-insights/?${filterStr}`;
+            if (insightType) {
+                url += `&type=${insightType}`;
+            }
+            const response = await fetch(url);
+            const insights = await response.json();
+            
+            if (!insights || insights.length === 0) {
+                container.innerHTML = '';
+                header.style.display = 'none';
+                return;
+            }
+
+            header.style.display = 'flex';
+            container.innerHTML = insights.map(insight => {
+                const color = getPriorityColor(insight.priority);
+                const category = insight.category || (insightType === 'cohort' ? 'Retention' : 'General');
+                return `
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card h-100 insight-card" style="border-top: 4px solid ${color} !important;">
+                            <div class="card-body p-4 d-flex flex-column">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <span class="badge" style="background: ${color}20; color: ${color}; border: 1px solid ${color}40;">${category}</span>
+                                    <span class="text-muted" style="font-size: 0.7rem;">${insight.priority} Priority</span>
+                                </div>
+                                <h6 class="fw-bold text-white mb-3">${insight.title}</h6>
+                                
+                                <div class="mb-2">
+                                    <div class="insight-section-label text-primary">What is happening (Observation)</div>
+                                    <p class="insight-p text-white-50 mb-0">${insight.observation}</p>
+                                </div>
+                                
+                                <div class="mb-2">
+                                    <div class="insight-section-label text-info">Why it is happening (Reason)</div>
+                                    <p class="insight-p text-white-50 mb-0">${insight.reason}</p>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <div class="insight-section-label text-warning">Business Impact (Impact)</div>
+                                    <p class="insight-p text-white-50 mb-0">${insight.impact}</p>
+                                </div>
+                                
+                                <div class="mt-auto p-2 rounded bg-primary-subtle border border-primary-subtle">
+                                    <div class="insight-section-label text-primary fw-bold" style="font-size: 0.6rem;">
+                                        <i class="bi bi-lightning-charge-fill me-1"></i> Recommended Action (Action)
+                                    </div>
+                                    <p class="insight-p text-dark-emphasis fw-medium mb-0" style="font-size: 0.75rem;">${insight.action}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        } catch(e) {
+            console.error("Error loading insights", e);
+            container.innerHTML = '';
+            header.style.display = 'none';
+        }
+    }
+
+    // Call loadBusinessInsights when filters change
+    window.addEventListener('filtersUpdated', (e) => {
+        // Keep standard behavior for general dashboard, 
+        // specialized pages like cohorts.html will override this if needed
+        if (typeof loadBusinessInsights === 'function') {
+            const path = window.location.pathname;
+            const type = path.includes('cohorts') ? 'cohort' : '';
+            loadBusinessInsights(e.detail, type);
+        }
+    });
+</script>

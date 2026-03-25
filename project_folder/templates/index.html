@@ -1,0 +1,165 @@
+{% extends "layout.html" %}
+
+{% block title %}Dashboard Overview{% endblock %}
+
+{% block content %}
+<!-- Filters Row -->
+<div class="card mb-4 p-3">
+    <form class="row g-3" method="GET">
+        <div class="col-md-2">
+            <label class="form-label">Start Date</label>
+            <input type="date" class="form-control" name="start_date" value="{{ request.args.get('start_date', '') }}">
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">End Date</label>
+            <input type="date" class="form-control" name="end_date" value="{{ request.args.get('end_date', '') }}">
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Branch</label>
+            <select class="form-select" name="branch">
+                <option value="">All Branches</option>
+                <!-- Dynamic branches would go here -->
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Customer Type</label>
+            <select class="form-select" name="customer_type">
+                <option value="">All Types</option>
+                <option value="LOYALTY">Loyalty</option>
+                <option value="REGULAR">Regular</option>
+            </select>
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary w-100">Apply Filters</button>
+        </div>
+    </form>
+</div>
+
+<!-- KPIs Row -->
+<div class="row">
+    <div class="col-md-3">
+        <div class="card kpi-card">
+            <div class="kpi-label">Total Revenue</div>
+            <div class="kpi-value">₹{{ "{:,.0f}".format(sales.total_revenue) }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card kpi-card">
+            <div class="kpi-label">Total Invoices</div>
+            <div class="kpi-value">{{ sales.invoice_count }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card kpi-card">
+            <div class="kpi-label">ATV (Avg Transaction)</div>
+            <div class="kpi-value">₹{{ "{:,.0f}".format(sales.atv) }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card kpi-card">
+            <div class="kpi-label">Repeat Purchase Rate</div>
+            <div class="kpi-value">{{ "{:.1f}%".format(customers.repeat_rate) }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row 1 -->
+<div class="row">
+    <div class="col-md-8">
+        <div class="card p-3">
+            <h5 class="card-title">Revenue Trend (Daily)</h5>
+            <canvas id="revenueTrendChart" height="300"></canvas>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card p-3">
+            <h5 class="card-title">Top 10 Branches</h5>
+            <canvas id="branchSalesChart" height="300"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row 2 -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="card p-3">
+            <h5 class="card-title">Staff Performance (Top 10)</h5>
+            <canvas id="staffPerformanceChart" height="300"></canvas>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card p-3">
+            <h5 class="card-title">Top Customers (LTV)</h5>
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Customer</th>
+                            <th>Total Spent</th>
+                            <th>Visits</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cust in customers.top_customers %}
+                        <tr>
+                            <td>{{ cust['Customer Mobile'] }}</td>
+                            <td>₹{{ "{:,.0f}".format(cust['LTV']) }}</td>
+                            <td>{{ cust['visit_count'] }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Revenue Trend Chart
+    const revCtx = document.getElementById('revenueTrendChart').getContext('2d');
+    new Chart(revCtx, {
+        type: 'line',
+        data: {
+            labels: {{ sales.daily_revenue | map(attribute='Date') | map('string') | list | safe }},
+            datasets: [{
+                label: 'Daily Revenue',
+                data: {{ sales.daily_revenue | map(attribute='Total Value') | list | safe }},
+                borderColor: '#0d6efd',
+                backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: { responsive: true, plugins: { legend: { display: false } } }
+    });
+
+    // Branch Sales Chart
+    const branchCtx = document.getElementById('branchSalesChart').getContext('2d');
+    new Chart(branchCtx, {
+        type: 'doughnut',
+        data: {
+            labels: {{ sales.branch_sales | map(attribute='Branch') | list | safe }},
+            datasets: [{
+                data: {{ sales.branch_sales | map(attribute='Total Value') | list | safe }},
+                backgroundColor: ['#0d6efd', '#6610f2', '#6f42c1', '#d63384', '#dc3545', '#fd7e14', '#ffc107', '#198754', '#20c997', '#0dcaf0']
+            }]
+        },
+        options: { responsive: true }
+    });
+
+    // Staff Performance Chart
+    const staffCtx = document.getElementById('staffPerformanceChart').getContext('2d');
+    new Chart(staffCtx, {
+        type: 'bar',
+        data: {
+            labels: {{ sales.staff_sales | map(attribute='Staff') | list | safe }},
+            datasets: [{
+                label: 'Sales Hub',
+                data: {{ sales.staff_sales | map(attribute='Total Value') | list | safe }},
+                backgroundColor: '#0dcaf0'
+            }]
+        },
+        options: { indexAxis: 'y', responsive: true }
+    });
+</script>
+{% endblock %}

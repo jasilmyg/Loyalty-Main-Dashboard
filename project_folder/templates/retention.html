@@ -1,0 +1,34 @@
+{% extends "layout.html" %}
+
+{% block title %}Cohort Retention Analysis{% endblock %}
+
+{% block content %}
+<div class="card p-4">
+    <h5 class="card-title mb-4">Customer Retention Heatmap (By Month)</h5>
+    <div class="table-responsive">
+        <table class="table table-bordered text-center align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Cohort</th>
+                    {% for i in range(12) %}
+                    <th>Month {{ i }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for month, row in cohort.items() %}
+                <tr>
+                    <td class="fw-bold">{{ month }}</td>
+                    {% for i in range(12) %}
+                    {% set val = row.get(i, 0) %}
+                    <td style="background-color: rgba(13, 110, 253, {{ val }}); color: {{ 'white' if val > 0.5 else 'black' }}">
+                        {{ "{:.1f}%".format(val * 100) if val > 0 else '-' }}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

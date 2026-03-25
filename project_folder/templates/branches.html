@@ -1,0 +1,37 @@
+{% extends "layout.html" %}
+
+{% block title %}Branch Performance{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card p-3">
+            <h5 class="card-title">Branch Ranking (By Revenue)</h5>
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Branch</th>
+                            <th>Revenue</th>
+                            <th>Transactions</th>
+                            <th>ATV</th>
+                            <th>Unique Customers</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for b in branches %}
+                        <tr>
+                            <td>{{ b.Branch }}</td>
+                            <td class="fw-bold">₹{{ "{:,.0f}".format(b['Total Value']) }}</td>
+                            <td>{{ b['Invoice Number'] }}</td>
+                            <td>₹{{ "{:,.0f}".format(b['ATV']) }}</td>
+                            <td>{{ b['Customer Count'] }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

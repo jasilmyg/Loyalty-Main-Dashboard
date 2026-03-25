@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Analytics & Retail Intelligence Dashboard</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Plotly -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8f9fa; }
+        .sidebar { height: 100vh; width: 250px; position: fixed; top: 0; left: 0; background: #212529; color: white; padding: 20px; }
+        .main-content { margin-left: 250px; padding: 20px; }
+        .card { border-radius: 12px; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .nav-link { color: #adb5bd; margin-bottom: 10px; border-radius: 8px; }
+        .nav-link.active { background: #0d6efd; color: white; }
+        .nav-link:hover { color: white; background: rgba(255,255,255,0.1); }
+        .kpi-card { padding: 20px; text-align: center; }
+        .kpi-value { font-size: 2rem; font-weight: 700; color: #0d6efd; }
+        .kpi-label { font-size: 0.9rem; color: #6c757d; text-transform: uppercase; letter-spacing: 1px; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h4 class="mb-4">myG Intelligence</h4>
+        <nav class="nav flex-column">
+            <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">Sales Overview</a>
+            <a class="nav-link {% if request.path == '/rfm' %}active{% endif %}" href="/rfm">RFM Segmentation</a>
+            <a class="nav-link {% if request.path == '/branches' %}active{% endif %}" href="/branches">Branch Performance</a>
+            <a class="nav-link {% if request.path == '/staff' %}active{% endif %}" href="/staff">Staff Performance</a>
+            <a class="nav-link {% if request.path == '/payments' %}active{% endif %}" href="/payments">Payment Analytics</a>
+            <a class="nav-link {% if request.path == '/discounts' %}active{% endif %}" href="/discounts">Discount Analysis</a>
+            <a class="nav-link {% if request.path == '/retention' %}active{% endif %}" href="/retention">Cohort Retention</a>
+            <hr class="bg-secondary">
+            <a class="nav-link" href="/logout">Logout</a>
+        </nav>
+    </div>
+
+    <div class="main-content">
+        <header class="d-flex justify-content-between align-items-center mb-4">
+            <h2>{% block title %}Sales Overview{% endblock %}</h2>
+            <div class="d-flex align-items-center">
+                <div class="dropdown me-3">
+                    <button class="btn btn-outline-secondary dropdown-toggle btn-sm" type="button" data-bs-toggle="dropdown">
+                        Export Data
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="/export/csv">Export CSV</a></li>
+                        <li><a class="dropdown-item" href="/export/excel">Export Excel</a></li>
+                    </ul>
+                </div>
+                <div class="user-info text-end">
+                    <span class="badge bg-primary d-block">{{ current_user.role }}</span>
+                    <small class="text-muted">{{ current_user.username }}</small>
+                </div>
+            </div>
+        </header>
+
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            {% for message in messages %}
+              <div class="alert alert-warning">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

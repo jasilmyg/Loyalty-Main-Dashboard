@@ -1,0 +1,341 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+  .report-section-title {
+    font-size: 0.65rem;
+    letter-spacing: 0.12rem;
+    text-transform: uppercase;
+    color: #64748b;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+  }
+  .kpi-card {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .kpi-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+  .kpi-value { font-size: 1.8rem; font-weight: 800; line-height: 1.1; }
+  .kpi-label { font-size: 0.75rem; color: #94a3b8; margin-top: 0.2rem; }
+  .kpi-sub { font-size: 0.72rem; color: #64748b; margin-top: 0.15rem; }
+
+  .section-card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .section-card .card-header {
+    background: #0f172a;
+    border-bottom: 1px solid #334155;
+    padding: 1rem 1.5rem;
+  }
+  .section-card .card-body { padding: 1.25rem 1.5rem; }
+
+  .badge-risk-warning   { background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.4); }
+  .badge-risk-critical  { background: rgba(239,68,68,0.15);  color: #ef4444; border: 1px solid rgba(239,68,68,0.4); }
+  .badge-risk-positive  { background: rgba(16,185,129,0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.4); }
+  .badge-risk-normal    { background: rgba(100,116,139,0.15);color: #94a3b8; border: 1px solid rgba(100,116,139,0.4); }
+  .badge-risk-opportunity { background: rgba(99,102,241,0.15); color: #6366f1; border: 1px solid rgba(99,102,241,0.4); }
+
+  .insight-card {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 1.25rem;
+    height: 100%;
+    transition: transform 0.18s;
+  }
+  .insight-card:hover { transform: translateY(-4px); }
+  .insight-icon { font-size: 1.4rem; }
+
+  .priority-positive  { border-left: 4px solid #10b981 !important; }
+  .priority-critical  { border-left: 4px solid #ef4444 !important; }
+  .priority-warning   { border-left: 4px solid #f59e0b !important; }
+  .priority-info      { border-left: 4px solid #6366f1 !important; }
+  .priority-high      { border-left: 4px solid #3b82f6 !important; }
+  .priority-anomaly   { border-left: 4px solid #ec4899 !important; }
+
+  .tbl-dark-custom thead tr th { background: #0f172a; color: #94a3b8; font-size: 0.7rem; letter-spacing: 0.05rem; text-transform: uppercase; padding: 0.75rem 1rem; border-bottom: 1px solid #334155; }
+  .tbl-dark-custom tbody tr { border-bottom: 1px solid #1e293b; }
+  .tbl-dark-custom tbody tr:hover { background: rgba(255,255,255,0.02); }
+  .tbl-dark-custom tbody td { padding: 0.65rem 1rem; font-size: 0.82rem; color: #e2e8f0; }
+
+  .yoy-cell { text-align: center; padding: 0.5rem; }
+  .yoy-members { font-size: 0.9rem; font-weight: 700; }
+  .yoy-sub { font-size: 0.68rem; color: #64748b; }
+
+  .retention-period-badge {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.4rem 0.85rem; border-radius: 20px;
+    font-size: 0.75rem; font-weight: 600; margin: 0.2rem;
+  }
+  .ret-improving { background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.3); }
+  .ret-declining { background: rgba(239,68,68,0.12);  color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }
+
+  .separator {
+    height: 1px;
+    background: linear-gradient(to right, transparent, #334155, transparent);
+    margin: 2rem 0;
+  }
+  .chart-wrapper { position: relative; }
+
+  /* ── Granularity Toggle ── */
+  .granularity-btn {
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: #94a3b8;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.4rem 1rem;
+    border-radius: 0;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    letter-spacing: 0.04rem;
+  }
+  .granularity-btn:first-child { border-radius: 8px 0 0 8px; }
+  .granularity-btn:last-child  { border-radius: 0 8px 8px 0; }
+  .granularity-btn.active {
+    background: #3b82f6;
+    border-color: #3b82f6;
+    color: #fff;
+  }
+  .granularity-btn:hover:not(.active) { background: #334155; color: #e2e8f0; }
+
+  @media print {
+    .no-print { display: none !important; }
+    body { background: white !important; color: black !important; }
+  }
+</style>
+
+<!-- ═══════════════════════ PAGE HEADER ═══════════════════════ -->
+<div class="d-flex justify-content-between align-items-start mb-4 no-print flex-wrap gap-3">
+  <div>
+    <div class="report-section-title">myG Loyalty Intelligence Platform</div>
+    <h2 class="fw-bold m-0 text-white">Retail Loyalty Analytics Report</h2>
+    <div class="text-muted small mt-1">Comprehensive time-series analysis · Growth · Engagement · Retention</div>
+  </div>
+  <div class="d-flex flex-column align-items-end gap-2">
+    <!-- Action buttons -->
+    <div class="d-flex gap-2">
+      <button class="btn btn-outline-secondary btn-sm" onclick="window.print()">
+        <i class="bi bi-printer me-1"></i>Print
+      </button>
+      <button class="btn btn-outline-primary btn-sm" onclick="downloadRetailReport()">
+        <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ GENERATED STATIC LOYALTY REPORT ═══════════════════ -->
+<div class="report-section-title mb-2"><i class="bi bi-stars text-warning me-1"></i>Static Insight Report — Dec 2023 to Jan 2026</div>
+
+<!-- PART 1: KPI CARDS -->
+<div class="row g-3 mb-4">
+  <div class="col-12 col-md-6 col-lg-3">
+    <div class="kpi-card h-100 border-primary border-opacity-50">
+      <div class="report-section-title">Total Members (Latest)</div>
+      <div class="kpi-value text-white" id="kpi-total-members"><span class="spinner-border spinner-border-sm"></span></div>
+      <div class="kpi-sub mt-2 text-info" style="line-height:1.4"><i class="bi bi-info-circle me-1 text-primary"></i>Massive database expansion reflecting strong brand reach.</div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6 col-lg-3">
+    <div class="kpi-card h-100 border-success border-opacity-50">
+      <div class="report-section-title">Total Growth %</div>
+      <div class="kpi-value text-success">81.2%</div>
+      <div class="kpi-sub mt-2 text-info" style="line-height:1.4"><i class="bi bi-info-circle me-1 text-primary"></i>High compounding database growth since the end of 2023.</div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6 col-lg-3">
+    <div class="kpi-card h-100 border-info border-opacity-50">
+      <div class="report-section-title">Latest Monthly Customers</div>
+      <div class="kpi-value text-info">188,325</div>
+      <div class="kpi-sub mt-2 text-info" style="line-height:1.4"><i class="bi bi-info-circle me-1 text-primary"></i>Strong active customer engagement in January 2026.</div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6 col-lg-3">
+    <div class="kpi-card h-100">
+      <div class="report-section-title">Avg Monthly Customers</div>
+      <div class="kpi-value text-white">168,507</div>
+      <div class="kpi-sub mt-2 text-info" style="line-height:1.4"><i class="bi bi-info-circle me-1 text-primary"></i>Consistent and healthy baseline traffic month-over-month.</div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6 col-lg-3">
+    <div class="kpi-card h-100">
+      <div class="report-section-title">Avg New Members</div>
+      <div class="kpi-value text-white">83,209</div>
+      <div class="kpi-sub mt-2 text-info" style="line-height:1.4"><i class="bi bi-info-circle me-1 text-primary"></i>High monthly acquisition pace driving total database expansion.</div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6 col-lg-3">
+    <div class="kpi-card h-100 border-warning border-opacity-50">
+      <div class="report-section-title">Avg Repeat %</div>
+      <div class="kpi-value text-warning" id="kpi-avg-repeat"><span class="spinner-border spinner-border-sm"></span></div>
+      <div class="kpi-sub mt-2 text-info" style="line-height:1.4"><i class="bi bi-info-circle me-1 text-primary"></i>More than half of all monthly traffic comes from returning loyal customers.</div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6 col-lg-3">
+    <div class="kpi-card h-100 border-danger border-opacity-50">
+      <div class="report-section-title">Best Month</div>
+      <div class="kpi-value text-white" style="font-size:1.5rem">Sep-25</div>
+      <div class="kpi-label text-danger">302,089 Customers</div>
+      <div class="kpi-sub mt-2 text-info" style="line-height:1.4"><i class="bi bi-info-circle me-1 text-primary"></i>Massive seasonal surge driving all-time high in store footfall.</div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6 col-lg-3">
+    <div class="kpi-card h-100 border-success border-opacity-50">
+      <div class="report-section-title">Best Repeat Month</div>
+      <div class="kpi-value text-white" style="font-size:1.5rem">Oct-25</div>
+      <div class="kpi-label text-success">57% Repeat Rate</div>
+      <div class="kpi-sub mt-2 text-info" style="line-height:1.4"><i class="bi bi-info-circle me-1 text-primary"></i>Post-festive season successfully drove the highest retention engagement.</div>
+    </div>
+  </div>
+</div>
+
+<!-- MONTH ON MONTH MATRIX -->
+<div class="section-card mb-4" style="border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 12px; overflow: hidden; background: #0f172a; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);">
+  <div class="card-header d-flex justify-content-between align-items-center" style="background: linear-gradient(to right, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.9)); border-bottom: 1px solid rgba(59, 130, 246, 0.2); padding: 1.2rem 1.5rem;">
+    <div>
+      <h5 class="fw-bold text-white m-0 d-flex align-items-center" style="letter-spacing: 0.5px;">
+        <i class="bi bi-bar-chart-steps text-info me-2 fs-4"></i> Retail Loyalty Performance Matrix
+      </h5>
+      <div class="small text-muted mt-1" style="font-size: 0.75rem;">Interactive month-over-month compounding analytics</div>
+    </div>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive" style="max-height: 650px;">
+      <table class="table table-hover table-dark mb-0 align-middle" style="font-size: 0.85rem; border-color: #1e293b;">
+        <thead style="position: sticky; top: 0; z-index: 10; background-color: #0f172a; box-shadow: 0 2px 10px rgba(0,0,0,0.5);">
+          <tr class="text-uppercase text-muted" style="letter-spacing: 0.8px; font-size: 0.72rem; border-bottom: 2px solid #3b82f6;">
+            <th class="ps-4 py-3" style="background-color: #0f172a;">Month</th>
+            <th class="text-end py-3" style="background-color: #0f172a;">Total Members</th>
+            <th class="text-end py-3" style="background-color: #0f172a;">MoM Members %</th>
+            <th class="text-end py-3" style="background-color: #0f172a;">New Members</th>
+            <th class="text-end py-3" style="background-color: #0f172a;">Repeat Members</th>
+            <th class="text-end py-3" style="background-color: #0f172a;">Repeat %</th>
+            <th class="text-end pe-4 py-3" style="background-color: #0f172a;">Cumulative DB</th>
+          </tr>
+        </thead>
+        <tbody id="dynamic-matrix-body">
+          <tr><td colspan="7" class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Compiling matrix data from analytical engines...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════ JAVASCRIPT ═══════════════════ -->
+<script>
+const NUM = v => new Intl.NumberFormat('en-IN').format(v);
+
+async function syncCounts() {
+    try {
+        const fetchOpts = { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } };
+        // Sync static KPI counts (Top boxes) via Frequency API
+        const freqResp = await fetch(`/api/v1/customer-frequency/${window.location.search}`, fetchOpts);
+        const freq = await freqResp.json();
+        
+        let totalCustomers = 0, repeatCustomers = 0;
+        freq.forEach(d => {
+            totalCustomers += d.customers;
+            if (d.segment !== '1 Visit') repeatCustomers += d.customers;
+        });
+        
+        const repRate = totalCustomers > 0 ? (repeatCustomers / totalCustomers * 100) : 0;
+        const elTotal = document.getElementById('kpi-total-members');
+        if (elTotal) elTotal.innerText = NUM(totalCustomers);
+        const elRepeat = document.getElementById('kpi-avg-repeat');
+        if (elRepeat) elRepeat.innerText = repRate.toFixed(1) + '%';
+
+        // Load Retail Analytics Data to build the table
+        loadMatrixData();
+
+    } catch(e) {
+        console.error('API Error:', e);
+    }
+}
+
+const PCT = v => {
+    if (!v) return '<span class="text-muted">—</span>';
+    const num = parseFloat(v);
+    const color = num > 0 ? 'text-success' : (num < 0 ? 'text-danger' : 'text-muted');
+    return `<span class="fw-bold ${color}">${num > 0 ? '▲' : (num < 0 ? '▼' : '')} ${Math.abs(num).toFixed(2)}%</span>`;
+};
+
+async function loadMatrixData() {
+    try {
+        const tbody = document.getElementById('dynamic-matrix-body');
+        if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Processing advanced analytics...</td></tr>`;
+
+        const fetchOpts = { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } };
+        const res = await fetch(`/api/v1/retail-loyalty-advanced/${window.location.search}`, fetchOpts);
+        const data = await res.json();
+        const monthly = data.monthly || [];
+
+        if (monthly.length === 0) {
+            if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="text-center py-5 text-warning">Insufficient data for the selected period.</td></tr>`;
+            return;
+        }
+
+        // Add calculated fields (MoM %, Cumulative DB estimate based on previous knowledge if backend doesn't send db_size per month accurately)
+        // Note: The previous logic showed how we can derive MoM directly.
+        monthly.forEach((r, i) => {
+            if (i === 0) { 
+                r.mom_members = null; 
+                r.mom_visits = null; 
+            } else {
+                const prev = monthly[i - 1];
+                r.mom_members = prev.total_members ? ((r.total_members - prev.total_members) / prev.total_members * 100) : 0;
+                r.mom_visits = prev.total_visits ? ((r.total_visits - prev.total_visits) / prev.total_visits * 100) : 0;
+            }
+        });
+
+        // Some data might not send db_size smoothly (DuckDB requires rolling window), but we can estimate Cumulative DB 
+        // dynamically or use db_size if the backend API passes it properly. 
+        // In the user's screenshot, it's called 'Cumulative DB'.
+        // Assuming r.db_size exists. If it is undefined or 0, we can use a basic cumulative sum logic of new_members over an initial base.
+        let rollingDb = data.summary?.db_start || 0;
+
+        if (tbody) {
+            tbody.innerHTML = monthly.map((r, i) => {
+                rollingDb += r.new_members; // A rough fallback if db_size is inaccurate, though backend usually tracks it
+                const finalDb = r.db_size && r.db_size > 0 ? r.db_size : rollingDb;
+                
+                return `
+                <tr style="transition: all 0.2s;" onmouseover="this.style.backgroundColor='rgba(59, 130, 246, 0.05)'" onmouseout="this.style.backgroundColor='transparent'">
+                    <td class="ps-4 fw-bold text-info" style="font-family: monospace;">${r.month}</td>
+                    <td class="text-end fw-bold">${NUM(r.total_members)}</td>
+                    <td class="text-end" style="background: rgba(0,0,0,0.15)">${PCT(r.mom_members)}</td>
+                    <td class="text-end text-success">${NUM(r.new_members)}</td>
+                    <td class="text-end text-primary">${NUM(r.repeat_members)}</td>
+                    <td class="text-end text-white"><span class="badge ${r.repeat_pct >= 50 ? 'bg-success bg-opacity-25 text-success border border-success' : 'bg-secondary bg-opacity-25 text-light'}">${(r.repeat_pct || 0).toFixed(2)}%</span></td>
+                    <td class="pe-4 text-end text-light" style="font-family: monospace;">${NUM(finalDb)}</td>
+                </tr>
+                `;
+            }).join('');
+        }
+    } catch(e) {
+        console.error('Matrix Error:', e);
+        const tbody = document.getElementById('dynamic-matrix-body');
+        if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="text-center py-5 text-danger">Failed to load data.</td></tr>`;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    syncCounts();
+});
+
+window.addEventListener('filtersUpdated', (e) => {
+    syncCounts();
+});
+
+function downloadRetailReport() {
+    window.location.href = `/api/v1/download/retail-analytics/${window.location.search}`;
+}
+</script>
+{% endblock %}

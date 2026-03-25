@@ -1,0 +1,383 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+/* Custom Info Modal Styles */
+.custom-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+.custom-modal-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+.custom-modal-container {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 450px;
+    padding: 24px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+    transform: scale(0.9);
+    transition: all 0.3s ease;
+}
+.custom-modal-overlay.active .custom-modal-container {
+    transform: scale(1);
+}
+.custom-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+.close-modal-btn {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    font-size: 24px;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+.close-modal-btn:hover {
+    color: #f8fafc;
+}
+.segment-info-title {
+    color: #f8fafc;
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+.info-label {
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #64748b;
+    margin-bottom: 4px;
+}
+.info-content {
+    color: #cbd5e1;
+    margin-bottom: 20px;
+}
+.info-content.detailed {
+    font-size: 0.93rem;
+    line-height: 1.6;
+    opacity: 0.9;
+}
+.info-trigger {
+    cursor: pointer;
+    color: #94a3b8;
+    margin-left: 8px;
+    transition: color 0.2s;
+}
+.info-trigger:hover {
+    color: #3b82f6;
+}
+</style>
+
+<!-- Modal Structure -->
+<div id="segmentInfoOverlay" class="custom-modal-overlay" onclick="handleOverlayClick(event)">
+    <div class="custom-modal-container">
+        <div class="custom-modal-header">
+            <div id="modalSegmentName" class="segment-info-title">Segment Name</div>
+            <button class="close-modal-btn" onclick="closeSegmentInfo()">&times;</button>
+        </div>
+        <div>
+            <div class="info-label">Simple:</div>
+            <div id="modalSimpleDesc" class="info-content">Short explanation...</div>
+            
+            <div class="info-label">Detailed:</div>
+            <div id="modalDetailedDesc" class="info-content detailed">Longer business logic explanation here...</div>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold m-0">RFM Segmentation</h2>
+    <button id="export-btn" class="btn btn-success" onclick="downloadExport()">
+        <i class="bi bi-file-earmark-excel"></i> Export Excel
+    </button>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-header pb-0 border-0">
+                <h5 class="card-title mb-0">Customer Distribution by Segment</h5>
+            </div>
+            <div class="card-body d-flex justify-content-center align-items-center">
+                <canvas id="rfmChart" style="max-height: 300px;"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <div class="card h-100">
+            <div class="card-header pb-0 border-0">
+                <h5 class="card-title mb-0">Segment Details</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush" id="segment-list">
+                    <!-- Populated dynamically -->
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header pb-0 border-0 d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Monetary Quintile Analysis</h5>
+                <small class="text-muted">Breakdown of customers by spend volume</small>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Spend Quintile</th>
+                                <th class="text-end">Customer Count</th>
+                                <th class="text-end">Avg Spend per Customer</th>
+                            </tr>
+                        </thead>
+                        <tbody id="quintile-table-body">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let rfmChart = null;
+    let currentFilterStr = "";
+
+    const segmentExplanations = {
+        'Champions': {
+            simple: 'Best customers – recent, frequent, and high spending',
+            detailed: 'Customers who purchased recently (R=4–5), buy frequently (F=4–5), and spend the most (M=4–5). These are top-value customers driving maximum revenue and loyalty.'
+        },
+        'Loyal': {
+            simple: 'Regular repeat customers with good spending',
+            detailed: 'Customers who purchased within the last year (R=3–5), have multiple visits (F=3–5), and moderate to high spending (M=3–5). These are stable and reliable customers.'
+        },
+        'New': {
+            simple: 'Recently joined customers with low purchase count',
+            detailed: 'Customers who purchased recently (R=4–5) but have low frequency (F=1–2). These are early-stage customers with strong potential to grow.'
+        },
+        'At Risk': {
+            simple: 'High-value customers who haven’t visited for a while',
+            detailed: 'Customers with low recency (R=1–2) but high frequency and spending (F≥3, M≥3). These are high-value customers at high risk of churn.'
+        },
+        'Lost': {
+            simple: 'Inactive customers who haven’t purchased for long',
+            detailed: 'Customers with very low recency (R=1) and low engagement. They have not purchased for a long time and are likely churned.'
+        },
+        'Others': {
+            simple: 'Customers who don’t fit specific high-value or lost categories',
+            detailed: 'A combination of average, potential, and mid-engagement customers. These are stable users who may require general engagement but aren’t currently in a critical risk or high-growth phase.'
+        }
+    };
+
+    const segmentTooltips = {
+        'Champions': 'Visited last 6 month, 4 and more than 4 purchase, high spending',
+        'Loyal': 'Visited last 1 year, 3 and more than 3 purchase, medium to high spend',
+        'New': 'Visited last 6 month, 1-2 purchase',
+        'At Risk': 'Visited between 1 and 2 year, 3 and more than 3 purchase, medium to high spending',
+        'Lost': 'Not visited 2+ years',
+        'Others': 'Visited last 2 year,1 or 2 purchase.'
+    };
+
+    function showSegmentInfo(segment) {
+        const info = segmentExplanations[segment];
+        if (!info) return;
+        
+        document.getElementById('modalSegmentName').textContent = segment;
+        document.getElementById('modalSimpleDesc').textContent = info.simple;
+        document.getElementById('modalDetailedDesc').textContent = info.detailed;
+        
+        document.getElementById('segmentInfoOverlay').classList.add('active');
+        document.body.style.overflow = 'hidden'; // Prevent scrolling
+    }
+
+    function closeSegmentInfo() {
+        document.getElementById('segmentInfoOverlay').classList.remove('active');
+        document.body.style.overflow = ''; // Restore scrolling
+    }
+
+    function handleOverlayClick(e) {
+        if (e.target.id === 'segmentInfoOverlay') {
+            closeSegmentInfo();
+        }
+    }
+
+    // Close on ESC
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && document.getElementById('segmentInfoOverlay').classList.contains('active')) {
+            closeSegmentInfo();
+        }
+    });
+
+    // Mark nav link active
+    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+    const rfmLink = document.querySelector('.nav-link[href*="rfm"]');
+    if (rfmLink) rfmLink.classList.add('active');
+
+    function downloadExport(segment = null, btnId = 'export-btn') {
+        const btn = document.getElementById(btnId);
+        const originalHtml = btn ? btn.innerHTML : '';
+        if (btn) btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+        if (btn) btn.classList.add('disabled');
+        
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        let url = '/api/v1/download/rfm/?' + currentFilterStr;
+        if (segment) {
+            url += currentFilterStr ? `&segment=${encodeURIComponent(segment)}` : `segment=${encodeURIComponent(segment)}`;
+        }
+        a.href = url;
+        a.download = segment ? `rfm_${segment.toLowerCase().replace(' ', '_')}_export.xlsx` : 'rfm_export.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        
+        setTimeout(() => {
+            document.body.removeChild(a);
+            if (btn) btn.innerHTML = originalHtml;
+            if (btn) btn.classList.remove('disabled');
+        }, 3000);
+    }
+
+    async function loadRFMData(filterStr = "") {
+        if (typeof window.showLoading === 'function') window.showLoading();
+        currentFilterStr = filterStr;
+        try {
+            const response = await fetch(`/api/v1/rfm-segments/?${filterStr}`);
+            if (!response.ok) throw new Error('API request failed');
+            const data = await response.json();
+            
+            if (!Array.isArray(data)) {
+                console.error('Invalid data format received:', data);
+                return;
+            }
+            
+            const labels = data.map(d => d.segment);
+            const values = data.map(d => d.count);
+            
+            const colorMap = {
+                'Champions': '#10b981',
+                'Loyal': '#3b82f6',
+                'New': '#f59e0b',
+                'At Risk': '#f97316',
+                'Lost': '#ef4444',
+                'Others': '#64748b'
+            };
+            const bgColors = labels.map(l => colorMap[l] || '#64748b');
+
+            if (rfmChart) rfmChart.destroy();
+            
+            const ctx = document.getElementById('rfmChart').getContext('2d');
+            rfmChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: bgColors,
+                        borderWidth: 0,
+                        hoverOffset: 10
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    cutout: '65%',
+                    plugins: {
+                        legend: { position: 'right', labels: { color: '#f8fafc' } }
+                    }
+                }
+            });
+
+            const list = document.getElementById('segment-list');
+            list.innerHTML = '';
+            const total = values.reduce((a, b) => a + b, 0);
+            
+            data.forEach(d => {
+                const perc = total > 0 ? ((d.count / total) * 100).toFixed(1) : 0;
+                const safeSeg = d.segment.replace(' ', '-');
+                list.innerHTML += `
+                    <li class="list-group-item bg-transparent text-white d-flex justify-content-between align-items-center px-0 py-3 border-secondary">
+                        <div style="flex: 1">
+                            <span class="badge" style="background-color: ${colorMap[d.segment] || '#64748b'}">&nbsp;</span>
+                            <span class="ms-2 fw-semibold">${d.segment}</span>
+                            <span class="info-trigger" onclick="showSegmentInfo('${d.segment}')" title="Click for details">
+                                <i class="bi bi-info-circle"></i>
+                            </span>
+                            <span class="ms-1 text-muted" title="${segmentTooltips[d.segment] || ''}" style="cursor:help;">
+                                <i class="bi bi-eye"></i>
+                            </span>
+                            <div class="small text-muted mt-1 ms-4 d-flex gap-3">
+                                <span><i class="bi bi-currency-rupee"></i>${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(d.total_revenue || 0)} Vol</span>
+                                <span><i class="bi bi-currency-rupee"></i>${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(d.avg_revenue || 0)} Avg</span>
+                            </div>
+                        </div>
+                        <div class="text-end me-3">
+                            <div class="fw-bold">${new Intl.NumberFormat('en-IN').format(d.count)}</div>
+                            <small class="text-muted">${perc}%</small>
+                        </div>
+                        <div>
+                            <button id="btn-${safeSeg}" class="btn btn-sm btn-outline-success" onclick="downloadExport('${d.segment}', 'btn-${safeSeg}')" title="Download ${d.segment} customers">
+                                <i class="bi bi-cloud-arrow-down"></i>
+                            </button>
+                        </div>
+                    </li>
+                `;
+            });
+            
+            // Fetch and render Monetary Quintiles
+            const quintileResponse = await fetch(`/api/v1/monetary-quintiles/?${filterStr}`);
+            if (quintileResponse.ok) {
+                const quintileData = await quintileResponse.json();
+                const qBody = document.getElementById('quintile-table-body');
+                qBody.innerHTML = '';
+                
+                quintileData.forEach(q => {
+                    qBody.innerHTML += `
+                        <tr>
+                            <td class="fw-semibold text-info">${q.label}</td>
+                            <td class="text-end">${new Intl.NumberFormat('en-IN').format(q.count)}</td>
+                            <td class="text-end fw-bold">
+                                <i class="bi bi-currency-rupee"></i>${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(q.avg_spend)}
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+
+        } catch(e) {
+            console.error('RFM Load Error:', e);
+        } finally {
+            if (typeof window.hideLoading === 'function') window.hideLoading();
+        }
+    }
+
+    loadRFMData();
+
+    window.addEventListener('filtersUpdated', (e) => {
+        loadRFMData(e.detail);
+    });
+</script>
+{% endblock %}

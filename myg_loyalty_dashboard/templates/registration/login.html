@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - myG Loyalty Analytics</title>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; }
+        .form-control { background-color: #0f172a; border-color: #334155; color: #f8fafc; }
+        .form-control:focus { background-color: #1e293b; border-color: #3b82f6; color: #fff; box-shadow: 0 0 0 0.25rem rgba(59, 130, 246, 0.25); }
+    </style>
+</head>
+<body class="d-flex align-items-center justify-content-center" style="height: 100vh;">
+    <div class="card p-5" style="width: 100%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+        <div class="text-center mb-4">
+            <h3 class="fw-bold mb-0">myG <span class="text-primary">Loyalty</span></h3>
+            <p class="text-muted">Analytics Dashboard Login</p>
+        </div>
+        
+        {% if form.errors %}
+        <div class="alert alert-danger py-2 border-0 bg-danger text-white bg-opacity-25 text-center">
+            Invalid username or password.
+        </div>
+        {% endif %}
+        
+        <form method="post" action="{% url 'login' %}">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label class="form-label text-muted small text-uppercase">Username</label>
+                <input type="text" name="username" class="form-control py-2" required autofocus>
+            </div>
+            <div class="mb-4">
+                <label class="form-label text-muted small text-uppercase">Password</label>
+                <input type="password" name="password" class="form-control py-2" required>
+            </div>
+            <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">Sign In</button>
+            <input type="hidden" name="next" value="{{ next|default:'/' }}">
+        </form>
+    </div>
+</body>
+</html>

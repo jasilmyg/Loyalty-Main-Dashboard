@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold m-0">Discount Analysis</h2>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-12">
+        <div class="card h-100">
+            <div class="card-header pb-0 border-0">
+                <h5 class="card-title mb-0">Discount Usage Overview</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="discBarChart" style="height: 400px;"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let barChart = null;
+    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+    document.querySelector('.nav-link[href="{% url 'discounts' %}"]').classList.add('active');
+
+    async function loadData(filterStr = "") {
+        window.showLoading();
+        try {
+            const response = await fetch(`/api/v1/discount-analysis/?${filterStr}`);
+            const data = await response.json();
+            
+            const dist = data.distribution;
+            const entries = Object.entries(dist).sort((a,b) => b[1] - a[1]);
+            const labels = entries.map(e => e[0]);
+            const values = entries.map(e => e[1]);
+            
+            if(barChart) barChart.destroy();
+            const ctx = document.getElementById('discBarChart').getContext('2d');
+            barChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Discount Value',
+                        data: values,
+                        backgroundColor: '#ec4899',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                        x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                    }
+                }
+            });
+        } catch(e) {
+            console.error(e);
+        } finally {
+            if (typeof window.hideLoading === 'function') window.hideLoading();
+        }
+    }
+
+    loadData();
+    window.addEventListener('filtersUpdated', (e) => loadData(e.detail));
+</script>
+{% endblock %}

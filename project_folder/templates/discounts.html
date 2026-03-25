@@ -1,0 +1,47 @@
+{% extends "layout.html" %}
+
+{% block title %}Discount Analysis{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6">
+        <div class="card p-3">
+            <h5 class="card-title">Discount Impact Categories</h5>
+            <canvas id="discountImpactChart" height="400"></canvas>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card p-3">
+            <h5 class="card-title">Regional Discount Usage (Top Branches)</h5>
+            <canvas id="branchDiscountChart" height="400"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+    const impactCtx = document.getElementById('discountImpactChart').getContext('2d');
+    new Chart(impactCtx, {
+        type: 'polarArea',
+        data: {
+            labels: {{ discounts.impact | map(attribute='Category') | list | safe }},
+            datasets: [{
+                data: {{ discounts.impact | map(attribute='Value') | list | safe }},
+                backgroundColor: ['#0d6efd', '#6610f2', '#6f42c1', '#d63384', '#dc3545', '#fd7e14', '#ffc107']
+            }]
+        }
+    });
+
+    const branchCtx = document.getElementById('branchDiscountChart').getContext('2d');
+    new Chart(branchCtx, {
+        type: 'bar',
+        data: {
+            labels: {{ discounts.branch_discount | map(attribute='Branch') | list | safe }},
+            datasets: [{
+                label: 'Total Discount Given',
+                data: {{ discounts.branch_discount | map(attribute='Discount') | list | safe }},
+                backgroundColor: '#dc3545'
+            }]
+        }
+    });
+</script>
+{% endblock %}

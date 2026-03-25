@@ -1,0 +1,35 @@
+{% extends "layout.html" %}
+
+{% block title %}Staff Performance{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card p-3">
+            <h5 class="card-title">Staff Leaderboard (By Total Sales)</h5>
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Staff Name</th>
+                            <th>Total Sales</th>
+                            <th>Invoices</th>
+                            <th>ATV</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in staff %}
+                        <tr>
+                            <td>{{ s.Staff }}</td>
+                            <td class="fw-bold">₹{{ "{:,.0f}".format(s['Total Value']) }}</td>
+                            <td>{{ s['Invoice Number'] }}</td>
+                            <td>₹{{ "{:,.0f}".format(s['ATV']) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

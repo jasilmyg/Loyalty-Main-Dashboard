@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="mb-4">
+    <h2 class="fw-bold m-0">Staff Performance</h2>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header pb-0 border-0">
+        <h5 class="card-title mb-0">Staff Leaderboard (Top 50)</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Staff Name</th>
+                        <th>Staff Code</th>
+                        <th class="text-end">Sales Value</th>
+                        <th class="text-center">Invoices</th>
+                        <th class="text-end">ATV</th>
+                    </tr>
+                </thead>
+                <tbody id="staff-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+    document.querySelector('.nav-link[href="{% url 'staff' %}"]').classList.add('active');
+
+    async function loadData(filterStr = "") {
+        window.showLoading();
+        try {
+            const response = await fetch(`/api/v1/staff-performance/?${filterStr}`);
+            const data = await response.json();
+            
+            const tbody = document.getElementById('staff-tbody');
+            tbody.innerHTML = '';
+            
+            data.forEach((row, idx) => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td>#${idx + 1}</td>
+                        <td><i class="bi bi-person-badge text-primary me-2"></i> ${row.staff}</td>
+                        <td>${row.code || '-'}</td>
+                        <td class="text-end fw-bold text-success">${formatCurrency(row.sales)}</td>
+                        <td class="text-center">${row.invoices}</td>
+                        <td class="text-end">${formatCurrency(row.atv)}</td>
+                    </tr>
+                `;
+            });
+        } catch(e) {
+            console.error(e);
+        } finally {
+            if (typeof window.hideLoading === 'function') window.hideLoading();
+        }
+    }
+
+    loadData();
+    window.addEventListener('filtersUpdated', (e) => loadData(e.detail));
+</script>
+{% endblock %}

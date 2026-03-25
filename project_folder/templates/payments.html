@@ -1,0 +1,53 @@
+{% extends "layout.html" %}
+
+{% block title %}Payment Analytics{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6">
+        <div class="card p-3">
+            <h5 class="card-title">Payment Method Distribution</h5>
+            <canvas id="paymentDistChart" height="400"></canvas>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card p-3">
+            <h5 class="card-title">Finance vs Cash Usage</h5>
+            <canvas id="financeVsCashChart" height="400"></canvas>
+            <div class="mt-4">
+                <p><strong>Finance:</strong> ₹{{ "{:,.0f}".format(payments.finance_vs_cash.Finance) }}</p>
+                <p><strong>Cash:</strong> ₹{{ "{:,.0f}".format(payments.finance_vs_cash.Cash) }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Payment Distribution
+    const distCtx = document.getElementById('paymentDistChart').getContext('2d');
+    new Chart(distCtx, {
+        type: 'bar',
+        data: {
+            labels: {{ payments.distribution | map(attribute='Payment Type') | list | safe }},
+            datasets: [{
+                label: 'Total Value',
+                data: {{ payments.distribution | map(attribute='Total Value') | list | safe }},
+                backgroundColor: '#0d6efd'
+            }]
+        }
+    });
+
+    // Finance vs Cash
+    const fvcCtx = document.getElementById('financeVsCashChart').getContext('2d');
+    new Chart(fvcCtx, {
+        type: 'pie',
+        data: {
+            labels: ['Finance', 'Cash'],
+            datasets: [{
+                data: [{{ payments.finance_vs_cash.Finance }}, {{ payments.finance_vs_cash.Cash }}],
+                backgroundColor: ['#6610f2', '#198754']
+            }]
+        }
+    });
+</script>
+{% endblock %}

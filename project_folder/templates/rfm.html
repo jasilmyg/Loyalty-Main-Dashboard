@@ -1,0 +1,57 @@
+{% extends "layout.html" %}
+
+{% block title %}RFM Segmentation{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card p-3">
+            <h5 class="card-title">Customer Segments</h5>
+            <canvas id="rfmSegmentChart" height="300"></canvas>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <div class="card p-3">
+            <h5 class="card-title">RFM Scoring (Preview)</h5>
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Mobile</th>
+                            <th>Recency (Days)</th>
+                            <th>Frequency</th>
+                            <th>Monetary</th>
+                            <th>Segment</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rfm.data %}
+                        <tr>
+                            <td>{{ row['Customer Mobile'] }}</td>
+                            <td>{{ row['Recency'] }}</td>
+                            <td>{{ row['Frequency'] }}</td>
+                            <td>₹{{ "{:,.0f}".format(row['Monetary']) }}</td>
+                            <td><span class="badge bg-secondary">{{ row['Segment'] }}</span></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const segmentCtx = document.getElementById('rfmSegmentChart').getContext('2d');
+    new Chart(segmentCtx, {
+        type: 'pie',
+        data: {
+            labels: {{ rfm.segments | map(attribute='index') | list | safe }},
+            datasets: [{
+                data: {{ rfm.segments | map(attribute='count') | list | safe }},
+                backgroundColor: ['#198754', '#0d6efd', '#ffc107', '#dc3545', '#6c757d']
+            }]
+        }
+    });
+</script>
+{% endblock %}

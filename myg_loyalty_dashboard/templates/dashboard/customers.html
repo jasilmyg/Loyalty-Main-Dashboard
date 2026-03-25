@@ -1,0 +1,325 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold m-0">Customer Analytics</h2>
+    <button id="freq-export-btn" class="btn btn-success" onclick="downloadReport()">
+        <i class="bi bi-file-earmark-excel"></i> <span id="export-btn-label">Download Report</span>
+    </button>
+</div>
+
+<div class="row g-4 mb-4">
+    <!-- Stat Cards -->
+    <div class="col-md-4">
+        <div class="card stat-card p-4 h-100">
+            <div class="stat-label">Total Customers</div>
+            <div class="stat-value" id="c-total">0</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card p-4 h-100">
+            <div class="stat-label">Repeat Customers</div>
+            <div class="stat-value" id="c-repeat">0</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card p-4 h-100">
+            <div class="stat-label">Repeat Purchase Rate</div>
+            <div class="stat-value" id="c-rate">0%</div>
+        </div>
+    </div>
+</div>
+
+<!-- Segment Summary -->
+<div class="row g-4 mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header pb-0 border-0">
+                <h5 class="card-title mb-0">Segment Summary</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover align-middle mb-0 small">
+                        <thead>
+                            <tr>
+                                <th>Segment</th>
+                                <th class="text-end">Customers</th>
+                                <th class="text-end">Cust %</th>
+                                <th class="text-end">Net Revenue</th>
+                                <th class="text-end">Rev %</th>
+                                <th class="text-end">ASP</th>
+                                <th class="text-center">Download</th>
+                            </tr>
+                        </thead>
+                        <tbody id="freq-tbody">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Frequency of Purchase Distribution -->
+<div class="row g-4 mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header pb-0 border-0 d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Frequency of Purchase Distribution</h5>
+                <small class="text-muted">Same-day multi-buys = 1 visit</small>
+            </div>
+            <div class="card-body">
+                <canvas id="freqBarChart" style="height: 300px;"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let freqChart = null;
+    let currentFilterStr = "";
+
+    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+    const custLink = document.querySelector('.nav-link[href*="customers"]');
+    if (custLink) custLink.classList.add('active');
+
+    async function downloadReport() {
+        const btn = document.getElementById('freq-export-btn');
+        const label = document.getElementById('export-btn-label');
+        if (label) label.textContent = 'Preparing...';
+        if (btn) btn.disabled = true;
+        
+        try {
+            const timestamp = new Date().getTime();
+            const downloadUrl = `/api/v1/download/customer-frequency/?${currentFilterStr}&_t=${timestamp}`;
+            
+            const response = await fetch(downloadUrl);
+            if (!response.ok) throw new Error('Network response was not ok');
+            
+            const blob = await response.blob();
+            // Force the correct Excel MIME type
+            const excelBlob = new Blob([blob], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            
+            const url = window.URL.createObjectURL(excelBlob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = 'customer_frequency_report.xlsx';
+            document.body.appendChild(a);
+            a.click();
+            
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (error) {
+            console.error('Download failed:', error);
+            alert('Failed to download report. Please try again.');
+        } finally {
+            if (label) label.textContent = 'Download Report';
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    const INR = v => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(v);
+    const NUM = v => new Intl.NumberFormat('en-IN').format(v);
+
+    async function loadCustomerData(filterStr = "") {
+        window.showLoading();
+        currentFilterStr = filterStr;
+        try {
+            const fetchOpts = { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } };
+
+            // Fetch frequency data first (fast, reliable)
+            const freqResp = await fetch(`/api/v1/customer-frequency/?${filterStr}`, fetchOpts);
+            const freq = await freqResp.json();
+
+            // Compute KPIs directly from frequency distribution data
+            // "1 Visit" segment = single-visit customers; all other segments = repeat customers
+            let totalCustomers = 0;
+            let repeatCustomers = 0;
+            freq.forEach(d => {
+                totalCustomers += d.customers;
+                if (d.segment !== '1 Visit') {
+                    repeatCustomers += d.customers;
+                }
+            });
+            const repeatRate = totalCustomers > 0 ? (repeatCustomers / totalCustomers * 100) : 0;
+
+            // Update KPI stat cards
+            document.getElementById('c-total').innerText = NUM(totalCustomers);
+            document.getElementById('c-repeat').innerText = NUM(repeatCustomers);
+            document.getElementById('c-rate').innerText = repeatRate.toFixed(1) + '%';
+
+            // Frequency bar chart
+            const labels = freq.map(d => d.segment);
+            const custCounts = freq.map(d => d.customers);
+            const colors = [
+                '#6366f1','#3b82f6','#0ea5e9','#06b6d4','#10b981',
+                '#84cc16','#eab308','#f97316','#ef4444'
+            ];
+
+            if (freqChart) freqChart.destroy();
+            const ctx = document.getElementById('freqBarChart').getContext('2d');
+            freqChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Customers',
+                        data: custCounts,
+                        backgroundColor: colors,
+                        borderRadius: 5,
+                        borderSkipped: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                afterLabel: (ctx2) => {
+                                    const d = freq[ctx2.dataIndex];
+                                    return [
+                                        `Cust %: ${d.cust_pct}%`,
+                                        `Revenue: ${INR(d.net_revenue)}`,
+                                        `Rev %: ${d.rev_pct}%`,
+                                        `ASP: ${INR(d.asp)}`
+                                    ];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 11 } } }
+                    }
+                }
+            });
+
+            // Frequency summary table
+            const ftbody = document.getElementById('freq-tbody');
+            ftbody.innerHTML = '';
+            freq.forEach((d, i) => {
+                const btnId = `dl-btn-${i}`;
+                ftbody.innerHTML += `
+                    <tr>
+                        <td><span class="badge" style="background:${colors[i % colors.length]}">&nbsp;</span> ${d.segment}</td>
+                        <td class="text-end">${NUM(d.customers)}</td>
+                        <td class="text-end">${d.cust_pct}%</td>
+                        <td class="text-end">${INR(d.net_revenue)}</td>
+                        <td class="text-end">${d.rev_pct}%</td>
+                        <td class="text-end">${INR(d.asp)}</td>
+                        <td class="text-center">
+                            <button id="${btnId}"
+                                class="btn btn-sm btn-outline-success"
+                                onclick="downloadSegment('${d.segment}', ${d.customers}, '${btnId}')"
+                                title="Download customer list for ${d.segment}">
+                                <i class="bi bi-cloud-arrow-down"></i>
+                            </button>
+                        </td>
+                    </tr>`;
+            });
+
+        } catch(e) {
+            console.error(e);
+        } finally {
+            if (typeof window.hideLoading === 'function') window.hideLoading();
+        }
+    }
+
+    loadCustomerData();
+
+    window.addEventListener('filtersUpdated', (e) => {
+        loadCustomerData(e.detail);
+    });
+
+    // ── Per-segment customer download ──────────────────────────────────────
+    async function downloadSegment(segment, customerCount, btnId) {
+        const btn = document.getElementById(btnId);
+        if (!btn || btn.disabled) return;
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+        try {
+            const ts  = Date.now();
+            const qs  = currentFilterStr ? `&${currentFilterStr}` : '';
+            const base = `/api/v1/download/segment-customers/?segment=${encodeURIComponent(segment)}${qs}&_t=${ts}`;
+
+            // Step 1: ask how many parts
+            const infoResp = await fetch(`${base}&part=0`);
+            if (!infoResp.ok) throw new Error('Failed to get part info');
+            const info = await infoResp.json();
+            const totalParts = info.total_parts;
+
+            if (totalParts > 1) {
+                showToast(`${segment}: downloading ${totalParts} parts…`);
+            }
+
+            // Step 2: download each part sequentially
+            for (let p = 1; p <= totalParts; p++) {
+                if (totalParts > 1) {
+                    btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> ${p}/${totalParts}`;
+                }
+                const resp = await fetch(`${base}&part=${p}`);
+                if (!resp.ok) throw new Error(`Part ${p} failed`);
+                const blob = await resp.blob();
+                const excelBlob = new Blob([blob], {
+                    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                });
+                const safeSeg = segment.replace(/ /g, '-');
+                const url = window.URL.createObjectURL(excelBlob);
+                const a   = document.createElement('a');
+                a.style.display = 'none';
+                a.href     = url;
+                a.download = totalParts > 1
+                    ? `customers_${safeSeg}_part${p}.xlsx`
+                    : `customers_${safeSeg}.xlsx`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+                // small pause between parts so browser can process
+                if (p < totalParts) await new Promise(r => setTimeout(r, 800));
+            }
+
+            if (totalParts > 1) showToast(`${segment}: all ${totalParts} parts downloaded ✓`, 'success');
+
+        } catch (err) {
+            console.error('Segment download failed:', err);
+            alert(`Download failed for "${segment}". Please try again.`);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-cloud-arrow-down"></i>';
+        }
+    }
+
+    function showToast(message, type = 'info') {
+        // Remove existing toast if any
+        const existing = document.getElementById('seg-dl-toast');
+        if (existing) existing.remove();
+
+        const bg = type === 'success' ? '#198754' : '#0d6efd';
+        const toast = document.createElement('div');
+        toast.id = 'seg-dl-toast';
+        toast.style.cssText = `
+            position:fixed; bottom:24px; right:24px; z-index:9999;
+            background:${bg}; color:#fff; padding:12px 20px;
+            border-radius:8px; font-size:14px; font-weight:500;
+            box-shadow:0 4px 12px rgba(0,0,0,.35);
+            transition:opacity .3s;`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 400);
+        }, 4000);
+    }
+</script>
+{% endblock %}
