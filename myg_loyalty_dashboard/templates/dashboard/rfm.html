@@ -9,7 +9,7 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(30, 41, 59, 0.5);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -23,13 +23,13 @@
     visibility: visible;
 }
 .custom-modal-container {
-    background: #1e293b;
-    border: 1px solid #334155;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
     border-radius: 12px;
     width: 90%;
     max-width: 450px;
     padding: 24px;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
     transform: scale(0.9);
     transition: all 0.3s ease;
 }
@@ -45,16 +45,16 @@
 .close-modal-btn {
     background: none;
     border: none;
-    color: #94a3b8;
+    color: #64748b;
     font-size: 24px;
     cursor: pointer;
     transition: color 0.2s;
 }
 .close-modal-btn:hover {
-    color: #f8fafc;
+    color: #1e293b;
 }
 .segment-info-title {
-    color: #f8fafc;
+    color: #1e293b;
     font-size: 1.25rem;
     font-weight: 700;
 }
@@ -66,7 +66,7 @@
     margin-bottom: 4px;
 }
 .info-content {
-    color: #cbd5e1;
+    color: #475569;
     margin-bottom: 20px;
 }
 .info-content.detailed {
@@ -109,6 +109,39 @@
     </button>
 </div>
 
+<div class="row mb-4">
+    <div class="col-md-6 mb-3 mb-md-0">
+        <div class="card h-100 shadow-sm border-0" style="border-radius: 12px; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+            <div class="card-body p-4 d-flex align-items-center">
+                <div class="rounded-circle bg-white bg-opacity-25 d-flex align-items-center justify-content-center me-3" style="width: 56px; height: 56px; flex-shrink: 0;">
+                    <i class="bi bi-people-fill text-white fs-3"></i>
+                </div>
+                <div>
+                    <h6 class="text-white text-opacity-75 mb-1 fw-semibold text-uppercase" style="letter-spacing: 0.5px; font-size: 0.8rem;">Total Customer</h6>
+                    <h3 class="mb-0 fw-bold text-white d-flex align-items-center" id="kpi-total-customers">
+                        <div class="spinner-border spinner-border-sm text-light" role="status"></div>
+                    </h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100 shadow-sm border-0" style="border-radius: 12px; background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+            <div class="card-body p-4 d-flex align-items-center">
+                <div class="rounded-circle bg-white bg-opacity-25 d-flex align-items-center justify-content-center me-3" style="width: 56px; height: 56px; flex-shrink: 0;">
+                    <i class="bi bi-graph-up-arrow text-white fs-3"></i>
+                </div>
+                <div>
+                    <h6 class="text-white text-opacity-75 mb-1 fw-semibold text-uppercase" style="letter-spacing: 0.5px; font-size: 0.8rem;">Total Sale</h6>
+                    <h3 class="mb-0 fw-bold text-white d-flex align-items-center" id="kpi-total-sales">
+                        <div class="spinner-border spinner-border-sm text-light" role="status"></div>
+                    </h3>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row g-4">
     <div class="col-md-4">
         <div class="card h-100">
@@ -143,12 +176,13 @@
             </div>
             <div class="card-body">
                 <div class="table-responsive">
-                    <table class="table table-dark table-hover mb-0">
+                    <table class="table table-hover mb-0">
                         <thead>
                             <tr>
                                 <th>Spend Quintile</th>
                                 <th class="text-end">Customer Count</th>
                                 <th class="text-end">Avg Spend per Customer</th>
+                                <th class="text-end">% of Total Spend</th>
                             </tr>
                         </thead>
                         <tbody id="quintile-table-body">
@@ -160,10 +194,74 @@
         </div>
     </div>
 </div>
+
+<div class="row mt-4 mb-4">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header pb-0 border-0 d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">RFM Scoring Criteria</h5>
+                <small class="text-muted">How points are calculated</small>
+            </div>
+            <div class="card-body d-flex flex-column">
+                <div class="table-responsive flex-grow-1">
+                    <table class="table table-sm table-bordered mb-0 text-center align-middle h-100" style="font-size: 0.85rem;">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Points</th>
+                                <th>Recency (R)</th>
+                                <th>Frequency (F)</th>
+                                <th>Monetary (M)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><span class="badge bg-secondary">5</span></td><td>&le; 90 days</td><td>5+ Visits</td><td>Top 20%</td></tr>
+                            <tr><td><span class="badge bg-secondary">4</span></td><td>91 - 180 days</td><td>4 Visits</td><td>Next 20%</td></tr>
+                            <tr><td><span class="badge bg-secondary">3</span></td><td>181 - 365 days</td><td>3 Visits</td><td>Middle 20%</td></tr>
+                            <tr><td><span class="badge bg-secondary">2</span></td><td>1 - 2 Years</td><td>2 Visits</td><td>Lower 20%</td></tr>
+                            <tr><td><span class="badge bg-secondary">1</span></td><td>2+ Years</td><td>1 Visit</td><td>Bottom 20%</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header pb-0 border-0 d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Segment Point Matrix</h5>
+                <small class="text-muted">Category requirements</small>
+            </div>
+            <div class="card-body d-flex flex-column">
+                <div class="table-responsive flex-grow-1">
+                    <table class="table table-sm table-bordered mb-0 text-center align-middle h-100" style="font-size: 0.85rem;">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="text-start">Segment</th>
+                                <th>R Score</th>
+                                <th>F Score</th>
+                                <th>M Score</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td class="text-start"><span class="badge" style="background-color: #10b981;">Champions</span></td><td>&ge; 4</td><td>&ge; 4</td><td>&ge; 4</td></tr>
+                            <tr><td class="text-start"><span class="badge" style="background-color: #3b82f6;">Loyal</span></td><td>&ge; 3</td><td>&ge; 3</td><td>&ge; 3</td></tr>
+                            <tr><td class="text-start"><span class="badge" style="background-color: #f59e0b;">New</span></td><td>&ge; 4</td><td>&le; 2</td><td>Any</td></tr>
+                            <tr><td class="text-start"><span class="badge" style="background-color: #f97316;">At Risk</span></td><td>2</td><td>&ge; 3</td><td>&ge; 3</td></tr>
+                            <tr><td class="text-start"><span class="badge" style="background-color: #ef4444;">Lost</span></td><td>1</td><td>Any</td><td>Any</td></tr>
+                            <tr><td class="text-start"><span class="badge" style="background-color: #64748b;">Others</span></td><td colspan="3" class="text-muted fst-italic">All other combinations</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
+    const NUM = v => new Intl.NumberFormat('en-IN').format(v);
+    
     let rfmChart = null;
     let currentFilterStr = "";
 
@@ -200,7 +298,7 @@
         'New': 'Visited last 6 month, 1-2 purchase',
         'At Risk': 'Visited between 1 and 2 year, 3 and more than 3 purchase, medium to high spending',
         'Lost': 'Not visited 2+ years',
-        'Others': 'Visited last 2 year,1 or 2 purchase.'
+        'Others': 'Not falling other categories.'
     };
 
     function showSegmentInfo(segment) {
@@ -266,14 +364,31 @@
         if (typeof window.showLoading === 'function') window.showLoading();
         currentFilterStr = filterStr;
         try {
-            const response = await fetch(`/api/v1/rfm-segments/?${filterStr}`);
-            if (!response.ok) throw new Error('API request failed');
-            const data = await response.json();
+            const [rfmResponse, quintileResponse] = await Promise.all([
+                fetch(`/api/v1/rfm-segments/?${filterStr}`),
+                fetch(`/api/v1/monetary-quintiles/?${filterStr}`)
+            ]);
+
+            if (!rfmResponse.ok) throw new Error('RFM API request failed');
+            const data = await rfmResponse.json();
             
             if (!Array.isArray(data)) {
                 console.error('Invalid data format received:', data);
                 return;
             }
+            
+            // Calculate aggregations for KPI top cards
+            let totalCustomers = 0;
+            let totalSales = 0;
+            data.forEach(d => {
+                totalCustomers += (d.count || 0);
+                totalSales += (d.total_revenue || 0);
+            });
+            
+            const kpiCust = document.getElementById('kpi-total-customers');
+            const kpiSales = document.getElementById('kpi-total-sales');
+            if (kpiCust) kpiCust.innerText = NUM(totalCustomers);
+            if (kpiSales) kpiSales.innerText = '₹ ' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(totalSales);
             
             const labels = data.map(d => d.segment);
             const values = data.map(d => d.count);
@@ -306,7 +421,7 @@
                     responsive: true,
                     cutout: '65%',
                     plugins: {
-                        legend: { position: 'right', labels: { color: '#f8fafc' } }
+                        legend: { position: 'right', labels: { color: '#475569' } }
                     }
                 }
             });
@@ -319,7 +434,7 @@
                 const perc = total > 0 ? ((d.count / total) * 100).toFixed(1) : 0;
                 const safeSeg = d.segment.replace(' ', '-');
                 list.innerHTML += `
-                    <li class="list-group-item bg-transparent text-white d-flex justify-content-between align-items-center px-0 py-3 border-secondary">
+                    <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center px-0 py-3 border-light">
                         <div style="flex: 1">
                             <span class="badge" style="background-color: ${colorMap[d.segment] || '#64748b'}">&nbsp;</span>
                             <span class="ms-2 fw-semibold">${d.segment}</span>
@@ -347,14 +462,22 @@
                 `;
             });
             
-            // Fetch and render Monetary Quintiles
-            const quintileResponse = await fetch(`/api/v1/monetary-quintiles/?${filterStr}`);
+            // Render Monetary Quintiles
             if (quintileResponse.ok) {
                 const quintileData = await quintileResponse.json();
                 const qBody = document.getElementById('quintile-table-body');
                 qBody.innerHTML = '';
                 
+                // Calculate total spend across all quintiles
+                let totalQuintileSpend = 0;
                 quintileData.forEach(q => {
+                    totalQuintileSpend += (q.avg_spend * q.count);
+                });
+                
+                quintileData.forEach(q => {
+                    const groupSpend = q.avg_spend * q.count;
+                    const spendPerc = totalQuintileSpend > 0 ? ((groupSpend / totalQuintileSpend) * 100).toFixed(1) : 0;
+                    
                     qBody.innerHTML += `
                         <tr>
                             <td class="fw-semibold text-info">${q.label}</td>
@@ -362,6 +485,7 @@
                             <td class="text-end fw-bold">
                                 <i class="bi bi-currency-rupee"></i>${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(q.avg_spend)}
                             </td>
+                            <td class="text-end fw-semibold text-secondary">${spendPerc}%</td>
                         </tr>
                     `;
                 });

@@ -112,6 +112,22 @@ def main():
                 read_t = time.time() - start_read
                 
                 if not df.empty:
+                    # ── Permanent exclusion filters ──────────────────────────
+                    # Remove SMC/EI invoice numbers
+                    if 'Invoice Number' in df.columns:
+                        before = len(df)
+                        df = df[~df['Invoice Number'].astype(str).str.contains('SMC|EI', na=False, regex=True)]
+                        removed = before - len(df)
+                        if removed:
+                            print(f"  - Excluded {removed:,} SMC/EI invoice rows.", flush=True)
+                    # Remove HEAD OFFICE and UG SMART CHOICE branches
+                    if 'Branch' in df.columns:
+                        before = len(df)
+                        df = df[~df['Branch'].astype(str).str.upper().str.strip().isin(['HEAD OFFICE', 'UG SMART CHOICE'])]
+                        removed = before - len(df)
+                        if removed:
+                            print(f"  - Excluded {removed:,} HEAD OFFICE/UG SMART CHOICE rows.", flush=True)
+                    # ────────────────────────────────────────────────────────
                     df['source_file'] = file_name
                     write_mode = 'replace' if processed_count == 0 else 'append'
                     start_write = time.time()

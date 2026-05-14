@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="fw-bold text-dark m-0 d-flex align-items-center">
+            <i class="bi bi-phone-vibrate text-danger me-2"></i> Invalid Mobile Numbers
+        </h3>
+        <p class="text-muted mt-1 mb-0">Records excluded from analytics due to missing or invalid (non-numeric) mobile numbers.</p>
+    </div>
+    <div>
+        <button id="btn-export" class="btn btn-success px-4" onclick="exportData()">
+            <i class="bi bi-file-earmark-excel me-2"></i> Export to Excel
+        </button>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-4">
+        <div class="card stat-card border-danger border-start border-4">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="stat-label">Total Invalid Records</div>
+                    <div class="p-2 bg-danger bg-opacity-10 rounded-circle">
+                        <i class="bi bi-exclamation-triangle text-danger fs-5"></i>
+                    </div>
+                </div>
+                <div class="stat-value text-danger" id="kpi-total-invalid">-</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header bg-white p-4">
+        <h5 class="m-0 fw-bold"><i class="bi bi-list-columns-reverse me-2"></i> Sample Invalid Records <span class="badge bg-secondary ms-2" style="font-size:0.75rem;">Showing top 50,000</span></h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+            <table class="table table-hover align-middle mb-0">
+                <thead style="position: sticky; top: 0; background-color: #f8fafc; z-index: 10;">
+                    <tr class="text-uppercase text-muted" style="font-size: 0.75rem; letter-spacing: 0.5px;">
+                        <th class="ps-4 py-3">Raw Mobile Value</th>
+                        <th class="py-3">Customer Name</th>
+                        <th class="py-3">Branch</th>
+                        <th class="py-3">Sale Date</th>
+                        <th class="py-3">Invoice Number</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                    <tr><td colspan="5" class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Loading invalid records...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const NUM = v => new Intl.NumberFormat('en-IN').format(v);
+
+    async function loadData() {
+        const tbody = document.getElementById('table-body');
+        const kpi = document.getElementById('kpi-total-invalid');
+        
+        try {
+            const res = await fetch(`/api/v1/invalid-mobiles-list/`);
+            if (!res.ok) throw new Error('Network response was not ok');
+            const data = await res.json();
+            
+            kpi.innerText = NUM(data.total);
+            
+            if (!data.rows || data.rows.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-5 text-success"><i class="bi bi-check-circle me-2"></i>No invalid records found!</td></tr>`;
+                return;
+            }
+            
+            let html = '';
+            data.rows.forEach(r => {
+                html += `
+                <tr>
+                    <td class="ps-4 text-danger fw-bold" style="font-family: monospace;">${r.raw_mobile || '<span class="text-muted fst-italic">NULL</span>'}</td>
+                    <td>${r.customer_name || '<span class="text-muted fst-italic">Unknown</span>'}</td>
+                    <td>${r.branch}</td>
+                    <td>${r.sale_date}</td>
+                    <td><span class="badge bg-light text-dark border">${r.invoice_number}</span></td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        } catch(e) {
+            console.error('Error fetching invalid mobiles:', e);
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center py-5 text-danger">Failed to load invalid records.</td></tr>`;
+            kpi.innerText = 'Error';
+        }
+    }
+
+    function exportData() {
+        const btn = document.getElementById('btn-export');
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Downloading...';
+        btn.disabled = true;
+        
+        // Export endpoint
+        const url = `/api/v1/download/invalid-mobiles/`;
+        window.location.href = url;
+        
+        setTimeout(() => {
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        }, 2000);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadData();
+    });
+    
+    window.addEventListener('filtersUpdated', (e) => {
+        // We do not filter this specific view by date/branch currently, but we could if needed.
+        loadData();
+    });
+</script>
+{% endblock %}

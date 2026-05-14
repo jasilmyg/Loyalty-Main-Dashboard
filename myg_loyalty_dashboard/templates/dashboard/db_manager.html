@@ -1,0 +1,519 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+  /* ── Page chrome ────────────────────────────────────────────── */
+  #db-lock-screen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 70vh;
+  }
+  .lock-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+    padding: 2.5rem 2.8rem;
+    width: 100%;
+    max-width: 420px;
+    text-align: center;
+  }
+  .lock-card .lock-icon {
+    font-size: 3rem;
+    color: #ef4444;
+    margin-bottom: 1rem;
+  }
+  .lock-card h4 { font-weight: 700; color: #1e293b; margin-bottom: .25rem; }
+  .lock-card p.sub { color: #64748b; font-size: .875rem; margin-bottom: 1.5rem; }
+
+  /* ── Toolbar ────────────────────────────────────────────────── */
+  .dbm-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    align-items: center;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+  .dbm-toolbar .stat-badge {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: .35rem .85rem;
+    font-size: .8rem;
+    font-weight: 600;
+    color: #475569;
+    white-space: nowrap;
+  }
+  .dbm-toolbar .stat-badge span { color: #3b82f6; font-size: .95rem; }
+
+  /* ── Table ──────────────────────────────────────────────────── */
+  .dbm-table-wrap {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+    overflow: hidden;
+  }
+  .dbm-table-wrap .table-scroll {
+    overflow-x: auto;
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+  #db-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .8rem;
+    min-width: 900px;
+  }
+  #db-table thead th {
+    position: sticky;
+    top: 0;
+    background: #1e293b;
+    color: #f8fafc;
+    font-weight: 600;
+    padding: .65rem .9rem;
+    white-space: nowrap;
+    border-right: 1px solid #334155;
+    z-index: 2;
+    cursor: pointer;
+    user-select: none;
+  }
+  #db-table thead th:hover { background: #334155; }
+  #db-table thead th .sort-icon { font-size: .7rem; margin-left: .3rem; opacity: .5; }
+  #db-table tbody tr { border-bottom: 1px solid #f1f5f9; transition: background .15s; }
+  #db-table tbody tr:hover { background: #f8fafc; }
+  #db-table tbody td {
+    padding: .55rem .9rem;
+    color: #334155;
+    white-space: nowrap;
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-right: 1px solid #f1f5f9;
+  }
+  #db-table tbody td:first-child { font-weight: 600; color: #1e293b; }
+
+  /* ── Pagination ─────────────────────────────────────────────── */
+  .dbm-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: .75rem;
+    padding: 1rem 1.25rem;
+    border-top: 1px solid #e2e8f0;
+    background: #f8fafc;
+  }
+  .dbm-pagination .page-info { font-size: .8rem; color: #64748b; }
+  .page-btns { display: flex; gap: .3rem; flex-wrap: wrap; }
+  .page-btns button {
+    min-width: 2.2rem;
+    height: 2.2rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 7px;
+    background: #fff;
+    color: #475569;
+    font-size: .8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .2s;
+    padding: 0 .5rem;
+  }
+  .page-btns button:hover:not(:disabled) { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+  .page-btns button.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+  .page-btns button:disabled { opacity: .35; cursor: not-allowed; }
+  .page-btns .ellipsis {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 2.2rem; height: 2.2rem; color: #94a3b8; font-size: .85rem;
+  }
+  .page-jump-wrap { display: flex; align-items: center; gap: .5rem; }
+  .page-jump-wrap label { font-size: .8rem; color: #64748b; white-space: nowrap; }
+  .page-jump-wrap input {
+    width: 70px;
+    height: 2.2rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 7px;
+    padding: 0 .5rem;
+    font-size: .85rem;
+    text-align: center;
+  }
+  .page-jump-wrap button {
+    height: 2.2rem;
+    padding: 0 .9rem;
+    border: none;
+    border-radius: 7px;
+    background: #3b82f6;
+    color: #fff;
+    font-size: .8rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  /* ── Empty / error states ───────────────────────────────────── */
+  .dbm-empty {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #94a3b8;
+  }
+  .dbm-empty i { font-size: 2.5rem; display: block; margin-bottom: .5rem; }
+
+  /* ── Loading shimmer ────────────────────────────────────────── */
+  @keyframes shimmer { 0%{background-position:-800px 0} 100%{background-position:800px 0} }
+  .shimmer-row td {
+    background: linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);
+    background-size: 800px 100%;
+    animation: shimmer 1.4s infinite;
+    color: transparent !important;
+    border-radius: 4px;
+  }
+</style>
+
+<!-- ══════════════════ PASSWORD GATE ══════════════════ -->
+<div id="db-lock-screen">
+  <div class="lock-card">
+    <div class="lock-icon"><i class="bi bi-database-lock"></i></div>
+    <h4>DB Manager</h4>
+    <p class="sub">Enter the access password to view the database records.</p>
+    <div class="mb-3 position-relative">
+      <input type="password" id="db-pwd-input" class="form-control text-center"
+             placeholder="••••••••••••" autocomplete="off"
+             style="letter-spacing:.15em; font-size:1rem; border-radius:10px;">
+      <button onclick="togglePwd()" class="btn btn-link position-absolute end-0 top-0 h-100 px-3"
+              style="text-decoration:none; color:#64748b;" tabindex="-1">
+        <i class="bi bi-eye" id="pwd-eye-icon"></i>
+      </button>
+    </div>
+    <div id="pwd-error" class="text-danger small mb-2 d-none">
+      <i class="bi bi-exclamation-triangle me-1"></i>Incorrect password. Try again.
+    </div>
+    <button id="unlock-btn" class="btn btn-danger w-100 py-2 fw-bold"
+            style="border-radius:10px;" onclick="unlockDB()">
+      <i class="bi bi-unlock me-2"></i>Unlock
+    </button>
+    <p class="mt-3 mb-0" style="font-size:.75rem; color:#94a3b8;">
+      <i class="bi bi-shield-lock me-1"></i>Restricted access — authorised users only
+    </p>
+  </div>
+</div>
+
+<!-- ══════════════════ MAIN DB MANAGER ══════════════════ -->
+<div id="db-manager-main" class="d-none">
+
+  <!-- Header row -->
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+      <h4 class="fw-bold mb-0" style="color:#1e293b;">
+        <i class="bi bi-database-fill me-2 text-danger"></i>DB Manager
+      </h4>
+      <small class="text-muted">Full read-only view of <code>sales_data</code></small>
+    </div>
+    <button class="btn btn-outline-secondary btn-sm" onclick="lockDB()">
+      <i class="bi bi-lock me-1"></i>Lock
+    </button>
+  </div>
+
+  <!-- Toolbar: stats + search -->
+  <div class="dbm-toolbar">
+    <div class="stat-badge">Total Rows: <span id="stat-total">—</span></div>
+    <div class="stat-badge">Page: <span id="stat-page">—</span> / <span id="stat-pages">—</span></div>
+    <div class="stat-badge">Showing: <span id="stat-from">—</span>–<span id="stat-to">—</span></div>
+    <div class="ms-auto d-flex gap-2 flex-wrap">
+      <select id="search-col" class="form-select form-select-sm" style="width:180px; border-radius:8px;">
+        <option value="">All columns</option>
+      </select>
+      <div class="input-group input-group-sm" style="width:260px;">
+        <input type="text" id="search-input" class="form-control" placeholder="Search…"
+               style="border-radius:8px 0 0 8px;" onkeydown="if(event.key==='Enter') doSearch()">
+        <button class="btn btn-primary" onclick="doSearch()" style="border-radius:0 8px 8px 0;">
+          <i class="bi bi-search"></i>
+        </button>
+      </div>
+      <button class="btn btn-outline-secondary btn-sm" onclick="clearSearch()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="dbm-table-wrap">
+    <div class="table-scroll">
+      <table id="db-table">
+        <thead id="db-thead"><tr><th>Loading…</th></tr></thead>
+        <tbody id="db-tbody">
+          {% for i in "12345678910" %}
+          <tr class="shimmer-row"><td colspan="1">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="dbm-pagination">
+      <div class="page-info" id="page-info-text">Loading…</div>
+      <div class="page-btns" id="page-btns"></div>
+      <div class="page-jump-wrap">
+        <label>Go to page</label>
+        <input type="number" id="jump-input" min="1" value="1"
+               onkeydown="if(event.key==='Enter') jumpToPage()">
+        <button onclick="jumpToPage()">Go</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ────────────────────────────────────────────────────────────
+   State
+   ──────────────────────────────────────────────────────────── */
+let _pwd        = '';
+let _page       = 1;
+let _totalPages = 1;
+let _totalRows  = 0;
+let _columns    = [];
+let _loading    = false;
+
+/* ────────────────────────────────────────────────────────────
+   Lock / unlock
+   ──────────────────────────────────────────────────────────── */
+function togglePwd() {
+  const inp = document.getElementById('db-pwd-input');
+  const ico = document.getElementById('pwd-eye-icon');
+  if (inp.type === 'password') { inp.type = 'text';     ico.className = 'bi bi-eye-slash'; }
+  else                         { inp.type = 'password'; ico.className = 'bi bi-eye'; }
+}
+
+function unlockDB() {
+  const pwd = document.getElementById('db-pwd-input').value.trim();
+  if (!pwd) return;
+  document.getElementById('unlock-btn').innerHTML =
+    '<span class="spinner-border spinner-border-sm me-2"></span>Verifying…';
+  document.getElementById('unlock-btn').disabled = true;
+
+  // Verify by making the first real request
+  _pwd = pwd;
+  fetchPage(1, true).then(ok => {
+    if (ok) {
+      document.getElementById('db-lock-screen').classList.add('d-none');
+      document.getElementById('db-manager-main').classList.remove('d-none');
+    } else {
+      _pwd = '';
+      document.getElementById('pwd-error').classList.remove('d-none');
+      document.getElementById('unlock-btn').innerHTML = '<i class="bi bi-unlock me-2"></i>Unlock';
+      document.getElementById('unlock-btn').disabled = false;
+    }
+  });
+}
+
+function lockDB() {
+  _pwd = '';
+  _page = 1;
+  document.getElementById('db-manager-main').classList.add('d-none');
+  document.getElementById('db-lock-screen').classList.remove('d-none');
+  document.getElementById('db-pwd-input').value = '';
+  document.getElementById('pwd-error').classList.add('d-none');
+  document.getElementById('unlock-btn').innerHTML = '<i class="bi bi-unlock me-2"></i>Unlock';
+  document.getElementById('unlock-btn').disabled = false;
+}
+
+document.getElementById('db-pwd-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') unlockDB();
+});
+
+/* ────────────────────────────────────────────────────────────
+   Fetch helpers
+   ──────────────────────────────────────────────────────────── */
+function buildURL(page) {
+  const search = document.getElementById('search-input').value.trim();
+  const col    = document.getElementById('search-col').value;
+  let url = `/api/v1/db-manager/?db_password=${encodeURIComponent(_pwd)}&page=${page}`;
+  if (search) url += `&search=${encodeURIComponent(search)}`;
+  if (search && col) url += `&col=${encodeURIComponent(col)}`;
+  return url;
+}
+
+async function fetchPage(page, returnOk = false) {
+  if (_loading) return;
+  _loading = true;
+  _page = page;
+
+  showSkeletons();
+
+  try {
+    const res  = await fetch(buildURL(page));
+    const data = await res.json();
+
+    if (res.status === 403 || data.error) {
+      _loading = false;
+      return returnOk ? false : null;
+    }
+
+    _columns    = data.columns;
+    _totalRows  = data.total_rows;
+    _totalPages = data.total_pages;
+
+    renderTable(data.columns, data.rows);
+    renderStats(data);
+    renderPagination(data.page, data.total_pages, data.total_rows, data.page_size);
+    populateColFilter(data.columns);
+
+    _loading = false;
+    return returnOk ? true : null;
+
+  } catch (err) {
+    console.error('DB Manager fetch error', err);
+    _loading = false;
+    return returnOk ? false : null;
+  }
+}
+
+/* ────────────────────────────────────────────────────────────
+   Render
+   ──────────────────────────────────────────────────────────── */
+function showSkeletons() {
+  const tbody = document.getElementById('db-tbody');
+  tbody.innerHTML = Array.from({length: 15}, () =>
+    `<tr class="shimmer-row">${Array.from({length: Math.max(_columns.length, 8)}, () => '<td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td>').join('')}</tr>`
+  ).join('');
+}
+
+function renderTable(columns, rows) {
+  // Head
+  const thead = document.getElementById('db-thead');
+  thead.innerHTML = '<tr>' + columns.map((c, i) =>
+    `<th onclick="sortBy(${i})">${escHtml(c)} <span class="sort-icon">⇅</span></th>`
+  ).join('') + '</tr>';
+
+  // Body
+  const tbody = document.getElementById('db-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="${columns.length}">
+      <div class="dbm-empty"><i class="bi bi-inbox"></i>No records found.</div>
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(row =>
+    '<tr>' + row.map((val, i) => {
+      const safe = escHtml(val === null ? '—' : String(val));
+      return `<td title="${safe}">${safe}</td>`;
+    }).join('') + '</tr>'
+  ).join('');
+}
+
+function renderStats(data) {
+  const from = (data.page - 1) * data.page_size + 1;
+  const to   = Math.min(data.page * data.page_size, data.total_rows);
+  document.getElementById('stat-total').textContent = data.total_rows.toLocaleString('en-IN');
+  document.getElementById('stat-page').textContent  = data.page;
+  document.getElementById('stat-pages').textContent = data.total_pages.toLocaleString('en-IN');
+  document.getElementById('stat-from').textContent  = from.toLocaleString('en-IN');
+  document.getElementById('stat-to').textContent    = to.toLocaleString('en-IN');
+  document.getElementById('page-info-text').textContent =
+    `Showing ${from.toLocaleString('en-IN')}–${to.toLocaleString('en-IN')} of ${data.total_rows.toLocaleString('en-IN')} records`;
+  document.getElementById('jump-input').max = data.total_pages;
+}
+
+/* ── Pagination button bar (first, prev, …pages…, next, last) ── */
+function renderPagination(page, totalPages, totalRows, pageSize) {
+  const wrap = document.getElementById('page-btns');
+  wrap.innerHTML = '';
+
+  function btn(label, target, disabled = false, active = false, isIcon = false) {
+    const b = document.createElement('button');
+    b.innerHTML = isIcon ? label : label;
+    b.disabled  = disabled;
+    if (active) b.classList.add('active');
+    if (!disabled) b.onclick = () => fetchPage(target);
+    wrap.appendChild(b);
+  }
+
+  function ellipsis() {
+    const span = document.createElement('span');
+    span.className = 'ellipsis';
+    span.textContent = '…';
+    wrap.appendChild(span);
+  }
+
+  // First / Prev
+  btn('«', 1,        page <= 1);
+  btn('‹', page - 1, page <= 1);
+
+  // Smart page window
+  const delta = 2;
+  let lo = Math.max(1, page - delta);
+  let hi = Math.min(totalPages, page + delta);
+
+  // Expand window so we always show 5 buttons when possible
+  if (hi - lo < delta * 2) {
+    if (lo === 1) hi = Math.min(totalPages, lo + delta * 2);
+    else          lo = Math.max(1, hi - delta * 2);
+  }
+
+  if (lo > 1)          { btn('1', 1); if (lo > 2) ellipsis(); }
+  for (let p = lo; p <= hi; p++) btn(String(p), p, false, p === page);
+  if (hi < totalPages) { if (hi < totalPages - 1) ellipsis(); btn(String(totalPages), totalPages); }
+
+  // Next / Last
+  btn('›', page + 1, page >= totalPages);
+  btn('»', totalPages, page >= totalPages);
+}
+
+/* ────────────────────────────────────────────────────────────
+   Search / sort / jump helpers
+   ──────────────────────────────────────────────────────────── */
+function populateColFilter(columns) {
+  const sel = document.getElementById('search-col');
+  if (sel.options.length > 1) return;  // already populated
+  columns.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    sel.appendChild(opt);
+  });
+}
+
+function doSearch() {
+  fetchPage(1);
+}
+
+function clearSearch() {
+  document.getElementById('search-input').value = '';
+  document.getElementById('search-col').value   = '';
+  fetchPage(1);
+}
+
+function jumpToPage() {
+  const v = parseInt(document.getElementById('jump-input').value, 10);
+  if (!isNaN(v) && v >= 1 && v <= _totalPages) fetchPage(v);
+}
+
+let _sortCol = null, _sortDir = 1;
+function sortBy(colIdx) {
+  // Client-side sort of the current page only
+  if (_sortCol === colIdx) _sortDir *= -1;
+  else { _sortCol = colIdx; _sortDir = 1; }
+
+  const tbody = document.getElementById('db-tbody');
+  const rows  = Array.from(tbody.querySelectorAll('tr:not(.shimmer-row)'));
+  rows.sort((a, b) => {
+    const av = a.cells[colIdx]?.textContent ?? '';
+    const bv = b.cells[colIdx]?.textContent ?? '';
+    const an = parseFloat(av.replace(/,/g, '')), bn = parseFloat(bv.replace(/,/g, ''));
+    if (!isNaN(an) && !isNaN(bn)) return (an - bn) * _sortDir;
+    return av.localeCompare(bv) * _sortDir;
+  });
+  rows.forEach(r => tbody.appendChild(r));
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+{% endblock %}

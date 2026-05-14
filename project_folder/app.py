@@ -48,6 +48,37 @@ def get_analytics():
         _analytics = AnalyticsService('combined_data.db')
     return _analytics
 
+# ─── Template context: inject current_user for all templates ─────────────────
+@app.context_processor
+def inject_current_user():
+    """Make `current_user` available in every Jinja2 template.
+    Mirrors the Flask-Login interface (current_user.role, current_user.username,
+    current_user.is_authenticated) so layout.html works without Flask-Login."""
+    class _User:
+        def __init__(self, user_id, username, role):
+            self.id = user_id
+            self.username = username
+            self.role = role
+            self.is_authenticated = user_id is not None
+
+    uid = session.get('user_id')
+    role = session.get('role', '')
+    username = session.get('username', '')
+
+    # Lazy-fetch username from DB if not cached in session yet
+    if uid and not username:
+        try:
+            con = _get_users_conn()
+            row = con.execute("SELECT username FROM users WHERE id=?", (uid,)).fetchone()
+            con.close()
+            if row:
+                username = row[0]
+                session['username'] = username  # cache for subsequent requests
+        except Exception:
+            pass
+
+    return dict(current_user=_User(uid, username, role))
+
 # ─── Auth helpers ─────────────────────────────────────────────────────────────
 def login_required(f):
     from functools import wraps
@@ -79,6 +110,7 @@ def login():
         if row:
             session['user_id'] = row[0]
             session['role'] = row[1]
+            session['username'] = username   # cache for context_processor
             return redirect(url_for('dashboard'))
         flash('Invalid username or password')
     return render_template('login.html')

@@ -30,3 +30,12 @@ class LoyaltyGapView(LoginRequiredMixin, TemplateView):
 
 class RetailAnalyticsView(LoginRequiredMixin, TemplateView):
     template_name = 'dashboard/retail_analytics.html'
+
+class InvalidMobilesView(LoginRequiredMixin, TemplateView):
+    template_name = 'dashboard/invalid_mobiles.html'
+
+class DBManagerView(LoginRequiredMixin, TemplateView):
+    template_name = 'dashboard/db_manager.html'
+
+class ReactDashboardView(LoginRequiredMixin, TemplateView):
+    template_name = 'dashboard/react_dashboard.html'

@@ -12,4 +12,7 @@ urlpatterns = [
     path('branches/', views.BranchView.as_view(), name='branches'),
     path('loyalty-gap/', views.LoyaltyGapView.as_view(), name='loyalty_gap'),
     path('retail-analytics/', views.RetailAnalyticsView.as_view(), name='retail_analytics'),
+    path('invalid-mobiles/', views.InvalidMobilesView.as_view(), name='invalid_mobiles'),
+    path('db-manager/', views.DBManagerView.as_view(), name='db_manager'),
+    path('react-dashboard/', views.ReactDashboardView.as_view(), name='react_dashboard'),
 ]

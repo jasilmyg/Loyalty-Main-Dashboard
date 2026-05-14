@@ -1,3 +1,4 @@
+import threading
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -5,9 +6,20 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from .services import AnalyticsService
 
+# ── Singleton AnalyticsService ─────────────────────────────────────────────────
+# Creating a new DuckDB+PostgreSQL connection on every request costs 2-5 seconds.
+# We create ONE instance at startup and reuse it safely across threads.
+_svc_instance = None
+_svc_lock = threading.Lock()
+
 def get_analytics():
-    """Create a fresh AnalyticsService per request to avoid stale DuckDB connections."""
-    return AnalyticsService()
+    """Return the shared AnalyticsService instance (created once at startup)."""
+    global _svc_instance
+    if _svc_instance is None:
+        with _svc_lock:
+            if _svc_instance is None:
+                _svc_instance = AnalyticsService()
+    return _svc_instance
 
 def get_filters(request):
     """Extract standard filters from GET parameters."""
@@ -18,6 +30,7 @@ def get_filters(request):
         'staff': request.GET.get('staff'),
         'rbm': request.GET.get('rbm'),
         'bdm': request.GET.get('bdm'),
+        'period': request.GET.get('period', 'monthly'),
     }
     
     # Simple Role-Based Access Control logic
@@ -29,7 +42,7 @@ def get_filters(request):
 
 class SalesOverviewAPI(APIView):
     permission_classes = [IsAuthenticated]
-    # @method_decorator(cache_page(60 * 15))
+    @method_decorator(cache_page(60 * 15)) # Cache for 15 minutes
     def get(self, request):
         data = get_analytics().get_sales_overview(get_filters(request))
         return Response(data)
@@ -43,12 +56,14 @@ class CustomerAnalyticsAPI(APIView):
 
 class RFMAnalysisAPI(APIView):
     permission_classes = [IsAuthenticated]
+    @method_decorator(cache_page(60 * 15))
     def get(self, request):
         data = get_analytics().perform_rfm_analysis(get_filters(request))
         return Response(data)
 
 class MonetaryQuintilesAPI(APIView):
     permission_classes = [IsAuthenticated]
+    @method_decorator(cache_page(60 * 15))
     def get(self, request):
         data = get_analytics().get_monetary_quintiles(get_filters(request))
         return Response(data)
@@ -104,24 +119,28 @@ class FrequencyDistributionAPI(APIView):
 
 class LoyaltyOverviewAPI(APIView):
     permission_classes = [IsAuthenticated]
+    @method_decorator(cache_page(60 * 15))
     def get(self, request):
         data = get_analytics().get_loyalty_overview_kpis(get_filters(request))
         return Response(data)
 
 class GapAnalysisAPI(APIView):
     permission_classes = [IsAuthenticated]
+    @method_decorator(cache_page(60 * 15))
     def get(self, request):
         data = get_analytics().get_gap_segmentation(get_filters(request))
         return Response(data)
 
 class LoyaltySegmentationAPI(APIView):
     permission_classes = [IsAuthenticated]
+    @method_decorator(cache_page(60 * 15))
     def get(self, request):
         data = get_analytics().get_customer_segmentation_matrix(get_filters(request))
         return Response(data)
 
 class ActionEngineAPI(APIView):
     permission_classes = [IsAuthenticated]
+    @method_decorator(cache_page(60 * 15))
     def get(self, request):
         data = get_analytics().get_action_engine_data(get_filters(request))
         return Response(data)
@@ -148,9 +167,26 @@ class RetailLoyaltyReportAPI(APIView):
 
 class RetailLoyaltyAdvancedReportAPI(APIView):
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 15))
+    @method_decorator(cache_page(60 * 30))  # 30-minute cache
     def get(self, request):
-        data = get_analytics().get_retail_loyalty_advanced_report(get_filters(request))
+        return Response(get_analytics().get_retail_loyalty_advanced_report(get_filters(request)))
+
+class FYLoyaltyReportAPI(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        data = get_analytics().get_fy_loyalty_report(get_filters(request))
+        return Response(data)
+
+class FYSalesReportAPI(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        data = get_analytics().get_fy_sales_report(get_filters(request))
+        return Response(data)
+
+class InvalidMobilesAPI(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        data = get_analytics().get_invalid_mobiles()
         return Response(data)
 
 class BranchesAPI(APIView):
@@ -159,6 +195,114 @@ class BranchesAPI(APIView):
     def get(self, request):
         data = get_analytics().get_unique_branches()
         return Response(data)
+
+import psycopg2
+
+class DBManagerAPI(APIView):
+    """
+    Paginated full-data viewer for the DB Manager section.
+    Fetches data DIRECTLY from remote PostgreSQL via psycopg2.
+    Returns:  { columns, rows, page, page_size, total_rows, total_pages }
+    """
+    permission_classes = [IsAuthenticated]
+    DB_PASSWORD = os.environ.get('DB_MANAGER_PASSWORD', 'myGLoyalty@2024')
+    PAGE_SIZE   = 100
+
+    def get_pg_conn(self):
+        import django.conf
+        db = django.conf.settings.DATABASES['default']
+        return psycopg2.connect(
+            host=db['HOST'],
+            port=db['PORT'],
+            dbname=db['NAME'],
+            user=db['USER'],
+            password=db['PASSWORD'],
+            sslmode='require',
+            connect_timeout=10
+        )
+
+    def get(self, request):
+        # ── Password gate ──────────────────────────────────────────────
+        pwd = request.GET.get('db_password', '')
+        if pwd != self.DB_PASSWORD:
+            return Response({'error': 'Unauthorized', 'detail': 'Invalid password'}, status=403)
+
+        # ── Pagination ─────────────────────────────────────────────────
+        try:
+            page = max(1, int(request.GET.get('page', 1)))
+        except (ValueError, TypeError):
+            page = 1
+
+        page_size = self.PAGE_SIZE
+        offset    = (page - 1) * page_size
+
+        # ── Search / filter ────────────────────────────────────────────
+        search     = (request.GET.get('search') or '').strip()
+        col_filter = (request.GET.get('col')    or '').strip()
+
+        where_clause = "1=1"
+        params = []
+        if search:
+            like_val = f'%{search}%'
+            if col_filter:
+                where_clause = f'CAST("{col_filter}" AS VARCHAR) ILIKE %s'
+                params = [like_val]
+            else:
+                where_clause = (
+                    '"Customer Name"    ILIKE %s OR '
+                    'CAST("Customer Mobile" AS VARCHAR) ILIKE %s OR '
+                    '"Invoice Number"   ILIKE %s OR '
+                    '"Branch"           ILIKE %s'
+                )
+                params = [like_val] * 4
+
+        try:
+            conn = self.get_pg_conn()
+            cur  = conn.cursor()
+
+            # ── Total count ────────────────────────────────────────────
+            count_sql = f'SELECT COUNT(*) FROM sales_data WHERE {where_clause}'
+            cur.execute(count_sql, params)
+            total_rows  = cur.fetchone()[0] or 0
+            total_pages = max(1, -(-total_rows // page_size))
+
+            # ── Data fetch ─────────────────────────────────────────────
+            data_sql = (
+                f'SELECT * FROM sales_data WHERE {where_clause} '
+                f'ORDER BY "Date" DESC '
+                f'LIMIT {page_size} OFFSET {offset}'
+            )
+            cur.execute(data_sql, params)
+            columns = [desc[0] for desc in cur.description]
+            rows    = cur.fetchall()
+
+            cur.close()
+            conn.close()
+
+            # Serialize: convert any non-JSON-safe types to strings
+            def _safe(v):
+                if v is None:
+                    return None
+                if isinstance(v, (int, float, str, bool)):
+                    return v
+                return str(v)
+
+            return Response({
+                'columns':     columns,
+                'rows':        [[_safe(c) for c in row] for row in rows],
+                'page':        page,
+                'page_size':   page_size,
+                'total_rows':  total_rows,
+                'total_pages': total_pages,
+            })
+
+        except Exception as exc:
+            import traceback
+            return Response(
+                {'error': 'DB query failed', 'detail': str(exc)},
+                status=500
+            )
+
 
 import io
 from django.http import HttpResponse
@@ -295,15 +439,102 @@ def export_view(request, module):
         return _build_xlsx_response(filename, display_headers, rows)
 
     elif module == 'retail-analytics':
-        rows_data = svc.get_retail_loyalty_report(filters)
-        headers = ['Month', 'Total Members', 'MoM Members %', 'Visits', 'MoM Visits %', 
-                   'New Members', 'Repeat Members', 'Engagement Rate', 'Repeat %', 'Cumulative DB']
+        rows_data, db_start = svc.get_retail_loyalty_matrix(filters)
+
+        period = filters.get('period', 'monthly')
+        col_period = "Year" if period == "yearly" else ("Quarter" if period == "quarterly" else "Month")
+        col_mom = "YoY" if period == "yearly" else ("QoQ" if period == "quarterly" else "MoM")
+
+        headers = [col_period, 'Total Members', f'{col_mom} Members %',
+                   'New Members', 'Repeat Members', 'Repeat %', 'Retention % (DB)', 'Cumulative DB']
+
+        import calendar
+        rows = []
+        rolling_db = db_start
+        prev_final_db = rolling_db
+        
+        for r in rows_data:
+            raw_period = r.get('month', '')
+            display_period = raw_period
+            
+            if period == 'monthly' and '-' in raw_period:
+                try:
+                    y, m = raw_period.split('-')
+                    display_period = f"{calendar.month_name[int(m)]} {y}"
+                except Exception:
+                    pass
+            elif period == 'quarterly' and '-Q' in raw_period:
+                try:
+                    y, q = raw_period.split('-Q')
+                    q_map = {'1': 'JFM', '2': 'AMJ', '3': 'JAS', '4': 'OND'}
+                    display_period = f"{q_map.get(q, 'Q'+q)} {y}"
+                except Exception:
+                    pass
+
+            rolling_db += r.get('new_members', 0)
+            final_db = r.get('db_size', 0) if r.get('db_size', 0) > 0 else rolling_db
+            
+            retention_pct = (r.get('repeat_members', 0) / prev_final_db * 100) if prev_final_db > 0 else 0
+            prev_final_db = final_db
+
+            mom_str = f"{r.get('mom_total_members', 0)}%" if r.get('mom_total_members', 0) else "—"
+
+            rows.append((
+                display_period,
+                r.get('total_members', 0),
+                mom_str,
+                r.get('new_members', 0),
+                r.get('repeat_members', 0),
+                f"{r.get('repeat_pct', 0)}%",
+                f"{round(retention_pct, 2)}%",
+                final_db
+            ))
+            
+        return _build_xlsx_response(f'retail_loyalty_analytics_{period}_report.xlsx', headers, rows)
+
+    elif module == 'invalid-mobiles':
+        data = svc.get_invalid_mobiles()
+        headers = ['Raw Mobile', 'Customer Name', 'Branch', 'Sale Date', 'Invoice Number']
         rows = [
-            (r['month'], r['total_members'], r['mom_total_members'], r['total_visits'], r['mom_visits'],
-             r['new_members'], r['repeat_members'], r['engagement_rate'], r['repeat_pct'], r['db_size'])
-            for r in rows_data
+            (r['raw_mobile'], r['customer_name'], r['branch'], r['sale_date'], r['invoice_number'])
+            for r in data['rows']
         ]
-        return _build_xlsx_response('retail_loyalty_analytics_report.xlsx', headers, rows)
+        return _build_xlsx_response('invalid_mobiles.xlsx', headers, rows)
+
+    elif module == 'fy-loyalty-report':
+        data = svc.get_fy_loyalty_report(filters)
+        headers = ['Financial Year', 'Total Members', 'YoY Members %', 'New Members', 'Repeat Members', 'Repeat %', 'Retention % (DB)', 'Cumulative DB']
+        rows = [
+            (
+                r['fy_label'],
+                r['total_members'],
+                r['yoy_pct'],
+                r['new_members'],
+                r['repeat_members'],
+                r['repeat_pct'],
+                r['retention_pct_db'],
+                r['cumulative_db']
+            )
+            for r in data
+        ]
+        return _build_xlsx_response('fy_loyalty_report.xlsx', headers, rows)
+
+    elif module == 'fy-sales-report':
+        data = svc.get_fy_sales_report(filters)
+        headers = ['Financial Year', 'Total Sale (Cr)', 'YoY Sale Growth %', 'New Members Sale (Cr)', 'Repeat Members Sale (Cr)', 'Repeat Sale %', 'ASP (Customer)']
+        rows = [
+            (
+                r['fy_label'],
+                r['total_sale_cr'],
+                r['yoy_sale_pct'],
+                r['new_member_sale_cr'],
+                r['repeat_member_sale_cr'],
+                r['repeat_sale_pct'],
+                r['asp']
+            )
+            for r in data
+        ]
+        return _build_xlsx_response('fy_sales_report.xlsx', headers, rows)
 
     return HttpResponse("Unknown export module", status=400)
 

@@ -21,7 +21,11 @@ urlpatterns = [
     path('business-insights/', views.BusinessInsightsAPI.as_view(), name='api-business-insights'),
     path('retail-loyalty-report/', views.RetailLoyaltyReportAPI.as_view(), name='api-retail-loyalty-report'),
     path('retail-loyalty-advanced/', views.RetailLoyaltyAdvancedReportAPI.as_view(), name='api-retail-loyalty-advanced'),
-    
+    path('fy-loyalty-report/', views.FYLoyaltyReportAPI.as_view(), name='api-fy-loyalty-report'),
+    path('fy-sales-report/', views.FYSalesReportAPI.as_view(), name='api-fy-sales-report'),
+    path('invalid-mobiles-list/', views.InvalidMobilesAPI.as_view(), name='api-invalid-mobiles'),
+    path('db-manager/', views.DBManagerAPI.as_view(), name='api-db-manager'),
+
     # Old DRF-wrapped route kept for backward compat
     path('export/<str:module>/', views.ExportAPIView.as_view(), name='api-export'),
     # New plain Django route — reliable binary file downloads

@@ -11,12 +11,9 @@ FOLDER_ID = '1YDtp98SA2HLTbFjkTzOZy0R28fJmz2kL'
 DB_NAME = 'combined_data.db'
 TABLE_NAME = 'sales_data'
 
-# The 4 new files identified
+# The new file identified
 NEW_FILES = [
-    {'name': 'DSR 2020 PART 4.xlsx', 'id': '10NMVdOFlofZ3QAzr8LM6hI7kXYEthHlf'},
-    {'name': 'DSR 2020 PART 3.xlsx', 'id': '12ST3AsXJHG4tzK4UjtWKJqYS55GSM0HY'},
-    {'name': 'DSR 2020 PART 2.xlsx', 'id': '1mzbvvmb5Xvw-lXOUdCfaxBa8a0HV2YEx'},
-    {'name': 'DSR 2020 PART 1.xlsx', 'id': '1Idm8p2h9wlEEXugJE7ZUm7AxsKN0ky8H'}
+    {'name': 'DSR MAR 2026.xlsx', 'id': '1i71La0UxrNz7AbAsQnbSXiEvjEosj8Tv'}
 ]
 
 def get_service():
@@ -76,6 +73,34 @@ def insert_rows(conn, headers, rows, source_file):
         print(f"    Already exists: Skipping {source_file} ({count} rows found).")
         return 0
     
+    # ── Permanent exclusion filters ──────────────────────────────────────────
+    # Find column indices for filtering (case-insensitive header match)
+    headers_upper = [h.upper() for h in headers]
+    inv_idx    = next((i for i, h in enumerate(headers_upper) if 'INVOICE NUMBER' in h), None)
+    branch_idx = next((i for i, h in enumerate(headers_upper) if h == 'BRANCH'), None)
+
+    EXCLUDED_BRANCHES = {'HEAD OFFICE', 'UG SMART CHOICE'}
+    excluded = 0
+    filtered_rows = []
+    for row in rows:
+        # Check Invoice Number for SMC / EI
+        if inv_idx is not None and row[inv_idx] is not None:
+            inv = str(row[inv_idx])
+            if 'SMC' in inv or 'EI' in inv:
+                excluded += 1
+                continue
+        # Check Branch for HEAD OFFICE / UG SMART CHOICE
+        if branch_idx is not None and row[branch_idx] is not None:
+            if str(row[branch_idx]).upper().strip() in EXCLUDED_BRANCHES:
+                excluded += 1
+                continue
+        filtered_rows.append(row)
+
+    if excluded:
+        print(f"    Excluded {excluded:,} SMC/EI invoice or HEAD OFFICE/UG SMART CHOICE rows.")
+    rows = filtered_rows
+    # ────────────────────────────────────────────────────────────────────────
+
     batch = []
     for row in rows:
         values = list(row) + [source_file]
@@ -83,7 +108,7 @@ def insert_rows(conn, headers, rows, source_file):
             values.append(None)
         values = values[:len(all_headers)]
         batch.append(tuple(str(v) if v is not None else None for v in values))
-    
+
     if batch:
         conn.executemany(
             f'INSERT INTO [{TABLE_NAME}] ({col_names}) VALUES ({placeholders})',

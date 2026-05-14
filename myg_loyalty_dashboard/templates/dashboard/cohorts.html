@@ -3,7 +3,7 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h2 class="fw-bold m-0 text-white">Yearly Cohort Analysis</h2>
+        <h2 class="fw-bold m-0">Yearly Cohort Analysis</h2>
         <p class="text-muted mb-0">Long-term customer lifecycle and value tracking</p>
     </div>
     <div class="d-flex gap-2">
@@ -24,9 +24,9 @@
     </div>
     <div class="col-md-6">
         <div class="card stat-card p-3" style="border-left-color: #10b981;">
-            <div class="stat-label">Avg. Cohort LTV (Y3)</div>
+            <div class="stat-label">Avg. Cohort LTV (Y1)</div>
             <div class="stat-value" id="kpi-ltv">-</div>
-            <div class="mt-2 small text-muted">Estimated 3-Year value</div>
+            <div class="mt-2 small text-muted">Estimated 1-Year value</div>
         </div>
     </div>
 </div>
@@ -37,16 +37,17 @@
     <div class="col-12">
         <div class="card">
             <div class="card-header border-0 pb-0 d-flex justify-content-between">
-                <h5 class="card-title text-white mb-0">Yearly Performance Matrix</h5>
+                <h5 class="card-title mb-0">Yearly Performance Matrix</h5>
                 <button class="btn btn-sm btn-link text-decoration-none" onclick="toggleRawTable()"><i class="bi bi-table me-1"></i> View Raw Counts</button>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
-                    <table class="table table-dark table-hover align-middle" id="cohort-matrix-table">
+                    <table class="table table-hover align-middle" id="cohort-matrix-table">
                         <thead>
                             <tr id="matrix-header">
                                 <th>Cohort</th>
                                 <th>Size</th>
+                                <th>No Return Purchases</th>
                                 <th>Year 0</th>
                                 <th>Year 1</th>
                                 <th>Year 2</th>
@@ -70,7 +71,7 @@
     <div class="col-12">
         <div class="card h-100">
             <div class="card-header border-0 pb-0">
-                <h5 class="card-title text-white mb-0">Cumulative LTV by Cohort</h5>
+                <h5 class="card-title mb-0">Cumulative LTV by Cohort</h5>
                 <small class="text-muted">Total revenue per customer generated over time</small>
             </div>
             <div class="card-body">
@@ -142,11 +143,11 @@
         const layout = {
             paper_bgcolor: 'rgba(0,0,0,0)',
             plot_bgcolor: 'rgba(0,0,0,0)',
-            font: { color: '#f8fafc', family: 'Inter' },
+            font: { color: '#334155', family: 'Inter' },
             margin: { l: 60, r: 20, t: 30, b: 40 },
             legend: { orientation: 'h', x: 0, y: 1.1 },
-            xaxis: { gridcolor: '#334155' },
-            yaxis: { title: 'Avg. Value per Customer (INR)', gridcolor: '#334155' }
+            xaxis: { gridcolor: '#e2e8f0' },
+            yaxis: { title: 'Avg. Value per Customer (INR)', gridcolor: '#e2e8f0' }
         };
 
         Plotly.newPlot('ltv-chart', traces, layout, {responsive: true, displayModeBar: false});
@@ -163,7 +164,11 @@
             const info = data[yr];
             let html = `<tr>
                 <td><span class="badge bg-secondary">${yr}</span></td>
-                <td><small>${NUM(info.size)}</small></td>`;
+                <td><small>${NUM(info.size)}</small></td>
+                <td>
+                    <div class="fw-bold text-warning">${NUM(info.no_return_purchases || 0)}</div>
+                    <div class="small text-muted">${info.nrp_pct || 0}%</div>
+                </td>`;
             
             for(let i=0; i<=6; i++) {
                 const step = info.years[i];
@@ -172,7 +177,7 @@
                     html += `<td style="background: rgba(59, 130, 246, ${opacity});">
                         <div class="fw-bold">${step.retention}%</div>
                         <div class="small">${NUM(step.active)}</div>
-                        <div class="text-white-50" style="font-size: 0.7rem;">${SHORT_CUR(step.revenue)}</div>
+                        <div class="text-muted" style="font-size: 0.7rem;">${SHORT_CUR(step.revenue)}</div>
                     </td>`;
                 } else {
                     html += `<td class="text-muted opacity-25">-</td>`;
@@ -186,18 +191,21 @@
 
     function updateKPIs(data) {
         const years = Object.keys(data);
-        const y1_rates = years.map(y => data[y].years[1]?.retention).filter(r => r > 0);
+        
+        // Only use fully matured cohorts where a full 1 year has passed (<= 2024)
+        const matured_y1_years = years.filter(y => parseInt(y) <= 2024);
+        const y1_rates = matured_y1_years.map(y => data[y].years[1]?.retention).filter(r => r > 0);
         const avg_y1 = y1_rates.reduce((a,b) => a+b, 0) / (y1_rates.length || 1);
         
         document.getElementById('kpi-y1-retention').textContent = PCT(avg_y1);
         
-        // Avg LTV Y3
-        const y3_ltvs = years.map(y => {
+        // Avg LTV Y1
+        const y1_ltvs = years.map(y => {
             let sum = 0;
-            for(let i=0; i<=3; i++) sum += (data[y].years[i]?.ltv || 0);
+            for(let i=0; i<=1; i++) sum += (data[y].years[i]?.ltv || 0);
             return sum;
         }).filter(l => l > 0);
-        const avg_ltv = y3_ltvs.reduce((a,b) => a+b, 0) / (y3_ltvs.length || 1);
+        const avg_ltv = y1_ltvs.reduce((a,b) => a+b, 0) / (y1_ltvs.length || 1);
         document.getElementById('kpi-ltv').textContent = CUR(avg_ltv);
 
 
