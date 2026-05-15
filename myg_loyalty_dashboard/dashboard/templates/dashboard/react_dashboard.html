@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>myG Premium Loyalty Engine</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/recharts/umd/Recharts.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        orange: {
+                            50: '#fff7ed',
+                            100: '#ffedd5',
+                            200: '#fed7aa',
+                            300: '#fdba74',
+                            400: '#fb923c',
+                            500: '#f97316',
+                            600: '#ea580c',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Outfit', sans-serif; background-color: #f8fafc; color: #0f172a; overflow: hidden; }
+        .glass { background: #ffffff; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03); border: 1px solid #f1f5f9; }
+        .sidebar-item { transition: all 0.2s ease; border-radius: 12px; margin-bottom: 4px; }
+        .sidebar-item:hover { background: #fff7ed; color: #ea580c; }
+        .sidebar-item.active { background: #ffedd5; color: #ea580c; font-weight: 600; border-left: 4px solid #f97316; border-radius: 0 12px 12px 0; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        
+        .stat-card-gradient {
+            background: linear-gradient(135deg, #ffffff 0%, #fff7ed 100%);
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        {% verbatim %}
+        const { useState, useEffect, useMemo } = React;
+        const { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } = Recharts;
+
+        const API_BASE = "http://localhost:8001/api/v1";
+
+        const App = () => {
+            const [activeTab, setActiveTab] = useState('overview');
+            const [branches, setBranches] = useState([]);
+            const [filters, setFilters] = useState({ branch: '', start_date: '01-01-2024', end_date: '31-12-2024' });
+            const [data, setData] = useState({ sales: null, kpis: null, rfm: [], matrix: [], staff: [], branch_perf: [] });
+            const [loading, setLoading] = useState(true);
+
+            useEffect(() => {
+                fetch(`${API_BASE}/analytics/branches`).then(r => r.json()).then(setBranches);
+            }, []);
+
+            const fetchData = async () => {
+                setLoading(true);
+                const query = new URLSearchParams(filters).toString();
+                try {
+                    const [sales, kpis, rfm, matrix, staff, branch_perf] = await Promise.all([
+                        fetch(`${API_BASE}/analytics/sales-overview?${query}`).then(r => r.json()),
+                        fetch(`${API_BASE}/analytics/loyalty-kpis?${query}`).then(r => r.json()),
+                        fetch(`${API_BASE}/analytics/rfm-segments?${query}`).then(r => r.json()),
+                        fetch(`${API_BASE}/analytics/retail-matrix?${query}`).then(r => r.json()),
+                        fetch(`${API_BASE}/analytics/performance/staff?${query}`).then(r => r.json()),
+                        fetch(`${API_BASE}/analytics/performance/branches?${query}`).then(r => r.json())
+                    ]);
+                    setData({ sales, kpis, rfm, matrix, staff, branch_perf });
+                } catch (e) { console.error(e); }
+                setLoading(false);
+            };
+
+            useEffect(() => { fetchData(); }, [filters]);
+
+            return (
+                <div className="flex h-screen overflow-hidden">
+                    {/* Sidebar */}
+                    <aside className="w-72 bg-white border-r border-slate-200 flex flex-col z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
+                        <div className="flex items-center gap-3 mb-8 p-6 pb-2">
+                            <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20">
+                                <i data-lucide="zap" className="text-white w-5 h-5"></i>
+                            </div>
+                            <h2 className="text-2xl font-bold tracking-tight text-slate-900">myG</h2>
+                        </div>
+
+                        <div className="px-4 flex-1">
+                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 px-2">Menu</p>
+                            <nav className="space-y-1">
+                                <NavItem id="overview" active={activeTab} set={setActiveTab} icon="layout-dashboard" label="Sales Overview" />
+                                <NavItem id="loyalty" active={activeTab} set={setActiveTab} icon="award" label="Loyalty Metrics" />
+                                <NavItem id="rfm" active={activeTab} set={setActiveTab} icon="target" label="RFM Analysis" />
+                                <NavItem id="matrix" active={activeTab} set={setActiveTab} icon="grid" label="Retail Matrix" />
+                                <NavItem id="performance" active={activeTab} set={setActiveTab} icon="bar-chart-3" label="Performance" />
+                            </nav>
+                        </div>
+
+                        <div className="mt-auto p-6 border-t border-slate-100 bg-slate-50/50">
+                            <label className="block text-xs font-medium text-slate-500 mb-2">Branch Filter</label>
+                            <select 
+                                className="w-full bg-white border border-slate-200 text-slate-700 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-shadow"
+                                value={filters.branch}
+                                onChange={e => setFilters({...filters, branch: e.target.value})}
+                            >
+                                <option value="">All Branches</option>
+                                {branches.map(b => <option key={b} value={b}>{b}</option>)}
+                            </select>
+                        </div>
+                    </aside>
+
+                    {/* Main Content */}
+                    <main className="flex-1 overflow-y-auto bg-[#f8fafc] relative">
+                        {loading && <div className="absolute top-0 left-0 w-full h-1 bg-orange-500 animate-pulse z-50"></div>}
+                        
+                        <div className="p-10 max-w-7xl mx-auto">
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                                <div>
+                                    <h1 className="text-2xl font-bold text-slate-900 capitalize">{activeTab.replace('-', ' ')}</h1>
+                                    <p className="text-slate-500 text-sm mt-1">Real-time loyalty insights and analytics</p>
+                                </div>
+                                <div className="flex gap-3 items-center bg-slate-50 p-2 rounded-xl border border-slate-200">
+                                    <div className="flex items-center gap-2 px-2 border-r border-slate-200">
+                                        <i data-lucide="calendar" className="w-4 h-4 text-slate-400"></i>
+                                        <input type="date" className="bg-transparent text-slate-700 text-sm focus:outline-none" value={filters.start_date.split('-').reverse().join('-')} onChange={e => setFilters({...filters, start_date: e.target.value.split('-').reverse().join('-')})} />
+                                    </div>
+                                    <div className="flex items-center gap-2 px-2">
+                                        <span className="text-slate-400 text-sm">to</span>
+                                        <input type="date" className="bg-transparent text-slate-700 text-sm focus:outline-none" value={filters.end_date.split('-').reverse().join('-')} onChange={e => setFilters({...filters, end_date: e.target.value.split('-').reverse().join('-')})} />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {activeTab === 'overview' && <Overview data={data} />}
+                            {activeTab === 'loyalty' && <LoyaltyView data={data} />}
+                            {activeTab === 'rfm' && <RFMView data={data} />}
+                            {activeTab === 'matrix' && <MatrixView data={data} />}
+                            {activeTab === 'performance' && <PerformanceView data={data} />}
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        const NavItem = ({ id, active, set, icon, label }) => (
+            <div 
+                onClick={() => set(id)}
+                className={`sidebar-item flex items-center gap-3 p-3 cursor-pointer ${active === id ? 'active' : 'text-slate-600'}`}
+            >
+                <i data-lucide={icon} className={`w-5 h-5 ${active === id ? 'text-orange-500' : 'text-slate-400'}`}></i>
+                <span className="text-sm">{label}</span>
+            </div>
+        );
+
+        const Overview = ({ data }) => (
+            <div className="space-y-8 animate-fade-in">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <StatCard title="Total Revenue" value={`₹${(data.sales?.total_revenue/10000000).toFixed(2)} Cr`} icon="dollar-sign" color="orange" />
+                    <StatCard title="Transactions" value={data.sales?.total_invoices.toLocaleString()} icon="shopping-bag" color="orange" />
+                    <StatCard title="Repeat Rate" value={`${data.kpis?.repeat_rate}%`} icon="refresh-cw" color="orange" />
+                    <StatCard title="Avg Gap" value={`${data.kpis?.avg_gap_days} Days`} icon="calendar" color="orange" />
+                </div>
+
+                <div className="glass p-8 rounded-3xl">
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><i data-lucide="trending-up" className="w-5 h-5 text-orange-500"></i> Revenue Trend</h3>
+                        <span className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-semibold">Current Year</span>
+                    </div>
+                    <div className="h-[350px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={data.sales?.monthly_trend}>
+                                <defs>
+                                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#f97316" stopOpacity={0.2}/>
+                                        <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
+                                    </linearGradient>
+                                </defs>
+                                <XAxis dataKey="month" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} dy={10} />
+                                <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} dx={-10} tickFormatter={val => `₹${(val/100000).toFixed(0)}L`} />
+                                <Tooltip 
+                                    contentStyle={{background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}}
+                                    itemStyle={{color: '#ea580c', fontWeight: 'bold'}}
+                                />
+                                <Area type="monotone" dataKey="revenue" stroke="#f97316" strokeWidth={3} fill="url(#colorRevenue)" />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            </div>
+        );
+
+        const PerformanceView = ({ data }) => (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
+                <div className="glass p-8 rounded-3xl">
+                    <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2"><i data-lucide="store" className="w-5 h-5 text-orange-500"></i> Top Branches</h3>
+                    <div className="h-[400px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={data.branch_perf} margin={{top: 10, right: 10, left: -20, bottom: 40}}>
+                                <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} interval={0} angle={-45} textAnchor="end" height={80} tickLine={false} />
+                                <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} tickFormatter={val => `${(val/100000).toFixed(0)}L`} />
+                                <Tooltip cursor={{fill: '#f1f5f9'}} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} />
+                                <Bar dataKey="revenue" fill="#fb923c" radius={[6, 6, 0, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+                <div className="glass p-8 rounded-3xl">
+                    <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2"><i data-lucide="users" className="w-5 h-5 text-orange-500"></i> Top Staff</h3>
+                    <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+                        {data.staff.map((s, i) => (
+                            <div key={i} className="flex items-center justify-between p-4 bg-slate-50 hover:bg-orange-50/50 transition-colors rounded-2xl border border-slate-100">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-8 h-8 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center font-bold text-xs">{i+1}</div>
+                                    <div>
+                                        <span className="font-semibold text-slate-700 block text-sm">{s.name}</span>
+                                        <span className="text-xs text-slate-400">Sales Executive</span>
+                                    </div>
+                                </div>
+                                <span className="text-slate-900 font-bold text-sm">₹{(s.revenue/100000).toFixed(1)}L</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+
+        const RFMView = ({ data }) => {
+            const COLORS = ['#ea580c', '#f97316', '#fb923c', '#fdba74', '#fed7aa'];
+            
+            return (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
+                    <div className="glass p-8 rounded-3xl">
+                        <h3 className="text-lg font-bold text-slate-800 mb-6">Customer Segments</h3>
+                        <div className="h-[350px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie data={data.rfm} innerRadius={90} outerRadius={140} paddingAngle={2} dataKey="count" nameKey="segment" stroke="none">
+                                        {data.rfm.map((e, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                                    </Pie>
+                                    <Tooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                    <div className="glass p-8 rounded-3xl overflow-hidden flex flex-col justify-center">
+                        <h3 className="text-lg font-bold text-slate-800 mb-6">Segmentation Breakdown</h3>
+                        <div className="space-y-3">
+                            {data.rfm.map((r, i) => (
+                                <div key={i} className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-3 h-3 rounded-full" style={{background: COLORS[i % COLORS.length]}}></div>
+                                        <span className="font-semibold text-slate-700 text-sm">{r.segment}</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="block text-slate-900 font-bold">{r.count.toLocaleString()}</span>
+                                        <span className="text-xs text-slate-500 font-medium">₹{(r.revenue/10000000).toFixed(1)} Cr</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const MatrixView = ({ data }) => (
+            <div className="glass rounded-3xl overflow-hidden shadow-sm border border-slate-200 animate-fade-in bg-white">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                    <h3 className="text-lg font-bold text-slate-800">Retail Performance Matrix</h3>
+                    <button className="text-sm text-orange-600 font-semibold hover:text-orange-700 px-4 py-2 bg-orange-50 rounded-lg">Export CSV</button>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead className="bg-slate-50 border-b border-slate-200">
+                            <tr>
+                                <th className="p-5 text-xs font-bold text-slate-500 uppercase tracking-wider">Period</th>
+                                <th className="p-5 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Total Members</th>
+                                <th className="p-5 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">New Members</th>
+                                <th className="p-5 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Repeat Members</th>
+                                <th className="p-5 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Total Visits</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {data.matrix.map((row, i) => (
+                                <tr key={i} className="hover:bg-slate-50 transition-colors">
+                                    <td className="p-5 font-bold text-slate-800 text-sm">{row.period}</td>
+                                    <td className="p-5 text-right font-semibold text-slate-600 text-sm">{row.total_m.toLocaleString()}</td>
+                                    <td className="p-5 text-right font-bold text-orange-500 text-sm bg-orange-50/30">{row.new_m.toLocaleString()}</td>
+                                    <td className="p-5 text-right font-bold text-indigo-500 text-sm bg-indigo-50/30">{row.repeat_m.toLocaleString()}</td>
+                                    <td className="p-5 text-right text-slate-500 font-medium text-sm">{row.total_v.toLocaleString()}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+
+        const LoyaltyView = ({ data }) => (
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-fade-in">
+                <div className="glass p-8 rounded-3xl bg-gradient-to-br from-white to-orange-50/30">
+                    <h3 className="text-lg font-bold text-slate-800 mb-8 flex items-center gap-2"><i data-lucide="shield-check" className="w-5 h-5 text-orange-500"></i> Retention Health</h3>
+                    <div className="space-y-8">
+                        <div className="flex justify-between items-end">
+                            <div>
+                                <p className="text-slate-500 font-medium text-sm mb-1">Repeat Customer Base</p>
+                                <h4 className="text-4xl font-black text-slate-900">{data.kpis?.repeat_customers.toLocaleString()}</h4>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-slate-500 font-medium text-sm mb-1">Status</p>
+                                <div className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">
+                                    <i data-lucide="trending-up" className="w-3 h-3"></i> Excellent
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <div className="flex justify-between text-sm mb-3">
+                                <span className="text-slate-600 font-semibold">Retention Rate</span>
+                                <span className="text-orange-600 font-black">{data.kpis?.repeat_rate}%</span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                                <div className="bg-gradient-to-r from-orange-400 to-orange-500 h-full rounded-full" style={{width: `${data.kpis?.repeat_rate}%`}}></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div className="glass p-8 rounded-3xl">
+                     <h3 className="text-lg font-bold text-slate-800 mb-8 flex items-center gap-2"><i data-lucide="activity" className="w-5 h-5 text-orange-500"></i> Engagement Metrics</h3>
+                     <div className="grid grid-cols-2 gap-6">
+                        <div className="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm">
+                            <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center mb-4">
+                                <i data-lucide="clock" className="w-5 h-5 text-orange-600"></i>
+                            </div>
+                            <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Average Gap</p>
+                            <h5 className="text-2xl font-black text-slate-800">{data.kpis?.avg_gap_days} <span className="text-sm font-medium text-slate-500">Days</span></h5>
+                        </div>
+                        <div className="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm">
+                            <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center mb-4">
+                                <i data-lucide="users" className="w-5 h-5 text-orange-600"></i>
+                            </div>
+                            <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Active Spenders</p>
+                            <h5 className="text-2xl font-black text-slate-800">{(data.kpis?.total_customers * 0.6).toFixed(0)}</h5>
+                        </div>
+                     </div>
+                </div>
+            </div>
+        );
+
+        const StatCard = ({ title, value, icon, color }) => {
+            // Using orange consistently as requested
+            return (
+                <div className="stat-card-gradient glass p-6 rounded-3xl border border-orange-100/50 hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-4 opacity-5">
+                        <i data-lucide={icon} className="w-24 h-24"></i>
+                    </div>
+                    <div className={`w-12 h-12 bg-orange-100 rounded-2xl flex items-center justify-center mb-4 text-orange-500 relative z-10 shadow-sm`}>
+                        <i data-lucide={icon} className="w-6 h-6"></i>
+                    </div>
+                    <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1 relative z-10">{title}</p>
+                    <h3 className="text-2xl font-black text-slate-900 relative z-10">{value}</h3>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+        setInterval(() => lucide.createIcons(), 1000);
+        {% endverbatim %}
+    </script>
+</body>
+</html>

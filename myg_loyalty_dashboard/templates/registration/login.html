@@ -1,46 +1,189 @@
+{% load static %}
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - myG Loyalty Analytics</title>
     <!-- Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
-        .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; }
-        .form-control { background-color: #0f172a; border-color: #334155; color: #f8fafc; }
-        .form-control:focus { background-color: #1e293b; border-color: #3b82f6; color: #fff; box-shadow: 0 0 0 0.25rem rgba(59, 130, 246, 0.25); }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #0f172a;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Animated Background Elements */
+        .bg-shape {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.5;
+            z-index: -1;
+            animation: float 10s infinite ease-in-out alternate;
+        }
+        .shape-1 {
+            width: 400px;
+            height: 400px;
+            background: rgba(249, 115, 22, 0.3); /* Orange */
+            top: -100px;
+            right: -100px;
+        }
+        .shape-2 {
+            width: 500px;
+            height: 500px;
+            background: rgba(59, 130, 246, 0.1); /* Subtle Blue */
+            bottom: -150px;
+            left: -150px;
+            animation-delay: -5s;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0) scale(1); }
+            100% { transform: translateY(-40px) scale(1.05); }
+        }
+
+        /* Card Animation & Styling */
+        .login-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 24px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.05);
+            width: 100%;
+            max-width: 440px;
+            padding: 3rem;
+            transform: translateY(30px);
+            opacity: 0;
+            animation: slideUpFade 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes slideUpFade {
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        /* Input Styling */
+        .form-control {
+            background-color: #ffffff;
+            border: 1.5px solid #e2e8f0;
+            color: #0f172a;
+            border-radius: 12px;
+            padding: 0.75rem 1.25rem;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.01);
+        }
+        .form-control:focus {
+            background-color: #ffffff;
+            border-color: #f97316;
+            box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.1);
+            outline: none;
+        }
+        .form-label {
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #475569;
+            margin-bottom: 0.5rem;
+            letter-spacing: 0.5px;
+        }
+        .input-icon {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 10;
+            color: #94a3b8;
+            font-size: 1.1rem;
+        }
+
+        /* Button Styling */
+        .btn-primary {
+            background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+            border: none;
+            border-radius: 12px;
+            padding: 0.8rem;
+            font-weight: 600;
+            font-size: 1.05rem;
+            color: #ffffff;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(249, 115, 22, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(249, 115, 22, 0.4);
+        }
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        /* Error Styling */
+        .alert-danger {
+            background-color: #fef2f2;
+            border: 1px solid #fca5a5;
+            color: #ef4444;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
     </style>
 </head>
-<body class="d-flex align-items-center justify-content-center" style="height: 100vh;">
-    <div class="card p-5" style="width: 100%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
-        <div class="text-center mb-4">
-            <h3 class="fw-bold mb-0">myG <span class="text-primary">Loyalty</span></h3>
-            <p class="text-muted">Analytics Dashboard Login</p>
+<body>
+
+    <!-- Animated Background Shapes -->
+    <div class="bg-shape shape-1"></div>
+    <div class="bg-shape shape-2"></div>
+
+    <div class="login-card">
+        <!-- Logo Header -->
+        <div class="text-center mb-5">
+            <img src="{% static 'logo.png' %}" alt="myG FUTURE Logo" style="height: 70px; object-fit: contain; margin-bottom: 1rem; animation: slideUpFade 1s 0.2s forwards; opacity: 0; transform: translateY(10px);">
+            <h4 class="fw-bold mb-1" style="color: #0f172a; animation: slideUpFade 1s 0.3s forwards; opacity: 0; transform: translateY(10px);">Welcome Back</h4>
+            <p class="text-muted" style="font-size: 0.9rem; animation: slideUpFade 1s 0.4s forwards; opacity: 0; transform: translateY(10px);">Sign in to access your Loyalty Dashboard</p>
         </div>
         
         {% if form.errors %}
-        <div class="alert alert-danger py-2 border-0 bg-danger text-white bg-opacity-25 text-center">
-            Invalid username or password.
+        <div class="alert alert-danger py-3 text-center mb-4" style="animation: slideUpFade 0.5s forwards;">
+            <i class="bi bi-exclamation-circle-fill me-2"></i> Invalid username or password.
         </div>
         {% endif %}
         
-        <form method="post" action="{% url 'login' %}">
+        <form method="post" action="{% url 'login' %}" style="animation: slideUpFade 1s 0.5s forwards; opacity: 0; transform: translateY(10px);">
             {% csrf_token %}
-            <div class="mb-3">
-                <label class="form-label text-muted small text-uppercase">Username</label>
-                <input type="text" name="username" class="form-control py-2" required autofocus>
-            </div>
             <div class="mb-4">
-                <label class="form-label text-muted small text-uppercase">Password</label>
-                <input type="password" name="password" class="form-control py-2" required>
+                <label class="form-label text-uppercase">Username</label>
+                <div class="position-relative">
+                    <input type="text" name="username" class="form-control pe-5" placeholder="Enter your username" required autofocus>
+                    <i class="bi bi-person input-icon"></i>
+                </div>
             </div>
-            <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">Sign In</button>
+            <div class="mb-5">
+                <label class="form-label text-uppercase">Password</label>
+                <div class="position-relative">
+                    <input type="password" name="password" class="form-control pe-5" placeholder="Enter your password" required>
+                    <i class="bi bi-lock input-icon"></i>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Sign In <i class="bi bi-arrow-right ms-2"></i></button>
             <input type="hidden" name="next" value="{{ next|default:'/' }}">
         </form>
     </div>
+
 </body>
 </html>

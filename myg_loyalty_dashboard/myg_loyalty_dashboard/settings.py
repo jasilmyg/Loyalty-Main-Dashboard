@@ -146,4 +146,13 @@ LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'login'
 
+# Session settings: Force login after 12 hours (43200 seconds)
+SESSION_COOKIE_AGE = 43200
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+
+AUTHENTICATION_BACKENDS = [
+    'users.backends.EnvAuthBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
 # Hot reload trigger

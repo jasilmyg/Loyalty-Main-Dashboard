@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+    <div class="row">
+        <div class="col-12 mb-4">
+            <h2 class="fw-bold mb-1" style="color: #0f172a; letter-spacing: -0.5px;">Profile Information</h2>
+            <p class="text-muted" style="font-size: 0.95rem;">Manage your personal account details</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            {% if messages %}
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                {% endfor %}
+            {% endif %}
+            
+            <div class="card border-0 shadow-sm rounded-4 mb-4">
+                <div class="card-body p-4 p-md-5">
+                    <form method="post" action="{% url 'profile' %}">
+                        {% csrf_token %}
+                        <div class="row mb-4">
+                            <div class="col-12 d-flex align-items-center mb-4">
+                                <div class="position-relative me-4">
+                                    <div style="width: 80px; height: 80px; border-radius: 50%; background: #fef08a; display: flex; align-items: center; justify-content: center;">
+                                        <span style="font-size: 2rem; color: #f97316; font-weight: bold;">{{ request.user.username|make_list|first|upper }}</span>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-light rounded-circle shadow-sm position-absolute bottom-0 end-0" style="padding: 0.25rem 0.4rem;">
+                                        <i class="bi bi-pencil-fill" style="font-size: 0.75rem; color: #64748b;"></i>
+                                    </button>
+                                </div>
+                                <div>
+                                    <h4 class="mb-1 fw-bold">{{ request.user.username|title }}</h4>
+                                    <p class="text-muted mb-0 small">{% if request.user.is_superuser %}Administrator{% else %}Standard User{% endif %}</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row g-4 mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label text-uppercase text-muted" style="font-size: 0.75rem; font-weight: 600; letter-spacing: 0.5px;">Username</label>
+                                <input type="text" class="form-control bg-light" value="{{ request.user.username }}" readonly style="border-radius: 10px; padding: 0.8rem 1rem;">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-uppercase text-muted" style="font-size: 0.75rem; font-weight: 600; letter-spacing: 0.5px;">Email Address</label>
+                                <input type="email" name="email" class="form-control" placeholder="No email associated" value="{{ request.user.email }}" style="border-radius: 10px; padding: 0.8rem 1rem;">
+                            </div>
+                        </div>
+
+                        <div class="row g-4 mb-5">
+                            <div class="col-md-6">
+                                <label class="form-label text-uppercase text-muted" style="font-size: 0.75rem; font-weight: 600; letter-spacing: 0.5px;">First Name</label>
+                                <input type="text" name="first_name" class="form-control" placeholder="First Name" value="{{ request.user.first_name }}" style="border-radius: 10px; padding: 0.8rem 1rem;">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-uppercase text-muted" style="font-size: 0.75rem; font-weight: 600; letter-spacing: 0.5px;">Last Name</label>
+                                <input type="text" name="last_name" class="form-control" placeholder="Last Name" value="{{ request.user.last_name }}" style="border-radius: 10px; padding: 0.8rem 1rem;">
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-end">
+                            <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary px-4 py-2 rounded-3 me-3" style="font-weight: 600;">Cancel</a>
+                            <button type="submit" class="btn btn-primary px-4 py-2 rounded-3 text-white" style="background-color: #f97316; border-color: #f97316; font-weight: 600; box-shadow: 0 4px 12px rgba(249, 115, 22, 0.2);">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -15,4 +15,6 @@ urlpatterns = [
     path('invalid-mobiles/', views.InvalidMobilesView.as_view(), name='invalid_mobiles'),
     path('db-manager/', views.DBManagerView.as_view(), name='db_manager'),
     path('react-dashboard/', views.ReactDashboardView.as_view(), name='react_dashboard'),
+    path('profile/', views.ProfileView.as_view(), name='profile'),
+    path('security/', views.SecurityView.as_view(), name='security'),
 ]

@@ -98,3 +98,15 @@ analytics.duckdb.old
 
 # instance
 instance/
+myg_loyalty_dashboard/analytics/analyze_db.py
+myg_loyalty_dashboard/analytics/create_customer_mv.py
+myg_loyalty_dashboard/analytics/create_fy_mv.py
+myg_loyalty_dashboard/analytics/create_indexes.py
+myg_loyalty_dashboard/create_pg_view.py
+
+myg_loyalty_dashboard/analytics/fix_pg_view.py
+myg_loyalty_dashboard/analytics/kill_alter.py
+myg_loyalty_dashboard/create_helper_table.py
+myg_loyalty_dashboard/rebuild_duck.py
+
+myg_loyalty_dashboard/rebuild_duck.py
