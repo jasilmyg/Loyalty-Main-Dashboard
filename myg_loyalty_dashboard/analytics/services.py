@@ -570,7 +570,11 @@ END) <= %s::DATE''')
                 ORDER BY cohort_year DESC, year_index ASC
             """)
             if rows:
-                rfm_rows = _q("SELECT cohort_year, segment, customer_count FROM mv_cohort_rfm ORDER BY cohort_year")
+                # RFM breakdown — optional, don't let it abort the fast path
+                try:
+                    rfm_rows = _q("SELECT cohort_year, segment, customer_count FROM mv_cohort_rfm ORDER BY cohort_year")
+                except Exception:
+                    rfm_rows = []
                 cohort_data = {}
                 for r in rows:
                     cy, yi, active, rev, size, rate, otb, nrp = r
@@ -596,8 +600,9 @@ END) <= %s::DATE''')
                         cohort_data[cy]['rfm'][seg] = count
                 cache.set(_ck, cohort_data, 86400)
                 return cohort_data
-        except Exception:
-            pass  # MVs not ready, fall through
+        except Exception as _mv_err:
+            import logging
+            logging.getLogger(__name__).warning(f"mv_yearly_cohort fast path failed: {_mv_err}")
 
         # Slow path: raw scan (only runs once; result is cached 24h)
         rows = _q(f"""
