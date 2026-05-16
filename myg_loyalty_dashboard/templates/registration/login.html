@@ -286,8 +286,8 @@
                             msgTxt.style.color = "red";
                             return;
                         }
-                        // 0.50 threshold is highly strict to ensure NO OTHER FACE can login
-                        const faceMatcher = new faceapi.FaceMatcher([labeledFaceDescriptors], 0.50); 
+                        // 0.57 threshold is the optimal balance: strict enough to prevent false positives, but allows the correct user
+                        const faceMatcher = new faceapi.FaceMatcher([labeledFaceDescriptors], 0.57); 
                         
                         const checkInterval = setInterval(async () => {
                             if(modal.style.display === 'none') {
@@ -306,7 +306,7 @@
                                         identityMatched = true;
                                         statusTxt.innerText = "Identity Verified. Checking Liveness...";
                                     } else {
-                                        msgTxt.innerText = "Face not recognized. Distance: " + bestMatch.distance.toFixed(2);
+                                        msgTxt.innerText = "Face not recognized. Distance: " + bestMatch.distance.toFixed(2) + " (needs < 0.57)";
                                         msgTxt.style.color = "#ef4444";
                                         return;
                                     }
