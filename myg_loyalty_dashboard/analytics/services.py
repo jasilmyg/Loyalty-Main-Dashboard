@@ -1137,15 +1137,18 @@ END))::INT AS recency_days
 
         # ── Fast path: use pre-computed MVs ────────────────────────────────
         if not has_dim_filter or has_branch:
-            if period == 'monthly':
+            if period == 'yearly':
+                mv_table = 'mv_yearly_members_branch' if has_branch else 'mv_yearly_members'
+                trunc_expr = 'year_date'
+                label_expr = "TO_CHAR(year_date, 'YYYY')"
+            elif period == 'quarterly':
+                mv_table = 'mv_quarterly_members_branch' if has_branch else 'mv_quarterly_members'
+                trunc_expr = 'quarter_date'
+                label_expr = "TO_CHAR(quarter_date, 'YYYY')||'-Q'||EXTRACT(QUARTER FROM quarter_date)::TEXT"
+            else:  # monthly
+                mv_table = 'mv_monthly_members_branch' if has_branch else 'mv_monthly_members'
                 trunc_expr = 'month_date'
                 label_expr = "TO_CHAR(month_date, 'YYYY-MM')"
-            elif period == 'yearly':
-                trunc_expr = "DATE_TRUNC('year', month_date)::date"
-                label_expr = "TO_CHAR(DATE_TRUNC('year', month_date), 'YYYY')"
-            else:  # quarterly
-                trunc_expr = "DATE_TRUNC('quarter', month_date)::date"
-                label_expr = "TO_CHAR(DATE_TRUNC('quarter', month_date), 'YYYY')||'-Q'||EXTRACT(QUARTER FROM month_date)::TEXT"
 
             period_filter, period_params = [], []
             if start_date:
@@ -1164,7 +1167,7 @@ END))::INT AS recency_days
                            SUM(total_members)::bigint,
                            SUM(new_members)::bigint,
                            SUM(total_visits)::bigint
-                    FROM mv_monthly_members_branch
+                    FROM {mv_table}
                     WHERE UPPER(branch) = UPPER(%s){pf}
                     GROUP BY 1, 2 ORDER BY 2 ASC
                 """
@@ -1177,7 +1180,7 @@ END))::INT AS recency_days
                            SUM(total_members)::bigint,
                            SUM(new_members)::bigint,
                            SUM(total_visits)::bigint
-                    FROM mv_monthly_members
+                    FROM {mv_table}
                     WHERE 1=1{pf}
                     GROUP BY 1, 2 ORDER BY 2 ASC
                 """
