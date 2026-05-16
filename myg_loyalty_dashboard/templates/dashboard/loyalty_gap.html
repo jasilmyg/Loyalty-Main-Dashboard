@@ -3,9 +3,11 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="fw-bold m-0">Loyalty & Gap Analysis</h2>
+    {% if request.user.is_superuser %}
     <button class="btn btn-success px-4" onclick="downloadGapReport()">
         <i class="bi bi-file-earmark-excel me-2"></i>Download Report
     </button>
+    {% endif %}
 </div>
 
 <!-- 1️⃣ LOYALTY OVERVIEW KPIs -->

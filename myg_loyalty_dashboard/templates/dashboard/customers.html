@@ -3,9 +3,11 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="fw-bold m-0">Customer Analytics</h2>
+    {% if request.user.is_superuser %}
     <button id="freq-export-btn" class="btn btn-success" onclick="downloadReport()">
         <i class="bi bi-file-earmark-excel"></i> <span id="export-btn-label">Download Report</span>
     </button>
+    {% endif %}
 </div>
 
 <div class="row g-4 mb-4">
@@ -48,7 +50,9 @@
                                 <th class="text-end">Net Revenue</th>
                                 <th class="text-end">Rev %</th>
                                 <th class="text-end">ASP</th>
+                                {% if request.user.is_superuser %}
                                 <th class="text-center">Download</th>
+                                {% endif %}
                             </tr>
                         </thead>
                         <tbody id="freq-tbody">
@@ -214,6 +218,7 @@
                         <td class="text-end">${INR(d.net_revenue)}</td>
                         <td class="text-end">${d.rev_pct}%</td>
                         <td class="text-end">${INR(d.asp)}</td>
+                        ${'{{ request.user.is_superuser|yesno:"true,false" }}' === 'true' ? `
                         <td class="text-center">
                             <button id="${btnId}"
                                 class="btn btn-sm btn-outline-success"
@@ -221,7 +226,7 @@
                                 title="Download customer list for ${d.segment}">
                                 <i class="bi bi-cloud-arrow-down"></i>
                             </button>
-                        </td>
+                        </td>` : ''}
                     </tr>`;
             });
 
