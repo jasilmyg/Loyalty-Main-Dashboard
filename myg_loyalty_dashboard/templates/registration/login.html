@@ -286,8 +286,8 @@
                             msgTxt.style.color = "red";
                             return;
                         }
-                        // 0.65 threshold is much more forgiving for webcam lighting variations
-                        const faceMatcher = new faceapi.FaceMatcher([labeledFaceDescriptors], 0.65); 
+                        // 0.50 threshold is highly strict to ensure NO OTHER FACE can login
+                        const faceMatcher = new faceapi.FaceMatcher([labeledFaceDescriptors], 0.50); 
                         
                         const checkInterval = setInterval(async () => {
                             if(modal.style.display === 'none') {
