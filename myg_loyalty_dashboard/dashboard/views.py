@@ -135,32 +135,53 @@ class TargetExecutiveView(LoginRequiredMixin, TemplateView):
         expected_pct = expected_final / TOTAL_DB
         prob_target = max(0, min(100, (expected_final / TARGET_COUNT) * 100))
         
-        # Plotly JSONs
+        # Beautiful Plotly Charts
+        # 1. AMJ Burn-up Chart
         fig_burn = go.Figure()
-        fig_burn.add_trace(go.Scatter(x=amj_df['Date'], y=amj_df['Cumulative_Achieved'], mode='lines+markers', name='Actual Achievement', line=dict(color='#f97316', width=3)))
+        
+        # Target Line (Linear)
         target_line = np.linspace(0, TARGET_COUNT, TOTAL_AMJ_DAYS)
         all_dates = pd.date_range(start=AMJ_START, end=AMJ_END, freq='D')
-        fig_burn.add_trace(go.Scatter(x=all_dates, y=target_line, mode='lines', name='Linear Target', line=dict(color='#94a3b8', dash='dash')))
-        fig_burn.add_trace(go.Scatter(x=forecast_dates, y=hw_pred, mode='lines', name='Expected Forecast', line=dict(color='#3b82f6', width=2, dash='dot')))
-        fig_burn.add_trace(go.Scatter(x=forecast_dates, y=lr_pred, mode='lines', name='Aggressive Forecast', line=dict(color='#10b981', width=2, dash='dot')))
-        fig_burn.add_hline(y=TARGET_COUNT, line_dash="solid", line_color="#0f172a", annotation_text="FINAL TARGET (8%)")
+        fig_burn.add_trace(go.Scatter(
+            x=all_dates, y=target_line, mode='lines', name='Linear Target', 
+            line=dict(color='#94a3b8', width=2, dash='dash')
+        ))
+        
+        # Actual Achievement Area
+        fig_burn.add_trace(go.Scatter(
+            x=amj_df['Date'], y=amj_df['Cumulative_Achieved'], mode='lines+markers', name='Actual Achievement', 
+            line=dict(color='#f97316', width=4),
+            marker=dict(size=6, color='#ea580c', symbol='circle'),
+            fill='tozeroy', fillcolor='rgba(249, 115, 22, 0.1)'
+        ))
+        
+        # Forecasts
+        fig_burn.add_trace(go.Scatter(
+            x=forecast_dates, y=hw_pred, mode='lines', name='Expected Forecast', 
+            line=dict(color='#3b82f6', width=3, dash='dot')
+        ))
+        fig_burn.add_trace(go.Scatter(
+            x=forecast_dates, y=lr_pred, mode='lines', name='Aggressive Forecast', 
+            line=dict(color='#10b981', width=3, dash='dot')
+        ))
+        
+        fig_burn.add_hline(y=TARGET_COUNT, line_dash="solid", line_color="#0f172a", annotation_text="FINAL TARGET (8%)", annotation_position="top right")
         fig_burn.update_layout(
-            margin=dict(l=0, r=0, t=30, b=0),
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            hovermode="x unified",
-            legend=dict(orientation="h", y=-0.2)
+            margin=dict(l=20, r=20, t=30, b=20),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            hovermode="x unified", legend=dict(orientation="h", y=-0.15, x=0.5, xanchor='center'),
+            yaxis=dict(gridcolor='#f1f5f9', zeroline=False), xaxis=dict(gridcolor='#f1f5f9', zeroline=False)
         )
         burn_json = fig_burn.to_json()
         
+        # 2. Pace Indicator (Gauge)
         fig_gauge = go.Figure(go.Indicator(
-            mode = "gauge+number+delta",
-            value = current_achieved,
-            title = {'text': "Target Progress"},
-            delta = {'reference': TARGET_COUNT, 'increasing': {'color': "green"}},
+            mode = "gauge+number+delta", value = current_achieved, title = {'text': "Pace vs Target"},
+            delta = {'reference': target_line[ELAPSED_DAYS-1], 'increasing': {'color': "green"}, 'decreasing': {'color': "red"}},
             gauge = {
-                'axis': {'range': [None, TARGET_COUNT]},
+                'axis': {'range': [None, TARGET_COUNT], 'tickwidth': 1, 'tickcolor': "darkblue"},
                 'bar': {'color': "#f97316"},
+                'bgcolor': "white", 'borderwidth': 2, 'bordercolor': "gray",
                 'steps': [
                     {'range': [0, TARGET_COUNT*0.5], 'color': "#fef2f2"},
                     {'range': [TARGET_COUNT*0.5, TARGET_COUNT*0.8], 'color': "#fff7ed"},
@@ -172,15 +193,41 @@ class TargetExecutiveView(LoginRequiredMixin, TemplateView):
         fig_gauge.update_layout(margin=dict(l=20, r=20, t=30, b=20), paper_bgcolor='rgba(0,0,0,0)')
         gauge_json = fig_gauge.to_json()
         
-        fig_daily = px.bar(amj_df, x='Date', y='Daily_Achieved', color_discrete_sequence=['#3b82f6'])
-        fig_daily.add_hline(y=req_run_rate, line_dash="dash", line_color="red", annotation_text="Req Daily Customers")
-        fig_daily.update_layout(margin=dict(l=0, r=0, t=10, b=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+        # 3. AMJ Daily Performance
+        fig_daily = go.Figure()
+        fig_daily.add_trace(go.Bar(
+            x=amj_df['Date'], y=amj_df['Daily_Achieved'], name='Daily Actuals',
+            marker_color='#3b82f6', opacity=0.8, marker_line_width=0
+        ))
+        # Add 7-day moving average trendline
+        amj_df['MA7'] = amj_df['Daily_Achieved'].rolling(window=7, min_periods=1).mean()
+        fig_daily.add_trace(go.Scatter(
+            x=amj_df['Date'], y=amj_df['MA7'], mode='lines', name='7-Day Avg',
+            line=dict(color='#ea580c', width=3)
+        ))
+        fig_daily.add_hline(y=req_run_rate, line_dash="dash", line_color="red", annotation_text="Req Daily Pace", annotation_position="top left")
+        fig_daily.update_layout(
+            margin=dict(l=20, r=20, t=30, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            hovermode="x unified", legend=dict(orientation="h", y=-0.15, x=0.5, xanchor='center'),
+            yaxis=dict(gridcolor='#f1f5f9', zeroline=False), xaxis=dict(gridcolor='#f1f5f9', zeroline=False)
+        )
         daily_json = fig_daily.to_json()
         
+        # 4. Historical Trend
         fig_hist = go.Figure()
-        fig_hist.add_trace(go.Scatter(x=hist_df['Date'], y=hist_df['Active'], mode='lines', fill='tozeroy', name='Total Active', line=dict(color='#0ea5e9')))
-        fig_hist.add_trace(go.Scatter(x=hist_df['Date'], y=hist_df['Repeat'], mode='lines', fill='tozeroy', name='Repeat Customers', line=dict(color='#f97316')))
-        fig_hist.update_layout(margin=dict(l=0, r=0, t=10, b=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', hovermode="x unified")
+        fig_hist.add_trace(go.Scatter(
+            x=hist_df['Date'], y=hist_df['Active'], mode='lines', fill='tozeroy', name='Total Active',
+            line=dict(color='#0ea5e9', width=2), fillcolor='rgba(14, 165, 233, 0.2)'
+        ))
+        fig_hist.add_trace(go.Scatter(
+            x=hist_df['Date'], y=hist_df['Repeat'], mode='lines', fill='tozeroy', name='Repeat Customers',
+            line=dict(color='#f97316', width=2), fillcolor='rgba(249, 115, 22, 0.4)'
+        ))
+        fig_hist.update_layout(
+            margin=dict(l=20, r=20, t=30, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            hovermode="x unified", legend=dict(orientation="h", y=-0.15, x=0.5, xanchor='center'),
+            yaxis=dict(gridcolor='#f1f5f9', zeroline=False), xaxis=dict(gridcolor='#f1f5f9', zeroline=False)
+        )
         hist_json = fig_hist.to_json()
         
         context.update({
