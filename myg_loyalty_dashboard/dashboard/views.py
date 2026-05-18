@@ -56,7 +56,7 @@ class TargetExecutiveView(LoginRequiredMixin, TemplateView):
         HIST_START = pd.to_datetime("2020-01-01")
         HIST_END = pd.to_datetime("2026-03-31")
         AMJ_START = pd.to_datetime("2026-04-01")
-        ACTUALS_END = pd.to_datetime("2026-05-10")
+        ACTUALS_END = pd.to_datetime("2026-05-17")
         AMJ_END = pd.to_datetime("2026-06-30")
 
         TOTAL_AMJ_DAYS = (AMJ_END - AMJ_START).days + 1
@@ -122,7 +122,7 @@ class TargetExecutiveView(LoginRequiredMixin, TemplateView):
         ma_pred = y[-1] + np.cumsum(np.full(REMAINING_DAYS, ma_7))
         
         try:
-            model = ExponentialSmoothing(amj_df['Daily_Achieved'], trend='add', seasonal=None)
+            model = ExponentialSmoothing(amj_df['Daily_Achieved'], trend='add', seasonal='add', seasonal_periods=7)
             fit = model.fit()
             hw_daily_pred = fit.forecast(REMAINING_DAYS)
             hw_pred = y[-1] + np.cumsum(hw_daily_pred.values)
@@ -136,32 +136,39 @@ class TargetExecutiveView(LoginRequiredMixin, TemplateView):
         prob_target = max(0, min(100, (expected_final / TARGET_COUNT) * 100))
         
         # Beautiful Plotly Charts
+        
+        # Convert all to standard python lists to avoid Plotly JSON serialization bugs with numpy types
+        amj_dates_str = amj_df['Date'].dt.strftime('%Y-%m-%d').tolist()
+        amj_cum_achieved_list = amj_df['Cumulative_Achieved'].tolist()
+        amj_daily_achieved_list = amj_df['Daily_Achieved'].tolist()
+        
         # 1. AMJ Burn-up Chart
         fig_burn = go.Figure()
         
         # Target Line (Linear)
-        target_line = np.linspace(0, TARGET_COUNT, TOTAL_AMJ_DAYS)
-        all_dates = pd.date_range(start=AMJ_START, end=AMJ_END, freq='D')
+        target_line = np.linspace(0, TARGET_COUNT, TOTAL_AMJ_DAYS).tolist()
+        all_dates_str = pd.date_range(start=AMJ_START, end=AMJ_END, freq='D').strftime('%Y-%m-%d').tolist()
         fig_burn.add_trace(go.Scatter(
-            x=all_dates, y=target_line, mode='lines', name='Linear Target', 
+            x=all_dates_str, y=target_line, mode='lines', name='Linear Target', 
             line=dict(color='#94a3b8', width=2, dash='dash')
         ))
         
         # Actual Achievement Area
         fig_burn.add_trace(go.Scatter(
-            x=amj_df['Date'], y=amj_df['Cumulative_Achieved'], mode='lines+markers', name='Actual Achievement', 
+            x=amj_dates_str, y=amj_cum_achieved_list, mode='lines+markers', name='Actual Achievement', 
             line=dict(color='#f97316', width=4),
             marker=dict(size=6, color='#ea580c', symbol='circle'),
             fill='tozeroy', fillcolor='rgba(249, 115, 22, 0.1)'
         ))
         
         # Forecasts
+        forecast_dates_str = forecast_dates.strftime('%Y-%m-%d').tolist()
         fig_burn.add_trace(go.Scatter(
-            x=forecast_dates, y=hw_pred, mode='lines', name='Expected Forecast', 
+            x=forecast_dates_str, y=hw_pred.tolist(), mode='lines', name='Expected Forecast', 
             line=dict(color='#3b82f6', width=3, dash='dot')
         ))
         fig_burn.add_trace(go.Scatter(
-            x=forecast_dates, y=lr_pred, mode='lines', name='Aggressive Forecast', 
+            x=forecast_dates_str, y=lr_pred.flatten().tolist(), mode='lines', name='Aggressive Forecast', 
             line=dict(color='#10b981', width=3, dash='dot')
         ))
         
@@ -196,13 +203,13 @@ class TargetExecutiveView(LoginRequiredMixin, TemplateView):
         # 3. AMJ Daily Performance
         fig_daily = go.Figure()
         fig_daily.add_trace(go.Bar(
-            x=amj_df['Date'], y=amj_df['Daily_Achieved'], name='Daily Actuals',
+            x=amj_dates_str, y=amj_daily_achieved_list, name='Daily Actuals',
             marker_color='#3b82f6', opacity=0.8, marker_line_width=0
         ))
         # Add 7-day moving average trendline
         amj_df['MA7'] = amj_df['Daily_Achieved'].rolling(window=7, min_periods=1).mean()
         fig_daily.add_trace(go.Scatter(
-            x=amj_df['Date'], y=amj_df['MA7'], mode='lines', name='7-Day Avg',
+            x=amj_dates_str, y=amj_df['MA7'].tolist(), mode='lines', name='7-Day Avg',
             line=dict(color='#ea580c', width=3)
         ))
         fig_daily.add_hline(y=req_run_rate, line_dash="dash", line_color="red", annotation_text="Req Daily Pace", annotation_position="top left")
@@ -214,13 +221,14 @@ class TargetExecutiveView(LoginRequiredMixin, TemplateView):
         daily_json = fig_daily.to_json()
         
         # 4. Historical Trend
+        hist_dates_str = hist_df['Date'].dt.strftime('%Y-%m-%d').tolist()
         fig_hist = go.Figure()
         fig_hist.add_trace(go.Scatter(
-            x=hist_df['Date'], y=hist_df['Active'], mode='lines', fill='tozeroy', name='Total Active',
+            x=hist_dates_str, y=hist_df['Active'].tolist(), mode='lines', fill='tozeroy', name='Total Active',
             line=dict(color='#0ea5e9', width=2), fillcolor='rgba(14, 165, 233, 0.2)'
         ))
         fig_hist.add_trace(go.Scatter(
-            x=hist_df['Date'], y=hist_df['Repeat'], mode='lines', fill='tozeroy', name='Repeat Customers',
+            x=hist_dates_str, y=hist_df['Repeat'].tolist(), mode='lines', fill='tozeroy', name='Repeat Customers',
             line=dict(color='#f97316', width=2), fillcolor='rgba(249, 115, 22, 0.4)'
         ))
         fig_hist.update_layout(
