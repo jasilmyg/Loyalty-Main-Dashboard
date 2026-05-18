@@ -238,6 +238,27 @@ class TargetExecutiveView(LoginRequiredMixin, TemplateView):
         )
         hist_json = fig_hist.to_json()
         
+        
+        # --- Advanced AI Metrics & Storytelling Insights ---
+        pace_variance_pct = ((current_run_rate / req_run_rate) - 1) * 100 if req_run_rate > 0 else 0
+        health_score = int(min(100, max(0, 100 - (100 - prob_target) * 1.5)))
+        
+        if prob_target >= 95:
+            risk_level = "Low Risk"
+            risk_color = "success"
+            ai_commentary = "Current trajectory strongly indicates target achievement. Pace is exceeding requirements."
+            status_badge = "ON TRACK"
+        elif prob_target >= 85:
+            risk_level = "Moderate Risk"
+            risk_color = "warning"
+            ai_commentary = f"Pace is slightly behind. A {abs(pace_variance_pct):.1f}% acceleration in daily run rate is needed to guarantee 8%."
+            status_badge = "AT RISK"
+        else:
+            risk_level = "High Risk"
+            risk_color = "danger"
+            ai_commentary = f"Target is highly compromised. Immediate intervention required. Pace must jump by {abs(pace_variance_pct):.1f}%."
+            status_badge = "CRITICAL"
+            
         context.update({
             'total_db': TOTAL_DB,
             'target_count': TARGET_COUNT,
@@ -247,16 +268,22 @@ class TargetExecutiveView(LoginRequiredMixin, TemplateView):
             'current_run_rate': int(current_run_rate),
             'req_run_rate': int(req_run_rate),
             'pace_status': pace_status,
+            'pace_variance_pct': pace_variance_pct,
+            'health_score': health_score,
+            'status_badge': status_badge,
+            'risk_level': risk_level,
+            'risk_color': risk_color,
+            'ai_commentary': ai_commentary,
+            'prob_target': prob_target,
+            'expected_final': int(expected_final),
+            'expected_pct': expected_pct * 100,
             'burn_json': burn_json,
             'gauge_json': gauge_json,
             'daily_json': daily_json,
             'hist_json': hist_json,
-            'prob_target': prob_target,
-            'expected_final': int(expected_final),
-            'expected_pct': expected_pct * 100,
-            'acceleration_req': ((req_run_rate/current_run_rate)-1)*100 if current_run_rate > 0 else 0,
-            'risk_level': "High" if prob_target < 85 else "Moderate" if prob_target < 95 else "Low",
-            'actuals_end': ACTUALS_END.strftime('%d-%b-%Y')
+            'actuals_end': ACTUALS_END.strftime('%d-%b-%Y'),
+            'days_remaining': REMAINING_DAYS,
+            'total_amj_days': TOTAL_AMJ_DAYS
         })
         return context
 
