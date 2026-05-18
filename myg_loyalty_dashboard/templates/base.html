@@ -171,6 +171,9 @@
             <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'cohorts' %}active{% endif %}" href="{% url 'cohorts' %}"><i class="bi bi-calendar3"></i> Cohort Retention</a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'target_executive' %}active{% endif %}" href="{% url 'target_executive' %}"><i class="bi bi-bullseye text-danger"></i> Target Analysis Dashboard</a>
+            </li>
         </ul>
 
         {% if request.user.is_superuser %}

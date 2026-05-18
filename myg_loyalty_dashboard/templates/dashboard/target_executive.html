@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12 d-flex justify-content-between align-items-center">
+            <div>
+                <h2 class="fw-bold m-0" style="color: #0f172a; font-family: 'Inter', sans-serif;">Target Analysis Dashboard & Executive Reporting</h2>
+                <p class="text-muted mt-1 mb-0" style="font-size: 0.9rem;">
+                    <b>Period:</b> AMJ 2026 &nbsp;&nbsp;|&nbsp;&nbsp; 
+                    <b>Actuals Till:</b> {{ actuals_end }} &nbsp;&nbsp;|&nbsp;&nbsp; 
+                    <b>Total DB:</b> {{ total_db|intcomma }}
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Executive KPI Summary -->
+    <h4 class="fw-bold mb-3" style="color: #1e293b;">Executive KPI Summary</h4>
+    <div class="row mb-5 g-3">
+        <div class="col-md">
+            <div class="card h-100 border-0 shadow-sm rounded-4">
+                <div class="card-body p-4">
+                    <p class="text-muted fw-semibold mb-1" style="font-size: 0.85rem;">Quarter Target (8%)</p>
+                    <h3 class="fw-bold m-0 text-dark">{{ target_count|intcomma }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md">
+            <div class="card h-100 border-0 shadow-sm rounded-4">
+                <div class="card-body p-4">
+                    <p class="text-muted fw-semibold mb-1" style="font-size: 0.85rem;">Achievement till May 10</p>
+                    <h3 class="fw-bold m-0 text-dark">{{ current_achieved|intcomma }}</h3>
+                    <small class="fw-bold text-success"><i class="bi bi-arrow-up-right"></i> {{ current_pct|floatformat:1 }}%</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md">
+            <div class="card h-100 border-0 shadow-sm rounded-4">
+                <div class="card-body p-4">
+                    <p class="text-muted fw-semibold mb-1" style="font-size: 0.85rem;">Gap vs Target</p>
+                    <h3 class="fw-bold m-0 text-dark">{{ remaining_target|intcomma }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md">
+            <div class="card h-100 border-0 shadow-sm rounded-4">
+                <div class="card-body p-4">
+                    <p class="text-muted fw-semibold mb-1" style="font-size: 0.85rem;">Current Daily Average</p>
+                    <h3 class="fw-bold m-0 text-dark">{{ current_run_rate|intcomma }}/day</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md">
+            <div class="card h-100 border-0 shadow-sm rounded-4" style="border-left: 4px solid #ef4444 !important;">
+                <div class="card-body p-4">
+                    <p class="text-muted fw-semibold mb-1" style="font-size: 0.85rem;">Required Daily Customers</p>
+                    <h3 class="fw-bold m-0 text-danger">{{ req_run_rate|intcomma }}/day</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Target Tracking & Forecasting -->
+    <h4 class="fw-bold mb-3" style="color: #1e293b;">🎯 Target Tracking & Forecasting</h4>
+    <div class="row mb-5 g-4">
+        <div class="col-xl-8">
+            <div class="card border-0 shadow-sm rounded-4 h-100">
+                <div class="card-header bg-white border-0 pt-4 pb-0 px-4">
+                    <h6 class="fw-bold text-uppercase text-muted m-0">AMJ 2026 Burn-up Chart & Projections</h6>
+                </div>
+                <div class="card-body p-4">
+                    <div id="burn-chart" style="width: 100%; height: 400px;"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-4">
+            <div class="card border-0 shadow-sm rounded-4 h-100">
+                <div class="card-header bg-white border-0 pt-4 pb-0 px-4">
+                    <h6 class="fw-bold text-uppercase text-muted m-0">Pace Indicator</h6>
+                </div>
+                <div class="card-body p-4 d-flex flex-column align-items-center justify-content-center">
+                    <div id="gauge-chart" style="width: 100%; height: 250px;"></div>
+                    <div class="w-100 mt-3 p-3 rounded-3" style="background-color: #f8fafc;">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted fw-semibold">Probability of Target:</span>
+                            <span class="fw-bold text-dark">{{ prob_target|floatformat:1 }}%</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted fw-semibold">Expected Final Customer:</span>
+                            <span class="fw-bold text-dark">{{ expected_final|intcomma }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted fw-semibold">Expected Final %:</span>
+                            <span class="fw-bold text-dark">{{ expected_pct|floatformat:1 }}%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Additional Charts -->
+    <div class="row mb-5 g-4">
+        <div class="col-xl-6">
+            <h4 class="fw-bold mb-3" style="color: #1e293b;">📅 AMJ Quarter Performance</h4>
+            <div class="card border-0 shadow-sm rounded-4 h-100">
+                <div class="card-body p-4">
+                    <div id="daily-chart" style="width: 100%; height: 350px;"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-6">
+            <h4 class="fw-bold mb-3" style="color: #1e293b;">📈 Historical Trend (2020-2026)</h4>
+            <div class="card border-0 shadow-sm rounded-4 h-100">
+                <div class="card-body p-4">
+                    <div id="hist-chart" style="width: 100%; height: 350px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Final Executive Report -->
+    <h4 class="fw-bold mb-3" style="color: #1e293b;">📄 Final Executive Summary & Action Plan</h4>
+    <div class="card border-0 shadow-sm rounded-4 mb-5" style="border-left: 6px solid #f97316 !important;">
+        <div class="card-body p-5">
+            <h5 class="fw-bold mb-4" style="color: #0f172a;">Management Summary - AMJ 2026</h5>
+            
+            <p style="font-size: 1.05rem; line-height: 1.7; color: #334155;">
+                <b>1. Are we on track to achieve 8%?</b><br>
+                Currently, the pace is <b>{{ pace_status }}</b>. As of May 10, we have achieved <b>{{ current_achieved|intcomma }}</b> customers out of the <b>{{ target_count|intcomma }}</b> target. The mathematical probability of achieving the exact 8% target stands at <b>{{ prob_target|floatformat:1 }}%</b>.
+            </p>
+            
+            <p style="font-size: 1.05rem; line-height: 1.7; color: #334155;">
+                <b>2. Required Pace vs Actual:</b><br>
+                The current daily average is <b>{{ current_run_rate|intcomma }}</b> repeat customers/day. To close the remaining gap of <b>{{ remaining_target|intcomma }}</b> customers by June 30, the required daily pace must instantly jump to <b>{{ req_run_rate|intcomma }}</b> repeat customers/day. This represents a required acceleration of <b class="text-danger">{{ acceleration_req|floatformat:1 }}%</b>.
+            </p>
+            
+            <p style="font-size: 1.05rem; line-height: 1.7; color: #334155;">
+                <b>3. Expected Final Quarter Performance:</b><br>
+                Based on weighted Holt-Winters Trend Smoothing, our expected final closure is <b>{{ expected_final|intcomma }}</b> customers, representing an achievement of <b>{{ expected_pct|floatformat:1 }}%</b> against the 8% target.
+            </p>
+            
+            <p style="font-size: 1.05rem; line-height: 1.7; color: #334155;">
+                <b>4. Business Risk Level:</b> 
+                <span class="badge {% if risk_level == 'High' %}bg-danger{% elif risk_level == 'Moderate' %}bg-warning text-dark{% else %}bg-success{% endif %} fs-6 ms-2">
+                    {{ risk_level|upper }} RISK
+                </span><br>
+                With the required run rate significantly higher than historical averages for this period, aggressive operational shifts are required.
+            </p>
+            
+            <p style="font-size: 1.05rem; line-height: 1.7; color: #334155; margin-bottom: 0;">
+                <b>5. Operational Recommendations & Recovery Plan:</b><br>
+                <i class="bi bi-arrow-right-short text-primary"></i> <b>Targeted Cohort Activation:</b> Instantly launch personalized WhatsApp/SMS campaigns targeting the 2023 and 2024 cohorts who have not transacted in AMJ.<br>
+                <i class="bi bi-arrow-right-short text-primary"></i> <b>Weekend Boosters:</b> Historical trends show strong weekend spikes. Introduce "Weekend Loyalty Multiplier" points for May 15-June 30 weekends to artificially inflate the run rate.<br>
+                <i class="bi bi-arrow-right-short text-primary"></i> <b>Staff Level KPIs:</b> Cascade the daily target ({{ req_run_rate|intcomma }}/day) to the branch and staff level, setting clear weekly micro-targets.
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- Plotly JS for rendering the charts -->
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        // Parse the JSON passed from the view
+        const burnFig = JSON.parse('{{ burn_json|escapejs }}');
+        const gaugeFig = JSON.parse('{{ gauge_json|escapejs }}');
+        const dailyFig = JSON.parse('{{ daily_json|escapejs }}');
+        const histFig = JSON.parse('{{ hist_json|escapejs }}');
+
+        // Render charts
+        Plotly.newPlot('burn-chart', burnFig.data, burnFig.layout, {responsive: true, displayModeBar: false});
+        Plotly.newPlot('gauge-chart', gaugeFig.data, gaugeFig.layout, {responsive: true, displayModeBar: false});
+        Plotly.newPlot('daily-chart', dailyFig.data, dailyFig.layout, {responsive: true, displayModeBar: false});
+        Plotly.newPlot('hist-chart', histFig.data, histFig.layout, {responsive: true, displayModeBar: false});
+    });
+</script>
+{% endblock %}

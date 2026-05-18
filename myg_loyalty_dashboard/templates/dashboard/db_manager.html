@@ -211,11 +211,46 @@
       <h4 class="fw-bold mb-0" style="color:#1e293b;">
         <i class="bi bi-database-fill me-2 text-danger"></i>DB Manager
       </h4>
-      <small class="text-muted">Full read-only view of <code>sales_data</code></small>
+      <small class="text-muted">Full read-only & write access to <code>sales_data</code> in PostgreSQL</small>
     </div>
-    <button class="btn btn-outline-secondary btn-sm" onclick="lockDB()">
-      <i class="bi bi-lock me-1"></i>Lock
-    </button>
+    <div class="d-flex gap-2">
+      <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#uploadModal">
+        <i class="bi bi-cloud-upload me-1"></i>Upload Data
+      </button>
+      <button class="btn btn-outline-secondary btn-sm" onclick="lockDB()">
+        <i class="bi bi-lock me-1"></i>Lock
+      </button>
+    </div>
+  </div>
+
+  <!-- Upload Modal -->
+  <div class="modal fade" id="uploadModal" tabindex="-1" aria-labelledby="uploadModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form method="POST" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="modal-header">
+            <h5 class="modal-title fw-bold" id="uploadModalLabel">
+              <i class="bi bi-cloud-arrow-up text-primary me-2"></i>Upload Sales Data
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p class="text-muted small">
+              Upload an Excel (.xlsx, .xls) or CSV file. The columns must exactly match the expected schema for the <code>sales_data</code> table. Data will be appended directly to the PostgreSQL database.
+            </p>
+            <div class="mb-3">
+              <label for="sales_file" class="form-label fw-semibold">Select File</label>
+              <input class="form-control" type="file" id="sales_file" name="sales_file" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" required>
+            </div>
+          </div>
+          <div class="modal-footer bg-light">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary px-4" onclick="this.innerHTML='<span class=\'spinner-border spinner-border-sm me-2\'></span>Uploading...'; this.form.submit(); this.disabled=true;">Upload</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 
   <!-- Toolbar: stats + search -->
