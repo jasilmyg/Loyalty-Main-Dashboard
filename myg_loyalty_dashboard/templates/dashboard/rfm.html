@@ -104,7 +104,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="fw-bold m-0">RFM Segmentation</h2>
-    {% if request.user.is_superuser %}
+    {% if request.user.username != 'myguser' %}
     <button id="export-btn" class="btn btn-success" onclick="downloadExport()">
         <i class="bi bi-file-earmark-excel"></i> Export Excel
     </button>
@@ -263,6 +263,7 @@
 {% block extra_js %}
 <script>
     const NUM = v => new Intl.NumberFormat('en-IN').format(v);
+    const canDownload = {% if request.user.username != 'myguser' %}true{% else %}false{% endif %};
     
     let rfmChart = null;
     let currentFilterStr = "";
@@ -455,11 +456,12 @@
                             <div class="fw-bold">${new Intl.NumberFormat('en-IN').format(d.count)}</div>
                             <small class="text-muted">${perc}%</small>
                         </div>
+                        ${canDownload ? `
                         <div>
                             <button id="btn-${safeSeg}" class="btn btn-sm btn-outline-success" onclick="downloadExport('${d.segment}', 'btn-${safeSeg}')" title="Download ${d.segment} customers">
                                 <i class="bi bi-cloud-arrow-down"></i>
                             </button>
-                        </div>
+                        </div>` : ''}
                     </li>
                 `;
             });

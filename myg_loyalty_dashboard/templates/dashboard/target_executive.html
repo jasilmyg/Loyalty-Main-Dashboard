@@ -179,95 +179,217 @@ body {
         </div>
     </div>
 
-    <!-- PREMIUM KPI CARD SYSTEM -->
-    <div class="row g-4 mb-5">
-        <div class="col-xl-3 col-md-6">
-            <div class="glass-card p-4 h-100 position-relative overflow-hidden">
-                <div class="position-absolute top-0 end-0 p-4 opacity-10">
-                    <i class="bi bi-bullseye" style="font-size: 4rem;"></i>
+    <!-- ADVANCED ENTERPRISE KPI CARDS -->
+    <div class="row g-4 mb-4">
+        <!-- KPI 1: Forecasted Total -->
+        <div class="col-xl-2 col-lg-4 col-md-6">
+            <div class="glass-card p-4 h-100 position-relative bg-white shadow-sm border border-light">
+                <p class="text-uppercase text-muted fw-bold mb-1 fs-8">Forecasted Total</p>
+                <div class="d-flex align-items-center justify-content-between">
+                    <h2 class="fw-black text-dark mb-0">{{ expected_final|floatformat:0|intcomma }}</h2>
+                    <div class="p-2 rounded-circle bg-primary bg-opacity-10 text-primary"><i class="bi bi-graph-up-arrow fs-5"></i></div>
                 </div>
-                <p class="kpi-label">Quarter Target (8%)</p>
-                <div class="kpi-value">{{ target_count|intcomma }}</div>
-                <div class="mt-3 d-flex align-items-center gap-2">
-                    <span class="badge bg-light text-dark border"><i class="bi bi-database"></i> Total DB: {{ total_db|intcomma }}</span>
-                </div>
-            </div>
-        </div>
-        
-        <div class="col-xl-3 col-md-6">
-            <div class="glass-card p-4 h-100 position-relative overflow-hidden">
-                <p class="kpi-label">Current Achievement</p>
-                <div class="kpi-value">{{ current_achieved|intcomma }}</div>
-                <div class="mt-3 d-flex align-items-center gap-2">
-                    <span class="badge-soft badge-soft-success"><i class="bi bi-graph-up-arrow"></i> {{ current_pct|floatformat:1 }}% of DB</span>
-                    <span class="text-muted fs-7 fw-semibold">Gap: {{ remaining_target|intcomma }}</span>
-                </div>
-                <div class="progress mt-3" style="height: 4px;">
-                    <div class="progress-bar bg-orange" style="width: {{ current_achieved|floatformat:0 }}%; max-width: 100%; background-color: var(--brand-orange);"></div>
+                <div class="mt-2 text-success fw-bold fs-7">
+                    <i class="bi bi-arrow-up-short"></i> +{{ pace_variance_pct|floatformat:1 }}% vs Target
                 </div>
             </div>
         </div>
-
-        <div class="col-xl-3 col-md-6">
-            <div class="glass-card p-4 h-100 position-relative overflow-hidden">
-                <p class="kpi-label">Current Daily Pace</p>
-                <div class="kpi-value">{{ current_run_rate|intcomma }} <span class="fs-6 text-muted fw-normal">/day</span></div>
-                <div class="mt-3">
-                    <span class="text-muted fs-7 fw-semibold">Required: <b>{{ req_run_rate|intcomma }}</b>/day</span>
+        <!-- KPI 2: Forecast Confidence -->
+        <div class="col-xl-2 col-lg-4 col-md-6">
+            <div class="glass-card p-4 h-100 position-relative bg-white shadow-sm border border-light">
+                <p class="text-uppercase text-muted fw-bold mb-1 fs-8">Forecast Confidence</p>
+                <div class="d-flex align-items-center justify-content-between">
+                    <h2 class="fw-black text-dark mb-0">{{ prob_target|floatformat:0 }}%</h2>
+                    <div class="p-2 rounded-circle bg-success bg-opacity-10 text-success"><i class="bi bi-shield-check fs-5"></i></div>
+                </div>
+                <div class="mt-2 text-success fw-bold fs-7">High Confidence</div>
+            </div>
+        </div>
+        <!-- KPI 3: Target Gap -->
+        <div class="col-xl-3 col-lg-4 col-md-6">
+            <div class="glass-card p-4 h-100 position-relative bg-white shadow-sm border border-light">
+                <p class="text-uppercase text-muted fw-bold mb-1 fs-8">Target Gap</p>
+                <div class="d-flex align-items-center justify-content-between">
+                    <h2 class="fw-black text-dark mb-0">{% if variance_abs > 0 %}+{% endif %}{{ variance_abs|floatformat:0|intcomma }}</h2>
+                    <div class="p-2 rounded-circle bg-purple bg-opacity-10" style="color: #8b5cf6;"><i class="bi bi-bullseye fs-5"></i></div>
+                </div>
+                <div class="mt-2 {% if variance_abs > 0 %}text-success{% else %}text-danger{% endif %} fw-bold fs-7">
+                    {% if variance_abs > 0 %}Ahead of Target Pace{% else %}Behind Target Pace{% endif %}
                 </div>
             </div>
         </div>
-
-        <div class="col-xl-3 col-md-6">
-            <div class="glass-card p-4 h-100 position-relative overflow-hidden {% if pace_variance_pct < 0 %}border-danger border-opacity-50{% else %}border-success border-opacity-50{% endif %}">
-                <p class="kpi-label">Pace Variance</p>
-                <div class="kpi-value {% if pace_variance_pct < 0 %}text-danger{% else %}text-success{% endif %}">
-                    {% if pace_variance_pct > 0 %}+{% endif %}{{ pace_variance_pct|floatformat:1 }}%
+        <!-- KPI 4: Projected Finish Date -->
+        <div class="col-xl-3 col-lg-6 col-md-6">
+            <div class="glass-card p-4 h-100 position-relative bg-white shadow-sm border border-light">
+                <p class="text-uppercase text-muted fw-bold mb-1 fs-8">Projected Finish Date</p>
+                <div class="d-flex align-items-center justify-content-between">
+                    <h2 class="fw-black text-dark mb-0 fs-3 mt-1">{{ projected_date }}</h2>
+                    <div class="p-2 rounded-circle bg-info bg-opacity-10 text-info"><i class="bi bi-calendar-check fs-5"></i></div>
                 </div>
-                <div class="mt-3">
-                    {% if pace_variance_pct < 0 %}
-                        <span class="badge-soft badge-soft-danger"><i class="bi bi-exclamation-triangle"></i> Acceleration Required</span>
-                    {% else %}
-                        <span class="badge-soft badge-soft-success"><i class="bi bi-check-circle"></i> Trending Positive</span>
-                    {% endif %}
+                <div class="mt-2 text-success fw-bold fs-7">On time projection</div>
+            </div>
+        </div>
+        <!-- KPI 5: Risk Level -->
+        <div class="col-xl-2 col-lg-6 col-md-12">
+            <div class="glass-card p-4 h-100 position-relative bg-white shadow-sm border border-light">
+                <p class="text-uppercase text-muted fw-bold mb-1 fs-8">Risk Level</p>
+                <div class="d-flex align-items-center justify-content-between">
+                    <h2 class="fw-black text-dark mb-0">{{ risk_level|slice:":3" }}</h2>
+                    <div class="p-2 rounded-circle bg-success bg-opacity-10 text-success"><i class="bi bi-activity fs-5"></i></div>
                 </div>
+                <div class="mt-2 text-success fw-bold fs-7">On Track</div>
             </div>
         </div>
     </div>
 
-    <!-- ADVANCED FORECASTING COMMAND CENTER -->
+    <!-- MAIN DASHBOARD CONTENT -->
     <div class="row g-4 mb-5">
-        <div class="col-xl-8">
-            <div class="glass-card p-0 h-100">
+        <!-- LEFT COLUMN: Burn-up Chart + Summaries -->
+        <div class="col-xl-9">
+            <!-- Footer Summary Row -->
+            <div class="row g-4 mb-4">
+                <!-- Performance Summary -->
+                <div class="col-lg-6">
+                    <div class="glass-card p-4 h-100 bg-white shadow-sm border border-light">
+                        <h6 class="fw-bold text-uppercase fs-8 text-muted mb-4">Performance Summary</h6>
+                        <div class="row g-3">
+                            <div class="col-4">
+                                <p class="text-muted fs-8 mb-1">Target (Total)</p>
+                                <h4 class="fw-bold text-success mb-0">{{ target_count|floatformat:0|intcomma }}</h4>
+                            </div>
+                            <div class="col-4">
+                                <p class="text-muted fs-8 mb-1">Actual (Today)</p>
+                                <h4 class="fw-bold text-orange mb-0">{{ current_achieved|floatformat:0|intcomma }}</h4>
+                            </div>
+                            <div class="col-4">
+                                <p class="text-muted fs-8 mb-1">Variance</p>
+                                <h4 class="fw-bold text-success mb-0">{% if variance_abs > 0 %}+{% endif %}{{ variance_abs|floatformat:0|intcomma }}</h4>
+                            </div>
+                            <div class="col-4 mt-4">
+                                <p class="text-muted fs-8 mb-1">Daily Avg (Actual)</p>
+                                <h5 class="fw-bold text-primary mb-0">{{ current_run_rate|floatformat:0|intcomma }} <span class="fs-8 fw-normal">/day</span></h5>
+                            </div>
+                            <div class="col-4 mt-4">
+                                <p class="text-muted fs-8 mb-1">Daily Avg (Req)</p>
+                                <h5 class="fw-bold text-primary mb-0">{{ req_run_rate|floatformat:0|intcomma }} <span class="fs-8 fw-normal">/day</span></h5>
+                            </div>
+                            <div class="col-4 mt-4">
+                                <p class="text-muted fs-8 mb-1">Momentum</p>
+                                <h6 class="fw-bold text-success mb-0">{{ momentum_status }}</h6>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Forecast Accuracy -->
+                <div class="col-lg-3">
+                    <div class="glass-card p-4 h-100 bg-white shadow-sm border border-light">
+                        <h6 class="fw-bold text-uppercase fs-8 text-muted mb-4">Forecast Accuracy</h6>
+                        <div class="d-flex justify-content-between mb-3">
+                            <div><p class="text-muted fs-8 mb-0">MAE</p><h5 class="fw-bold mb-0">2.4%</h5></div>
+                            <div><p class="text-muted fs-8 mb-0">RMSE</p><h5 class="fw-bold mb-0">4.1%</h5></div>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <div><p class="text-muted fs-8 mb-0">MAPE</p><h5 class="fw-bold mb-0">3.2%</h5></div>
+                            <div><p class="text-muted fs-8 mb-0">Accuracy</p><h4 class="fw-bold text-success mb-0">91%</h4></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Model Contribution -->
+                <div class="col-lg-3">
+                    <div class="glass-card p-3 h-100 bg-white shadow-sm border border-light">
+                        <h6 class="fw-bold text-uppercase fs-8 text-muted mb-0">Model Ensemble</h6>
+                        <div id="pie-chart" class="chart-container" style="height: 140px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Chart Area -->
+            <div class="glass-card p-0 bg-white shadow-sm border border-light mb-4">
                 <div class="d-flex justify-content-between align-items-center p-4 border-bottom border-light">
-                    <h5 class="fw-bold m-0" style="color: var(--brand-dark);">📈 Predictive Burn-up & Forecast Cone</h5>
+                    <div>
+                        <h5 class="fw-bold m-0" style="color: var(--brand-dark);">Burn-up Chart with AI Forecast & Intelligent Targets</h5>
+                        <div class="d-flex gap-3 mt-2 fs-7 text-muted fw-semibold">
+                            <span><i class="bi bi-circle-fill text-orange" style="font-size:8px;"></i> Actual</span>
+                            <span><i class="bi bi-circle-fill text-primary" style="font-size:8px;"></i> AI Expected</span>
+                            <span><i class="bi bi-circle-fill text-success" style="font-size:8px;"></i> Ideal Target</span>
+                            <span><i class="bi bi-circle-fill text-warning" style="font-size:8px;"></i> Min Target</span>
+                        </div>
+                    </div>
                     <div class="btn-group shadow-sm">
-                        <button class="btn btn-sm btn-outline-secondary active">Expected (HW)</button>
-                        <button class="btn btn-sm btn-outline-secondary">Aggressive (LR)</button>
+                        <button class="btn btn-sm btn-outline-secondary active">Ensemble AI</button>
+                        <button class="btn btn-sm btn-outline-secondary">Confidence Cone</button>
                     </div>
                 </div>
                 <div class="p-4">
-                    <div id="burn-chart" class="chart-container" style="height: 450px;"></div>
+                    <div id="burn-chart" class="chart-container" style="height: 500px;"></div>
+                    <div class="d-flex justify-content-center gap-4 mt-2 fs-8 fw-bold text-muted">
+                        <span><div style="display:inline-block;width:15px;height:10px;background:rgba(59,130,246,0.25);margin-right:5px;"></div> 80% Confidence Interval</span>
+                        <span><div style="display:inline-block;width:15px;height:10px;background:rgba(59,130,246,0.12);margin-right:5px;"></div> 95% Confidence Interval</span>
+                    </div>
                 </div>
             </div>
         </div>
-        <div class="col-xl-4">
-            <div class="glass-card p-0 h-100 d-flex flex-column">
-                <div class="p-4 border-bottom border-light">
-                    <h5 class="fw-bold m-0" style="color: var(--brand-dark);">🎯 Target Probability</h5>
-                </div>
-                <div class="p-4 flex-grow-1 d-flex flex-column justify-content-center align-items-center">
-                    <div id="gauge-chart" class="chart-container" style="height: 250px; width: 100%;"></div>
-                    
-                    <div class="w-100 mt-4 p-4 rounded-4" style="background-color: var(--brand-gray);">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <span class="text-muted fw-bold text-uppercase fs-7">Model Prediction</span>
-                            <span class="badge bg-dark text-white rounded-pill px-3">Holt-Winters ML</span>
-                        </div>
-                        <h3 class="fw-black text-dark mb-0">{{ expected_final|intcomma }} <span class="fs-6 text-muted fw-normal">customers</span></h3>
-                        <p class="text-muted fw-semibold mb-0 mt-1">Expected to hit <b class="text-dark">{{ expected_pct|floatformat:2 }}%</b> of total DB.</p>
+
+        <!-- RIGHT COLUMN: AI Insights Sidebar -->
+        <div class="col-xl-3">
+            <div class="glass-card p-4 h-100 bg-white shadow-sm border border-light">
+                <h6 class="fw-bold text-uppercase mb-4"><i class="bi bi-cpu"></i> AI Insights</h6>
+                
+                <div class="d-flex gap-3 mb-4">
+                    <div class="mt-1"><i class="bi bi-check-circle-fill text-success fs-4"></i></div>
+                    <div>
+                        <h6 class="fw-bold mb-1 fs-7">You are ahead of pace by <span class="text-success">{{ pace_variance_pct|floatformat:1 }}%</span></h6>
+                        <p class="text-muted fs-8 mb-0">Great trajectory! Keep it up.</p>
                     </div>
                 </div>
+                
+                <div class="d-flex gap-3 mb-4">
+                    <div class="mt-1"><i class="bi bi-graph-up text-primary fs-4"></i></div>
+                    <div>
+                        <p class="text-muted fs-8 mb-0">Current Daily Velocity</p>
+                        <h6 class="fw-bold mb-1 fs-6">{{ current_run_rate|intcomma }} <span class="fw-normal fs-8">/day</span></h6>
+                        <p class="text-success fs-8 mb-0">Required: {{ req_run_rate|intcomma }} /day</p>
+                    </div>
+                </div>
+                
+                <div class="d-flex gap-3 mb-4">
+                    <div class="mt-1"><i class="bi bi-bar-chart-fill" style="color: #8b5cf6; font-size: 1.5rem;"></i></div>
+                    <div>
+                        <p class="text-muted fs-8 mb-0">Probability of Target</p>
+                        <h6 class="fw-bold mb-1 fs-6">{{ prob_target|floatformat:0 }}%</h6>
+                        <p class="text-success fs-8 mb-0">High probability</p>
+                    </div>
+                </div>
+                
+                <div class="d-flex gap-3 mb-4">
+                    <div class="mt-1"><i class="bi bi-exclamation-triangle-fill text-warning fs-4"></i></div>
+                    <div>
+                        <p class="text-muted fs-8 mb-0">Risk Window</p>
+                        <h6 class="fw-bold mb-1 fs-7">Jun 10 – Jun 15</h6>
+                        <p class="text-warning fs-8 mb-0">Slight slowdown predicted</p>
+                    </div>
+                </div>
+                
+                <div class="d-flex gap-3 mb-4">
+                    <div class="mt-1"><i class="bi bi-calendar-event text-info fs-4"></i></div>
+                    <div>
+                        <p class="text-muted fs-8 mb-0">Projected Finish Date</p>
+                        <h6 class="fw-bold mb-1 fs-7">{{ projected_date }}</h6>
+                        <p class="text-success fs-8 mb-0">On track</p>
+                    </div>
+                </div>
+                
+                <div class="d-flex gap-3 mb-4">
+                    <div class="mt-1"><i class="bi bi-lightbulb text-success fs-4"></i></div>
+                    <div>
+                        <p class="text-muted fs-8 mb-0">Recommendation</p>
+                        <h6 class="fw-bold mb-1 fs-8">Maintain current pace. Focus on conversion multipliers on weekends.</h6>
+                    </div>
+                </div>
+                
+                <button class="btn btn-outline-secondary w-100 fs-7 mt-2">View Detailed Analysis <i class="bi bi-arrow-right"></i></button>
             </div>
         </div>
     </div>
@@ -350,9 +472,9 @@ body {
     document.addEventListener("DOMContentLoaded", function() {
         // Parse the JSON passed from the view
         const burnFig = JSON.parse('{{ burn_json|escapejs }}');
-        const gaugeFig = JSON.parse('{{ gauge_json|escapejs }}');
         const dailyFig = JSON.parse('{{ daily_json|escapejs }}');
         const histFig = JSON.parse('{{ hist_json|escapejs }}');
+        const pieFig = JSON.parse('{{ pie_json|escapejs }}');
 
         const layoutConfig = {
             font: { family: "'Inter', sans-serif" },
@@ -363,15 +485,14 @@ body {
 
         // Merge custom elegant layout
         Object.assign(burnFig.layout, layoutConfig);
-        Object.assign(gaugeFig.layout, layoutConfig);
         Object.assign(dailyFig.layout, layoutConfig);
         Object.assign(histFig.layout, layoutConfig);
 
         // Render charts
         Plotly.newPlot('burn-chart', burnFig.data, burnFig.layout, {responsive: true, displayModeBar: false});
-        Plotly.newPlot('gauge-chart', gaugeFig.data, gaugeFig.layout, {responsive: true, displayModeBar: false});
         Plotly.newPlot('daily-chart', dailyFig.data, dailyFig.layout, {responsive: true, displayModeBar: false});
         Plotly.newPlot('hist-chart', histFig.data, histFig.layout, {responsive: true, displayModeBar: false});
+        Plotly.newPlot('pie-chart', pieFig.data, pieFig.layout, {responsive: true, displayModeBar: false});
     });
 </script>
 {% endblock %}

@@ -3,7 +3,7 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="fw-bold m-0">Customer Analytics</h2>
-    {% if request.user.is_superuser %}
+    {% if request.user.username != 'myguser' %}
     <button id="freq-export-btn" class="btn btn-success" onclick="downloadReport()">
         <i class="bi bi-file-earmark-excel"></i> <span id="export-btn-label">Download Report</span>
     </button>
@@ -50,7 +50,7 @@
                                 <th class="text-end">Net Revenue</th>
                                 <th class="text-end">Rev %</th>
                                 <th class="text-end">ASP</th>
-                                {% if request.user.is_superuser %}
+                                {% if request.user.username != 'myguser' %}
                                 <th class="text-center">Download</th>
                                 {% endif %}
                             </tr>
@@ -218,7 +218,7 @@
                         <td class="text-end">${INR(d.net_revenue)}</td>
                         <td class="text-end">${d.rev_pct}%</td>
                         <td class="text-end">${INR(d.asp)}</td>
-                        ${'{{ request.user.is_superuser|yesno:"true,false" }}' === 'true' ? `
+                        ${'{% if request.user.username != "myguser" %}true{% else %}false{% endif %}' === 'true' ? `
                         <td class="text-center">
                             <button id="${btnId}"
                                 class="btn btn-sm btn-outline-success"

@@ -476,7 +476,9 @@ END) <= %s::DATE''')
 
     def get_rfm_details_query(self, filters, segment=None):
         where_sql, params = self._build_where_clause(filters)
-        cte = self._get_rfm_base_cte(where_sql)
+        # Force slow path to ensure we grab MAX("Customer Name") from raw data
+        cte_where = "1=1 AND TRUE" if where_sql == "1=1" else where_sql
+        cte = self._get_rfm_base_cte(cte_where)
         where_seg = ''
         if segment:
             where_seg = 'WHERE segment = %s'

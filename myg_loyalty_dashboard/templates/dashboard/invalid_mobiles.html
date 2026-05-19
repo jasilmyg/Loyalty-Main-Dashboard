@@ -9,7 +9,7 @@
         <p class="text-muted mt-1 mb-0">Records excluded from analytics due to missing or invalid (non-numeric) mobile numbers.</p>
     </div>
     <div>
-        {% if request.user.is_superuser %}
+        {% if request.user.username != 'myguser' %}
         <button id="btn-export" class="btn btn-success px-4" onclick="exportData()">
             <i class="bi bi-file-earmark-excel me-2"></i> Export to Excel
         </button>

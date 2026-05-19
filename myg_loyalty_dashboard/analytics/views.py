@@ -383,21 +383,25 @@ def export_view(request, module):
         else:
             # Detail Export for a specific segment
             # Limit to 100k rows to prevent server crash or Excel limit issues
+            from django.db import connection
             query, params = svc.get_rfm_details_query(filters, segment)
             query += " LIMIT 100000"
-            data = svc.conn.execute(query, params)
-            headers = [d[0] for d in data.description]
-            rows = data.fetchall()
+            with connection.cursor() as cur:
+                cur.execute(query, params)
+                headers = [col[0] for col in cur.description]
+                rows = cur.fetchall()
             
             filename = f"rfm_{segment.lower().replace(' ', '_')}_details.xlsx"
             return _build_xlsx_response(filename, headers, rows)
 
     elif module == 'sales':
-        table = "sales_data" if svc.using_native else "sqlite_db.sales_data"
+        from django.db import connection
+        table = "sales_data"
         query = f'SELECT * FROM {table} WHERE {where_sql} LIMIT 50000'
-        data = svc.conn.execute(query, params)
-        headers = [d[0] for d in data.description]
-        rows = data.fetchall()
+        with connection.cursor() as cur:
+            cur.execute(query, params)
+            headers = [col[0] for col in cur.description]
+            rows = cur.fetchall()
         return _build_xlsx_response('sales_export.xlsx', headers, rows)
 
     elif module == 'gap-analysis':
