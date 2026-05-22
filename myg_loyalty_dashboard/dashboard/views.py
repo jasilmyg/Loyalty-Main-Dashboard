@@ -52,14 +52,28 @@ class TargetExecutiveView(LoginRequiredMixin, TemplateView):
         
         context = super().get_context_data(**kwargs)
         
-        # Load AI Forecast Cache
-        cache_path = os.path.join(settings.BASE_DIR, 'analytics', 'lstm_forecast_cache.json')
+        # 1. Try to load from PostgreSQL (works on all environments including Render)
+        ai_data = None
         try:
-            with open(cache_path, 'r') as f:
-                ai_data = json.load(f)
+            from analytics.models import ForecastCache
+            ai_data = ForecastCache.get_lstm_cache()
+            # get_lstm_cache returns {"KPIs": {}, ...} on DoesNotExist — treat as missing
+            if not ai_data.get("KPIs"):
+                ai_data = None
         except Exception as e:
-            ai_data = {"KPIs": {}, "Charts": {}, "Insights": []}
-            print(f"Failed to load LSTM Forecast Cache: {e}")
+            print(f"ForecastCache DB read failed: {e}")
+            ai_data = None
+
+        # 2. Fallback: local JSON file (for development convenience)
+        if ai_data is None:
+            cache_path = os.path.join(settings.BASE_DIR, 'analytics', 'lstm_forecast_cache.json')
+            try:
+                with open(cache_path, 'r') as f:
+                    ai_data = json.load(f)
+                print("Loaded LSTM Forecast Cache from local JSON file (DB fallback).")
+            except Exception as e:
+                ai_data = {"KPIs": {}, "Charts": {}, "Insights": []}
+                print(f"Failed to load LSTM Forecast Cache from DB and file: {e}")
             
         kpis = ai_data.get("KPIs", {})
         charts = ai_data.get("Charts", {})
