@@ -736,6 +736,14 @@ END) <= %s::DATE''')
 
     # ── Gap Analysis ─────────────────────────────────────────────────────────
     def get_gap_segmentation(self, filters):
+        import json, hashlib
+        from django.core.cache import cache
+
+        cache_key = 'gap_segments_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         where_sql, params = self._build_where_clause(filters)
         
         signals = {
@@ -761,7 +769,7 @@ END) <= %s::DATE''')
                     FROM mv_gap_analysis ORDER BY sort_order ASC
                 """)
                 if rows:
-                    return [{
+                    result = [{
                         'segment': r[0], 'count': r[1],
                         'percentage': round(float(r[2] or 0), 2),
                         'avg_gap': round(float(r[3] or 0), 1),
@@ -769,6 +777,8 @@ END) <= %s::DATE''')
                         'priority': signals.get(r[4], ('Medium','Medium',''))[1],
                         'action': signals.get(r[4], ('Medium','Medium',''))[2],
                     } for r in rows]
+                    cache.set(cache_key, result, 86400) # cache global view for 24h
+                    return result
             except Exception:
                 pass  # MV not ready, fall through
 
@@ -813,7 +823,7 @@ END) <= %s::DATE''')
                 AVG(gap_days)::FLOAT AS avg_gap, sort_order
             FROM bucketed GROUP BY gap_range, sort_order ORDER BY sort_order ASC
         """, params)
-        return [{
+        result = [{
             'segment': r[0], 'count': r[1],
             'percentage': round(float(r[2] or 0), 2),
             'avg_gap': round(float(r[3] or 0), 1),
@@ -821,6 +831,8 @@ END) <= %s::DATE''')
             'priority': signals.get(r[4], ('Medium','Medium',''))[1],
             'action': signals.get(r[4], ('Medium','Medium',''))[2],
         } for r in rows]
+        cache.set(cache_key, result, 3600) # cache filtered view for 1 hour
+        return result
 
     def get_customer_segmentation_matrix(self, filters):
         where_sql, params = self._build_where_clause(filters)
@@ -859,16 +871,18 @@ END))::INT AS recency_days
         return [{'freq':r[0],'recency':r[1],'customers':r[2],'avg_spend':round(float(r[3] or 0),2)} for r in rows]
 
     def get_action_engine_data(self, filters):
+        import json, hashlib
+        from django.core.cache import cache
+
+        cache_key = 'action_engine_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         where_sql, params = self._build_where_clause(filters)
 
         # ── Lightning fast path: global queries (no filter) ─────────────────
         if where_sql == '1=1':
-            from django.core.cache import cache
-            _ck = 'action_engine_global'
-            _cached = cache.get(_ck)
-            if _cached is not None:
-                return _cached
-
             # Tier 1: mv_action_engine (3 pre-computed rows, ~37ms)
             try:
                 rows = _q("SELECT segment, customers, revenue_at_risk, action FROM mv_action_engine WHERE customers > 0")
@@ -876,7 +890,7 @@ END))::INT AS recency_days
                     result = [{'segment': r[0], 'customers': r[1],
                                'revenue_at_risk': round(float(r[2] or 0), 2), 'action': r[3]}
                               for r in rows]
-                    cache.set(_ck, result, 86400)
+                    cache.set(cache_key, result, 86400)
                     return result
             except Exception:
                 pass  # MV not ready, fall through
@@ -915,7 +929,7 @@ END))::INT AS recency_days
                 result = [{'segment': r[0], 'customers': r[1],
                            'revenue_at_risk': round(float(r[2] or 0), 2), 'action': r[3]}
                           for r in rows if r[1] > 0]
-                cache.set(_ck, result, 86400)
+                cache.set(cache_key, result, 86400)
                 return result
             except Exception:
                 pass  # Fall through to raw scan
@@ -940,22 +954,26 @@ END))::INT AS recency_days
             SELECT 'Frequent Shoppers at Risk', COUNT(*), SUM(total_spend)::FLOAT, 'Trigger premium loyalty offer'
             FROM cs WHERE recency_days BETWEEN 45 AND 90 AND visits >= 3
         """, params)
-        return [{'segment':r[0],'customers':r[1],'revenue_at_risk':round(float(r[2] or 0),2),'action':r[3]} for r in rows if r[1]>0]
+        result = [{'segment':r[0],'customers':r[1],'revenue_at_risk':round(float(r[2] or 0),2),'action':r[3]} for r in rows if r[1]>0]
+        cache.set(cache_key, result, 3600)
+        return result
 
     def get_business_insights(self, filters):        return []
     def get_cohort_business_insights(self):        return []
 
     # ── Loyalty KPIs ─────────────────────────────────────────────────────────
     def get_loyalty_overview_kpis(self, filters):
+        import json, hashlib
+        from django.core.cache import cache
+
+        cache_key = 'loyalty_kpis_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         where_sql, params = self._build_where_clause(filters)
 
         if where_sql == '1=1':
-            from django.core.cache import cache
-            _ck = 'loyalty_kpi_global'
-            _cached = cache.get(_ck)
-            if _cached is not None:
-                return _cached
-
             # ── Tier 1: mv_loyalty_kpis (1-row pre-computed MV, ~37ms) ────────
             try:
                 row = _q1("""
@@ -970,7 +988,7 @@ END))::INT AS recency_days
                         'repeat_rate':      round(repeat / total * 100, 1) if total else 0,
                         'avg_gap':          round(float(row[2] or 0), 1),
                     }
-                    cache.set(_ck, result, 86400)
+                    cache.set(cache_key, result, 86400)
                     return result
             except Exception:
                 pass  # MV not ready, fall through
@@ -1006,49 +1024,52 @@ END))::INT AS recency_days
                 FROM parsed
             """)
         else:
-            # ── Filtered path: LAG-based exact avg gap on v_sales_data ───────
+            # ── Filtered path: Single-pass CTE scan over v_sales_data (optimized) ──
             row = _q1(f"""
-                WITH cs AS (
-                    SELECT "Customer Mobile",
-                        COUNT(DISTINCT "Date") AS visits
+                WITH daily_visits AS (
+                    SELECT "Customer Mobile" AS mobile, "Date" AS purchase_date
                     FROM {TABLE}
                     WHERE {where_sql} AND "Customer Mobile" ~ '^[0-9]{{10}}$'
-                    GROUP BY "Customer Mobile"
+                    GROUP BY "Customer Mobile","Date"
                 ),
-                gap_data AS (
-                    SELECT s."Customer Mobile",
-                        (s."Date" - LAG(s."Date") OVER (
-                            PARTITION BY s."Customer Mobile" ORDER BY s."Date"
-                        ))::INT AS gap_days
-                    FROM {TABLE} s
-                    WHERE {where_sql} AND s."Customer Mobile" ~ '^[0-9]{{10}}$'
+                ranked AS (
+                    SELECT mobile, purchase_date,
+                        LAG(purchase_date) OVER(PARTITION BY mobile ORDER BY purchase_date) AS prev_date
+                    FROM daily_visits
+                ),
+                gaps AS (
+                    SELECT mobile, (purchase_date - prev_date)::INT AS gap_days
+                    FROM ranked WHERE prev_date IS NOT NULL
                 ),
                 customer_avg_gaps AS (
-                    SELECT "Customer Mobile",
-                        AVG(gap_days)::FLOAT AS avg_gap_days
-                    FROM gap_data WHERE gap_days IS NOT NULL AND gap_days > 0
-                    GROUP BY "Customer Mobile"
+                    SELECT mobile, AVG(gap_days)::FLOAT AS avg_gap_days
+                    FROM gaps GROUP BY mobile
+                ),
+                visit_counts AS (
+                    SELECT mobile, COUNT(*) AS visits
+                    FROM daily_visits
+                    GROUP BY mobile
                 )
                 SELECT
-                    COUNT(DISTINCT c."Customer Mobile"),
-                    COUNT(DISTINCT CASE WHEN c.visits > 1 THEN c."Customer Mobile" END),
+                    COUNT(DISTINCT v.mobile),
+                    COUNT(DISTINCT CASE WHEN v.visits > 1 THEN v.mobile END),
                     AVG(g.avg_gap_days)::FLOAT
-                FROM cs c
-                LEFT JOIN customer_avg_gaps g ON c."Customer Mobile" = g."Customer Mobile"
-            """, params + params)
+                FROM visit_counts v
+                LEFT JOIN customer_avg_gaps g ON v.mobile = g.mobile
+            """, params)
 
         if not row:
-            return {'total_customers': 0, 'repeat_customers': 0, 'repeat_rate': 0, 'avg_gap': 0}
-        total, repeat = int(row[0] or 0), int(row[1] or 0)
-        result = {
-            'total_customers':  total,
-            'repeat_customers': repeat,
-            'repeat_rate':      round(repeat / total * 100, 1) if total else 0,
-            'avg_gap':          round(float(row[2] or 0), 1),
-        }
-        if where_sql == '1=1':
-            from django.core.cache import cache
-            cache.set('loyalty_kpi_global', result, 86400)
+            result = {'total_customers': 0, 'repeat_customers': 0, 'repeat_rate': 0, 'avg_gap': 0}
+        else:
+            total, repeat = int(row[0] or 0), int(row[1] or 0)
+            result = {
+                'total_customers':  total,
+                'repeat_customers': repeat,
+                'repeat_rate':      round(repeat / total * 100, 1) if total else 0,
+                'avg_gap':          round(float(row[2] or 0), 1),
+            }
+        
+        cache.set(cache_key, result, 86400 if where_sql == '1=1' else 3600)
         return result
 
     # ── Unique Branches ──────────────────────────────────────────────────────

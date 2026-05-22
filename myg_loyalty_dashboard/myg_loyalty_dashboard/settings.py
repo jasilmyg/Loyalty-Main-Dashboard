@@ -85,7 +85,7 @@ DATABASES = {
         'NAME':     os.environ.get('PGDATABASE', 'defaultdb'),
         'USER':     os.environ.get('PGUSER',     'doadmin'),
         'PASSWORD': os.environ.get('PGPASSWORD', ''),
-        'HOST':     os.environ.get('PGHOST',     'db-postgresql-blr1-90397-do-user-3146770-0.e.db.ondigitalocean.com'),
+        'HOST':     os.environ.get('PGHOST',     'localhost'),
         'PORT':     os.environ.get('PGPORT',     '25060'),
         'OPTIONS': {
             'sslmode': 'require',

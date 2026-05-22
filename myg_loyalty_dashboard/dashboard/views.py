@@ -46,345 +46,50 @@ class TargetExecutiveView(LoginRequiredMixin, TemplateView):
     template_name = 'dashboard/target_executive.html'
     
     def get_context_data(self, **kwargs):
-        from django.core.cache import cache
-        from django.db import connection
+        import os
+        import json
+        from django.conf import settings
         
         context = super().get_context_data(**kwargs)
         
-        # 1. Fixed Business Constants (verified figures as of May 2026)
-        TOTAL_DB = 5033297       # Total loyalty database size (verified: 50,33,297)
-        REPEAT_MEMBERS = 210302  # Total repeat members (verified: 2,10,302)
-
-        # Clear any stale cached values so the correct figures always show
-        cache.delete('target_total_db')
-        cache.delete('target_daily_actuals_df')
-
-        # Fetch daily actuals from DB for the AMJ quarter
-        daily_actuals_df = None
-        with connection.cursor() as cursor:
-            # Get real daily unique customers in AMJ (Safely filtering clean string dates)
-            query = """
-                SELECT "Date", COUNT(DISTINCT "Customer Mobile") as daily_count 
-                FROM sales_data 
-                WHERE "Date" LIKE '%-04-2026' 
-                   OR "Date" LIKE '%-05-2026' 
-                   OR "Date" LIKE '%-06-2026'
-                GROUP BY "Date" 
-            """
-            cursor.execute(query)
-            rows = cursor.fetchall()
-            daily_actuals_df = pd.DataFrame(rows, columns=['Date', 'Daily_Achieved'])
-
-            if not daily_actuals_df.empty:
-                # Safely convert to proper datetime and sort
-                daily_actuals_df['Date'] = pd.to_datetime(daily_actuals_df['Date'], format='%d-%m-%Y')
-                daily_actuals_df = daily_actuals_df.sort_values('Date').reset_index(drop=True)
-
-        # Cache daily actuals for 1 hour (TOTAL_DB & REPEAT_MEMBERS are now hardcoded constants)
-        cache.set('target_daily_actuals_df', daily_actuals_df, 3600)
-
-        # Business Logic Constants
-        TARGET_PCT = 0.08
-        TARGET_COUNT = int(TOTAL_DB * TARGET_PCT)
-
-        HIST_START = pd.to_datetime("2020-01-01")
-        HIST_END = pd.to_datetime("2026-03-31")
-        AMJ_START = pd.to_datetime("2026-04-01")
-        
-        # If we have real data, set ACTUALS_END to the last available date, otherwise fallback
-        if not daily_actuals_df.empty:
-            ACTUALS_END = daily_actuals_df['Date'].max()
-        else:
-            ACTUALS_END = pd.to_datetime("2026-05-17")
-            
-        AMJ_END = pd.to_datetime("2026-06-30")
-
-        TOTAL_AMJ_DAYS = (AMJ_END - AMJ_START).days + 1
-        ELAPSED_DAYS = (ACTUALS_END - AMJ_START).days + 1
-        REMAINING_DAYS = max(1, TOTAL_AMJ_DAYS - ELAPSED_DAYS)
-        
-        # Historical Data (Keep synthetic for now to show long term trend shape beautifully)
-        np.random.seed(42)
-        dates_hist = pd.date_range(start=HIST_START, end=HIST_END, freq='ME')
-        base_customers = np.linspace(50000, 300000, len(dates_hist))
-        seasonality = np.sin(np.arange(len(dates_hist)) * (2 * np.pi / 12)) * 50000
-        noise = np.random.normal(0, 10000, len(dates_hist))
-        active_customers = base_customers + seasonality + noise
-        repeat_customers = active_customers * np.random.uniform(0.65, 0.75, len(dates_hist))
-        new_customers = active_customers - repeat_customers
-        
-        hist_df = pd.DataFrame({
-            'Date': dates_hist,
-            'Active': active_customers.astype(int),
-            'Repeat': repeat_customers.astype(int),
-            'New': new_customers.astype(int)
-        })
-        
-        # AMJ Actuals Logic
-        if not daily_actuals_df.empty:
-            # Ensure we have a continuous date range from AMJ_START to ACTUALS_END filling missing days with 0
-            all_dates_actuals = pd.date_range(start=AMJ_START, end=ACTUALS_END, freq='D')
-            amj_df = pd.DataFrame({'Date': all_dates_actuals})
-            amj_df = amj_df.merge(daily_actuals_df, on='Date', how='left').fillna(0)
-            amj_df['Daily_Achieved'] = amj_df['Daily_Achieved'].astype(int)
-        else:
-            # Fallback synthetic if DB empty for AMJ
-            dates_amj = pd.date_range(start=AMJ_START, end=ACTUALS_END, freq='D')
-            amj_df = pd.DataFrame({
-                'Date': dates_amj,
-                'Daily_Achieved': 0
-            })
-        # Scale daily footfalls proportionally so the total matches exactly REPEAT_MEMBERS
-        total_daily = amj_df['Daily_Achieved'].sum()
-        if total_daily > 0:
-            scale_factor = REPEAT_MEMBERS / total_daily
-            amj_df['Daily_Achieved'] = amj_df['Daily_Achieved'] * scale_factor
-            
-        amj_df['Cumulative_Achieved'] = amj_df['Daily_Achieved'].cumsum()
-        
-        current_achieved = int(round(amj_df['Daily_Achieved'].sum()))
-        remaining_target = max(0, TARGET_COUNT - current_achieved)
-        current_pct = current_achieved / TARGET_COUNT if TARGET_COUNT > 0 else 0
-        current_run_rate = current_achieved / ELAPSED_DAYS if ELAPSED_DAYS > 0 else 0
-        req_run_rate = remaining_target / REMAINING_DAYS if REMAINING_DAYS > 0 else 0
-        pace_status = "Behind Target" if current_run_rate < req_run_rate else "On Track"
-        
-        # Forecasts
-        y = amj_df['Cumulative_Achieved'].values
-        X = np.arange(len(y)).reshape(-1, 1)
-        
-        lr = LinearRegression()
-        lr.fit(X, y)
-        X_future = np.arange(len(y), len(y) + REMAINING_DAYS).reshape(-1, 1)
-        lr_pred = lr.predict(X_future)
-        
-        ma_7 = amj_df['Daily_Achieved'].tail(7).mean()
-        ma_pred = y[-1] + np.cumsum(np.full(REMAINING_DAYS, ma_7))
-        
+        # Load AI Forecast Cache
+        cache_path = os.path.join(settings.BASE_DIR, 'analytics', 'lstm_forecast_cache.json')
         try:
-            model = ExponentialSmoothing(amj_df['Daily_Achieved'], trend='add', seasonal='add', seasonal_periods=7)
-            fit = model.fit()
-            hw_daily_pred = fit.forecast(REMAINING_DAYS)
-            hw_pred = y[-1] + np.cumsum(hw_daily_pred.values)
+            with open(cache_path, 'r') as f:
+                ai_data = json.load(f)
+        except Exception as e:
+            ai_data = {"KPIs": {}, "Charts": {}, "Insights": []}
+            print(f"Failed to load LSTM Forecast Cache: {e}")
             
-            # Advanced Multi-Cone Expanding Confidence Bounds (80% and 95% CI)
-            std_dev = amj_df['Daily_Achieved'].std() if len(amj_df) > 1 else 100
-            cone_expansion = np.linspace(1, 3.5, REMAINING_DAYS) 
-            
-            # 80% CI
-            ub_80 = hw_daily_pred.values + (std_dev * cone_expansion * 0.5)
-            lb_80 = np.maximum(0, hw_daily_pred.values - (std_dev * cone_expansion * 0.5))
-            upper_pred_80 = y[-1] + np.cumsum(ub_80)
-            lower_pred_80 = y[-1] + np.cumsum(lb_80)
-            
-            # 95% CI
-            ub_95 = hw_daily_pred.values + (std_dev * cone_expansion * 1.2)
-            lb_95 = np.maximum(0, hw_daily_pred.values - (std_dev * cone_expansion * 1.2))
-            upper_pred_95 = y[-1] + np.cumsum(ub_95)
-            lower_pred_95 = y[-1] + np.cumsum(lb_95)
-        except:
-            hw_pred = ma_pred
-            upper_pred_80 = ma_pred * 1.05
-            lower_pred_80 = ma_pred * 0.95
-            upper_pred_95 = ma_pred * 1.10
-            lower_pred_95 = ma_pred * 0.90
-            
-        forecast_dates = pd.date_range(start=ACTUALS_END + timedelta(days=1), end=AMJ_END, freq='D')
+        kpis = ai_data.get("KPIs", {})
+        charts = ai_data.get("Charts", {})
+        insights = ai_data.get("Insights", [])
         
-        expected_final = hw_pred[-1]
-        expected_pct = expected_final / TOTAL_DB
-        prob_target = max(0, min(100, (expected_final / TARGET_COUNT) * 100))
-        
-        # Beautiful Plotly Charts
-        
-        # Convert all to standard python lists to avoid Plotly JSON serialization bugs with numpy types
-        amj_dates_str = amj_df['Date'].dt.strftime('%Y-%m-%d').tolist()
-        amj_cum_achieved_list = amj_df['Cumulative_Achieved'].tolist()
-        amj_daily_achieved_list = amj_df['Daily_Achieved'].tolist()
-        
-        # 1. AMJ Burn-up Chart
-        fig_burn = go.Figure()
-        
-        # Target Line (Linear)
-        target_line = np.linspace(0, TARGET_COUNT, TOTAL_AMJ_DAYS).tolist()
-        all_dates_str = pd.date_range(start=AMJ_START, end=AMJ_END, freq='D').strftime('%Y-%m-%d').tolist()
-        fig_burn.add_trace(go.Scatter(
-            x=all_dates_str, y=target_line, mode='lines', name='Linear Target', 
-            line=dict(color='#94a3b8', width=2, dash='dash')
-        ))
-        
-        # Actual Achievement Area
-        fig_burn.add_trace(go.Scatter(
-            x=amj_dates_str, y=amj_cum_achieved_list, mode='lines+markers', name='Actual Achievement', 
-            line=dict(color='#f97316', width=4),
-            marker=dict(size=6, color='#ea580c', symbol='circle'),
-            fill='tozeroy', fillcolor='rgba(249, 115, 22, 0.1)'
-        ))
-        
-        # Advanced Forecast Cone (95% and 80% with Gradient Styling)
-        forecast_dates_str = forecast_dates.strftime('%Y-%m-%d').tolist()
-        
-        if isinstance(upper_pred_80, (float, int)): 
-            upper_pred_80 = np.full(REMAINING_DAYS, upper_pred_80)
-            lower_pred_80 = np.full(REMAINING_DAYS, lower_pred_80)
-            upper_pred_95 = np.full(REMAINING_DAYS, upper_pred_95)
-            lower_pred_95 = np.full(REMAINING_DAYS, lower_pred_95)
-            
-        # Dynamic Target Zones (Red/Yellow/Green Areas)
-        fig_burn.add_hrect(y0=0, y1=TARGET_COUNT*0.8, fillcolor="rgba(239,68,68,0.03)", line_width=0, layer="below")
-        fig_burn.add_hrect(y0=TARGET_COUNT*0.8, y1=TARGET_COUNT, fillcolor="rgba(249,115,22,0.03)", line_width=0, layer="below")
-        fig_burn.add_hrect(y0=TARGET_COUNT, y1=TARGET_COUNT*1.25, fillcolor="rgba(34,197,94,0.03)", line_width=0, layer="below")
-
-        # 95% Confidence Interval (Outer Lighter Cone)
-        fig_burn.add_trace(go.Scatter(x=forecast_dates_str, y=upper_pred_95.tolist(), mode='lines', line=dict(width=0), showlegend=False, hoverinfo='skip'))
-        fig_burn.add_trace(go.Scatter(x=forecast_dates_str, y=lower_pred_95.tolist(), mode='lines', name='95% Confidence', line=dict(width=0), fill='tonexty', fillcolor='rgba(59, 130, 246, 0.12)', showlegend=True))
-
-        # 80% Confidence Interval (Inner Darker Cone)
-        fig_burn.add_trace(go.Scatter(x=forecast_dates_str, y=upper_pred_80.tolist(), mode='lines', line=dict(width=0), showlegend=False, hoverinfo='skip'))
-        fig_burn.add_trace(go.Scatter(x=forecast_dates_str, y=lower_pred_80.tolist(), mode='lines', name='80% Confidence', line=dict(width=0), fill='tonexty', fillcolor='rgba(59, 130, 246, 0.25)', showlegend=True))
-
-        # Central Forecast (Glowing effect)
-        fig_burn.add_trace(go.Scatter(x=forecast_dates_str, y=hw_pred.tolist(), mode='lines', name='AI Ensemble Forecast', line=dict(color='#2563eb', width=4)))
-        fig_burn.add_trace(go.Scatter(x=forecast_dates_str, y=hw_pred.tolist(), mode='lines', name='', line=dict(color='#93c5fd', width=1.5), showlegend=False, hoverinfo='skip'))
-
-        # Milestone Checkpoints
-        if len(forecast_dates) > 15:
-            m1_date = forecast_dates[14].strftime('%Y-%m-%d')
-            m1_val = hw_pred[14]
-            fig_burn.add_annotation(x=m1_date, y=m1_val, text=f"Milestone: {int(m1_val/1000)}K", showarrow=True, arrowhead=2, ax=0, ay=-40, font=dict(color="#16a34a", size=10))
-
-        # Target Horizon Lines
-        fig_burn.add_hline(y=TARGET_COUNT*1.25, line_dash="dash", line_color="#22c55e", annotation_text="STRETCH ZONE", annotation_position="top left", annotation_font_color="#22c55e")
-        fig_burn.add_hline(y=TARGET_COUNT, line_dash="solid", line_color="#16a34a", annotation_text="FINAL TARGET", annotation_position="top left", annotation_font_color="#16a34a")
-        fig_burn.add_hline(y=TARGET_COUNT*0.8, line_dash="dash", line_color="#f97316", annotation_text="MIN TARGET", annotation_position="top left", annotation_font_color="#f97316")
-        fig_burn.update_layout(
-            margin=dict(l=20, r=20, t=30, b=20),
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            hovermode="x unified", legend=dict(orientation="h", y=-0.15, x=0.5, xanchor='center'),
-            yaxis=dict(gridcolor='#f1f5f9', zeroline=False), xaxis=dict(gridcolor='#f1f5f9', zeroline=False)
-        )
-        burn_json = fig_burn.to_json()
-        
-        # 2. Pace Indicator (Gauge)
-        fig_gauge = go.Figure(go.Indicator(
-            mode = "gauge+number+delta", value = current_achieved, title = {'text': "Pace vs Target"},
-            delta = {'reference': target_line[ELAPSED_DAYS-1], 'increasing': {'color': "green"}, 'decreasing': {'color': "red"}},
-            gauge = {
-                'axis': {'range': [None, TARGET_COUNT], 'tickwidth': 1, 'tickcolor': "darkblue"},
-                'bar': {'color': "#f97316"},
-                'bgcolor': "white", 'borderwidth': 2, 'bordercolor': "gray",
-                'steps': [
-                    {'range': [0, TARGET_COUNT*0.5], 'color': "#fef2f2"},
-                    {'range': [TARGET_COUNT*0.5, TARGET_COUNT*0.8], 'color': "#fff7ed"},
-                    {'range': [TARGET_COUNT*0.8, TARGET_COUNT], 'color': "#f0fdf4"}
-                ],
-                'threshold': {'line': {'color': "red", 'width': 4}, 'thickness': 0.75, 'value': TARGET_COUNT}
-            }
-        ))
-        fig_gauge.update_layout(margin=dict(l=40, r=40, t=50, b=10), paper_bgcolor='rgba(0,0,0,0)')
-        gauge_json = fig_gauge.to_json()
-        
-        # 3. AMJ Daily Performance
-        fig_daily = go.Figure()
-        fig_daily.add_trace(go.Bar(
-            x=amj_dates_str, y=amj_daily_achieved_list, name='Daily Actuals',
-            marker_color='#3b82f6', opacity=0.8, marker_line_width=0
-        ))
-        # Add 7-day moving average trendline
-        amj_df['MA7'] = amj_df['Daily_Achieved'].rolling(window=7, min_periods=1).mean()
-        fig_daily.add_trace(go.Scatter(
-            x=amj_dates_str, y=amj_df['MA7'].tolist(), mode='lines', name='7-Day Avg',
-            line=dict(color='#ea580c', width=3)
-        ))
-        fig_daily.add_hline(y=req_run_rate, line_dash="dash", line_color="red", annotation_text="Req Daily Pace", annotation_position="top left")
-        fig_daily.update_layout(
-            margin=dict(l=20, r=20, t=30, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            hovermode="x unified", legend=dict(orientation="h", y=-0.15, x=0.5, xanchor='center'),
-            yaxis=dict(gridcolor='#f1f5f9', zeroline=False), xaxis=dict(gridcolor='#f1f5f9', zeroline=False)
-        )
-        daily_json = fig_daily.to_json()
-        
-        # 4. Historical Trend
-        hist_dates_str = hist_df['Date'].dt.strftime('%Y-%m-%d').tolist()
-        fig_hist = go.Figure()
-        fig_hist.add_trace(go.Scatter(
-            x=hist_dates_str, y=hist_df['Active'].tolist(), mode='lines', fill='tozeroy', name='Total Active',
-            line=dict(color='#0ea5e9', width=2), fillcolor='rgba(14, 165, 233, 0.2)'
-        ))
-        fig_hist.add_trace(go.Scatter(
-            x=hist_dates_str, y=hist_df['Repeat'].tolist(), mode='lines', fill='tozeroy', name='Repeat Customers',
-            line=dict(color='#f97316', width=2), fillcolor='rgba(249, 115, 22, 0.4)'
-        ))
-        fig_hist.update_layout(
-            margin=dict(l=20, r=20, t=30, b=20), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            hovermode="x unified", legend=dict(orientation="h", y=-0.15, x=0.5, xanchor='center'),
-            yaxis=dict(gridcolor='#f1f5f9', zeroline=False), xaxis=dict(gridcolor='#f1f5f9', zeroline=False)
-        )
-        hist_json = fig_hist.to_json()
-        
-        # 5. Model Contribution Donut Chart
-        fig_pie = go.Figure(data=[go.Pie(labels=['LSTM', 'Prophet', 'XGBoost', 'ARIMA'], values=[40, 30, 20, 10], hole=.65, 
-                                         marker_colors=['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b'], textinfo='label+percent')])
-        fig_pie.update_layout(margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor='rgba(0,0,0,0)', showlegend=False)
-        pie_json = fig_pie.to_json()
-        
-        # --- Advanced AI Metrics & Storytelling Insights ---
-        pace_variance_pct = ((current_run_rate / req_run_rate) - 1) * 100 if req_run_rate > 0 else 0
-        health_score = int(min(100, max(0, 100 - (100 - prob_target) * 1.5)))
-        variance_abs = current_achieved - (target_line[ELAPSED_DAYS-1] if ELAPSED_DAYS > 0 else 0)
-        momentum_status = "Increasing ↗" if ma_7 > (current_achieved / ELAPSED_DAYS if ELAPSED_DAYS > 0 else 0) else "Stagnant →"
-        projected_date = AMJ_END.strftime('%b %d, %Y')
+        # Determine risk/commentary
+        prob_target = kpis.get("Prob_Target", 0)
         
         if prob_target >= 95:
-            risk_level = "Low Risk"
-            risk_color = "success"
-            ai_commentary = "Current trajectory strongly indicates target achievement. Pace is exceeding requirements."
-            status_badge = "ON TRACK"
+            risk_level = "HIGH CONFIDENCE"
+            risk_color = "#10B981" # Emerald Green
+            status_badge = "OPTIMAL"
         elif prob_target >= 85:
-            risk_level = "Moderate Risk"
-            risk_color = "warning"
-            ai_commentary = f"Pace is slightly behind. A {abs(pace_variance_pct):.1f}% acceleration in daily run rate is needed to guarantee 8%."
-            status_badge = "AT RISK"
+            risk_level = "MODERATE CONFIDENCE"
+            risk_color = "#F59E0B" # Amber
+            status_badge = "ON TRACK"
         else:
-            risk_level = "High Risk"
-            risk_color = "danger"
-            ai_commentary = f"Target is highly compromised. Immediate intervention required. Pace must jump by {abs(pace_variance_pct):.1f}%."
-            status_badge = "CRITICAL"
+            risk_level = "LOW CONFIDENCE"
+            risk_color = "#EF4444" # Red
+            status_badge = "AT RISK"
             
+        context.update(kpis)
         context.update({
-            'total_db': TOTAL_DB,
-            'repeat_members': REPEAT_MEMBERS,
-            'target_count': TARGET_COUNT,
-            'current_achieved': current_achieved,
-            'remaining_target': remaining_target,
-            'current_pct': current_pct * 100,
-            'current_run_rate': int(current_run_rate),
-            'req_run_rate': int(req_run_rate),
-            'pace_status': pace_status,
-            'pace_variance_pct': pace_variance_pct,
-            'health_score': health_score,
-            'status_badge': status_badge,
             'risk_level': risk_level,
             'risk_color': risk_color,
-            'ai_commentary': ai_commentary,
-            'prob_target': prob_target,
-            'expected_final': int(expected_final),
-            'expected_pct': expected_pct * 100,
-            'burn_json': burn_json,
-            'gauge_json': gauge_json,
-            'daily_json': daily_json,
-            'hist_json': hist_json,
-            'days_remaining': REMAINING_DAYS,
-            'actuals_start': AMJ_START.strftime('%d-%b-%Y'),
-            'actuals_end': ACTUALS_END.strftime('%d-%b-%Y'),
-            'total_amj_days': TOTAL_AMJ_DAYS,
-            'pie_json': pie_json,
-            'variance_abs': variance_abs,
-            'momentum_status': momentum_status,
-            'projected_date': projected_date,
-            'min_target': int(TARGET_COUNT * 0.8),
-            'stretch_target': int(TARGET_COUNT * 1.25),
+            'status_badge': status_badge,
+            'burn_json': json.dumps(charts.get("BurnUp", {})),
+            'insights': insights
         })
+        
         return context
 
 class DBManagerView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
@@ -509,3 +214,151 @@ class SecurityView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             messages.success(request, 'All other sessions have been revoked successfully.')
             
         return redirect('security')
+
+class LstmForecastView(LoginRequiredMixin, TemplateView):
+    def get(self, request, *args, **kwargs):
+        return redirect('target_executive')
+
+from django.http import JsonResponse
+from django.views import View
+
+class PropensityForecastAPIView(LoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        import os
+        import json
+        from django.conf import settings
+        cache_path = os.path.join(settings.BASE_DIR, 'analytics', 'propensity_cache.json')
+        try:
+            with open(cache_path, 'r') as f:
+                data = json.load(f)
+            return JsonResponse(data)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+
+import threading
+from django.db import connection
+
+def rebuild_propensity_view_and_cache():
+    try:
+        with connection.cursor() as cursor:
+            # Concurrently refresh the materialized view
+            cursor.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY mv_customer_propensity;")
+            
+        # Re-run propensity engine cache regeneration
+        from analytics.customer_propensity_engine import generate_propensity_forecast
+        generate_propensity_forecast()
+    except Exception as e:
+        print(f"Error rebuilding propensity materialized view or cache: {e}")
+
+
+class CustomerPropensityView(LoginRequiredMixin, TemplateView):
+    template_name = 'dashboard/customer_propensity.html'
+    
+    def get_context_data(self, **kwargs):
+        import os
+        import json
+        from django.conf import settings
+        
+        context = super().get_context_data(**kwargs)
+        
+        # Load Propensity Cache
+        cache_path = os.path.join(settings.BASE_DIR, 'analytics', 'propensity_cache.json')
+        try:
+            with open(cache_path, 'r') as f:
+                data = json.load(f)
+        except Exception as e:
+            data = {"KPIs": {}, "Segments": {}, "Customer_Examples": []}
+            print(f"Failed to load propensity cache: {e}")
+            
+        # Pre-calculate probability percentages to avoid math filters in template
+        customer_examples = data.get("Customer_Examples", [])
+        for cust in customer_examples:
+            cust['prob_pct'] = round(float(cust.get('prob', 0.0)) * 100.0, 1)
+            
+        context.update({
+            'kpis': data.get("KPIs", {}),
+            'segments': data.get("Segments", {}),
+            'customer_examples': customer_examples,
+            'data_json': json.dumps(data)
+        })
+        
+        return context
+
+
+class CustomerPropensitySearchAPIView(LoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        mobile = request.GET.get('mobile', '').strip()
+        
+        # Strip everything except digits and validate length
+        mobile = ''.join(c for c in mobile if c.isdigit())
+        if len(mobile) != 10:
+            return JsonResponse({"error": "Invalid input. Please enter a valid 10-digit mobile number."}, status=400)
+            
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT mobile, (probability/100.0)::double precision, recency::int, frequency::int, monetary::int
+                    FROM mv_customer_propensity
+                    WHERE mobile = %s
+                    LIMIT 1;
+                """, [mobile])
+                row = cursor.fetchone()
+                
+            if not row:
+                return JsonResponse({"error": f"No customer intelligence record found for mobile '{mobile}' in our 5.17M records."}, status=404)
+                
+            mobile, prob, recency, freq, monetary = row
+            
+            # Formulate strategic campaigns & intent tags
+            if prob >= 0.7:
+                intent_level = "High Intent"
+                intent_badge = "bg-success-glow text-success"
+                intent_desc = "Highly active customer. 70%+ chance of repeat purchase. Immediate target."
+                strategic_action = f"🔥 **High Propensity Customer (Repeat Probability: {prob:.1%})**\n\nThis customer is primed and ready to purchase again! They last bought {recency} days ago, with a lifetime frequency of {freq} and a total spend of ₹{monetary:,}.\n\n🎯 **Tailored Marketing Action:** Send an exclusive high-value VIP voucher via SMS/WhatsApp with a 48-hour expiration to close the deal. Offer a complimentary accessory or extended warranty to maximize their average order value."
+            elif prob >= 0.3:
+                intent_level = "Medium Intent"
+                intent_badge = "bg-warning-glow text-warning"
+                intent_desc = "Moderate potential. 30%-70% chance of repeat. Needs nurturing."
+                strategic_action = f"⚡ **Medium Propensity Customer (Repeat Probability: {prob:.1%})**\n\nThis customer has moderate intent, having made {freq} purchases with a lifetime value of ₹{monetary:,}. However, they are currently at day {recency} since their last visit, placing them at risk of slipping.\n\n🎯 **Tailored Marketing Action:** Send a personalized 'We Miss You' value-add offer. Highlight new product arrivals matching their past purchases and offer a conditional discount (e.g., ₹500 off on purchases above ₹5,000)."
+            else:
+                intent_level = "Low Intent"
+                intent_badge = "bg-danger-glow text-danger"
+                intent_desc = "Dormant/Inactive. <30% chance of repeat. Requires active reactivation."
+                strategic_action = f"❄️ **Low Propensity Customer (Repeat Probability: {prob:.1%})**\n\nThis customer is currently dormant, with their last purchase {recency} days ago. They have a frequency of {freq} and lifetime value of ₹{monetary:,}.\n\n🎯 **Tailored Marketing Action:** Execute a win-back re-activation campaign. Offer an aggressive direct discount (e.g., flat 15% off) or invite them to trade in their old device for a new upgrade, triggering a fresh interest cycle."
+                
+            return JsonResponse({
+                "success": True,
+                "customer": {
+                    "id": f"CUST-{mobile[-4:]}",
+                    "mobile": mobile,
+                    "prob": prob,
+                    "recency": recency,
+                    "freq": freq,
+                    "monetary": monetary,
+                    "intent_level": intent_level,
+                    "intent_badge": intent_badge,
+                    "intent_desc": intent_desc,
+                    "strategic_action": strategic_action
+                }
+            })
+        except Exception as e:
+            return JsonResponse({"error": f"Database search failed: {str(e)}"}, status=500)
+
+
+class CustomerPropensityRebuildAPIView(LoginRequiredMixin, View):
+    def post(self, request, *args, **kwargs):
+        if not request.user.is_staff:
+            return JsonResponse({"error": "Unauthorized permission level required."}, status=403)
+            
+        # Spawn thread to rebuild view and regenerate cache concurrently
+        thread = threading.Thread(target=rebuild_propensity_view_and_cache)
+        thread.daemon = True
+        thread.start()
+        
+        return JsonResponse({
+            "success": True,
+            "message": "AI Propensity Model retraining and background cache rebuild initialized. This takes approximately 2 minutes, and the dashboard will update automatically on completion."
+        })
+
+

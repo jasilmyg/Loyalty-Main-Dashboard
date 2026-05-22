@@ -1,6 +1,10 @@
 import os
 import threading
-import psycopg2
+# psycopg2 is optional for local development (may not be installed)
+try:
+    import psycopg2
+except Exception:
+    psycopg2 = None
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -121,15 +125,15 @@ class FrequencyDistributionAPI(APIView):
 
 class LoyaltyOverviewAPI(APIView):
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 15))
     def get(self, request):
+        # Service layer uses MD5 filter caching (24h global / 1h filtered)
         data = get_analytics().get_loyalty_overview_kpis(get_filters(request))
         return Response(data)
 
 class GapAnalysisAPI(APIView):
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 15))
     def get(self, request):
+        # Service layer uses MD5 filter caching (24h global / 1h filtered)
         data = get_analytics().get_gap_segmentation(get_filters(request))
         return Response(data)
 
@@ -142,8 +146,8 @@ class LoyaltySegmentationAPI(APIView):
 
 class ActionEngineAPI(APIView):
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 15))
     def get(self, request):
+        # Service layer uses MD5 filter caching (24h global / 1h filtered)
         data = get_analytics().get_action_engine_data(get_filters(request))
         return Response(data)
 
@@ -198,7 +202,10 @@ class BranchesAPI(APIView):
         data = get_analytics().get_unique_branches()
         return Response(data)
 
-import psycopg2
+try:
+    import psycopg2
+except Exception:
+    psycopg2 = None
 
 class DBManagerAPI(APIView):
     """

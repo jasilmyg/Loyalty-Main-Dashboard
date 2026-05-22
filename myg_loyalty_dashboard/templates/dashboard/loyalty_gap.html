@@ -150,9 +150,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load Overview KPIs
     async function loadOverview(filterStr = currentFilterStr) {
         try {
-            const fetchOpts = { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } };
-            const cb = filterStr ? `&_t=${new Date().getTime()}` : `_t=${new Date().getTime()}`;
-            const res = await fetch(`/api/v1/loyalty-overview/?${filterStr}${cb}`, fetchOpts);
+            const url = filterStr ? `/api/v1/loyalty-overview/?${filterStr}` : `/api/v1/loyalty-overview/`;
+            const res = await fetch(url);
             const data = await res.json();
             document.getElementById('kpi-total-cust').textContent = NUM(data.total_customers);
             document.getElementById('kpi-repeat-cust').textContent = NUM(data.repeat_customers);
@@ -167,9 +166,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load Gap Segmentations and Chart
     async function loadGapSegments(filterStr = currentFilterStr) {
         try {
-            const fetchOpts = { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } };
-            const cb = filterStr ? `&_t=${new Date().getTime()}` : `_t=${new Date().getTime()}`;
-            const res = await fetch(`/api/v1/gap-segments/?${filterStr}${cb}`, fetchOpts);
+            const url = filterStr ? `/api/v1/gap-segments/?${filterStr}` : `/api/v1/gap-segments/`;
+            const res = await fetch(url);
             const data = await res.json();
             
             const tbody = document.getElementById('gap-table-body');
@@ -250,9 +248,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load Action Engine
     async function loadActionEngine(filterStr = currentFilterStr) {
         try {
-            const fetchOpts = { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } };
-            const cb = filterStr ? `&_t=${new Date().getTime()}` : `_t=${new Date().getTime()}`;
-            const res = await fetch(`/api/v1/action-engine/?${filterStr}${cb}`, fetchOpts);
+            const url = filterStr ? `/api/v1/action-engine/?${filterStr}` : `/api/v1/action-engine/`;
+            const res = await fetch(url);
             const data = await res.json();
             
             const tbody = document.getElementById('action-table-body');

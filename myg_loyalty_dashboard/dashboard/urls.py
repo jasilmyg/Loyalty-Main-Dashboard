@@ -18,4 +18,9 @@ urlpatterns = [
     path('react-dashboard/', views.ReactDashboardView.as_view(), name='react_dashboard'),
     path('profile/', views.ProfileView.as_view(), name='profile'),
     path('security/', views.SecurityView.as_view(), name='security'),
+    path('forecast/lstm/', views.LstmForecastView.as_view(), name='lstm_forecast'),
+    path('forecast/propensity/api/', views.PropensityForecastAPIView.as_view(), name='propensity_forecast_api'),
+    path('customer-intelligence/', views.CustomerPropensityView.as_view(), name='customer_propensity'),
+    path('api/v1/customer-propensity/search/', views.CustomerPropensitySearchAPIView.as_view(), name='customer_propensity_search'),
+    path('api/v1/customer-propensity/rebuild/', views.CustomerPropensityRebuildAPIView.as_view(), name='customer_propensity_rebuild'),
 ]

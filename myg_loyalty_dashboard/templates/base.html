@@ -140,6 +140,7 @@
             color: #f97316 !important;
         }
     </style>
+    {% block extra_css %}{% endblock %}
 </head>
 <body>
 
@@ -173,6 +174,18 @@
             </li>
             <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'target_executive' %}active{% endif %}" href="{% url 'target_executive' %}"><i class="bi bi-bullseye text-danger"></i> Target Analysis Dashboard</a>
+            </li>
+        </ul>
+
+        <div class="mb-2 mt-3" style="padding-left: 2.5rem;">
+            <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">Predictive AI (Level 3)</small>
+        </div>
+        <ul class="nav flex-column mb-4">
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'customer_propensity' %}active{% endif %}" href="{% url 'customer_propensity' %}" style="border-left: 4px solid #6366f1; color: #6366f1; background: rgba(99, 102, 241, 0.04); font-weight: 600;">
+                    <i class="bi bi-cpu" style="color: #6366f1; font-size: 1.25rem; margin-right: 12px !important;"></i> Customer Intelligence AI
+                    <span class="badge bg-danger ms-1" style="font-size: 8px; font-weight: 800; vertical-align: middle; box-shadow: 0 0 6px rgba(239, 68, 68, 0.4);">LIVE</span>
+                </a>
             </li>
         </ul>
 

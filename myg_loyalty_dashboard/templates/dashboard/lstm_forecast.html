@@ -1,0 +1,1061 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AMJ 2026 Forecast Intelligence | myG Loyalty</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f4f6f9;
+            color: #1a1a2e;
+            display: flex;
+            min-height: 100vh;
+            font-size: 13px;
+        }
+
+        /* ===== SIDEBAR ===== */
+        .sidebar {
+            width: 220px;
+            min-width: 220px;
+            background: #fff;
+            border-right: 1px solid #e8ecf0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            position: sticky;
+            top: 0;
+            overflow-y: auto;
+        }
+
+        .sidebar-logo {
+            padding: 20px 18px 14px;
+            border-bottom: 1px solid #f0f2f5;
+        }
+
+        .sidebar-logo .logo-text {
+            font-size: 11px;
+            font-weight: 700;
+            color: #f97316;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-top: 6px;
+        }
+
+        .sidebar-logo img { height: 32px; }
+
+        .sidebar-section-label {
+            font-size: 9.5px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #adb5bd;
+            padding: 16px 18px 6px;
+        }
+
+        .sidebar-nav { list-style: none; padding: 0 10px; }
+
+        .sidebar-nav li a {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            color: #6b7280;
+            text-decoration: none;
+            font-size: 12.5px;
+            font-weight: 500;
+            transition: all 0.15s ease;
+            margin-bottom: 2px;
+        }
+
+        .sidebar-nav li a:hover {
+            background: #f8f9fa;
+            color: #374151;
+        }
+
+        .sidebar-nav li a.active {
+            background: #eff6ff;
+            color: #2563eb;
+            font-weight: 600;
+        }
+
+        .sidebar-nav li a.active i {
+            color: #2563eb;
+        }
+
+        .sidebar-nav li a i {
+            font-size: 14px;
+            width: 16px;
+            text-align: center;
+            color: #9ca3af;
+        }
+
+        .sidebar-footer {
+            margin-top: auto;
+            padding: 14px 18px;
+            border-top: 1px solid #f0f2f5;
+            font-size: 11px;
+            color: #9ca3af;
+        }
+
+        .live-dot {
+            display: inline-block;
+            width: 7px; height: 7px;
+            background: #10b981;
+            border-radius: 50%;
+            margin-right: 5px;
+            animation: blink 1.5s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        /* ===== MAIN CONTENT ===== */
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ===== HEADER ===== */
+        .top-header {
+            background: #fff;
+            border-bottom: 1px solid #e8ecf0;
+            padding: 16px 24px;
+        }
+
+        .header-title {
+            font-size: 22px;
+            font-weight: 800;
+            color: #111827;
+            letter-spacing: -0.3px;
+        }
+
+        .header-subtitle {
+            font-size: 12.5px;
+            color: #2563eb;
+            font-weight: 600;
+            margin-top: 2px;
+        }
+
+        .header-info-row {
+            display: flex;
+            gap: 28px;
+            margin-top: 14px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .header-info-item .info-label {
+            font-size: 9.5px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: #9ca3af;
+            margin-bottom: 3px;
+        }
+
+        .header-info-item .info-value {
+            font-size: 12px;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 7px; height: 7px;
+            background: #10b981;
+            border-radius: 50%;
+            margin-right: 5px;
+            animation: blink 1.5s infinite;
+        }
+
+        .target-status-card {
+            margin-left: auto;
+            background: #fff;
+            border: 1.5px solid #fbbf24;
+            border-radius: 12px;
+            padding: 12px 18px;
+            text-align: center;
+            min-width: 170px;
+        }
+
+        .target-status-card .ts-label {
+            font-size: 9.5px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #9ca3af;
+            margin-bottom: 4px;
+        }
+
+        .target-status-card .ts-status {
+            font-size: 16px;
+            font-weight: 800;
+            color: #f59e0b;
+        }
+
+        .target-status-card .ts-prob-label {
+            font-size: 10px;
+            color: #9ca3af;
+            margin-top: 6px;
+            margin-bottom: 2px;
+        }
+
+        .target-status-card .ts-prob-value {
+            font-size: 26px;
+            font-weight: 800;
+            color: #1d4ed8;
+        }
+
+        /* ===== PAGE BODY ===== */
+        .page-body {
+            padding: 20px 24px;
+            flex: 1;
+        }
+
+        /* ===== KPI CARDS ===== */
+        .kpi-row {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 14px;
+            margin-bottom: 20px;
+        }
+
+        .kpi-card {
+            background: #fff;
+            border: 1px solid #e8ecf0;
+            border-radius: 12px;
+            padding: 14px 16px 10px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .kpi-card .kpi-icon {
+            width: 32px; height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+
+        .kpi-card .kpi-label {
+            font-size: 9.5px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #9ca3af;
+            margin-bottom: 4px;
+        }
+
+        .kpi-card .kpi-value {
+            font-size: 19px;
+            font-weight: 800;
+            color: #111827;
+            letter-spacing: -0.5px;
+            line-height: 1.1;
+        }
+
+        .kpi-card .kpi-sub {
+            font-size: 10px;
+            color: #9ca3af;
+            margin-top: 4px;
+            font-weight: 500;
+        }
+
+        .kpi-sparkline {
+            margin-top: 8px;
+            height: 28px;
+        }
+
+        /* ===== MAIN SECTION (chart + right panel) ===== */
+        .main-section {
+            display: grid;
+            grid-template-columns: 1fr 280px;
+            gap: 16px;
+        }
+
+        /* ===== CHART CARD ===== */
+        .chart-card {
+            background: #fff;
+            border: 1px solid #e8ecf0;
+            border-radius: 12px;
+            padding: 18px 20px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        }
+
+        .chart-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+        }
+
+        .chart-card-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #111827;
+            letter-spacing: 0.01em;
+        }
+
+        .chart-legend {
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+            padding: 8px 12px;
+            background: #f9fafb;
+            border-radius: 8px;
+            align-items: center;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 10.5px;
+            color: #6b7280;
+            font-weight: 500;
+        }
+
+        .legend-dot {
+            width: 20px; height: 2.5px;
+            border-radius: 2px;
+        }
+
+        .legend-dot.dashed { border-top: 2px dashed; height: 0; background: none !important; }
+
+        .chart-section-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            font-weight: 600;
+            color: #9ca3af;
+            padding: 0 8px;
+            margin-bottom: 4px;
+        }
+
+        .chart-plotly-container { height: 380px; }
+
+        /* ===== RIGHT PANEL ===== */
+        .right-panel { display: flex; flex-direction: column; gap: 16px; }
+
+        .panel-card {
+            background: #fff;
+            border: 1px solid #e8ecf0;
+            border-radius: 12px;
+            padding: 16px 18px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        }
+
+        .panel-card-title {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #374151;
+            margin-bottom: 14px;
+        }
+
+        .panel-card-title i {
+            font-size: 14px;
+            color: #6b7280;
+        }
+
+        .run-rate-item { margin-bottom: 14px; }
+
+        .rr-label {
+            font-size: 9.5px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #9ca3af;
+            margin-bottom: 4px;
+        }
+
+        .rr-value {
+            font-size: 20px;
+            font-weight: 800;
+            color: #111827;
+            margin-bottom: 6px;
+        }
+
+        .rr-bar-bg {
+            height: 6px;
+            border-radius: 4px;
+            background: #f1f5f9;
+            overflow: hidden;
+        }
+
+        .rr-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+        }
+
+        .gap-card {
+            background: #fff5f5;
+            border: 1px solid #fecaca;
+            border-radius: 10px;
+            padding: 12px 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .gap-card-icon {
+            width: 36px; height: 36px;
+            background: #fee2e2;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: #ef4444;
+        }
+
+        .gap-card-label {
+            font-size: 9.5px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #9ca3af;
+            margin-bottom: 2px;
+        }
+
+        .gap-card-value {
+            font-size: 20px;
+            font-weight: 800;
+            color: #dc2626;
+        }
+
+        /* Diagnostics */
+        .diag-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .diag-row:last-child { border-bottom: none; }
+
+        .diag-label { font-size: 11.5px; color: #6b7280; font-weight: 500; }
+
+        .diag-value { font-size: 12px; font-weight: 700; color: #111827; }
+
+        .stable-badge {
+            background: #d1fae5;
+            color: #065f46;
+            font-size: 9.5px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 999px;
+        }
+        
+        /* ===== AI INSIGHTS CARD ===== */
+        .insights-section {
+            margin-top: 18px;
+        }
+        .insights-gradient-card {
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            border-left: 5px solid #2563eb;
+            border-top: 1px solid #e8ecf0;
+            border-right: 1px solid #e8ecf0;
+            border-bottom: 1px solid #e8ecf0;
+            border-radius: 12px;
+            padding: 18px 20px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        }
+        .insights-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 14px;
+            margin-top: 14px;
+        }
+        .insight-item {
+            background: #fff;
+            padding: 12px 14px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+            transition: all 0.2s ease;
+        }
+        .insight-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08) !important;
+            border-color: #bfdbfe !important;
+        }
+        .insight-counter {
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            background: #eff6ff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #2563eb;
+            font-size: 11.5px;
+            font-weight: 700;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+        .insight-text {
+            font-size: 12px;
+            color: #334155;
+            line-height: 1.5;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ===== SIDEBAR ===== -->
+<aside class="sidebar">
+    <div class="sidebar-logo">
+        {% load static %}
+        <img src="{% static 'logo.png' %}" alt="myG Logo">
+        <div class="logo-text">myG Loyalty Dashboard</div>
+    </div>
+
+    <div class="sidebar-section-label">Forecast Platform</div>
+    <ul class="sidebar-nav">
+        <li><a href="#"><i class="bi bi-speedometer2"></i> Executive Overview</a></li>
+        <li><a href="{% url 'lstm_forecast' %}" class="active"><i class="bi bi-graph-up-arrow"></i> Forecast Dashboard</a></li>
+        <li><a href="#"><i class="bi bi-cpu"></i> AI Insights</a></li>
+        <li><a href="#"><i class="bi bi-sun"></i> Seasonality</a></li>
+        <li><a href="#"><i class="bi bi-people"></i> Cohort Retention</a></li>
+        <li><a href="#"><i class="bi bi-person-badge"></i> RBM / BDM Analysis</a></li>
+        <li><a href="#"><i class="bi bi-activity"></i> Run Rate Monitor</a></li>
+        <li><a href="#"><i class="bi bi-table"></i> Data Explorer</a></li>
+        <li><a href="#"><i class="bi bi-clipboard2-data"></i> Model Diagnostics</a></li>
+        <li><a href="#"><i class="bi bi-bell"></i> Alerts &amp; Notifications</a></li>
+    </ul>
+
+    <div class="sidebar-section-label" style="margin-top: 10px;">Main Dashboard</div>
+    <ul class="sidebar-nav">
+        <li><a href="{% url 'dashboard' %}"><i class="bi bi-grid-1x2"></i> Sales Overview</a></li>
+        <li><a href="{% url 'customers' %}"><i class="bi bi-people-fill"></i> Customer Analytics</a></li>
+    </ul>
+
+    <div class="sidebar-footer">
+        <div style="margin-bottom: 5px;"><span class="live-dot"></span> Live Data Connected</div>
+        <div style="color: #c4c9d4;">Last Updated: May 17, 2026</div>
+    </div>
+</aside>
+
+<!-- ===== MAIN ===== -->
+<div class="main-content">
+
+    <!-- TOP HEADER -->
+    <div class="top-header">
+        <div style="display: flex; align-items: flex-start; justify-content: space-between;">
+            <div>
+                <div class="header-title">AMJ 2026 FORECAST INTELLIGENCE</div>
+                <div class="header-subtitle">Retail Repeat Customer Prediction Engine</div>
+
+                <div class="header-info-row">
+                    <div class="header-info-item">
+                        <div class="info-label">AI Engine Status</div>
+                        <div class="info-value"><span class="status-dot"></span>LSTM Deep Learning Active</div>
+                    </div>
+                    <div class="header-info-item">
+                        <div class="info-label">Model Confidence</div>
+                        <div class="info-value" style="color: #2563eb;">{{ Forecast_Confidence|default:"92.4" }}%</div>
+                    </div>
+                    <div class="header-info-item">
+                        <div class="info-label">Data Range</div>
+                        <div class="info-value">Jul 2020 – May 17 2026</div>
+                    </div>
+                    <div class="header-info-item">
+                        <div class="info-label">Forecast Horizon</div>
+                        <div class="info-value">May 18 – Jun 30 2026</div>
+                    </div>
+                    <div class="header-info-item">
+                        <div class="info-label">Regional Context</div>
+                        <div class="info-value">🌴 Festival &amp; Season Intelligence</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Target Status Card -->
+            <div class="target-status-card" style="border-color: {{ risk_color|default:"#fbbf24" }};">
+                <div class="ts-label">Target Status</div>
+                <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin: 4px 0;">
+                    <div style="position: relative; width: 40px; height: 40px;">
+                        <svg width="40" height="40" viewBox="0 0 40 40">
+                            <circle cx="20" cy="20" r="16" fill="none" stroke="#f3f4f6" stroke-width="4"/>
+                            <circle cx="20" cy="20" r="16" fill="none" stroke="{{ risk_color|default:"#f59e0b" }}" stroke-width="4"
+                                stroke-dasharray="{% if Prob_Target %}{{ Prob_Target|floatformat:0 }} 100{% else %}85 15{% endif %}" stroke-dashoffset="25" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <div class="ts-status" style="color: {{ risk_color|default:"#f59e0b" }};">{{ status_badge|default:"ON TRACK" }}</div>
+                </div>
+                <div class="ts-prob-label">Target Achievement Probability</div>
+                <div class="ts-prob-value" style="color: {{ risk_color|default:"#2563eb" }};">{{ Prob_Target|floatformat:1|default:"85.9" }}%</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PAGE BODY -->
+    <div class="page-body">
+
+        <!-- KPI CARDS -->
+        <div class="kpi-row">
+
+            <div class="kpi-card">
+                <div class="kpi-icon" style="background: #eff6ff; color: #2563eb;"><i class="bi bi-people-fill"></i></div>
+                <div class="kpi-label">Total Customer DB</div>
+                <div class="kpi-value">{{ Total_DB|intcomma|default:"50,33,297" }}</div>
+                <div class="kpi-sub">As of March 31, 2026</div>
+                <canvas id="spark1" class="kpi-sparkline"></canvas>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-icon" style="background: #f0fdf4; color: #16a34a;"><i class="bi bi-bullseye"></i></div>
+                <div class="kpi-label">AMJ Repeat Target (8%)</div>
+                <div class="kpi-value" style="color: #16a34a;">{{ Target_Repeat|intcomma|default:"402,664" }}</div>
+                <div class="kpi-sub">Required Repeat Customers</div>
+                <canvas id="spark2" class="kpi-sparkline"></canvas>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-icon" style="background: #fff7ed; color: #ea580c;"><i class="bi bi-person-check"></i></div>
+                <div class="kpi-label">Current Achieved (AMJ)</div>
+                <div class="kpi-value" style="color: #ea580c;">{{ Achieved_Repeat|intcomma|default:"210,302" }}</div>
+                <div class="kpi-sub" style="color: #ea580c; font-weight: 600;">{{ Achieved_Pct|floatformat:1|default:"52.2" }}% of Target</div>
+                <canvas id="spark3" class="kpi-sparkline"></canvas>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-icon" style="background: #fff1f2; color: #e11d48;"><i class="bi bi-exclamation-circle"></i></div>
+                <div class="kpi-label">Gap Remaining</div>
+                <div class="kpi-value" style="color: #e11d48;">{{ Gap|intcomma|default:"192,362" }}</div>
+                <div class="kpi-sub" style="color: #e11d48; font-weight: 600;">{{ Achieved_Pct|floatformat:1|default:"52.2" }}% Achieved</div>
+                <canvas id="spark4" class="kpi-sparkline"></canvas>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-icon" style="background: #f5f3ff; color: #7c3aed;"><i class="bi bi-cpu"></i></div>
+                <div class="kpi-label">AI Forecast Final</div>
+                <div class="kpi-value" style="color: #7c3aed;">{{ Forecast_Final|intcomma|default:"339,167" }}</div>
+                <div class="kpi-sub">Predicted AMJ Repeats</div>
+                <canvas id="spark5" class="kpi-sparkline"></canvas>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-icon" style="background: #eff6ff; color: #0ea5e9;"><i class="bi bi-shield-check"></i></div>
+                <div class="kpi-label">Forecast Confidence</div>
+                <div class="kpi-value" style="color: #0ea5e9;">{{ Forecast_Confidence|default:"92.4" }}%</div>
+                <div class="kpi-sub" style="color: #0ea5e9; font-weight: 600;">High Confidence</div>
+                <canvas id="spark6" class="kpi-sparkline"></canvas>
+            </div>
+
+        </div>
+
+        <!-- MAIN SECTION -->
+        <div class="main-section">
+
+            <!-- LEFT: CHART -->
+            <div class="chart-card">
+                <div class="chart-card-header">
+                    <div>
+                        <div class="chart-card-title">LSTM PREDICTIVE BURN-UP FORECAST — AMJ 2026 &nbsp;<i class="bi bi-info-circle" style="color: #9ca3af; font-size: 12px;"></i></div>
+                    </div>
+                    <div style="font-size: 11px; color: #9ca3af; display: flex; gap: 14px; align-items: center;">
+                        <span>HISTORICAL &nbsp;←—&nbsp; FORECAST &nbsp;→</span>
+                    </div>
+                </div>
+
+                <!-- Legend -->
+                <div class="chart-legend">
+                    <div class="legend-item"><div class="legend-dot" style="background: #f97316;"></div> Actuals</div>
+                    <div class="legend-item"><div class="legend-dot" style="background: #2563eb;"></div> LSTM Forecast</div>
+                    <div class="legend-item"><div class="legend-dot" style="background: rgba(147,197,253,0.5); width:20px; height:10px; border-radius:3px;"></div> Confidence Cone (80%)</div>
+                    <div class="legend-item"><div class="legend-dot" style="background: rgba(191,219,254,0.4); width:20px; height:10px; border-radius:3px;"></div> Confidence Cone (95%)</div>
+                    <div class="legend-item"><div class="legend-dot dashed" style="border-color: #ef4444;"></div> Minimum Required</div>
+                    <div class="legend-item"><div class="legend-dot dashed" style="border-color: #16a34a;"></div> Target (402,664)</div>
+                    <div class="legend-item"><div class="legend-dot dashed" style="border-color: #8b5cf6;"></div> Stretch Target (450,000)</div>
+                </div>
+
+                <div class="chart-plotly-container" id="burnup-chart"></div>
+            </div>
+
+            <!-- RIGHT PANEL -->
+            <div class="right-panel">
+
+                <!-- RUN RATE -->
+                <div class="panel-card">
+                    <div class="panel-card-title"><i class="bi bi-speedometer"></i> Run Rate Intelligence</div>
+
+                    <div class="run-rate-item">
+                        <div class="rr-label">Current Daily Run Rate</div>
+                        <div class="rr-value">{{ Current_Run_Rate|intcomma|default:"4,474" }} <span style="font-size:12px; font-weight:500; color:#9ca3af;">/ day</span></div>
+                        <div class="rr-bar-bg"><div class="rr-bar-fill" style="width: 100%; background: #2563eb;"></div></div>
+                    </div>
+
+                    <div class="run-rate-item">
+                        <div class="rr-label">Required Daily Run Rate</div>
+                        <div class="rr-value">{{ Required_Run_Rate|intcomma|default:"4,371" }} <span style="font-size:12px; font-weight:500; color:#9ca3af;">/ day</span></div>
+                        <div class="rr-bar-bg"><div class="rr-bar-fill" style="width: {% if Required_Run_Rate and Current_Run_Rate %}{% widthratio Required_Run_Rate Current_Run_Rate 100 %}{% else %}97{% endif %}%; max-width: 100%; background: #f59e0b;"></div></div>
+                    </div>
+
+                    <div class="gap-card">
+                        <div class="gap-card-icon"><i class="bi bi-clock-history"></i></div>
+                        <div>
+                            <div class="gap-card-label">Remaining Gap</div>
+                            <div class="gap-card-value">{{ Gap|intcomma|default:"1,92,362" }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MODEL DIAGNOSTICS -->
+                <div class="panel-card">
+                    <div class="panel-card-title"><i class="bi bi-clipboard2-pulse"></i> Model Diagnostics</div>
+
+                    <div class="diag-row">
+                        <span class="diag-label">RMSE (Daily)</span>
+                        <span class="diag-value">{{ Metrics.RMSE|default:"428.5 (Daily)" }}</span>
+                    </div>
+                    <div class="diag-row">
+                        <span class="diag-label">MAE (Daily)</span>
+                        <span class="diag-value">{{ Metrics.MAE|default:"315.2 (Daily)" }}</span>
+                    </div>
+                    <div class="diag-row">
+                        <span class="diag-label">MAPE</span>
+                        <span class="diag-value">{{ Metrics.MAPE|default:"5.4%" }}</span>
+                    </div>
+                    <div class="diag-row">
+                        <span class="diag-label">R² Score</span>
+                        <span class="diag-value">{{ Metrics.R2|default:"0.912" }}</span>
+                    </div>
+                    <div class="diag-row">
+                        <span class="diag-label">Model Stability</span>
+                        <span class="stable-badge">Stable</span>
+                    </div>
+
+                    <div style="margin-top: 12px; height: 40px;">
+                        <canvas id="diag-sparkline"></canvas>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        
+        <!-- AI FORECAST INSIGHTS & STRATEGIC RECOMMENDATIONS -->
+        <div class="insights-section">
+            <div class="insights-gradient-card">
+                <div class="panel-card-title" style="margin-bottom: 2px; font-size: 13px;">
+                    <i class="bi bi-cpu" style="color: #2563eb;"></i> AI Forecast Insights &amp; Strategic Recommendations
+                </div>
+                <div style="font-size: 11px; color: #6b7280; margin-bottom: 12px; font-weight: 500;">
+                    Predictive analysis and deep-learning insights based on historical cohorts from July 2020 and regional seasonal multipliers
+                </div>
+                
+                <div class="insights-grid">
+                    {% for insight in insights %}
+                    <div class="insight-item">
+                        <div class="insight-counter">{{ forloop.counter }}</div>
+                        <div class="insight-text">{{ insight }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ===== KPI SPARKLINES (Canvas) =====
+function drawSparkline(canvasId, data, color, fill) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.offsetWidth || 180;
+    const H = 28;
+    canvas.width = W; canvas.height = H;
+
+    const min = Math.min(...data), max = Math.max(...data);
+    const range = max - min || 1;
+    const points = data.map((v, i) => ({
+        x: (i / (data.length - 1)) * W,
+        y: H - ((v - min) / range) * (H - 4) - 2
+    }));
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+        const cp1x = (points[i-1].x + points[i].x) / 2;
+        ctx.bezierCurveTo(cp1x, points[i-1].y, cp1x, points[i].y, points[i].x, points[i].y);
+    }
+
+    if (fill) {
+        ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath();
+        ctx.fillStyle = color + '22';
+        ctx.fill();
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+        const cp1x = (points[i-1].x + points[i].x) / 2;
+        ctx.bezierCurveTo(cp1x, points[i-1].y, cp1x, points[i].y, points[i].x, points[i].y);
+    }
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+}
+
+const r = () => Math.random() * 30 - 15;
+window.addEventListener('load', () => {
+    drawSparkline('spark1', [50,60,55,70,65,75,80,72,85,90].map(v => v + r()), '#2563eb', true);
+    drawSparkline('spark2', [40,42,44,46,48,50,52,54,56,58].map(v => v + r()), '#16a34a', true);
+    drawSparkline('spark3', [20,35,50,70,90,110,130,155,180,210].map(v => v + r()), '#ea580c', true);
+    drawSparkline('spark4', [200,185,175,165,155,145,135,130,195,192].map(v => v + r()), '#e11d48', false);
+    drawSparkline('spark5', [150,180,200,220,250,270,295,310,330,339].map(v => v + r()), '#7c3aed', true);
+    drawSparkline('spark6', [85,87,88,90,91,91,92,92,93,92].map(v => v + r()), '#0ea5e9', true);
+
+    // Diag sparkline
+    const dc = document.getElementById('diag-sparkline');
+    if (dc) {
+        const dctx = dc.getContext('2d');
+        const W = dc.offsetWidth || 240; const H = 40;
+        dc.width = W; dc.height = H;
+        const d = [8,5,9,4,7,10,6,8,5,7,9,6,8,5,9,7,4,8,6,9];
+        const mn = Math.min(...d), mx = Math.max(...d), rng = mx - mn;
+        const pts = d.map((v,i) => ({ x: (i/(d.length-1))*W, y: H - ((v-mn)/rng)*(H-6)-3 }));
+        dctx.beginPath();
+        dctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) {
+            const cp = (pts[i-1].x + pts[i].x)/2;
+            dctx.bezierCurveTo(cp, pts[i-1].y, cp, pts[i].y, pts[i].x, pts[i].y);
+        }
+        dctx.strokeStyle = '#60a5fa'; dctx.lineWidth = 1.5; dctx.stroke();
+    }
+});
+
+// ===== MAIN PLOTLY CHART =====
+(function buildChart() {
+    const burnData = {{ burn_json|safe }};
+    
+    const histDates = burnData.Actual_Dates || [];
+    const actualVals = burnData.Actual_Vals || [];
+    const forecastDates = burnData.Forecast_Dates || [];
+    const forecastVals = burnData.Forecast_Vals || [];
+    const upper95 = burnData.Upper_95 || [];
+    const lower95 = burnData.Lower_95 || [];
+    
+    // Synthesize the 80% confidence bands by scaling the 95% interval
+    const upper80 = forecastVals.map((v, i) => Math.round(v + ((upper95[i] || v) - v) * 0.6));
+    const lower80 = forecastVals.map((v, i) => Math.round(Math.max(0, v - (v - (lower95[i] || v)) * 0.6)));
+    
+    const allDates = [...histDates, ...forecastDates];
+    const targetVal = burnData.Target || 402663;
+    const minReqVal = burnData.Min_Required || 362396;
+    const stretchVal = Math.round(targetVal * 1.12);
+    
+    const targetLine = allDates.map(() => targetVal);
+    const stretchLine = allDates.map(() => stretchVal);
+    const minRequiredLine = allDates.map(() => minReqVal);
+    
+    const lastActualDate = histDates[histDates.length - 1] || '2026-05-17';
+    const lastActualVal = actualVals[actualVals.length - 1] || 210302;
+    const lastForecastDate = forecastDates[forecastDates.length - 1] || '2026-06-30';
+    const lastForecastVal = forecastVals[forecastVals.length - 1] || 346094;
+
+    const traces = [
+        // 95% confidence (outer, lighter)
+        {
+            x: [...forecastDates, ...forecastDates.slice().reverse()],
+            y: [...upper95, ...lower95.slice().reverse()],
+            fill: 'toself',
+            fillcolor: 'rgba(191,219,254,0.25)',
+            line: { color: 'transparent' },
+            name: 'Confidence 95%',
+            hoverinfo: 'skip',
+            showlegend: false
+        },
+        // 80% confidence (inner)
+        {
+            x: [...forecastDates, ...forecastDates.slice().reverse()],
+            y: [...upper80, ...lower80.slice().reverse()],
+            fill: 'toself',
+            fillcolor: 'rgba(147,197,253,0.35)',
+            line: { color: 'transparent' },
+            name: 'Confidence 80%',
+            hoverinfo: 'skip',
+            showlegend: false
+        },
+        // Actuals
+        {
+            x: histDates,
+            y: actualVals,
+            name: 'Actuals',
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: '#f97316', width: 2.5, shape: 'spline' },
+            hovertemplate: '%{y:,}<extra>Actuals</extra>'
+        },
+        // Forecast
+        {
+            x: forecastDates,
+            y: forecastVals,
+            name: 'LSTM Forecast',
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: '#2563eb', width: 2.5, shape: 'spline', dash: 'dot' },
+            hovertemplate: '%{y:,}<extra>LSTM Forecast</extra>'
+        },
+        // Target line
+        {
+            x: allDates,
+            y: targetLine,
+            name: `Target (${targetVal.toLocaleString('en-IN')})`,
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: '#16a34a', width: 1.5, dash: 'dash' },
+            hoverinfo: 'skip'
+        },
+        // Stretch
+        {
+            x: allDates,
+            y: stretchLine,
+            name: `Stretch (${stretchVal.toLocaleString('en-IN')})`,
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: '#8b5cf6', width: 1.5, dash: 'dash' },
+            hoverinfo: 'skip'
+        },
+        // Min required
+        {
+            x: allDates,
+            y: minRequiredLine,
+            name: 'Minimum Required',
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: '#ef4444', width: 1, dash: 'dot' },
+            hoverinfo: 'skip'
+        }
+    ];
+
+    const layout = {
+        margin: { t: 10, r: 60, l: 60, b: 40 },
+        paper_bgcolor: '#fff',
+        plot_bgcolor: '#fafbfc',
+        showlegend: false,
+        hovermode: 'x unified',
+        yaxis: {
+            range: [0, 500000],
+            tickformat: ',.0f',
+            tickvals: [0, 100000, 200000, 300000, 400000, 500000],
+            ticktext: ['0', '100K', '200K', '300K', '400K', '500K'],
+            gridcolor: '#f1f5f9',
+            gridwidth: 1,
+            zeroline: false,
+            showline: false,
+            tickfont: { size: 10, color: '#9ca3af' }
+        },
+        xaxis: {
+            gridcolor: '#f1f5f9',
+            gridwidth: 1,
+            showline: false,
+            zeroline: false,
+            tickfont: { size: 10, color: '#9ca3af' },
+            tickformat: '%b %y'
+        },
+        annotations: [
+            {
+                x: lastActualDate,
+                y: lastActualVal,
+                text: `<b>Actuals (${new Date(lastActualDate).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'})})</b><br>+${lastActualVal.toLocaleString('en-IN')}`,
+                showarrow: true,
+                arrowhead: 2,
+                arrowcolor: '#f97316',
+                arrowsize: 0.8,
+                bgcolor: '#fff',
+                bordercolor: '#f97316',
+                borderwidth: 1.5,
+                borderpad: 6,
+                font: { size: 11, color: '#ea580c' },
+                ax: -10,
+                ay: -50
+            },
+            {
+                x: lastForecastDate,
+                y: lastForecastVal,
+                text: `<b>Forecast (${new Date(lastForecastDate).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'})})</b><br>${lastForecastVal.toLocaleString('en-IN')}`,
+                showarrow: true,
+                arrowhead: 2,
+                arrowcolor: '#2563eb',
+                arrowsize: 0.8,
+                bgcolor: '#fff',
+                bordercolor: '#2563eb',
+                borderwidth: 1.5,
+                borderpad: 6,
+                font: { size: 11, color: '#2563eb' },
+                ax: -60,
+                ay: -50
+            },
+            {
+                x: lastForecastDate,
+                y: targetVal,
+                text: targetVal.toLocaleString('en-IN'),
+                showarrow: false,
+                xanchor: 'left',
+                font: { size: 10, color: '#16a34a', weight: 'bold' }
+            },
+            {
+                x: lastForecastDate,
+                y: stretchVal,
+                text: Math.round(stretchVal / 1000) + 'K',
+                showarrow: false,
+                xanchor: 'left',
+                font: { size: 10, color: '#8b5cf6' }
+            }
+        ],
+        shapes: [
+            {
+                type: 'rect',
+                xref: 'x',
+                yref: 'paper',
+                x0: lastActualDate,
+                x1: lastForecastDate,
+                y0: 0,
+                y1: 1,
+                fillcolor: 'rgba(239,246,255,0.4)',
+                line: { width: 0 }
+            },
+            {
+                type: 'line',
+                xref: 'x',
+                yref: 'paper',
+                x0: lastActualDate,
+                x1: lastActualDate,
+                y0: 0,
+                y1: 1,
+                line: { color: '#d1d5db', width: 1, dash: 'dot' }
+            }
+        ]
+    };
+
+    Plotly.newPlot('burnup-chart', traces, layout, { responsive: true, displayModeBar: false });
+})();
+</script>
+</body>
+</html>

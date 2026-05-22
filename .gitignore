@@ -110,3 +110,24 @@ myg_loyalty_dashboard/create_helper_table.py
 myg_loyalty_dashboard/rebuild_duck.py
 
 myg_loyalty_dashboard/rebuild_duck.py
+
+# Files with hardcoded credentials (secrets)
+myg_loyalty_dashboard/scratch_check_indexes.py
+myg_loyalty_dashboard/scratch_create_upper_index.py
+myg_loyalty_dashboard/analytics/advanced_lstm_forecaster.py
+myg_loyalty_dashboard/analytics/customer_propensity_engine.py
+myg_loyalty_dashboard/myg_loyalty_dashboard/dev_settings.py
+myg_loyalty_dashboard/myg_loyalty_dashboard/local_settings.py
+myg_loyalty_dashboard/myg_loyalty_dashboard/dev_urls.py
+
+# Scratch/temp
+scratch/
+scratch_*.py
+target_executive_rendered.html
+error.html
+error2.html
+
+# Cache
+myg_loyalty_dashboard/analytics/ai_forecast_cache.json
+myg_loyalty_dashboard/analytics/lstm_forecast_cache.json
+myg_loyalty_dashboard/analytics/propensity_cache.json
