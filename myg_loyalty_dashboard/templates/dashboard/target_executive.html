@@ -537,6 +537,7 @@
             <div class="legend-item"><div class="legend-dot dashed" style="border-color: #ef4444;"></div> Minimum Required</div>
             <div class="legend-item"><div class="legend-dot dashed" style="border-color: #16a34a;"></div> Target (402,664)</div>
             <div class="legend-item"><div class="legend-dot dashed" style="border-color: #8b5cf6;"></div> Stretch Target (450,000)</div>
+            <div class="legend-item"><div class="legend-dot" style="background: #dc2626;"></div> Linear Target</div>
         </div>
 
         <div class="chart-plotly-container" id="burnup-chart"></div>
@@ -719,6 +720,7 @@ window.addEventListener('load', () => {
     const targetLine = allDates.map(() => targetVal);
     const stretchLine = allDates.map(() => stretchVal);
     const minRequiredLine = allDates.map(() => minReqVal);
+    const linearTargetLine = allDates.map((_, i) => Math.round((i / (allDates.length - 1)) * targetVal));
     
     const lastActualDate = histDates[histDates.length - 1] || '2026-05-17';
     const lastActualVal = actualVals[actualVals.length - 1] || 210302;
@@ -786,6 +788,16 @@ window.addEventListener('load', () => {
             type: 'scatter',
             mode: 'lines',
             line: { color: '#8b5cf6', width: 1.5, dash: 'dash' },
+            hoverinfo: 'skip'
+        },
+        // Linear Target
+        {
+            x: allDates,
+            y: linearTargetLine,
+            name: 'Linear Target',
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: '#dc2626', width: 1.5, dash: 'solid' },
             hoverinfo: 'skip'
         },
         // Min required
