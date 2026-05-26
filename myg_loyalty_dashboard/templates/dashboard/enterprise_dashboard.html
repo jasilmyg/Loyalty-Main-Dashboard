@@ -1,0 +1,424 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+<link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+
+<style>
+    .enterprise-bg { background-color: #f8fafc; }
+    .card-kpi { border: none; border-top: 4px solid #3b82f6; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+    .card-kpi-title { font-size: 0.85rem; color: #64748b; font-weight: 600; text-transform: uppercase; }
+    .card-kpi-value { font-size: 1.8rem; font-weight: 800; color: #0f172a; }
+    .growth-pos { color: #10b981; font-weight: 600; }
+    .growth-neg { color: #ef4444; font-weight: 600; }
+    
+    .filter-bar { display: none !important; }
+    
+    .filter-bar-sticky { position: sticky; top: 0; z-index: 1000; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); border-bottom: 1px solid #e2e8f0; padding: 1rem; margin-bottom: 2rem; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); }
+    
+    .chart-card { border: none; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+    .chart-card .card-header { background: white; border-bottom: 1px solid #f1f5f9; border-radius: 12px 12px 0 0; padding: 1rem 1.5rem; font-weight: 700; color: #1e293b; }
+    
+    .nav-tabs .nav-link { color: #64748b; font-weight: 600; padding: 1rem 1.5rem; border: none; border-bottom: 3px solid transparent; }
+    .nav-tabs .nav-link.active { color: #3b82f6; border-bottom: 3px solid #3b82f6; background: transparent; }
+</style>
+
+<div class="container-fluid enterprise-bg p-4 pt-2">
+    
+    <!-- 1. DASHBOARD HEADER -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2 class="fw-bold mb-0 text-dark">Retail Performance Analytics Dashboard</h2>
+            <p class="text-muted mb-0">Category, Brand & VAS Intelligence Platform</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary" onclick="exportExcel()"><i class="bi bi-file-earmark-excel"></i> Export Excel</button>
+            <button class="btn btn-outline-danger" onclick="window.print()"><i class="bi bi-file-pdf"></i> Export PDF</button>
+            <button class="btn btn-primary" onclick="loadDashboardData()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+        </div>
+    </div>
+
+    <!-- 2. GLOBAL FILTER BAR -->
+    <div class="filter-bar-sticky d-flex gap-3 align-items-end flex-wrap">
+        <div style="min-width: 150px;">
+            <label class="form-label small text-muted fw-bold">Comparison Type</label>
+            <select class="form-select" id="comp-type" onchange="togglePeriods()">
+                <option value="monthly" selected>Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="fy">Financial Yearly</option>
+            </select>
+        </div>
+        <div style="min-width: 150px;">
+            <label class="form-label small text-muted fw-bold">Base Period</label>
+            <select class="form-select" id="base-period"></select>
+        </div>
+        <div style="min-width: 150px;">
+            <label class="form-label small text-muted fw-bold">Comparison Period</label>
+            <select class="form-select" id="comp-period"></select>
+        </div>
+        
+        <div class="border-start mx-2 h-100"></div>
+
+        <div style="min-width: 150px;">
+            <label class="form-label small text-muted fw-bold">Category</label>
+            <select class="form-select" id="filter-cat">
+                <option value="">All Categories</option>
+                <option value="MOBILE">Mobile</option>
+                <option value="LAPTOP">Laptop/Computers</option>
+                <option value="CE">Consumer Electronics</option>
+                <option value="ACC">Accessories</option>
+                <option value="TABLET">Tablet</option>
+                <option value="RIG">Rig</option>
+                <option value="OTHER">Other</option>
+            </select>
+        </div>
+        
+        <div class="ms-auto">
+            <button class="btn btn-dark px-4" onclick="loadDashboardData()">Compare</button>
+        </div>
+    </div>
+
+    <!-- 3. KPI SECTION -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-4">
+            <div class="card card-kpi h-100 p-3">
+                <div class="card-kpi-title">Total Sales (Comparison)</div>
+                <div class="card-kpi-value" id="kpi-sales">₹0</div>
+                <div class="small mt-2" id="kpi-sales-growth">0% vs Base</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card card-kpi h-100 p-3">
+                <div class="card-kpi-title">Total QTY</div>
+                <div class="card-kpi-value" id="kpi-qty">0</div>
+                <div class="small mt-2" id="kpi-qty-growth">0% vs Base</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card card-kpi h-100 p-3">
+                <div class="card-kpi-title">Avg Selling Price</div>
+                <div class="card-kpi-value" id="kpi-asp">₹0</div>
+                <div class="small mt-2" id="kpi-asp-growth">0% vs Base</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. CATEGORY SCORECARD -->
+    <div class="card chart-card mb-4">
+        <div class="card-header text-uppercase" style="letter-spacing: 1px; font-size: 0.85rem; color: #475569;">
+            <i class="bi bi-circle-fill text-warning" style="font-size: 0.5rem; vertical-align: middle; margin-right: 8px;"></i>
+            Category Scorecard — Full Detail
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" id="scorecard-table">
+                    <thead style="background-color: #f8fafc; font-size: 0.75rem; color: #64748b; letter-spacing: 1px;" class="text-uppercase">
+                        <tr>
+                            <th class="ps-4 py-3">Category</th>
+                            <th class="py-3 text-end" id="sc-base-th">Base ₹Cr</th>
+                            <th class="py-3 text-end" id="sc-comp-th">Comp ₹Cr</th>
+                            <th class="py-3 text-end">Amt Growth</th>
+                            <th class="py-3 text-end" id="sc-qty-th">Comp Qty</th>
+                            <th class="py-3 text-end">Qty Growth</th>
+                            <th class="py-3 text-end">Comp ASP</th>
+                            <th class="pe-4 py-3 text-end">Share %</th>
+                        </tr>
+                    </thead>
+                    <tbody class="border-top-0" id="scorecard-tbody">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- 6. BRAND PERFORMANCE SECTION -->
+    <div class="card chart-card mb-4">
+        <div class="card-header border-bottom-0 pb-0">Brand Analytics (Top 15)</div>
+        <ul class="nav nav-tabs px-3 border-bottom" id="brandTabs">
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#mobile">Mobile</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#laptop">Laptop</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tablet">Tablet</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ce">CE</a></li>
+        </ul>
+        <div class="card-body tab-content">
+            <div class="tab-pane fade show active" id="mobile">
+                <div class="row">
+                    <div class="col-md-5"><div id="brand-donut-mobile"></div></div>
+                    <div class="col-md-7"><div id="brand-bar-mobile"></div></div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="laptop">
+                <div class="row">
+                    <div class="col-md-5"><div id="brand-donut-laptop"></div></div>
+                    <div class="col-md-7"><div id="brand-bar-laptop"></div></div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="tablet">
+                <div class="row">
+                    <div class="col-md-5"><div id="brand-donut-tablet"></div></div>
+                    <div class="col-md-7"><div id="brand-bar-tablet"></div></div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="ce">
+                <div class="row">
+                    <div class="col-md-5"><div id="brand-donut-ce"></div></div>
+                    <div class="col-md-7"><div id="brand-bar-ce"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 7. BRAND REPORT MODAL -->
+    <div class="modal fade" id="brandReportModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title fw-bold" id="brandReportTitle">Top 15 Brands</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped mb-0 align-middle">
+                            <thead class="table-light text-uppercase" style="font-size: 0.75rem; letter-spacing: 1px;">
+                                <tr>
+                                    <th class="ps-4 py-3">Brand</th>
+                                    <th class="py-3 text-end">Base Qty</th>
+                                    <th class="py-3 text-end">Base Rev</th>
+                                    <th class="py-3 text-end">Comp Qty</th>
+                                    <th class="py-3 text-end">Comp Rev</th>
+                                    <th class="py-3 text-end">Variance Rev</th>
+                                    <th class="pe-4 py-3 text-end">Comp ASP</th>
+                                </tr>
+                            </thead>
+                            <tbody id="brand-report-tbody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    let charts = {};
+
+    function initPeriods() {
+        const type = document.getElementById('comp-type').value;
+        const b = document.getElementById('base-period');
+        const c = document.getElementById('comp-period');
+        b.innerHTML = ''; c.innerHTML = '';
+        
+        if (type === 'monthly') {
+            const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            for(let i=1; i<=12; i++) {
+                b.options.add(new Option(monthNames[i-1], i));
+                c.options.add(new Option(monthNames[i-1], i));
+            }
+            b.value = 4; c.value = 5;
+        } else if (type === 'quarterly') {
+            ['Q1', 'Q2', 'Q3', 'Q4'].forEach(q => {
+                b.options.add(new Option(q, q));
+                c.options.add(new Option(q, q));
+            });
+            b.value = 'Q1'; c.value = 'Q2';
+        } else {
+            ['2024', '2025', '2026', '2027'].forEach(y => {
+                b.options.add(new Option(y, y));
+                c.options.add(new Option(y, y));
+            });
+            b.value = '2025'; c.value = '2026';
+        }
+    }
+    
+    window.togglePeriods = initPeriods;
+    
+    const fCurrency = (v) => '₹' + (v/10000000).toFixed(2) + 'Cr';
+    const fLakhs = (v) => '₹' + (v/100000).toFixed(2) + 'L';
+
+    function buildChart(id, options) {
+        if(charts[id]) charts[id].destroy();
+        charts[id] = new ApexCharts(document.querySelector("#" + id), options);
+        charts[id].render();
+    }
+
+    async function loadDashboardData() {
+        if(window.showLoading) window.showLoading();
+        
+        const type = document.getElementById('comp-type').value;
+        const base = document.getElementById('base-period').value;
+        const comp = document.getElementById('comp-period').value;
+        const cat = document.getElementById('filter-cat').value;
+        
+        try {
+            const res = await fetch(`/api/v1/enterprise-dashboard/?type=${type}&base=${base}&comp=${comp}&category=${cat}`);
+            const json = await res.json();
+            
+            if (json.status !== 'success') {
+                alert("Error loading data: " + json.message);
+                if(window.hideLoading) window.hideLoading();
+                return;
+            }
+            
+            const data = json.data;
+            window.dashboardData = data; // Store for popup modal
+            
+            // 1. KPIs
+            document.getElementById('kpi-sales').innerText = fCurrency(data.kpis.comp.sales);
+            document.getElementById('kpi-qty').innerText = data.kpis.comp.qty.toLocaleString();
+            
+            // Format ASP in normal Rs (since ASP is around ₹8000)
+            const fRupees = (v) => '₹' + Math.round(v).toLocaleString('en-IN');
+            document.getElementById('kpi-asp').innerText = fRupees(data.kpis.comp.asp);
+            
+            const renderGrowth = (g, elId) => {
+                const gCls = g >= 0 ? 'growth-pos' : 'growth-neg';
+                document.getElementById(elId).innerHTML = `<span class="${gCls}">${g>0?'▲':'▼'} ${Math.abs(g).toFixed(1)}%</span> vs Base`;
+            };
+            
+            renderGrowth(data.kpis.growth.sales, 'kpi-sales-growth');
+            renderGrowth(data.kpis.growth.qty, 'kpi-qty-growth');
+            renderGrowth(data.kpis.growth.asp, 'kpi-asp-growth');
+            
+            // 2. Category Scorecard
+            const scTbody = document.getElementById('scorecard-tbody');
+            scTbody.innerHTML = '';
+            
+            const bText = document.getElementById('base-period').options[document.getElementById('base-period').selectedIndex].text;
+            const cText = document.getElementById('comp-period').options[document.getElementById('comp-period').selectedIndex].text;
+            document.getElementById('sc-base-th').innerText = bText.substring(0,3).toUpperCase() + ' ₹CR';
+            document.getElementById('sc-comp-th').innerText = cText.substring(0,3).toUpperCase() + ' ₹CR';
+            document.getElementById('sc-qty-th').innerText = cText.substring(0,3).toUpperCase() + ' QTY';
+
+            if(data.scorecard) {
+                data.scorecard.forEach(r => {
+                    const isGrand = r.category === 'Grand Total';
+                    const rowStyle = isGrand ? 'font-weight: 700; color: #1e293b;' : 'color: #475569; font-weight: 500;';
+                    const bgStyle = isGrand ? 'background-color: #f8fafc;' : '';
+                    
+                    const getBadge = (cat) => {
+                        if (isGrand) return '';
+                        const colors = {'TELECOM':'#3b82f6', 'IT':'#64748b', 'CONSUMER ELECTRONICS':'#ef4444', 'ACCESSORIES':'#10b981', 'HOME SOLUTIONS':'#f59e0b'};
+                        return `<i class="bi bi-circle-fill me-2" style="font-size: 0.5rem; color: ${colors[cat] || '#8b5cf6'}; vertical-align: middle;"></i>`;
+                    };
+
+                    const formatGrowth = (g) => {
+                        if(g === 0) return `<span class="badge bg-light text-muted border px-2 py-1" style="width: 75px">0.00%</span>`;
+                        return g > 0 ? `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1" style="width: 75px">▲ ${g.toFixed(2)}%</span>` 
+                                     : `<span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2 py-1" style="width: 75px">▼ ${Math.abs(g).toFixed(2)}%</span>`;
+                    };
+
+                    const catName = r.category === 'TELECOM' ? 'Mobile' : r.category === 'IT' ? 'Laptop' : r.category === 'CONSUMER ELECTRONICS' ? 'CE' : r.category === 'ACCESSORIES' ? 'ACC' : r.category;
+
+                    scTbody.innerHTML += `
+                        <tr style="${rowStyle} ${bgStyle}">
+                            <td class="ps-4 py-3">
+                                ${getBadge(r.category)}
+                                ${isGrand ? catName : `<a href="javascript:void(0)" class="text-decoration-none fw-bold" style="color: #3b82f6;" onclick="showBrandReport('${r.category}')">${catName}</a>`}
+                            </td>
+                            <td class="py-3 text-end">${(r.b_rev/10000000).toFixed(2)}</td>
+                            <td class="py-3 text-end">${(r.c_rev/10000000).toFixed(2)}</td>
+                            <td class="py-3 text-end">${formatGrowth(r.rev_growth)}</td>
+                            <td class="py-3 text-end">${r.c_qty.toLocaleString()}</td>
+                            <td class="py-3 text-end">${formatGrowth(r.qty_growth)}</td>
+                            <td class="py-3 text-end text-primary fw-medium">₹${Math.round(r.c_asp).toLocaleString('en-IN')}</td>
+                            <td class="pe-4 py-3 text-end fw-bold">${r.share.toFixed(2)}%</td>
+                        </tr>
+                    `;
+                });
+            }
+
+            // 5. Brand Charts
+            ['MOBILE', 'LAPTOP', 'TABLET', 'CE'].forEach(cat => {
+                const lowerCat = cat.toLowerCase();
+                if(data.brands[cat] && data.brands[cat].length > 0) {
+                    const top5 = data.brands[cat].slice(0,5);
+                    buildChart('brand-donut-' + lowerCat, {
+                        series: top5.map(x=>x.sales),
+                        labels: top5.map(x=>x.brand),
+                        chart: { type: 'donut', height: 300 }
+                    });
+                    
+                    const top15 = data.brands[cat].slice(0,15);
+                    buildChart('brand-bar-' + lowerCat, {
+                        series: [{ name: 'Sales', data: top15.map(x=>x.sales) }],
+                        chart: { type: 'bar', height: 300 },
+                        plotOptions: { bar: { horizontal: true, borderRadius: 4 } },
+                        xaxis: { categories: top15.map(x=>x.brand) }
+                    });
+                }
+            });
+            
+        } catch(e) {
+            console.error(e);
+        } finally {
+            if(window.hideLoading) window.hideLoading();
+        }
+    }
+
+    function exportExcel() {
+        const type = document.getElementById('comp-type').value;
+        const base = document.getElementById('base-period').value;
+        const comp = document.getElementById('comp-period').value;
+        const cat = document.getElementById('filter-cat').value;
+        window.location.href = `/api/v1/enterprise-dashboard/export/?type=${type}&base=${base}&comp=${comp}&category=${cat}`;
+    }
+
+    function showBrandReport(category) {
+        if(!window.dashboardData || !window.dashboardData.table) return;
+        
+        const title = document.getElementById('brandReportTitle');
+        const tbody = document.getElementById('brand-report-tbody');
+        
+        title.innerText = `Top 15 Brands: ${category}`;
+        tbody.innerHTML = '';
+        
+        const brands = window.dashboardData.table
+            .filter(r => r.category === category)
+            .sort((a,b) => b.c_rev - a.c_rev)
+            .slice(0, 15);
+            
+        if(brands.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-muted">No brand data available for ${category}</td></tr>`;
+        } else {
+            brands.forEach(r => {
+                const asp = r.c_qty > 0 ? (r.c_rev / r.c_qty) : 0;
+                tbody.innerHTML += `
+                    <tr>
+                        <td class="ps-4 py-3 fw-medium">${r.brand}</td>
+                        <td class="py-3 text-end">${r.b_qty.toLocaleString()}</td>
+                        <td class="py-3 text-end">${fCurrency(r.b_rev)}</td>
+                        <td class="py-3 text-end">${r.c_qty.toLocaleString()}</td>
+                        <td class="py-3 text-end fw-bold">${fCurrency(r.c_rev)}</td>
+                        <td class="py-3 text-end ${r.v_rev >= 0 ? 'text-success' : 'text-danger'} fw-bold">${fCurrency(r.v_rev)}</td>
+                        <td class="pe-4 py-3 text-end text-primary">₹${Math.round(asp).toLocaleString('en-IN')}</td>
+                    </tr>
+                `;
+            });
+        }
+        
+        const modal = new bootstrap.Modal(document.getElementById('brandReportModal'));
+        modal.show();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initPeriods();
+        
+        // Auto-read URL params to support sidebar clicks
+        const urlParams = new URLSearchParams(window.location.search);
+        if(urlParams.get('type')) document.getElementById('comp-type').value = urlParams.get('type');
+        
+        togglePeriods();
+        loadDashboardData();
+    });
+</script>
+{% endblock %}

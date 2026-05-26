@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import RedirectView
 from . import views
 
 urlpatterns = [
@@ -23,4 +24,12 @@ urlpatterns = [
     path('customer-intelligence/', views.CustomerPropensityView.as_view(), name='customer_propensity'),
     path('api/v1/customer-propensity/search/', views.CustomerPropensitySearchAPIView.as_view(), name='customer_propensity_search'),
     path('api/v1/customer-propensity/rebuild/', views.CustomerPropensityRebuildAPIView.as_view(), name='customer_propensity_rebuild'),
+    path('report-generator/', RedirectView.as_view(url='/enterprise-dashboard/', permanent=False)),
+    path('enterprise-dashboard/', views.EnterpriseDashboardView.as_view(), name='enterprise_dashboard'),
+    path('api/v1/enterprise-dashboard/', views.EnterpriseDashboardAPIView.as_view(), name='enterprise_dashboard_api'),
+    path('api/v1/enterprise-dashboard/export/', views.EnterpriseDashboardExportAPIView.as_view(), name='enterprise_dashboard_export'),
+    path('monthly-retention/', views.MonthlyRetentionView.as_view(), name='monthly_retention'),
+    path('api/v1/monthly-retention/', views.MonthlyRetentionAPIView.as_view(), name='monthly_retention_api'),
+    path('campaign-analysis/', views.CampaignAnalysisView.as_view(), name='campaign_analysis'),
+    path('api/v1/campaign-analysis/', views.CampaignAnalysisAPIView.as_view(), name='campaign_analysis_api'),
 ]

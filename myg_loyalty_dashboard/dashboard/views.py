@@ -1,5 +1,8 @@
-from django.views.generic import TemplateView
+from django.views.generic import TemplateView, View
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.http import HttpResponse
+from django.shortcuts import render
+from analytics.report_generator import generate_monthly_report_zip
 
 class DashboardView(LoginRequiredMixin, TemplateView):
     template_name = 'dashboard/index.html'
@@ -33,6 +36,34 @@ class RetailAnalyticsView(LoginRequiredMixin, TemplateView):
 
 class InvalidMobilesView(LoginRequiredMixin, TemplateView):
     template_name = 'dashboard/invalid_mobiles.html'
+
+class EnterpriseDashboardView(LoginRequiredMixin, TemplateView):
+    template_name = 'dashboard/enterprise_dashboard.html'
+
+from django.http import JsonResponse, HttpResponse
+from analytics.models import ProductSale
+from django.db.models import Sum
+
+from .dashboard_api_logic import build_api_response, generate_dashboard_excel
+from django.core.serializers.json import DjangoJSONEncoder
+
+class EnterpriseDashboardAPIView(LoginRequiredMixin, View):
+    def get(self, request):
+        try:
+            data = build_api_response(request)
+            return JsonResponse({"status": "success", "data": data}, encoder=DjangoJSONEncoder)
+        except Exception as e:
+            return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+class EnterpriseDashboardExportAPIView(LoginRequiredMixin, View):
+    def get(self, request):
+        try:
+            excel_io, filename = generate_dashboard_excel(request)
+            response = HttpResponse(excel_io.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+        except Exception as e:
+            return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
 import pandas as pd
 import numpy as np
@@ -376,3 +407,159 @@ class CustomerPropensityRebuildAPIView(LoginRequiredMixin, View):
         })
 
 
+class MonthlyRetentionView(LoginRequiredMixin, TemplateView):
+    template_name = 'dashboard/monthly_retention.html'
+
+
+class MonthlyRetentionAPIView(LoginRequiredMixin, View):
+    """
+    Monthly retention: unique baseline customers returning each month in 2026.
+    Baseline = customers who purchased on or before 2025-12-31.
+    Each customer counted ONLY in their first 2026 month.
+
+    Performance:
+      - Uses pre-computed mv_monthly_retention_2026 materialized view.
+      - Query time: <10ms (was ~3 mins causing frontend timeout).
+    """
+
+    def get(self, request):
+        from analytics.services import _q
+        import traceback
+
+        try:
+            # Query the pre-aggregated materialized view
+            rows = _q("""
+                SELECT
+                    month_label,
+                    unique_customers,
+                    total_sales
+                FROM mv_monthly_retention_2026
+                ORDER BY month_start ASC
+            """)
+
+            data = [
+                {
+                    'month':            r[0],
+                    'unique_customers': r[1],
+                    'total_sales':      float(r[2] or 0),
+                }
+                for r in rows
+            ]
+            return JsonResponse({'status': 'success', 'data': data})
+
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': str(e),
+                'trace': traceback.format_exc()
+            }, status=500)
+
+
+class CampaignAnalysisView(LoginRequiredMixin, TemplateView):
+    template_name = 'dashboard/campaign_analysis.html'
+
+
+class CampaignAnalysisAPIView(LoginRequiredMixin, View):
+    """
+    Dormant Customer Resurrection Analysis API.
+    Returns cohort data tracking 2026 reactivation logic.
+    """
+    def get(self, request):
+        from analytics.services import _q
+        import traceback
+        import math
+
+        try:
+            # Query the pre-aggregated MV
+            # We want all cohort_year 2020..2024
+            rows = _q("""
+                SELECT
+                    cohort_year,
+                    first_2026_month,
+                    unique_customers,
+                    total_revenue
+                FROM mv_dormant_reactivation
+                ORDER BY cohort_year ASC, first_2026_month ASC NULLS FIRST
+            """)
+            
+            # Format the output data
+            # Data structure: dict mapping cohort_year -> details
+            cohort_data = {}
+            for year in range(2020, 2025):
+                cohort_data[year] = {
+                    'cohort_year': year,
+                    'initial_base': 0,
+                    'reactivations': {},
+                    'reactivated_revenue': 0,
+                }
+                
+            # Process rows
+            for row in rows:
+                c_year = row[0]
+                month_val = row[1]
+                count = row[2]
+                rev = row[3] or 0
+                
+                if c_year in cohort_data:
+                    cohort_data[c_year]['initial_base'] += count
+                    
+                    if month_val is not None:
+                        # Format month: "Jan 2026", "Feb 2026"
+                        month_str = month_val.strftime('%b %Y')
+                        cohort_data[c_year]['reactivations'][month_str] = {
+                            'count': count,
+                            'revenue': float(rev)
+                        }
+                        cohort_data[c_year]['reactivated_revenue'] += float(rev)
+
+            # Build waterfall format with running balances
+            results = []
+            for year in range(2020, 2025):
+                data = cohort_data[year]
+                base = data['initial_base']
+                
+                # If no base, skip or return empty
+                if base == 0:
+                    continue
+                    
+                months = ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026']
+                
+                monthly_breakdown = []
+                running_balance = base
+                total_reactivated = 0
+                
+                for m in months:
+                    r_data = data['reactivations'].get(m, {'count': 0, 'revenue': 0.0})
+                    r_count = r_data['count']
+                    r_rev = r_data['revenue']
+                    running_balance -= r_count
+                    total_reactivated += r_count
+                    monthly_breakdown.append({
+                        'month': m,
+                        'reactivated': r_count,
+                        'revenue': r_rev,
+                        'remaining': running_balance
+                    })
+                
+                resurrection_rate = (total_reactivated / base * 100) if base > 0 else 0
+                
+                results.append({
+                    'cohort_year': year,
+                    'initial_base': base,
+                    'total_reactivated': total_reactivated,
+                    'resurrection_rate': round(resurrection_rate, 2),
+                    'reactivated_revenue': data['reactivated_revenue'],
+                    'monthly_breakdown': monthly_breakdown
+                })
+
+            return JsonResponse({
+                'status': 'success',
+                'data': results
+            })
+
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': str(e),
+                'trace': traceback.format_exc()
+            }, status=500)

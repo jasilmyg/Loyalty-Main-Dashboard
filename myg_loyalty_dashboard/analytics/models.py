@@ -34,3 +34,32 @@ class ForecastCache(models.Model):
             defaults={'data': data}
         )
         return obj
+
+
+class ProductSale(models.Model):
+    """
+    Stores raw sales data needed for analytics and report generation.
+    """
+    date = models.DateField(db_index=True)
+    invoice_number = models.CharField(max_length=100)
+    branch = models.CharField(max_length=100)
+    
+    # Product details
+    product = models.CharField(max_length=100, db_index=True)
+    category = models.CharField(max_length=100, db_index=True)
+    brand = models.CharField(max_length=100, db_index=True)
+    
+    # Financials
+    qty = models.IntegerField(default=1)
+    sold_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    class Meta:
+        verbose_name = "Product Sale"
+        verbose_name_plural = "Product Sales"
+        # Index to speed up monthly queries
+        indexes = [
+            models.Index(fields=['date', 'product']),
+        ]
+
+    def __str__(self):
+        return f"{self.invoice_number} - {self.product} ({self.date})"

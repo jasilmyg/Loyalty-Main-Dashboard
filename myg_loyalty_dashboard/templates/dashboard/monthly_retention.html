@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Monthly Retention — myG Loyalty Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .mr-hero {
+        background: linear-gradient(135deg, #1e3a5f 0%, #0f2340 100%);
+        border-radius: 16px;
+        padding: 28px 32px;
+        color: #fff;
+        margin-bottom: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+    .mr-hero-title { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.5px; }
+    .mr-hero-subtitle { font-size: 0.82rem; color: #93c5fd; margin-top: 4px; }
+    .mr-badge {
+        background: rgba(99,179,237,0.18);
+        border: 1px solid rgba(99,179,237,0.35);
+        border-radius: 8px;
+        padding: 6px 14px;
+        font-size: 0.75rem;
+        color: #93c5fd;
+        font-weight: 600;
+    }
+
+    /* ── KPI Cards ── */
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-bottom: 28px;
+    }
+    .kpi-card {
+        background: #fff;
+        border: 1px solid #e8ecf0;
+        border-radius: 14px;
+        padding: 18px 20px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+    .kpi-card .kpi-label {
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: #94a3b8;
+        margin-bottom: 6px;
+    }
+    .kpi-card .kpi-value {
+        font-size: 1.6rem;
+        font-weight: 800;
+        color: #111827;
+        letter-spacing: -0.5px;
+    }
+    .kpi-card .kpi-sub {
+        font-size: 0.72rem;
+        color: #64748b;
+        margin-top: 4px;
+    }
+    .kpi-icon {
+        width: 34px; height: 34px;
+        border-radius: 9px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 16px;
+        margin-bottom: 10px;
+    }
+
+    /* ── Table ── */
+    .section-card {
+        background: #fff;
+        border: 1px solid #e8ecf0;
+        border-radius: 14px;
+        padding: 24px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        margin-bottom: 24px;
+    }
+    .section-title {
+        font-size: 0.88rem;
+        font-weight: 700;
+        color: #1e3a5f;
+        margin-bottom: 18px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .section-title i { color: #3b82f6; }
+
+    table.mr-table { width: 100%; border-collapse: collapse; }
+    table.mr-table thead th {
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #64748b;
+        padding: 10px 14px;
+        border-bottom: 2px solid #f1f5f9;
+        text-align: left;
+        background: #f8fafc;
+    }
+    table.mr-table tbody tr {
+        border-bottom: 1px solid #f1f5f9;
+        transition: background 0.15s;
+    }
+    table.mr-table tbody tr:hover { background: #f0f7ff; }
+    table.mr-table tbody td {
+        padding: 11px 14px;
+        font-size: 0.85rem;
+        color: #334155;
+    }
+    table.mr-table tbody td.month-col {
+        font-weight: 700;
+        color: #1e40af;
+    }
+    table.mr-table tbody td.num-col { font-weight: 600; }
+
+    .bar-cell { display: flex; align-items: center; gap: 8px; }
+    .bar-bg {
+        flex: 1; height: 8px; background: #e2e8f0;
+        border-radius: 4px; overflow: hidden; min-width: 60px;
+    }
+    .bar-fill { height: 100%; border-radius: 4px; }
+
+    /* Chart */
+    #mr-chart-container { height: 360px; }
+
+    /* Loading */
+    .loading-spinner {
+        display: flex; align-items: center; justify-content: center;
+        height: 200px; flex-direction: column; gap: 12px;
+        color: #94a3b8;
+    }
+    .spinner-ring {
+        width: 36px; height: 36px;
+        border: 3px solid #e2e8f0;
+        border-top-color: #3b82f6;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .note-box {
+        background: #eff6ff;
+        border-left: 4px solid #3b82f6;
+        border-radius: 0 8px 8px 0;
+        padding: 10px 16px;
+        font-size: 0.78rem;
+        color: #1e40af;
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Hero Header -->
+<div class="mr-hero">
+    <div>
+        <div class="mr-hero-title"><i class="bi bi-calendar-month me-2"></i>Monthly Retention Analysis</div>
+        <div class="mr-hero-subtitle">Unique returning customers and their sales — Jan 2026 onwards (baseline: up to Dec 31, 2025)</div>
+    </div>
+    <div class="mr-badge"><i class="bi bi-info-circle me-1"></i>Each customer counted only in their first 2026 month</div>
+</div>
+
+<!-- KPI Summary Cards -->
+<div class="kpi-grid" id="kpi-row">
+    <div class="kpi-card">
+        <div class="kpi-icon" style="background:#eff6ff; color:#3b82f6;"><i class="bi bi-people-fill"></i></div>
+        <div class="kpi-label">Total Unique Customers (2026)</div>
+        <div class="kpi-value" id="kpi-total-customers">—</div>
+        <div class="kpi-sub">From baseline, first seen Jan–present 2026</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon" style="background:#f0fdf4; color:#16a34a;"><i class="bi bi-currency-rupee"></i></div>
+        <div class="kpi-label">Total Sales (2026)</div>
+        <div class="kpi-value" id="kpi-total-sales">—</div>
+        <div class="kpi-sub">Sum of sales in each customer's first 2026 month</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon" style="background:#fff7ed; color:#ea580c;"><i class="bi bi-calendar3"></i></div>
+        <div class="kpi-label">Best Month (Customers)</div>
+        <div class="kpi-value" id="kpi-best-month">—</div>
+        <div class="kpi-sub" id="kpi-best-month-val">—</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon" style="background:#f5f3ff; color:#7c3aed;"><i class="bi bi-graph-up-arrow"></i></div>
+        <div class="kpi-label">Avg Customers / Month</div>
+        <div class="kpi-value" id="kpi-avg-customers">—</div>
+        <div class="kpi-sub">Average across all 2026 months</div>
+    </div>
+</div>
+
+<!-- Note -->
+<div class="note-box">
+    <strong>How this works:</strong> The baseline includes all customers who made at least one purchase on or before <strong>31 Dec 2025</strong>.
+    Starting January 2026, each customer is counted <strong>only in the first month they return</strong>.
+    Subsequent months show customers appearing for the <strong>first time that year</strong>, excluding anyone counted in prior 2026 months.
+</div>
+
+<!-- Chart -->
+<div class="section-card">
+    <div class="section-title"><i class="bi bi-bar-chart-line-fill"></i>Monthly Trend — Unique Customers & Sales</div>
+    <div id="mr-chart-container">
+        <div class="loading-spinner"><div class="spinner-ring"></div><span>Loading chart…</span></div>
+    </div>
+</div>
+
+<!-- Data Table -->
+<div class="section-card">
+    <div class="section-title"><i class="bi bi-table"></i>Month-wise Breakdown</div>
+    <div id="table-container">
+        <div class="loading-spinner"><div class="spinner-ring"></div><span>Loading data…</span></div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script>
+(function () {
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    function fmtNum(n) {
+        return n == null ? '—' : Number(n).toLocaleString('en-IN');
+    }
+    function fmtRs(n) {
+        if (n == null) return '—';
+        if (n >= 1e7) return '₹' + (n / 1e7).toFixed(2) + ' Cr';
+        if (n >= 1e5) return '₹' + (n / 1e5).toFixed(2) + ' L';
+        return '₹' + Number(n).toLocaleString('en-IN');
+    }
+
+    // ── Fetch Data ────────────────────────────────────────────────────────────
+    fetch('/api/v1/monthly-retention/')
+        .then(r => r.json())
+        .then(json => {
+            if (json.status !== 'success' || !json.data || !json.data.length) {
+                document.getElementById('table-container').innerHTML =
+                    '<div class="text-muted p-3">No data available for 2026 yet.</div>';
+                document.getElementById('mr-chart-container').innerHTML =
+                    '<div class="text-muted p-3">No chart data available.</div>';
+                return;
+            }
+
+            const data = json.data;
+            const months    = data.map(d => d.month);
+            const customers = data.map(d => d.unique_customers);
+            const sales     = data.map(d => d.total_sales);
+
+            const totalCust  = customers.reduce((a, b) => a + b, 0);
+            const totalSales = sales.reduce((a, b) => a + b, 0);
+            const maxIdx     = customers.indexOf(Math.max(...customers));
+            const avgCust    = totalCust / (data.length || 1);
+
+            // ── KPI Cards ────────────────────────────────────────────────────
+            document.getElementById('kpi-total-customers').textContent = fmtNum(totalCust);
+            document.getElementById('kpi-total-sales').textContent     = fmtRs(totalSales);
+            document.getElementById('kpi-best-month').textContent      = months[maxIdx] || '—';
+            document.getElementById('kpi-best-month-val').textContent  = fmtNum(customers[maxIdx]) + ' customers';
+            document.getElementById('kpi-avg-customers').textContent   = fmtNum(Math.round(avgCust));
+
+            // ── Chart ─────────────────────────────────────────────────────────
+            const traces = [
+                {
+                    x: months, y: customers, name: 'Unique Customers',
+                    type: 'bar', marker: { color: '#3b82f6' },
+                    yaxis: 'y', hovertemplate: '%{x}<br><b>Customers:</b> %{y:,}<extra></extra>'
+                },
+                {
+                    x: months, y: sales, name: 'Total Sales (₹)',
+                    type: 'scatter', mode: 'lines+markers',
+                    line: { color: '#f59e0b', width: 2.5 },
+                    marker: { size: 7 },
+                    yaxis: 'y2', hovertemplate: '%{x}<br><b>Sales:</b> ₹%{y:,.0f}<extra></extra>'
+                }
+            ];
+            const layout = {
+                margin: { t: 10, r: 60, l: 60, b: 40 },
+                paper_bgcolor: '#fff', plot_bgcolor: '#fafbfc',
+                legend: { orientation: 'h', y: -0.18 },
+                hovermode: 'x unified',
+                xaxis: { tickfont: { size: 11 }, gridcolor: '#f1f5f9' },
+                yaxis: {
+                    title: 'Unique Customers', titlefont: { size: 11, color: '#3b82f6' },
+                    tickfont: { size: 10 }, gridcolor: '#f1f5f9', zeroline: false
+                },
+                yaxis2: {
+                    title: 'Sales (₹)', titlefont: { size: 11, color: '#f59e0b' },
+                    tickfont: { size: 10 }, overlaying: 'y', side: 'right', zeroline: false,
+                    tickformat: ',.0f', gridcolor: 'transparent'
+                }
+            };
+            // Clear loader before rendering
+            document.getElementById('mr-chart-container').innerHTML = '';
+            Plotly.newPlot('mr-chart-container', traces, layout, { responsive: true, displayModeBar: false });
+
+            // ── Table ─────────────────────────────────────────────────────────
+            const maxCust  = Math.max(...customers) || 1;
+            const maxSales = Math.max(...sales) || 1;
+
+            let rows = '';
+            data.forEach((d, i) => {
+                rows += `
+                <tr>
+                    <td class="month-col"><i class="bi bi-calendar2-check me-1" style="color:#3b82f6;"></i>${d.month}</td>
+                    <td class="num-col">${fmtNum(d.unique_customers)}</td>
+                    <td class="num-col">₹${Number(d.total_sales).toLocaleString('en-IN', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                    <td style="font-size:0.82rem;color:#64748b;">
+                        ₹${d.unique_customers > 0 ? Number(d.total_sales / d.unique_customers).toLocaleString('en-IN', {minimumFractionDigits: 0, maximumFractionDigits: 0}) : '—'}
+                    </td>
+                </tr>`;
+            });
+
+            document.getElementById('table-container').innerHTML = `
+                <table class="mr-table">
+                    <thead>
+                        <tr>
+                            <th>Month</th>
+                            <th>Unique Customers</th>
+                            <th>Total Sales</th>
+                            <th>Avg Sale / Customer</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                    <tfoot>
+                        <tr style="background:#f8fafc;font-weight:700;border-top:2px solid #e2e8f0;">
+                            <td style="padding:10px 14px;font-size:0.82rem;color:#374151;">TOTAL</td>
+                            <td style="padding:10px 14px;font-size:0.85rem;color:#1e40af;">${fmtNum(totalCust)}</td>
+                            <td style="padding:10px 14px;font-size:0.85rem;color:#16a34a;">₹${Number(totalSales).toLocaleString('en-IN', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                            <td style="padding:10px 14px;font-size:0.82rem;color:#64748b;">
+                                ₹${totalCust > 0 ? Number(totalSales / totalCust).toLocaleString('en-IN', {minimumFractionDigits: 0, maximumFractionDigits: 0}) : '—'}
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            `;
+        })
+        .catch(err => {
+            console.error('Monthly Retention API error:', err);
+            document.getElementById('table-container').innerHTML =
+                '<div class="alert alert-danger m-3">Failed to load data: ' + err.message + '</div>';
+            document.getElementById('mr-chart-container').innerHTML = '';
+        });
+})();
+</script>
+{% endblock %}

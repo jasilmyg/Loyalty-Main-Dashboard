@@ -173,6 +173,12 @@
                 <a class="nav-link {% if request.resolver_match.url_name == 'cohorts' %}active{% endif %}" href="{% url 'cohorts' %}"><i class="bi bi-calendar3"></i> Cohort Retention</a>
             </li>
             <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'monthly_retention' %}active{% endif %}" href="{% url 'monthly_retention' %}"><i class="bi bi-calendar-month"></i> Monthly Retention</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'campaign_analysis' %}active{% endif %}" href="{% url 'campaign_analysis' %}"><i class="bi bi-megaphone"></i> Campaign Analysis</a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'target_executive' %}active{% endif %}" href="{% url 'target_executive' %}"><i class="bi bi-bullseye text-danger"></i> Target Analysis Dashboard</a>
             </li>
         </ul>
@@ -185,6 +191,17 @@
                 <a class="nav-link {% if request.resolver_match.url_name == 'customer_propensity' %}active{% endif %}" href="{% url 'customer_propensity' %}" style="border-left: 4px solid #6366f1; color: #6366f1; background: rgba(99, 102, 241, 0.04); font-weight: 600;">
                     <i class="bi bi-cpu" style="color: #6366f1; font-size: 1.25rem; margin-right: 12px !important;"></i> Customer Intelligence AI
                     <span class="badge bg-danger ms-1" style="font-size: 8px; font-weight: 800; vertical-align: middle; box-shadow: 0 0 6px rgba(239, 68, 68, 0.4);">LIVE</span>
+                </a>
+            </li>
+        </ul>
+
+        <div class="mb-2 mt-3" style="padding-left: 2.5rem;">
+            <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">Analytics Platform</small>
+        </div>
+        <ul class="nav flex-column mb-4">
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'enterprise_dashboard' %}active{% endif %}" href="{% url 'enterprise_dashboard' %}">
+                    <i class="bi bi-graph-up-arrow"></i> Executive Dashboard
                 </a>
             </li>
         </ul>
@@ -264,7 +281,7 @@
         <span class="visually-hidden">Loading...</span>
     </div>
     <div class="fs-5 fw-bold text-dark">Loading Data...</div>
-    <div class="text-muted small mt-1">Scanning 10M+ records</div>
+    <div class="text-muted small mt-1">Processing data...</div>
 </div>
 
 <script>

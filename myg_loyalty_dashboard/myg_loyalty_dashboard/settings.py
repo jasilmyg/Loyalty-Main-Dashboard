@@ -89,6 +89,7 @@ DATABASES = {
         'PORT':     os.environ.get('PGPORT',     '25060'),
         'OPTIONS': {
             'sslmode': 'require',
+            'connect_timeout': 30,
         },
         'CONN_MAX_AGE': 60,
     }
