@@ -639,7 +639,8 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
             X_train_scaled = scaler_x.fit_transform(X_train)
             X_pred_scaled = scaler_x.transform(X_pred)
             
-            mlp = MLPRegressor(hidden_layer_sizes=(50, 50), max_iter=1000, random_state=42, solver='lbfgs')
+            # Use L2 Regularization (alpha) and simpler architecture to prevent wild extrapolation
+            mlp = MLPRegressor(hidden_layer_sizes=(50,), max_iter=2000, random_state=42, solver='lbfgs', alpha=10.0)
             mlp.fit(X_train_scaled, y_scaled)
             
             # 2. Linear Trend for baseline stability
@@ -647,7 +648,7 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
             lr.fit(X_train_scaled, y_train)
             
             # 3. GBR for local fitting
-            gbr = GradientBoostingRegressor(n_estimators=50, max_depth=2, random_state=42)
+            gbr = GradientBoostingRegressor(n_estimators=100, max_depth=3, random_state=42)
             gbr.fit(X_train_scaled, y_train)
             
             # Predict
@@ -658,8 +659,11 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
             lr_preds = lr.predict(X_pred_scaled)
             gbr_preds = gbr.predict(X_pred_scaled)
             
+            # Clip MLP predictions to prevent catastrophic explosions
+            mlp_preds = np.clip(mlp_preds, np.min(y_train)*0.5, np.max(y_train)*2.0)
+            
             # Ensemble predictions (Blend linear stability with nonlinear neural patterns)
-            raw_pred = (mlp_preds * 0.4) + (lr_preds * 0.4) + (gbr_preds * 0.2)
+            raw_pred = (mlp_preds * 0.3) + (lr_preds * 0.4) + (gbr_preds * 0.3)
             
             # 4. Anchor and Dampen: 
             last_val = y_train[-1] if len(y_train) > 0 else 30000
