@@ -188,45 +188,15 @@
         <div class="section-card h-100" style="background: #fdf4ff; border: 1px solid #f5d0fe;">
             <div class="section-header" style="color: #86198f; border-bottom: 1px solid #f0abfc; padding-bottom: 15px;"><i class="bi bi-lightning-charge-fill text-warning me-2"></i> AI Insights Feed</div>
             
-            <div class="mt-3" style="font-size: 0.8rem; color: #701a75;">
-                <div class="mb-3 d-flex gap-2">
-                    <span style="font-size: 1.2rem;">⚡</span>
-                    <div>AI detected unusual comeback spike from 2021 cohort before festival periods.</div>
-                </div>
-                <div class="mb-3 d-flex gap-2">
-                    <span style="font-size: 1.2rem;">⚡</span>
-                    <div>Customers inactive for 4.2 years show 38% higher accessory purchases.</div>
-                </div>
-                <div class="mb-3 d-flex gap-2">
-                    <span style="font-size: 1.2rem;">⚡</span>
-                    <div>High-value dormant customers from premium mobile category have 2.4x reactivation probability.</div>
-                </div>
-                <div class="d-flex gap-2">
-                    <span style="font-size: 1.2rem;">⚡</span>
-                    <div>Kerala festival windows strongly correlate with customer resurrection.</div>
-                </div>
+            <div class="mt-3" style="font-size: 0.8rem; color: #701a75;" id="dynamic-insights-container">
+                <!-- Insights injected here by JS -->
             </div>
             
             <div class="mt-4 pt-3" style="border-top: 1px solid #f0abfc;">
                 <div style="font-size: 0.75rem; font-weight: 800; color: #86198f; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px;">AI Confidence Engine</div>
                 <table style="width: 100%; font-size: 0.75rem;">
-                    <tbody>
-                        <tr>
-                            <td style="padding: 4px 0; color: #701a75; font-weight: 600;">June Comeback Forecast</td>
-                            <td class="text-end" style="font-weight: 800; color: #10b981;">92%</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 4px 0; color: #701a75; font-weight: 600;">Festival Spike Prob.</td>
-                            <td class="text-end" style="font-weight: 800; color: #10b981;">88%</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 4px 0; color: #701a75; font-weight: 600;">Dormant Recovery Acc.</td>
-                            <td class="text-end" style="font-weight: 800; color: #10b981;">90%</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 4px 0; color: #701a75; font-weight: 600;">Repeat Purchase Pred.</td>
-                            <td class="text-end" style="font-weight: 800; color: #10b981;">84%</td>
-                        </tr>
+                    <tbody id="dynamic-confidence-table">
+                        <!-- Confidence scores injected here by JS -->
                     </tbody>
                 </table>
                 
@@ -248,44 +218,8 @@
         <h5 class="modal-title" id="insightDetailsModalLabel" style="color: #86198f; font-weight: 800;"><i class="bi bi-lightning-charge-fill text-warning me-2"></i> In-Depth AI Insights Analysis</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body p-4">
-        
-        <!-- Insight 1 -->
-        <div class="mb-4">
-            <h6 style="color: #0f172a; font-weight: 800; font-size: 1.1rem;">1. The 2021 Cohort Latency Cycle</h6>
-            <div class="p-3" style="background: #f8fafc; border-left: 4px solid #8b5cf6; border-radius: 4px;">
-                <p style="margin: 0; font-size: 0.9rem; color: #475569;"><strong>Data Point:</strong> Our AI models detected that the 2021 customer cohort represents 41% of all returning volume in recent months.<br><br>
-                <strong>Deep Analysis:</strong> Customers from 2021 are exhibiting a <strong>4.5 to 5-year replacement cycle</strong> for their primary devices. Instead of upgrading every 2 years, they wait until major festival discounts (like Onam/Diwali) align with their hardware obsolescence. The algorithm predicts this specific cohort is highly susceptible to "Trade-In" or "Exchange Bonus" campaigns right now.</p>
-            </div>
-        </div>
-        
-        <!-- Insight 2 -->
-        <div class="mb-4">
-            <h6 style="color: #0f172a; font-weight: 800; font-size: 1.1rem;">2. Long-Term Dormancy & Accessory Shift</h6>
-            <div class="p-3" style="background: #f8fafc; border-left: 4px solid #10b981; border-radius: 4px;">
-                <p style="margin: 0; font-size: 0.9rem; color: #475569;"><strong>Data Point:</strong> Customers inactive for >4 years show a 38% higher probability of purchasing accessories upon return.<br><br>
-                <strong>Deep Analysis:</strong> Rather than buying a new primary device, highly dormant customers often return to purchase high-margin accessories (Smartwatches, TWS Earbuds, Power Banks). This indicates they may be buying their primary devices elsewhere but trust myG for peripheral electronics. <strong>Recommendation:</strong> Retarget customers inactive for 4+ years with aggressive accessory bundles rather than flagship phones.</p>
-            </div>
-        </div>
-
-        <!-- Insight 3 -->
-        <div class="mb-4">
-            <h6 style="color: #0f172a; font-weight: 800; font-size: 1.1rem;">3. Premium Mobile Buyer Reactivation</h6>
-            <div class="p-3" style="background: #f8fafc; border-left: 4px solid #f59e0b; border-radius: 4px;">
-                <p style="margin: 0; font-size: 0.9rem; color: #475569;"><strong>Data Point:</strong> High-value dormant customers (Premium Apple/Samsung category) have a 2.4x higher reactivation probability.<br><br>
-                <strong>Deep Analysis:</strong> Premium buyers exhibit much higher brand loyalty to the retailer if the post-purchase experience was good. They are 2.4x more likely to return for their *next* premium upgrade compared to budget buyers. <strong>Recommendation:</strong> Create a VIP outreach list for any customer who spent over ₹75,000 in 2021/2022 and offer them an exclusive VIP preview of new flagship launches.</p>
-            </div>
-        </div>
-
-        <!-- Insight 4 -->
-        <div class="mb-2">
-            <h6 style="color: #0f172a; font-weight: 800; font-size: 1.1rem;">4. Festival Window Correlation Mapping</h6>
-            <div class="p-3" style="background: #f8fafc; border-left: 4px solid #ef4444; border-radius: 4px;">
-                <p style="margin: 0; font-size: 0.9rem; color: #475569;"><strong>Data Point:</strong> Kerala festival windows strongly correlate with resurrection.<br><br>
-                <strong>Deep Analysis:</strong> Historical LSTM data shows that <strong>60% of all dormant customer reactivations</strong> happen specifically during the Onam and Diwali windows. The resurrection probability drops by 80% during off-seasons (like June/July). <strong>Recommendation:</strong> Save 70% of the dormant retargeting marketing budget specifically for the 3 weeks preceding these major regional festivals for maximum ROI.</p>
-            </div>
-        </div>
-
+      <div class="modal-body p-4" id="dynamic-modal-insights-container">
+        <!-- Detailed modal insights injected here by JS -->
       </div>
       <div class="modal-footer" style="border-top: none; padding: 1rem 1.5rem;">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close Analysis</button>
@@ -432,11 +366,11 @@
             `;
 
             // FUTURISTIC AI CONSOLE LOGIC
+            const aiData = json.ai_forecast;
             
             // 1. Resurrection Probability Gauge
-            const resScore = parseFloat(overallRate) > 0 ? parseFloat(overallRate) : 6.2;
             const gaugeRes = [{
-                type: "indicator", mode: "gauge+number", value: resScore,
+                type: "indicator", mode: "gauge+number", value: aiData.resurrection_prob,
                 number: { suffix: "%", font: { color: '#38bdf8', size: 30, weight: 800 } },
                 gauge: {
                     axis: { range: [null, 15], tickwidth: 1, tickcolor: "#334155" },
@@ -452,10 +386,8 @@
             Plotly.newPlot('gauge-resurrection', gaugeRes, { margin: { t: 25, b: 15, l: 25, r: 25 }, paper_bgcolor: 'transparent', font: { color: '#94a3b8' } }, {displayModeBar: false});
 
             // 2. Repeat Purchase Semi-Donut
-            const avgRev = totalReactivated > 0 ? (totalRev / totalReactivated) : 0;
-            const repeatProb = Math.min(48.5, 15 + (avgRev / 500));
             const gaugeRep = [{
-                type: "indicator", mode: "gauge+number", value: repeatProb,
+                type: "indicator", mode: "gauge+number", value: aiData.repeat_prob,
                 number: { suffix: "%", font: { color: '#818cf8', size: 26, weight: 800 } },
                 gauge: {
                     shape: "bullet",
@@ -466,36 +398,96 @@
             }];
             Plotly.newPlot('gauge-repeat', gaugeRep, { margin: { t: 15, b: 15, l: 15, r: 15 }, paper_bgcolor: 'transparent' }, {displayModeBar: false});
 
-            // 3. Predicted Volume Counter
-            document.getElementById('ai-vol-counter').innerText = fmtNum(Math.floor(totalReactivated * 0.15));
+            // 3. Dormancy Risk Progress Bar
+            const dormancyRiskBar = document.querySelector('.progress-bar.bg-danger');
+            if (dormancyRiskBar) {
+                dormancyRiskBar.style.width = aiData.dormancy_risk + '%';
+                dormancyRiskBar.setAttribute('aria-valuenow', aiData.dormancy_risk);
+            }
 
-            // 4. LSTM FORECAST CHART
-            // Generate some dummy historical curve transitioning to a projected curve
+            // 4. Predicted Volume Counter
+            document.getElementById('ai-vol-counter').innerText = fmtNum(aiData.predicted_vol);
+
+            // 5. Dynamic AI Insights Feed & Detailed Modal
+            const insightsContainer = document.getElementById('dynamic-insights-container');
+            const modalInsightsContainer = document.getElementById('dynamic-modal-insights-container');
+            if (insightsContainer && aiData.insights) {
+                let insightsHtml = '';
+                let modalHtml = '';
+                
+                aiData.insights.forEach((insight, index) => {
+                    // Update side panel (short summary)
+                    insightsHtml += `
+                    <div class="mb-3 d-flex gap-2">
+                        <span style="font-size: 1.2rem;">⚡</span>
+                        <div>${insight.data_point}</div>
+                    </div>`;
+                    
+                    // Update Modal (detailed analysis)
+                    let borderColors = {
+                        'primary': '#8b5cf6',
+                        'success': '#10b981',
+                        'info': '#0ea5e9',
+                        'warning': '#f59e0b',
+                        'danger': '#ef4444',
+                        'secondary': '#64748b'
+                    };
+                    let borderColor = borderColors[insight.color_theme] || borderColors['primary'];
+                    
+                    modalHtml += `
+                    <div class="mb-4">
+                        <h6 style="color: #0f172a; font-weight: 800; font-size: 1.1rem;">${index + 1}. ${insight.title}</h6>
+                        <div class="p-3" style="background: #f8fafc; border-left: 4px solid ${borderColor}; border-radius: 4px;">
+                            <p style="margin: 0; font-size: 0.9rem; color: #475569;">
+                                <strong>Data Point:</strong> ${insight.data_point}<br><br>
+                                <strong>Deep Analysis:</strong> ${insight.deep_analysis}
+                                ${insight.recommendation ? ` <br><br><strong>Recommendation:</strong> ${insight.recommendation}` : ''}
+                            </p>
+                        </div>
+                    </div>`;
+                });
+                
+                insightsContainer.innerHTML = insightsHtml;
+                if (modalInsightsContainer) {
+                    modalInsightsContainer.innerHTML = modalHtml;
+                }
+            }
+
+            // 6. Dynamic Confidence Engine
+            const confidenceTable = document.getElementById('dynamic-confidence-table');
+            if (confidenceTable && aiData.confidence_scores) {
+                let confHtml = '';
+                for (const [key, val] of Object.entries(aiData.confidence_scores)) {
+                    confHtml += `
+                    <tr>
+                        <td style="padding: 4px 0; color: #701a75; font-weight: 600;">${key}</td>
+                        <td class="text-end" style="font-weight: 800; color: #10b981;">${val}</td>
+                    </tr>`;
+                }
+                confidenceTable.innerHTML = confHtml;
+            }
+
+            // 4. LSTM FORECAST CHART (Real Sklearn Predictions)
             const lstmX = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun (Pred)', 'Jul (Pred)', 'Aug (Pred)'];
-            const lstmY = [
-                monthTotals['Jan 2026'], monthTotals['Feb 2026'], monthTotals['Mar 2026'], 
-                monthTotals['Apr 2026'], monthTotals['May 2026'], 
-                monthTotals['May 2026'] * 1.1, monthTotals['May 2026'] * 1.3, monthTotals['May 2026'] * 1.8
-            ];
-            const lstmUpper = lstmY.map((y, i) => i >= 4 ? y * 1.2 : y);
-            const lstmLower = lstmY.map((y, i) => i >= 4 ? y * 0.8 : y);
-
+            const histY = aiData.historical;
+            const predY = aiData.predictions;
+            
             const traceHist = {
-                x: lstmX.slice(0, 5), y: lstmY.slice(0, 5),
+                x: lstmX.slice(0, 5), y: histY,
                 mode: 'lines+markers', name: 'Actual',
                 line: { color: '#0f172a', width: 3, shape: 'spline' },
                 marker: { size: 6, color: '#0f172a' }
             };
             
             const tracePred = {
-                x: lstmX.slice(4), y: lstmY.slice(4),
+                x: lstmX.slice(4), y: [histY[4]].concat(predY),
                 mode: 'lines', name: 'Forecast',
                 line: { color: '#6366f1', width: 3, dash: 'dot', shape: 'spline' }
             };
 
             const traceBand = {
                 x: lstmX.slice(4).concat(lstmX.slice(4).reverse()),
-                y: lstmUpper.slice(4).concat(lstmLower.slice(4).reverse()),
+                y: [histY[4]].concat(aiData.upper_bound).concat([histY[4]].concat(aiData.lower_bound).reverse()),
                 fill: 'toself', fillcolor: 'rgba(99, 102, 241, 0.15)',
                 line: { color: 'transparent' },
                 name: '95% Confidence Interval', showlegend: true, type: 'scatter'
@@ -516,6 +508,27 @@
             };
 
             Plotly.newPlot('lstm-forecast-chart', [traceBand, traceHist, tracePred], lstmLayout, { responsive: true, displayModeBar: false });
+            
+            // Update AI KPIs
+            document.getElementById('lstm-forecast-chart').insertAdjacentHTML('afterend', `
+            <div class="p-3" style="background: #f8fafc; border-top: 1px solid #e2e8f0;">
+                <div class="row text-center" style="font-size: 0.75rem;">
+                    <div class="col-4">
+                        <div style="color: #64748b; font-weight: 700; text-transform: uppercase;">Model Accuracy</div>
+                        <div style="font-size: 1.1rem; font-weight: 800; color: #0f172a;">${aiData.accuracy}%</div>
+                    </div>
+                    <div class="col-4" style="border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0;">
+                        <div style="color: #64748b; font-weight: 700; text-transform: uppercase;">RMSE Error</div>
+                        <div style="font-size: 1.1rem; font-weight: 800; color: #0f172a;">${aiData.rmse}</div>
+                    </div>
+                    <div class="col-4">
+                        <div style="color: #64748b; font-weight: 700; text-transform: uppercase;">Forecast Window</div>
+                        <div style="font-size: 1.1rem; font-weight: 800; color: #10b981;">90 Days</div>
+                    </div>
+                </div>
+            </div>
+            `);
+            document.querySelector('.col-lg-6 .section-card .p-3:last-child').remove(); // remove old static kpi block
 
         })
         .catch(err => console.error(err));
