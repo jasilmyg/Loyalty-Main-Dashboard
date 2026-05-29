@@ -560,7 +560,7 @@
 
     <div class="sidebar-footer">
         <div style="margin-bottom: 5px;"><span class="live-dot"></span> Live Data Connected</div>
-        <div style="color: #c4c9d4;">Last Updated: May 17, 2026</div>
+        <div style="color: #c4c9d4;">Last Updated: {{ data_range_end|default:"May 17 2026" }}</div>
     </div>
 </aside>
 
@@ -585,11 +585,11 @@
                     </div>
                     <div class="header-info-item">
                         <div class="info-label">Data Range</div>
-                        <div class="info-value">Jul 2020 – May 17 2026</div>
+                        <div class="info-value">Jul 2020 – {{ data_range_end|default:"May 17 2026" }}</div>
                     </div>
                     <div class="header-info-item">
                         <div class="info-label">Forecast Horizon</div>
-                        <div class="info-value">May 18 – Jun 30 2026</div>
+                        <div class="info-value">{{ forecast_start|default:"May 18" }} – Jun 30 2026</div>
                     </div>
                     <div class="header-info-item">
                         <div class="info-label">Regional Context</div>

@@ -151,7 +151,7 @@ class DBManagerView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                 if upload_file.name.endswith('.csv'):
                     df = pd.read_csv(upload_file)
                 else:
-                    df = pd.read_excel(upload_file)
+                    df = pd.read_excel(upload_file, engine='calamine')
                     
                 # Store original count for reporting
                 original_count = len(df)
@@ -179,6 +179,15 @@ class DBManagerView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                 
                 # Append directly to sales_data
                 df.to_sql('sales_data', con=engine, if_exists='append', index=False)
+                
+                # Trigger the Materialized Views refresh asynchronously so it doesn't block the UI
+                import subprocess
+                import sys
+                subprocess.Popen([sys.executable, 'refresh_mvs.py'])
+                
+                # Clear entire cache so sidebar and views update immediately
+                from django.core.cache import cache
+                cache.clear()
                 
                 msg = f"Successfully uploaded {final_count:,} records into PostgreSQL."
                 if filtered_out > 0:
