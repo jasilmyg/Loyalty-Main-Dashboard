@@ -244,7 +244,9 @@
         .then(res => res.json())
         .then(json => {
             if (json.status !== 'success') {
-                alert("Error loading data");
+                console.error("API Error:", json.message || "Unknown error");
+                document.querySelectorAll('.spinner-border').forEach(s => s.style.display = 'none');
+                document.querySelector('#cohort-table tbody').innerHTML = `<tr><td colspan="6" class="text-danger text-center"><strong>API Database Error:</strong> ${json.message || "Server failed to load data."}</td></tr>`;
                 return;
             }
 
@@ -528,9 +530,15 @@
                 </div>
             </div>
             `);
+            // Removed extra line
             document.querySelector('.col-lg-6 .section-card .p-3:last-child').remove(); // remove old static kpi block
 
         })
-        .catch(err => console.error(err));
+        .catch(err => {
+            console.error("Fetch Error:", err);
+            // Hide spinners and show error
+            document.querySelectorAll('.spinner-border').forEach(s => s.style.display = 'none');
+            document.querySelector('#cohort-table tbody').innerHTML = `<tr><td colspan="6" class="text-danger text-center"><strong>Critical Error Loading AI Data:</strong> ${err.message}. (If you are on a free Render tier, the AI machine learning models may have exceeded the 512MB RAM limit and crashed).</td></tr>`;
+        });
 </script>
 {% endblock %}
