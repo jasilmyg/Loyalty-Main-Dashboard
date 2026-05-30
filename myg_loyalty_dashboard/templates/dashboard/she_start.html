@@ -246,6 +246,7 @@
     }
 
     function calculateDecision(score) {
+        if (!score || score === '-') return '-';
         if (score >= 85) return "Strong Final Selection";
         if (score >= 75) return "Recommended for Top 10";
         if (score >= 65) return "Waitlist Consideration";
