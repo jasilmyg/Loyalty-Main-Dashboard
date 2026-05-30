@@ -231,31 +231,119 @@ def _parse_score(row_dict, possible_keys):
     except:
         return 0.0
 def _get_excel_mapping():
-    from django.core.cache import cache
-    mapping = cache.get('she_start_excel_mapping')
-    if mapping is not None:
-        return mapping
-        
-    mapping = {}
-    try:
-        import pandas as pd
-        import glob
-        from django.conf import settings
-        
-        search_path = os.path.join(settings.BASE_DIR.parent, 'project_folder', '*She Start*Responses*.xlsx')
-        excel_files = glob.glob(search_path)
-        if excel_files:
-            df = pd.read_excel(excel_files[0])
-            for _, row in df.iterrows():
-                app_name = str(row.get('1. Full Name', '')).strip().lower()
-                if app_name:
-                    mapping[app_name] = {
-                        'district': str(row.get('5. District', 'N/A')),
-                        'business_name': str(row.get('19. Name of the Business', 'N/A'))
-                    }
-        # Cache for 1 hour to avoid reading excel on every request
-        cache.set('she_start_excel_mapping', mapping, 3600)
-    except Exception as e:
-        print(f"Error reading She Start Excel: {e}")
-        
-    return mapping
+    import json
+    mapping_json = """{
+  "nisha dennis": {
+    "district": "Kottayam",
+    "business_name": "Mine Designs"
+  },
+  "swathy n s": {
+    "district": "Thrissur ",
+    "business_name": "Dyversa centre for Empowerment "
+  },
+  "akshaya k k": {
+    "district": "Kannur",
+    "business_name": "The craftstore - handmade gifts, hampers and stationery "
+  },
+  "devika d": {
+    "district": "Alappuzha ",
+    "business_name": "Sew by devu"
+  },
+  "ashadas.s": {
+    "district": "Thiruvananthapuram",
+    "business_name": "Home computer center"
+  },
+  "fathimathul dujana pv": {
+    "district": "Kannur",
+    "business_name": "Sakkeena's snaks "
+  },
+  "ruksana pa": {
+    "district": "KOTTAYAM",
+    "business_name": "FARGO DESIGNS"
+  },
+  "sajini. s": {
+    "district": "Thiruvananthapuram ",
+    "business_name": "Stitching and Embriodery "
+  },
+  "saritha a": {
+    "district": "Palakkad ",
+    "business_name": "Tailoring unit "
+  },
+  "sarfunneesa a": {
+    "district": "Kozhikode",
+    "business_name": "MAGIC MUFFIN"
+  },
+  "yasirath": {
+    "district": "MALAPPURAM",
+    "business_name": "YaSi Home Heritage Foods "
+  },
+  "al subina.s.n": {
+    "district": "THIRUVANATHAPURAM ",
+    "business_name": "KSA TEXTILES,     TEXTILE BUSINESS "
+  },
+  "shini k": {
+    "district": "Thiruvananthapuram ",
+    "business_name": "Small-scale tailoring and maxi business "
+  },
+  "hafsath.ck": {
+    "district": "Malappuram ",
+    "business_name": "Green Dine"
+  },
+  "prajithamol pp": {
+    "district": "Kasaragod ",
+    "business_name": "BG AUDIOS AND FRAME WORK"
+  },
+  "shurila sherin kt": {
+    "district": "Malappuram ",
+    "business_name": "Yummily Cakes "
+  },
+  "shiji. c. balakrishnan": {
+    "district": "THRISSUR ",
+    "business_name": "Shiji's AMMA FOOD PRODUCTS "
+  },
+  "jeena .v": {
+    "district": "Trivandrum",
+    "business_name": "Shop"
+  },
+  "elsy joju": {
+    "district": "Thrissur ",
+    "business_name": "New thanima kattoor "
+  },
+  "sheeba p m": {
+    "district": "Kollam",
+    "business_name": "Common service center "
+  },
+  "famitha pn": {
+    "district": "Thrissur ",
+    "business_name": "upNext "
+  },
+  "smitha k v": {
+    "district": "THRISSUR",
+    "business_name": "IT MAGIC JANASEVANAKENDRAM "
+  },
+  "bushra pk": {
+    "district": "Malappuram ",
+    "business_name": "Tasty buds "
+  },
+  "shajinas": {
+    "district": "Kollam",
+    "business_name": "Swasti Homemade"
+  },
+  "thasneema km": {
+    "district": "CALICUT ",
+    "business_name": "THALF HOME MADE CHOCOLATE "
+  },
+  "shyma b": {
+    "district": "KASARAGOD ",
+    "business_name": "Poompatta Tailors "
+  },
+  "mary j": {
+    "district": "Thiruvanathapuram ",
+    "business_name": "പലഹാര സംരംഭം. Mainly breakfast items"
+  },
+  "ajitha n s": {
+    "district": "Alappuzha ",
+    "business_name": "Ajrak boutique"
+  }
+}"""
+    return json.loads(mapping_json)
