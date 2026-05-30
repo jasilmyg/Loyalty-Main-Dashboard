@@ -1,7 +1,8 @@
 from django.views.generic import TemplateView, View
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
+from django.utils.decorators import method_decorator
 from analytics.report_generator import generate_monthly_report_zip
 
 class DashboardView(LoginRequiredMixin, TemplateView):
