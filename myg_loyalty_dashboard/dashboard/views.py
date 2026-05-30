@@ -299,6 +299,9 @@ class SheStartView(LoginRequiredMixin, TemplateView):
     template_name = 'dashboard/she_start.html'
 
 
+from django.views.decorators.cache import cache_control
+
+@method_decorator(cache_control(no_cache=True, must_revalidate=True, no_store=True), name='dispatch')
 class SheStartDataAPIView(View):
     def get(self, request, *args, **kwargs):
         from analytics.she_start_engine import get_she_start_data

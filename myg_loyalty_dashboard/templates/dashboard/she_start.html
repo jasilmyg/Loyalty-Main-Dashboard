@@ -446,10 +446,12 @@
             // Visual feedback that syncing is happening
             syncStatus.removeClass('sync-error').addClass('sync-active').html('<i class="spinner-grow spinner-grow-sm me-1"></i> Syncing...');
             
-            const res = await fetch('/api/v1/she-start/data/', {
+            const res = await fetch(`/api/v1/she-start/data/?t=${Date.now()}`, {
                 credentials: 'same-origin',
+                cache: 'no-store',
                 headers: {
-                    'Accept': 'application/json'
+                    'Accept': 'application/json',
+                    'Cache-Control': 'no-cache'
                 }
             });
             const json = await res.json();
