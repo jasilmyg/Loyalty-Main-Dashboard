@@ -873,6 +873,13 @@ class SheStartSaveScoreAPIView(View):
             for field in ['interview', 'growth', 'need', 'emotional', 'sustainability', 'utilization']:
                 if field in data and data[field] is not None:
                     setattr(obj, field, float(data[field]))
+            
+            obj.save()
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({'status': 'error', 'message': str(e)})
 
 
 class SheStartDetailedView(UserPassesTestMixin, TemplateView):
