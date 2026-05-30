@@ -245,8 +245,8 @@
         initTable();
         fetchData();
         
-        // Setup 5-second auto refresh
-        refreshInterval = setInterval(fetchData, 5000);
+        // Setup 25-second auto refresh
+        refreshInterval = setInterval(fetchData, 25000);
         
         // Custom dropdown filter for Final Decision
         $('#filter-decision').on('change', function() {
