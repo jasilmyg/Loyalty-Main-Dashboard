@@ -117,21 +117,23 @@
     /* Editable Cells */
     .editable-cell {
         cursor: text;
-        padding: 0.25rem 0.5rem;
+        padding: 0.35rem 0.5rem;
         border-radius: 4px;
         transition: background-color 0.2s, box-shadow 0.2s;
-        border: 1px solid transparent;
-        min-width: 40px;
+        border: 1px dashed #cbd5e1;
+        min-width: 50px;
+        min-height: 28px;
         display: inline-block;
-        background-color: rgba(241, 245, 249, 0.5); /* Slight tint to show it's editable */
+        background-color: #f8fafc;
     }
     .editable-cell:hover {
         background-color: #f1f5f9;
-        border-color: #cbd5e1;
+        border-color: #94a3b8;
     }
     .editable-cell:focus {
         background-color: #ffffff;
         border-color: #3b82f6;
+        border-style: solid;
         box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
         outline: none;
     }
@@ -262,9 +264,18 @@
             const slNo = $(this).data('slno');
             const field = $(this).data('field');
             let text = $(this).text().trim();
-            const newVal = parseFloat(text);
             
-            if (isNaN(newVal)) return; // Don't crash on invalid input
+            // Allow clearing the cell (null) or taking a valid number
+            let newVal = null;
+            if (text !== '' && text !== '-') {
+                newVal = parseFloat(text);
+                if (isNaN(newVal)) return; // Reject absolute garbage input like "abc"
+            }
+            
+            // Visually format empty cells as dashes for consistency
+            if (newVal === null) {
+                $(this).text('-');
+            }
             
             // Get row data
             let row = table.row($(this).closest('tr'));
@@ -275,12 +286,30 @@
             if (!windowEditedScores[slNo]) windowEditedScores[slNo] = {};
             windowEditedScores[slNo][field] = newVal;
             
-            // Update data model visually
+            // Temporarily update data object immediately so Weighted Score updates visually before fetch
+            if (!data.scores) data.scores = {};
             data.scores[field] = newVal;
-            data.weighted_score = calculateFinalScore(data.scores);
-            data.final_decision = calculateDecision(data.weighted_score);
             
-            // Redraw row to update score and decision badges
+            // Recalculate Weighted Score dynamically
+            let sc = data.scores;
+            if (sc.interview !== null && sc.interview !== '' && 
+                sc.growth !== null && sc.growth !== '' && 
+                sc.need !== null && sc.need !== '' && 
+                sc.emotional !== null && sc.emotional !== '' && 
+                sc.sustainability !== null && sc.sustainability !== '' && 
+                sc.utilization !== null && sc.utilization !== '') {
+                let w = (parseFloat(sc.interview || 0) * 0.40) + 
+                        (parseFloat(sc.growth || 0) * 0.15) + 
+                        (parseFloat(sc.need || 0) * 0.15) + 
+                        (parseFloat(sc.emotional || 0) * 0.10) + 
+                        (parseFloat(sc.sustainability || 0) * 0.10) + 
+                        (parseFloat(sc.utilization || 0) * 0.10);
+                data.weighted_score = parseFloat(w.toFixed(2));
+                data.final_decision = calculateDecision(data.weighted_score);
+            } else {
+                data.weighted_score = '-';
+                data.final_decision = '-';
+            }
             row.data(data).draw(false);
             
             // Fire API request to save permanently
@@ -292,13 +321,19 @@
                     [field]: newVal
                 })
             }).then(res => res.json())
-              .then(data => {
-                  if (data.status !== 'success') {
-                      console.error("Failed to save score:", data.message);
-                      alert("Error saving score: " + data.message);
+              .then(apiData => {
+                  if (apiData.status !== 'success') {
+                      console.error("Failed to save score:", apiData.message);
                   }
               })
               .catch(err => console.error("Network error saving score:", err));
+        });
+
+        // Focus logic: Clear dash when they click so they don't have to delete it manually
+        $('#selection-matrix tbody').on('focus', '.editable-cell', function(e) {
+            if ($(this).text().trim() === '-') {
+                $(this).text('');
+            }
         });
 
         // Prevent Enter key from making new lines (submit instead)
@@ -339,33 +374,51 @@
                 { data: 'business_name', width: '15%' },
                 { 
                     data: 'scores.interview', className: 'text-center',
-                    render: function(data, type, row) { return `<span class="editable-cell fw-bold" contenteditable="true" data-slno="${row.sl_no}" data-field="interview">${data}</span>`; }
+                    render: function(data, type, row) { 
+                        let d = (data === '' || data === null || data === undefined) ? '-' : data;
+                        return `<span class="editable-cell fw-bold" contenteditable="true" data-slno="${row.sl_no}" data-field="interview">${d}</span>`; 
+                    }
                 },
                 { 
                     data: 'scores.growth', className: 'text-center',
-                    render: function(data, type, row) { return `<span class="editable-cell" contenteditable="true" data-slno="${row.sl_no}" data-field="growth">${data}</span>`; }
+                    render: function(data, type, row) { 
+                        let d = (data === '' || data === null || data === undefined) ? '-' : data;
+                        return `<span class="editable-cell" contenteditable="true" data-slno="${row.sl_no}" data-field="growth">${d}</span>`; 
+                    }
                 },
                 { 
                     data: 'scores.need', className: 'text-center',
-                    render: function(data, type, row) { return `<span class="editable-cell" contenteditable="true" data-slno="${row.sl_no}" data-field="need">${data}</span>`; }
+                    render: function(data, type, row) { 
+                        let d = (data === '' || data === null || data === undefined) ? '-' : data;
+                        return `<span class="editable-cell" contenteditable="true" data-slno="${row.sl_no}" data-field="need">${d}</span>`; 
+                    }
                 },
                 { 
                     data: 'scores.emotional', className: 'text-center',
-                    render: function(data, type, row) { return `<span class="editable-cell" contenteditable="true" data-slno="${row.sl_no}" data-field="emotional">${data}</span>`; }
+                    render: function(data, type, row) { 
+                        let d = (data === '' || data === null || data === undefined) ? '-' : data;
+                        return `<span class="editable-cell" contenteditable="true" data-slno="${row.sl_no}" data-field="emotional">${d}</span>`; 
+                    }
                 },
                 { 
                     data: 'scores.sustainability', className: 'text-center',
-                    render: function(data, type, row) { return `<span class="editable-cell" contenteditable="true" data-slno="${row.sl_no}" data-field="sustainability">${data}</span>`; }
+                    render: function(data, type, row) { 
+                        let d = (data === '' || data === null || data === undefined) ? '-' : data;
+                        return `<span class="editable-cell" contenteditable="true" data-slno="${row.sl_no}" data-field="sustainability">${d}</span>`; 
+                    }
                 },
                 { 
                     data: 'scores.utilization', className: 'text-center',
-                    render: function(data, type, row) { return `<span class="editable-cell" contenteditable="true" data-slno="${row.sl_no}" data-field="utilization">${data}</span>`; }
+                    render: function(data, type, row) { 
+                        let d = (data === '' || data === null || data === undefined) ? '-' : data;
+                        return `<span class="editable-cell" contenteditable="true" data-slno="${row.sl_no}" data-field="utilization">${d}</span>`; 
+                    }
                 },
                 { 
                     data: 'weighted_score', 
                     className: 'text-center',
                     render: function(data, type, row) {
-                        return `<span class="text-muted">-</span>`;
+                        return (data === '' || data === null || data === undefined) ? '-' : data;
                     }
                 },
                 { 

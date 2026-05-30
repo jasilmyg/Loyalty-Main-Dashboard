@@ -871,8 +871,12 @@ class SheStartSaveScoreAPIView(View):
             obj, created = SheStartCandidateScore.objects.get_or_create(candidate_name=candidate_name)
             
             for field in ['interview', 'growth', 'need', 'emotional', 'sustainability', 'utilization']:
-                if field in data and data[field] is not None:
-                    setattr(obj, field, float(data[field]))
+                if field in data:
+                    val = data[field]
+                    if val is None or val == '':
+                        setattr(obj, field, None)
+                    else:
+                        setattr(obj, field, float(val))
             
             obj.save()
             return JsonResponse({'status': 'success'})
