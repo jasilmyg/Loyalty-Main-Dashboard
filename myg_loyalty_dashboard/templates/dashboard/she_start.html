@@ -116,7 +116,7 @@
     
     /* Editable Cells */
     .editable-cell {
-        cursor: pointer;
+        cursor: text;
         padding: 0.35rem 0.5rem;
         border-radius: 4px;
         transition: background-color 0.2s, box-shadow 0.2s;
@@ -260,114 +260,70 @@
         $('#btn-export').on('click', function() { table.button('.buttons-excel').trigger(); });
         $('#btn-print').on('click', function() { table.button('.buttons-print').trigger(); });
         
-        // SweetAlert2 Popup for Editing Scores
-        $('#selection-matrix tbody').on('click', '.editable-cell', function(e) {
-            e.stopPropagation(); // Prevent drawer from opening
-            
+        // Inline Editing Logic
+        $('#selection-matrix tbody').on('blur', '.editable-cell', function(e) {
             const cell = $(this);
             const slNo = cell.data('slno');
             const field = cell.data('field');
-            const fieldLabel = cell.data('label');
-            let currentText = cell.text().trim();
-            let isUpdate = (currentText !== '-' && currentText !== '');
+            let text = cell.text().trim();
             
-            Swal.fire({
-                title: isUpdate ? `Update ${fieldLabel}` : `Add ${fieldLabel}`,
-                html: `Enter a score out of 100 for <b>${fieldLabel}</b>:`,
-                input: 'number',
-                inputValue: isUpdate ? currentText : '',
-                inputAttributes: {
-                    min: 0,
-                    max: 100,
-                    step: 0.1
-                },
-                showCancelButton: true,
-                showDenyButton: isUpdate, // Only show Delete button if there is an existing score
-                confirmButtonText: isUpdate ? '<i class="bi bi-check-circle me-1"></i> Update' : '<i class="bi bi-plus-circle me-1"></i> Save',
-                denyButtonText: '<i class="bi bi-trash me-1"></i> Delete',
-                cancelButtonText: 'Cancel',
-                confirmButtonColor: '#10b981',
-                denyButtonColor: '#ef4444',
-                customClass: {
-                    popup: 'rounded-4'
-                }
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    let val = parseFloat(result.value);
-                    if (!isNaN(val)) {
-                        saveAndRecalculate(cell, slNo, field, val);
-                    }
-                } else if (result.isDenied) {
-                    saveAndRecalculate(cell, slNo, field, null); // Clear the score
+            let newVal = null;
+            if (text !== '' && text !== '-') {
+                newVal = parseFloat(text);
+                if (isNaN(newVal)) return;
+            }
+            if (newVal === null) cell.text('-');
+            
+            let row = table.row(cell.closest('tr'));
+            let data = row.data();
+            const candidateName = data.candidate_name;
+            
+            let currentDataVal = data.scores && data.scores[field] !== undefined ? data.scores[field] : null;
+            if (currentDataVal === '' || currentDataVal === undefined) currentDataVal = null;
+            if (newVal === currentDataVal) return;
+            
+            if (!windowEditedScores[slNo]) windowEditedScores[slNo] = {};
+            windowEditedScores[slNo][field] = newVal;
+            
+            if (!data.scores) data.scores = {};
+            data.scores[field] = newVal;
+            
+            let sc = data.scores;
+            if (sc.interview !== null && sc.interview !== '' && sc.growth !== null && sc.growth !== '' && sc.need !== null && sc.need !== '' && sc.emotional !== null && sc.emotional !== '' && sc.sustainability !== null && sc.sustainability !== '' && sc.utilization !== null && sc.utilization !== '') {
+                let w = (parseFloat(sc.interview || 0) * 0.40) + (parseFloat(sc.growth || 0) * 0.15) + (parseFloat(sc.need || 0) * 0.15) + (parseFloat(sc.emotional || 0) * 0.10) + (parseFloat(sc.sustainability || 0) * 0.10) + (parseFloat(sc.utilization || 0) * 0.10);
+                data.weighted_score = parseFloat(w.toFixed(2));
+                data.final_decision = calculateDecision(data.weighted_score);
+            } else {
+                data.weighted_score = '-';
+                data.final_decision = '-';
+            }
+            row.data(data).draw(false);
+            
+            fetch('/api/v1/she-start/save-score/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ candidate_name: candidateName, [field]: newVal })
+            }).then(res => res.json()).then(apiData => {
+                if (apiData.status !== 'success') {
+                    Swal.fire('Error', 'Failed to save score: ' + apiData.message, 'error');
+                } else {
+                    Swal.fire({ toast: true, position: 'top-end', icon: newVal === null ? 'info' : 'success', title: newVal === null ? 'Deleted' : 'Saved', showConfirmButton: false, timer: 1500 });
                 }
             });
         });
-    });
 
-    function saveAndRecalculate(cell, slNo, field, newVal) {
-        // Visually update the cell immediately
-        cell.text(newVal === null ? '-' : newVal);
-        
-        // Get row data
-        let row = table.row(cell.closest('tr'));
-        let data = row.data();
-        const candidateName = data.candidate_name;
-        
-        // Save edit locally so it survives immediate auto-refresh
-        if (!windowEditedScores[slNo]) windowEditedScores[slNo] = {};
-        windowEditedScores[slNo][field] = newVal;
-        
-        // Temporarily update data object immediately so Weighted Score updates visually before fetch
-        if (!data.scores) data.scores = {};
-        data.scores[field] = newVal;
-        
-        // Recalculate Weighted Score dynamically
-        let sc = data.scores;
-        if (sc.interview !== null && sc.interview !== '' && 
-            sc.growth !== null && sc.growth !== '' && 
-            sc.need !== null && sc.need !== '' && 
-            sc.emotional !== null && sc.emotional !== '' && 
-            sc.sustainability !== null && sc.sustainability !== '' && 
-            sc.utilization !== null && sc.utilization !== '') {
-            let w = (parseFloat(sc.interview || 0) * 0.40) + 
-                    (parseFloat(sc.growth || 0) * 0.15) + 
-                    (parseFloat(sc.need || 0) * 0.15) + 
-                    (parseFloat(sc.emotional || 0) * 0.10) + 
-                    (parseFloat(sc.sustainability || 0) * 0.10) + 
-                    (parseFloat(sc.utilization || 0) * 0.10);
-            data.weighted_score = parseFloat(w.toFixed(2));
-            data.final_decision = calculateDecision(data.weighted_score);
-        } else {
-            data.weighted_score = '-';
-            data.final_decision = '-';
-        }
-        row.data(data).draw(false);
-        
-        // Fire API request to save permanently
-        fetch('/api/v1/she-start/save-score/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                candidate_name: candidateName,
-                [field]: newVal
-            })
-        }).then(res => res.json())
-          .then(apiData => {
-              if (apiData.status !== 'success') {
-                  Swal.fire('Error', 'Failed to save score: ' + apiData.message, 'error');
-              } else {
-                  // Optional: Show a tiny success toast
-                  Swal.fire({
-                      toast: true, position: 'top-end', icon: 'success', 
-                      title: 'Saved!', showConfirmButton: false, timer: 1500
-                  });
-              }
-          })
-          .catch(err => {
-              console.error("Network error saving score:", err);
-              Swal.fire('Error', 'Network error. Please try again.', 'error');
-          });
-    }
+        $('#selection-matrix tbody').on('focus', '.editable-cell', function(e) {
+            e.stopPropagation();
+            if ($(this).text().trim() === '-') $(this).text('');
+        });
+
+        $('#selection-matrix tbody').on('keydown', '.editable-cell', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                $(this).blur();
+            }
+        });
+    });
 
     function initTable() {
         table = $('#selection-matrix').DataTable({
@@ -407,35 +363,35 @@
                     data: 'scores.growth', className: 'text-center',
                     render: function(data, type, row) { 
                         let d = (data === '' || data === null || data === undefined) ? '-' : data;
-                        return `<span class="editable-cell" data-slno="${row.sl_no}" data-field="growth" data-label="Growth">${d}</span>`; 
+                        return `<span class="editable-cell" contenteditable="true" data-slno="${row.sl_no}" data-field="growth" data-label="Growth">${d}</span>`; 
                     }
                 },
                 { 
                     data: 'scores.need', className: 'text-center',
                     render: function(data, type, row) { 
                         let d = (data === '' || data === null || data === undefined) ? '-' : data;
-                        return `<span class="editable-cell" data-slno="${row.sl_no}" data-field="need" data-label="Support Need">${d}</span>`; 
+                        return `<span class="editable-cell" contenteditable="true" data-slno="${row.sl_no}" data-field="need" data-label="Support Need">${d}</span>`; 
                     }
                 },
                 { 
                     data: 'scores.emotional', className: 'text-center',
                     render: function(data, type, row) { 
                         let d = (data === '' || data === null || data === undefined) ? '-' : data;
-                        return `<span class="editable-cell" data-slno="${row.sl_no}" data-field="emotional" data-label="Emotional Index">${d}</span>`; 
+                        return `<span class="editable-cell" contenteditable="true" data-slno="${row.sl_no}" data-field="emotional" data-label="Emotional Index">${d}</span>`; 
                     }
                 },
                 { 
                     data: 'scores.sustainability', className: 'text-center',
                     render: function(data, type, row) { 
                         let d = (data === '' || data === null || data === undefined) ? '-' : data;
-                        return `<span class="editable-cell" data-slno="${row.sl_no}" data-field="sustainability" data-label="Sustainability">${d}</span>`; 
+                        return `<span class="editable-cell" contenteditable="true" data-slno="${row.sl_no}" data-field="sustainability" data-label="Sustainability">${d}</span>`; 
                     }
                 },
                 { 
                     data: 'scores.utilization', className: 'text-center',
                     render: function(data, type, row) { 
                         let d = (data === '' || data === null || data === undefined) ? '-' : data;
-                        return `<span class="editable-cell" data-slno="${row.sl_no}" data-field="utilization" data-label="Utilization">${d}</span>`; 
+                        return `<span class="editable-cell" contenteditable="true" data-slno="${row.sl_no}" data-field="utilization" data-label="Utilization">${d}</span>`; 
                     }
                 },
                 { 
