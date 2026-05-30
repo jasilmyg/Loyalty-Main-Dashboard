@@ -133,21 +133,14 @@ def get_she_start_data():
             from analytics.models import SheStartCandidateScore
             try:
                 override = SheStartCandidateScore.objects.get(candidate_name=candidate_name)
-                # If we have an override for interview, use it, otherwise keep the calculated avg_interview
-                if override.interview is not None:
-                    avg_interview = override.interview
-                avg_growth = override.growth if override.growth is not None else ''
-                avg_need = override.need if override.need is not None else ''
-                avg_emotional = override.emotional if override.emotional is not None else ''
-                avg_sustainability = override.sustainability if override.sustainability is not None else ''
-                avg_utilization = override.utilization if override.utilization is not None else ''
+                if override.interview is not None: avg_interview = override.interview
+                if override.growth is not None: avg_growth = override.growth
+                if override.need is not None: avg_need = override.need
+                if override.emotional is not None: avg_emotional = override.emotional
+                if override.sustainability is not None: avg_sustainability = override.sustainability
+                if override.utilization is not None: avg_utilization = override.utilization
             except SheStartCandidateScore.DoesNotExist:
-                # If no DB record exists, start blank for the 5 columns
-                avg_growth = ''
-                avg_need = ''
-                avg_emotional = ''
-                avg_sustainability = ''
-                avg_utilization = ''
+                pass
 
             # 2. Recalculate Final Score and Decision if ALL 5 columns have values
             if all(v != '' for v in [avg_growth, avg_need, avg_emotional, avg_sustainability, avg_utilization]):
