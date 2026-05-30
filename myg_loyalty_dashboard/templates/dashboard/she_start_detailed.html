@@ -205,11 +205,19 @@
                     exportOptions: {
                         format: {
                             body: function ( data, row, column, node ) {
-                                // Strip HTML from Panelist Scores column for Excel export
-                                if (column === 4) {
-                                    return data.replace(/<[^>]*>?/gm, ' | ').replace(/\|\s*\|/g, '|').trim();
+                                // Strip HTML from all columns for Excel export
+                                if (data === null || data === undefined) {
+                                    return '';
                                 }
-                                return data;
+                                // The data might be an object or number, cast to string
+                                let strData = String(data);
+                                
+                                if (column === 4) {
+                                    // Special handling for panelist column to separate badges
+                                    return strData.replace(/<[^>]*>?/gm, ' | ').replace(/\|\s*\|/g, '|').trim();
+                                }
+                                // Strip all HTML tags for other columns
+                                return strData.replace(/<[^>]*>?/gm, '').trim();
                             }
                         }
                     }
