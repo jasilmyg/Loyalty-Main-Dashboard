@@ -432,7 +432,11 @@
         });
         
         // Row click event for Drawer
-        $('#selection-matrix tbody').on('click', 'tr', function () {
+        $('#selection-matrix tbody').on('click', 'tr', function (e) {
+            // Do not open drawer if they clicked on an editable cell
+            if ($(e.target).closest('.editable-cell').length > 0) {
+                return;
+            }
             const data = table.row(this).data();
             if (data) openDrawer(data);
         });
