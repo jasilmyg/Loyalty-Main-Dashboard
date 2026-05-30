@@ -227,6 +227,14 @@
     let windowEditedScores = {}; // To persist manual edits across refreshes
 
     function calculateFinalScore(scores) {
+        if (scores.growth === null || scores.growth === '' || scores.growth === undefined ||
+            scores.need === null || scores.need === '' || scores.need === undefined ||
+            scores.emotional === null || scores.emotional === '' || scores.emotional === undefined ||
+            scores.sustainability === null || scores.sustainability === '' || scores.sustainability === undefined ||
+            scores.utilization === null || scores.utilization === '' || scores.utilization === undefined) {
+            return '-';
+        }
+        
         let iw = (parseFloat(scores.interview) || 0) * 0.40;
         let gr = (parseFloat(scores.growth) || 0) * 0.15;
         let nd = (parseFloat(scores.need) || 0) * 0.15;

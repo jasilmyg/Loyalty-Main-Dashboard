@@ -120,7 +120,7 @@ def get_she_start_data():
                 pass
 
             # 2. Recalculate Final Score and Decision if ALL 5 columns have values
-            if all(v != '' for v in [avg_growth, avg_need, avg_emotional, avg_sustainability, avg_utilization]):
+            if all(v != '' and v is not None for v in [avg_growth, avg_need, avg_emotional, avg_sustainability, avg_utilization]):
                 avg_weighted_score = (avg_interview * 0.40) + (avg_growth * 0.15) + (avg_need * 0.15) + \
                                      (avg_emotional * 0.10) + (avg_sustainability * 0.10) + (avg_utilization * 0.10)
                 avg_weighted_score = round(avg_weighted_score, 2)
