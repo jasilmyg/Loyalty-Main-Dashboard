@@ -35,4 +35,6 @@ urlpatterns = [
     path('she-start/', views.SheStartView.as_view(), name='she_start'),
     path('api/v1/she-start/data/', views.SheStartDataAPIView.as_view(), name='she_start_data_api'),
     path('api/v1/she-start/save-score/', views.SheStartSaveScoreAPIView.as_view(), name='she_start_save_score_api'),
+    path('she-start-detailed/', views.SheStartDetailedView.as_view(), name='she_start_detailed'),
+    path('api/v1/she-start-detailed/data/', views.SheStartDetailedDataAPIView.as_view(), name='she_start_detailed_data_api'),
 ]

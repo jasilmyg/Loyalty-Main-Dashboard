@@ -1,0 +1,288 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<!-- DataTables CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
+<style>
+    .page-title {
+        font-weight: 800;
+        color: #0f172a;
+        margin-bottom: 0.5rem;
+        font-size: 1.75rem;
+    }
+    .page-subtitle {
+        color: #64748b;
+        font-size: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .table-custom {
+        border-collapse: separate;
+        border-spacing: 0;
+        width: 100%;
+        margin-top: 1rem;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+    }
+    .table-custom thead th {
+        background-color: #f8fafc;
+        color: #475569;
+        font-weight: 700;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 1.25rem 1rem;
+        border-bottom: 2px solid #e2e8f0;
+        border-top: none;
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+    .table-custom tbody td {
+        padding: 1.25rem 1rem;
+        color: #1e293b;
+        font-size: 0.9rem;
+        font-weight: 500;
+        border-bottom: 1px solid #f1f5f9;
+        vertical-align: middle;
+    }
+    .table-custom tbody tr:hover td {
+        background-color: #fcfcfc;
+    }
+    
+    .score-badge {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 0.5rem;
+        border-radius: 8px;
+        margin: 0.25rem;
+        min-width: 90px;
+        background-color: #f1f5f9;
+        border: 1px solid #e2e8f0;
+    }
+    .score-badge.green {
+        background-color: #ecfdf5;
+        border-color: #a7f3d0;
+        color: #065f46;
+    }
+    .score-badge.red_low, .score-badge.red_high {
+        background-color: #fef2f2;
+        border-color: #fecaca;
+        color: #991b1b;
+    }
+    .score-badge .panelist-name {
+        font-size: 0.65rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 700;
+        opacity: 0.8;
+        margin-bottom: 0.25rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 80px;
+    }
+    .score-badge .score-val {
+        font-size: 1.1rem;
+        font-weight: 800;
+    }
+    
+    .final-avg {
+        font-size: 1.3rem;
+        font-weight: 800;
+        color: #0f172a;
+    }
+    
+    /* Export Button Styling */
+    .dt-buttons .btn {
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+        font-weight: 600;
+        margin-right: 0.5rem;
+    }
+    .dt-buttons .btn-excel {
+        background-color: #10b981;
+        color: white;
+        border: none;
+    }
+    .dt-buttons .btn-excel:hover {
+        background-color: #059669;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="page-title">SHE START Detailed Report</h1>
+            <p class="page-subtitle">Breakdown of individual panelist scores and final adjusted average.</p>
+        </div>
+        <div id="export-buttons-container"></div>
+    </div>
+
+    <!-- Error Alert -->
+    <div id="error-alert" class="alert alert-danger d-none" role="alert"></div>
+    
+    <!-- Table Card -->
+    <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table id="detailedTable" class="table table-custom mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 5%">SL.NO</th>
+                            <th style="width: 15%">CANDIDATE NAME</th>
+                            <th style="width: 15%">PLACE</th>
+                            <th style="width: 20%">BUSINESS NAME</th>
+                            <th style="width: 35%">PANELIST SCORES</th>
+                            <th style="width: 10%" class="text-center">FINAL AVG</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Loading Indicator -->
+            <div id="loading-indicator" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2 text-muted fw-semibold">Fetching detailed evaluations...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- DataTables JS -->
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
+
+<!-- Export Buttons JS -->
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+
+<script>
+    let table;
+
+    $(document).ready(function() {
+        initTable();
+        fetchData();
+        
+        // Auto refresh every 25 seconds
+        setInterval(fetchData, 25000);
+    });
+
+    function initTable() {
+        table = $('#detailedTable').DataTable({
+            responsive: true,
+            pageLength: 25,
+            order: [[5, 'desc']], // Sort by Final Avg descending
+            dom: "<'row mb-3'<'col-sm-12 col-md-6'l><'col-sm-12 col-md-6'f>>" +
+                 "<'row'<'col-sm-12'tr>>" +
+                 "<'row mt-3'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+            buttons: [
+                { 
+                    extend: 'excel', 
+                    className: 'btn btn-excel',
+                    text: '<i class="bi bi-file-earmark-excel me-2"></i>Export Excel',
+                    filename: 'SHE_START_Detailed_Scores_Report',
+                    title: 'SHE START Detailed Evaluation Matrix',
+                    exportOptions: {
+                        format: {
+                            body: function ( data, row, column, node ) {
+                                // Strip HTML from Panelist Scores column for Excel export
+                                if (column === 4) {
+                                    return data.replace(/<[^>]*>?/gm, ' | ').replace(/\|\s*\|/g, '|').trim();
+                                }
+                                return data;
+                            }
+                        }
+                    }
+                }
+            ],
+            language: {
+                search: "",
+                searchPlaceholder: "Search candidates...",
+            }
+        });
+        
+        // Move export buttons to top right container
+        table.buttons().container().appendTo('#export-buttons-container');
+    }
+
+    function fetchData() {
+        $.ajax({
+            url: "{% url 'she_start_detailed_data_api' %}",
+            method: 'GET',
+            success: function(response) {
+                if(response.error) {
+                    $('#error-alert').removeClass('d-none').text(response.error);
+                    $('#loading-indicator').addClass('d-none');
+                    return;
+                }
+                
+                $('#error-alert').addClass('d-none');
+                updateTable(response.candidates);
+                $('#loading-indicator').addClass('d-none');
+                $('#detailedTable').removeClass('d-none');
+            },
+            error: function(xhr, status, error) {
+                console.error("Error fetching data:", error);
+                $('#loading-indicator').addClass('d-none');
+            }
+        });
+    }
+
+    function updateTable(candidates) {
+        table.clear();
+        
+        candidates.forEach(function(c) {
+            // Render Panelist Scores HTML
+            let scoresHtml = '<div class="d-flex flex-wrap">';
+            
+            c.panelist_scores.forEach(function(ps) {
+                let badgeClass = 'score-badge ' + ps.status;
+                let titleAttr = '';
+                if (ps.status === 'red_low') titleAttr = 'Dropped (Lowest)';
+                if (ps.status === 'red_high') titleAttr = 'Dropped (Highest)';
+                if (ps.status === 'green') titleAttr = 'Counted in Average';
+                
+                scoresHtml += `
+                    <div class="${badgeClass}" title="${titleAttr}">
+                        <span class="panelist-name">${ps.panelist}</span>
+                        <span class="score-val">${ps.score}</span>
+                    </div>
+                `;
+            });
+            scoresHtml += '</div>';
+
+            table.row.add([
+                c.sl_no,
+                `<div class="fw-bold text-dark">${c.candidate_name}</div>`,
+                `<div class="text-muted small">${c.place}</div>`,
+                `<div class="text-muted small text-truncate" style="max-width: 180px;" title="${c.business_name}">${c.business_name}</div>`,
+                scoresHtml,
+                `<div class="text-center final-avg">${c.final_average}</div>`
+            ]);
+        });
+        
+        // Draw while retaining current page
+        table.draw(false);
+    }
+</script>
+{% endblock %}

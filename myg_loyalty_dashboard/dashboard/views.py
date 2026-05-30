@@ -873,10 +873,19 @@ class SheStartSaveScoreAPIView(View):
             for field in ['interview', 'growth', 'need', 'emotional', 'sustainability', 'utilization']:
                 if field in data and data[field] is not None:
                     setattr(obj, field, float(data[field]))
-            
-            obj.save()
-            return JsonResponse({'status': 'success'})
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            return JsonResponse({'status': 'error', 'message': str(e)})
+
+
+class SheStartDetailedView(UserPassesTestMixin, TemplateView):
+    template_name = 'dashboard/she_start_detailed.html'
+
+    def test_func(self):
+        return self.request.user.username in ['shestart', 'mygadmin'] or self.request.user.is_superuser
+
+class SheStartDetailedDataAPIView(UserPassesTestMixin, View):
+    def test_func(self):
+        return self.request.user.username in ['shestart', 'mygadmin'] or self.request.user.is_superuser
+
+    def get(self, request, *args, **kwargs):
+        from analytics.she_start_detailed_engine import fetch_she_start_detailed_data
+        response_data = fetch_she_start_detailed_data()
+        return JsonResponse(response_data)
