@@ -2,11 +2,23 @@ import os
 from collections import OrderedDict
 import gspread
 from django.conf import settings
-from analytics.she_start_engine import _parse_score, _find_key, _get_excel_mapping, _get_google_credentials
+from analytics.she_start_engine import _parse_score, _find_key, _get_excel_mapping
 
 def fetch_she_start_detailed_data():
     try:
-        gc = _get_google_credentials()
+        service_account_path = os.path.join(settings.BASE_DIR.parent, 'project_folder', 'service_account.json')
+        render_secret_path = '/etc/secrets/service_account.json'
+        env_json = os.environ.get('GOOGLE_SERVICE_ACCOUNT_JSON')
+        
+        if env_json:
+            import json
+            gc = gspread.service_account_from_dict(json.loads(env_json))
+        elif os.path.exists(service_account_path):
+            gc = gspread.service_account(filename=service_account_path)
+        elif os.path.exists(render_secret_path):
+            gc = gspread.service_account(filename=render_secret_path)
+        else:
+            return {"error": "Missing service_account.json. Cannot authenticate with Google Sheets."}
         
         sheet_id = '1qVW_WZx3yu5l-iRd6h0pe5BxMBDk3kDC4yQ3sFj4Q-o'
         try:
