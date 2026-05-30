@@ -115,25 +115,19 @@ def get_she_start_data():
             if num_all == 0:
                 continue
                 
-            # These 5 columns are marked only ONE time.
-            # We filter out the zeros (blanks) to correctly extract the single given mark.
-            def get_single_mark(key):
-                given_scores = [e[key] for e in evals if e[key] > 0]
-                return sum(given_scores) / len(given_scores) if given_scores else 0
+            def get_avg_dropped(key):
+                scores = sorted([e[key] for e in evals])
+                if len(scores) > 2:
+                    valid_scores = scores[1:-1]
+                    return sum(valid_scores) / len(valid_scores)
+                return sum(scores) / len(scores) if scores else 0
                 
-            avg_growth = get_single_mark("growth")
-            avg_need = get_single_mark("need")
-            avg_emotional = get_single_mark("emotional")
-            avg_sustainability = get_single_mark("sustainability")
-            avg_utilization = get_single_mark("utilization")
-            
-            # ONLY for the Interview score, drop the top and bottom score
-            if num_all >= 3:
-                sorted_interviews = sorted([e["interview"] for e in evals])
-                valid_interviews = sorted_interviews[1:-1]
-                avg_interview = sum(valid_interviews) / len(valid_interviews)
-            else:
-                avg_interview = sum(e["interview"] for e in evals) / num_all
+            avg_interview = get_avg_dropped("interview")
+            avg_growth = get_avg_dropped("growth")
+            avg_need = get_avg_dropped("need")
+            avg_emotional = get_avg_dropped("emotional")
+            avg_sustainability = get_avg_dropped("sustainability")
+            avg_utilization = get_avg_dropped("utilization")
                 
             # 1. Fetch any manual overrides from the local database
             from analytics.models import SheStartCandidateScore
