@@ -63,3 +63,26 @@ class ProductSale(models.Model):
 
     def __str__(self):
         return f"{self.invoice_number} - {self.product} ({self.date})"
+
+
+class SheStartCandidateScore(models.Model):
+    """
+    Stores manually overridden scores for candidates in the She Start dashboard.
+    These values override the dummy/default values from Google Sheets.
+    """
+    candidate_name = models.CharField(max_length=255, unique=True, db_index=True)
+    interview = models.FloatField(null=True, blank=True)
+    growth = models.FloatField(null=True, blank=True)
+    need = models.FloatField(null=True, blank=True)
+    emotional = models.FloatField(null=True, blank=True)
+    sustainability = models.FloatField(null=True, blank=True)
+    utilization = models.FloatField(null=True, blank=True)
+    
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "She Start Score Override"
+        verbose_name_plural = "She Start Score Overrides"
+
+    def __str__(self):
+        return f"{self.candidate_name} Overrides"

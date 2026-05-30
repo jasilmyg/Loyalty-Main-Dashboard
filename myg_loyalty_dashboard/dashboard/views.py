@@ -290,6 +290,21 @@ class PropensityForecastAPIView(LoginRequiredMixin, View):
             return JsonResponse({"error": str(e)}, status=500)
 
 
+class SheStartView(LoginRequiredMixin, TemplateView):
+    template_name = 'dashboard/she_start.html'
+
+
+class SheStartDataAPIView(View):
+    def get(self, request, *args, **kwargs):
+        from analytics.she_start_engine import get_she_start_data
+        
+        data = get_she_start_data()
+        if "error" in data:
+            return JsonResponse({"status": "error", "message": data["error"]}, status=500)
+            
+        return JsonResponse({"status": "success", "data": data})
+
+
 import threading
 from django.db import connection
 
@@ -832,3 +847,31 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                 'message': str(e),
                 'trace': traceback.format_exc()
             }, status=500)
+
+
+import json
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
+
+@method_decorator(csrf_exempt, name='dispatch')
+class SheStartSaveScoreAPIView(View):
+    def post(self, request, *args, **kwargs):
+        try:
+            data = json.loads(request.body)
+            candidate_name = data.get('candidate_name')
+            if not candidate_name:
+                return JsonResponse({'status': 'error', 'message': 'Missing candidate_name'})
+            
+            from analytics.models import SheStartCandidateScore
+            obj, created = SheStartCandidateScore.objects.get_or_create(candidate_name=candidate_name)
+            
+            for field in ['interview', 'growth', 'need', 'emotional', 'sustainability', 'utilization']:
+                if field in data and data[field] is not None:
+                    setattr(obj, field, float(data[field]))
+            
+            obj.save()
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({'status': 'error', 'message': str(e)})

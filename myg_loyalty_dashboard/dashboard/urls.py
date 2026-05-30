@@ -32,4 +32,7 @@ urlpatterns = [
     path('api/v1/monthly-retention/', views.MonthlyRetentionAPIView.as_view(), name='monthly_retention_api'),
     path('campaign-analysis/', views.CampaignAnalysisView.as_view(), name='campaign_analysis'),
     path('api/v1/campaign-analysis/', views.CampaignAnalysisAPIView.as_view(), name='campaign_analysis_api'),
+    path('she-start/', views.SheStartView.as_view(), name='she_start'),
+    path('api/v1/she-start/data/', views.SheStartDataAPIView.as_view(), name='she_start_data_api'),
+    path('api/v1/she-start/save-score/', views.SheStartSaveScoreAPIView.as_view(), name='she_start_save_score_api'),
 ]

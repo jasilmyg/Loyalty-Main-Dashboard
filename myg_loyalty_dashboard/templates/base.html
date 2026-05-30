@@ -206,6 +206,17 @@
             </li>
         </ul>
 
+        <div class="mb-2 mt-3" style="padding-left: 2.5rem;">
+            <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">CSR & Grants</small>
+        </div>
+        <ul class="nav flex-column mb-4">
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'she_start' %}active{% endif %}" href="{% url 'she_start' %}" style="border-left: 4px solid #ec4899; color: #db2777; background: rgba(236, 72, 153, 0.04); font-weight: 600;">
+                    <i class="bi bi-stars" style="color: #db2777; font-size: 1.25rem; margin-right: 12px !important;"></i> SHE START Dashboard
+                </a>
+            </li>
+        </ul>
+
         {% if request.user.is_superuser %}
         <div class="mb-3 mt-2" style="padding-left: 2.5rem;">
             <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">System</small>
