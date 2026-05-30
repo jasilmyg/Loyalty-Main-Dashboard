@@ -11,10 +11,19 @@ def get_she_start_data():
     try:
         # 1. Setup Authentication
         service_account_path = os.path.join(settings.BASE_DIR.parent, 'project_folder', 'service_account.json')
-        if not os.path.exists(service_account_path):
+        render_secret_path = '/etc/secrets/service_account.json'
+        
+        env_json = os.environ.get('GOOGLE_SERVICE_ACCOUNT_JSON')
+        
+        if env_json:
+            import json
+            gc = gspread.service_account_from_dict(json.loads(env_json))
+        elif os.path.exists(service_account_path):
+            gc = gspread.service_account(filename=service_account_path)
+        elif os.path.exists(render_secret_path):
+            gc = gspread.service_account(filename=render_secret_path)
+        else:
             return {"error": "Missing service_account.json. Cannot authenticate with Google Sheets."}
-            
-        gc = gspread.service_account(filename=service_account_path)
         
         # 2. Open Sheet
         # The URL provided: https://docs.google.com/spreadsheets/d/1qVW_WZx3yu5l-iRd6h0pe5BxMBDk3kDC4yQ3sFj4Q-o/edit
