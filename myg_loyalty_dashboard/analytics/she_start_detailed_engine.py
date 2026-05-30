@@ -2,12 +2,11 @@ import os
 from collections import OrderedDict
 import gspread
 from django.conf import settings
-from analytics.she_start_engine import _parse_score, _find_key, _get_excel_mapping
+from analytics.she_start_engine import _parse_score, _find_key, _get_excel_mapping, _get_google_credentials
 
 def fetch_she_start_detailed_data():
     try:
-        service_account_path = os.path.join(settings.BASE_DIR.parent, 'project_folder', 'service_account.json')
-        gc = gspread.service_account(filename=service_account_path)
+        gc = _get_google_credentials()
         
         sheet_id = '1qVW_WZx3yu5l-iRd6h0pe5BxMBDk3kDC4yQ3sFj4Q-o'
         try:
