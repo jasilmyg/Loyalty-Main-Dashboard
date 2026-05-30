@@ -209,15 +209,30 @@
                                 if (data === null || data === undefined) {
                                     return '';
                                 }
-                                // The data might be an object or number, cast to string
                                 let strData = String(data);
                                 
+                                // Use the browser's DOM parser to perfectly strip HTML and whitespace
+                                let tmp = document.createElement('div');
+                                tmp.innerHTML = strData;
+                                
                                 if (column === 4) {
-                                    // Special handling for panelist column to separate badges
-                                    return strData.replace(/<[^>]*>?/gm, ' | ').replace(/\|\s*\|/g, '|').trim();
+                                    // Specifically format the Panelist Scores nicely for Excel
+                                    let badges = tmp.querySelectorAll('.score-badge');
+                                    if (badges.length > 0) {
+                                        let results = [];
+                                        badges.forEach(b => {
+                                            let name = b.querySelector('.panelist-name') ? b.querySelector('.panelist-name').textContent.trim() : '';
+                                            let score = b.querySelector('.score-val') ? b.querySelector('.score-val').textContent.trim() : '';
+                                            if (name && score) {
+                                                results.push(`${name}: ${score}`);
+                                            }
+                                        });
+                                        return results.join('  |  ');
+                                    }
                                 }
-                                // Strip all HTML tags for other columns
-                                return strData.replace(/<[^>]*>?/gm, '').trim();
+                                
+                                // For all other columns, safely extract pure text and normalize whitespace
+                                return tmp.textContent.replace(/\s+/g, ' ').trim();
                             }
                         }
                     }
