@@ -449,7 +449,14 @@
                     data: 'final_decision', 
                     className: 'text-center',
                     render: function(data, type, row) {
-                        return `<span class="text-muted">-</span>`;
+                        if (!data || data === '-') return `<span class="text-muted">-</span>`;
+                        let badge = 'bg-secondary';
+                        if (data === "Strong Final Selection" || data === "Selected") badge = 'bg-success';
+                        else if (data === "Recommended for Top 10") badge = 'bg-primary';
+                        else if (data === "Waitlist Consideration") badge = 'bg-warning text-dark';
+                        else if (data === "Not Recommended" || data === "Rejected") badge = 'bg-danger';
+                        
+                        return `<span class="badge ${badge}">${data}</span>`;
                     }
                 }
             ]
