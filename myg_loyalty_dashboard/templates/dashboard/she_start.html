@@ -365,7 +365,7 @@
                     data: 'scores.interview', className: 'text-center',
                     render: function(data, type, row) { 
                         let d = (data === '' || data === null || data === undefined) ? '-' : data;
-                        return `<span class="editable-cell fw-bold" contenteditable="true" data-slno="${row.sl_no}" data-field="interview">${d}</span>`; 
+                        return `<span class="fw-bold text-dark">${d}</span>`; 
                     }
                 },
                 { 
