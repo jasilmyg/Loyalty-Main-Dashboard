@@ -1,11 +1,16 @@
 from django.views.generic import TemplateView, View
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.http import HttpResponse
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from analytics.report_generator import generate_monthly_report_zip
 
 class DashboardView(LoginRequiredMixin, TemplateView):
     template_name = 'dashboard/index.html'
+    
+    def get(self, request, *args, **kwargs):
+        if request.user.username == 'shestart':
+            return redirect('she_start')
+        return super().get(request, *args, **kwargs)
 
 class CustomerAnalyticsView(LoginRequiredMixin, TemplateView):
     template_name = 'dashboard/customers.html'

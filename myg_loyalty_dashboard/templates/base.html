@@ -153,6 +153,7 @@
             <div class="fw-bold text-uppercase mt-2" style="color: #f97316; font-size: 0.8rem; letter-spacing: 0.5px;">myG Loyalty Dashboard</div>
         </div>
 
+        {% if request.user.username != 'shestart' %}
         <ul class="nav flex-column mb-4">
             <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}"><i class="bi bi-grid-1x2"></i> Sales Overview</a>
@@ -205,7 +206,9 @@
                 </a>
             </li>
         </ul>
+        {% endif %}
 
+        {% if request.user.username == 'shestart' %}
         <div class="mb-2 mt-3" style="padding-left: 2.5rem;">
             <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">CSR & Grants</small>
         </div>
@@ -216,6 +219,7 @@
                 </a>
             </li>
         </ul>
+        {% endif %}
 
         {% if request.user.is_superuser %}
         <div class="mb-3 mt-2" style="padding-left: 2.5rem;">
@@ -233,6 +237,7 @@
     <main class="main-content w-100">
         <!-- Global Filters & Top Nav -->
         <div class="filter-bar d-flex justify-content-between align-items-center flex-wrap gap-3">
+            {% if request.user.username != 'shestart' %}
             <form id="global-filter-form" class="row g-2 align-items-center flex-grow-1">
                 <div class="col-md-2">
                     <input type="date" class="form-control" name="start_date" id="filter-start" placeholder="Start Date">
@@ -254,6 +259,9 @@
                     <button type="button" class="btn btn-outline-secondary ms-2" onclick="clearFilters()">Clear</button>
                 </div>
             </form>
+            {% else %}
+            <div class="flex-grow-1"></div>
+            {% endif %}
             
             <!-- Account Dropdown -->
             <div class="dropdown ms-auto">
