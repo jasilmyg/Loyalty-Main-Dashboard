@@ -49,37 +49,19 @@ def get_she_start_data():
             
             candidate_name = _find_key(r_lower, ['name', 'full name', 'applicant name', 'candidate name'], f'Candidate {idx+1}').strip()
             
-            # Extract scores based on exact sheet columns
+            # Sum all 10 questions to form the panelist's total "Interview" score out of 100
             passion = _parse_score(r_lower, ['passion', 'commitment'])
             clarity = _parse_score(r_lower, ['clarity'])
             comm = _parse_score(r_lower, ['communication', 'presentation'])
-            interview_raw = (passion + clarity + comm) / 3 if (passion + clarity + comm) > 0 else 0
-            
             growth_raw = _parse_score(r_lower, ['growth potential', 'growth'])
             need_raw = _parse_score(r_lower, ['need for support', 'need'])
-            
             social = _parse_score(r_lower, ['social', 'family impact'])
             inspirational = _parse_score(r_lower, ['inspirational value', 'inspirational'])
-            emotional_raw = (social + inspirational) / 2 if (social + inspirational) > 0 else social or inspirational
-            
             innov = _parse_score(r_lower, ['innovation', 'uniqueness'])
             fin = _parse_score(r_lower, ['financial responsibility', 'financial'])
-            sustainability_raw = (innov + fin) / 2 if (innov + fin) > 0 else innov or fin
-            
             utilization_raw = _parse_score(r_lower, ['utilization plan', 'utilization'])
             
-            max_score = max([interview_raw, growth_raw, need_raw, emotional_raw, sustainability_raw, utilization_raw] + [0])
-            scale_factor = 10 if max_score > 0 and max_score <= 10 else 1
-            
-            interview = interview_raw * scale_factor
-            growth = growth_raw * scale_factor
-            need = need_raw * scale_factor
-            emotional = emotional_raw * scale_factor
-            sustainability = sustainability_raw * scale_factor
-            utilization = utilization_raw * scale_factor
-            
-            weighted_score = (interview * 0.40) + (growth * 0.15) + (need * 0.15) + (emotional * 0.10) + (sustainability * 0.10) + (utilization * 0.10)
-            weighted_score = round(weighted_score, 2)
+            interview = passion + clarity + comm + growth_raw + need_raw + social + inspirational + innov + fin + utilization_raw
             
             strengths = _find_key(r_lower, ['strengths', 'positive'], 'None specified')
             concerns = _find_key(r_lower, ['concerns', 'risks', 'weakness'], 'None specified')
@@ -90,12 +72,6 @@ def get_she_start_data():
             
             evaluation = {
                 "interview": interview,
-                "growth": growth,
-                "need": need,
-                "emotional": emotional,
-                "sustainability": sustainability,
-                "utilization": utilization,
-                "weighted_score": weighted_score,
                 "strengths": strengths,
                 "concerns": concerns,
                 "comments": comments,
@@ -123,12 +99,13 @@ def get_she_start_data():
                 return sum(scores) / len(scores) if scores else 0
                 
             avg_interview = get_avg_dropped("interview")
-            avg_growth = get_avg_dropped("growth")
-            avg_need = get_avg_dropped("need")
-            avg_emotional = get_avg_dropped("emotional")
-            avg_sustainability = get_avg_dropped("sustainability")
-            avg_utilization = get_avg_dropped("utilization")
-                
+            
+            avg_growth = ''
+            avg_need = ''
+            avg_emotional = ''
+            avg_sustainability = ''
+            avg_utilization = ''
+            
             # 1. Fetch any manual overrides from the local database
             from analytics.models import SheStartCandidateScore
             try:
