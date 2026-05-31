@@ -316,7 +316,7 @@
                 if (apiData.status !== 'success') {
                     Swal.fire('Error', 'Failed to save score: ' + apiData.message, 'error');
                 } else {
-                    Swal.fire({ toast: true, position: 'top-end', icon: newVal === null ? 'info' : 'success', title: newVal === null ? 'Deleted' : 'Saved', showConfirmButton: false, timer: 1500 });
+                    Swal.fire({ toast: true, position: 'top-end', icon: newVal === null ? 'info' : 'success', title: newVal === null ? 'Deleted' : 'Saved', showConfirmButton: false, timer: 1500, returnFocus: false });
                 }
             });
         });
