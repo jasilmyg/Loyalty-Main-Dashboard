@@ -332,40 +332,18 @@
                 $(this).blur();
             } else if (e.key === 'Tab') {
                 e.preventDefault();
-                let $this = $(this);
+                let $cells = $('#selection-matrix .editable-cell:visible');
+                let currentIndex = $cells.index(this);
+                
                 if (e.shiftKey) {
                     // Shift + Tab: Go to previous editable cell
-                    let $prevTds = $this.closest('td').prevAll();
-                    let moved = false;
-                    $prevTds.each(function() {
-                        let $cell = $(this).find('.editable-cell');
-                        if ($cell.length && !moved) {
-                            $cell.focus();
-                            moved = true;
-                        }
-                    });
-                    if (!moved) {
-                        let $prevRow = $this.closest('tr').prev('tr');
-                        if ($prevRow.length) {
-                            $prevRow.find('.editable-cell').last().focus();
-                        }
+                    if (currentIndex > 0) {
+                        $cells.eq(currentIndex - 1).focus();
                     }
                 } else {
                     // Tab: Go to next editable cell
-                    let $nextTds = $this.closest('td').nextAll();
-                    let moved = false;
-                    $nextTds.each(function() {
-                        let $cell = $(this).find('.editable-cell');
-                        if ($cell.length && !moved) {
-                            $cell.focus();
-                            moved = true;
-                        }
-                    });
-                    if (!moved) {
-                        let $nextRow = $this.closest('tr').next('tr');
-                        if ($nextRow.length) {
-                            $nextRow.find('.editable-cell').first().focus();
-                        }
+                    if (currentIndex < $cells.length - 1) {
+                        $cells.eq(currentIndex + 1).focus();
                     }
                 }
             }
