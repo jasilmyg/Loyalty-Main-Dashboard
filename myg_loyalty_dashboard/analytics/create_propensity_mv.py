@@ -20,12 +20,12 @@ WITH customer_features AS (
         mobile,
         visits AS frequency,
         total_spend AS monetary,
-        (DATE '2026-05-21' - (CASE
+        (CURRENT_DATE - (CASE
             WHEN SUBSTRING(last_visit::text, 5, 1) = '-' THEN TO_DATE(SUBSTRING(last_visit::text, 1, 10), 'YYYY-MM-DD')
             WHEN SUBSTRING(last_visit::text, 3, 1) = '-' THEN TO_DATE(last_visit::text, 'DD-MM-YYYY')
             ELSE NULL
         END)) AS recency,
-        (DATE '2026-05-21' - (CASE
+        (CURRENT_DATE - (CASE
             WHEN SUBSTRING(first_visit::text, 5, 1) = '-' THEN TO_DATE(SUBSTRING(first_visit::text, 1, 10), 'YYYY-MM-DD')
             WHEN SUBSTRING(first_visit::text, 3, 1) = '-' THEN TO_DATE(first_visit::text, 'DD-MM-YYYY')
             ELSE NULL

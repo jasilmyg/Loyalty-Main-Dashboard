@@ -259,7 +259,11 @@
 
             // Aggregate by month for waterfall
             let monthTotals = {
-                'Jan 2026': 0, 'Feb 2026': 0, 'Mar 2026': 0, 'Apr 2026': 0, 'May 2026': 0
+                'Jan 2026': {reactivated: 0, revenue: 0, remaining: 0}, 
+                'Feb 2026': {reactivated: 0, revenue: 0, remaining: 0}, 
+                'Mar 2026': {reactivated: 0, revenue: 0, remaining: 0}, 
+                'Apr 2026': {reactivated: 0, revenue: 0, remaining: 0}, 
+                'May 2026': {reactivated: 0, revenue: 0, remaining: 0}
             };
 
             let tableHtml = '';
@@ -271,7 +275,10 @@
 
                 let monthCells = '';
                 cohort.monthly_breakdown.forEach(mb => {
-                    monthTotals[mb.month] += mb.reactivated;
+                    monthTotals[mb.month].reactivated += mb.reactivated;
+                    monthTotals[mb.month].revenue += mb.revenue;
+                    monthTotals[mb.month].remaining += mb.remaining;
+                    
                     monthCells += `
                         <td>
                             <div class="hm-cell">
@@ -296,11 +303,41 @@
                 `;
             });
 
+            // Calculate overall KPIs early for the Total row
+            const overallRate = totalBase > 0 ? ((totalReactivated / totalBase) * 100).toFixed(2) : 0;
+
+            // Generate Total Row
+            let totalMonthCells = '';
+            ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026'].forEach(m => {
+                let mData = monthTotals[m];
+                let mRate = totalBase > 0 ? ((mData.reactivated / totalBase) * 100).toFixed(2) : 0;
+                totalMonthCells += `
+                        <td>
+                            <div class="hm-cell">
+                                <span class="hm-val" style="font-size: 1.05em;">${fmtNum(mData.reactivated)}</span>
+                                <span class="hm-sub">Rate: <span style="color:#10b981; font-weight:700;">${mRate}%</span></span>
+                                <span class="hm-sub">Bal: ${fmtNum(mData.remaining)}</span>
+                                <span class="hm-sub" style="color: #f59e0b; font-weight: 700; margin-top: 2px;">${fmtRs(mData.revenue)}</span>
+                            </div>
+                        </td>
+                `;
+            });
+
+            tableHtml += `
+                <tr style="background-color: #f8fafc; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1;">
+                    <td><span class="cohort-badge" style="background: #0f172a; color: #fff;">TOTAL</span></td>
+                    <td style="font-weight:900; color:#0f172a; font-size: 1.1em;">${fmtNum(totalBase)}</td>
+                    ${totalMonthCells}
+                    <td style="font-weight:900; color:#10b981; font-size: 1.1em;">${fmtNum(totalReactivated)}</td>
+                    <td style="font-weight:900; font-size: 1.1em;">${overallRate}%</td>
+                    <td style="color:#f59e0b; font-weight:900; font-size: 1.1em;">${fmtRs(totalRev)}</td>
+                </tr>
+            `;
+
             // Update Table
             document.querySelector('#cohort-table tbody').innerHTML = tableHtml;
 
             // Update KPIs
-            const overallRate = totalBase > 0 ? ((totalReactivated / totalBase) * 100).toFixed(2) : 0;
             document.getElementById('kpi-container').innerHTML = `
                 <div class="kpi-card">
                     <div class="kpi-label">Total Dormant Base</div>
@@ -324,11 +361,11 @@
             const wfX = ['Initial Base', 'Jan Return', 'Feb Return', 'Mar Return', 'Apr Return', 'May Return', 'Remaining Dormant'];
             const wfY = [
                 totalBase, 
-                -monthTotals['Jan 2026'], 
-                -monthTotals['Feb 2026'], 
-                -monthTotals['Mar 2026'], 
-                -monthTotals['Apr 2026'], 
-                -monthTotals['May 2026'], 
+                -monthTotals['Jan 2026'].reactivated, 
+                -monthTotals['Feb 2026'].reactivated, 
+                -monthTotals['Mar 2026'].reactivated, 
+                -monthTotals['Apr 2026'].reactivated, 
+                -monthTotals['May 2026'].reactivated, 
                 totalBase - totalReactivated
             ];
             const wfMeasure = ['absolute', 'relative', 'relative', 'relative', 'relative', 'relative', 'total'];
@@ -360,7 +397,7 @@
 
             // AI Insights Box (Top)
             document.getElementById('ai-insights').style.display = 'flex';
-            let bestMonth = Object.keys(monthTotals).reduce((a, b) => monthTotals[a] > monthTotals[b] ? a : b);
+            let bestMonth = Object.keys(monthTotals).reduce((a, b) => monthTotals[a].reactivated > monthTotals[b].reactivated ? a : b);
             document.getElementById('ai-message').innerHTML = `
                 <strong>Analysis complete:</strong> The highest reactivation spike occurred in <strong>${bestMonth}</strong>. 
                 The overall resurrection rate is <strong>${overallRate}%</strong>, contributing <strong>${fmtRs(totalRev)}</strong> in revenue. 

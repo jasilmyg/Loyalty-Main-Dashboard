@@ -10,3 +10,7 @@ urlpatterns = [
     path('api/v1/', include('analytics.urls')),
     path('', include('dashboard.urls')),
 ]
+
+# Trigger reload
+
+# Reload for LSTM fix
