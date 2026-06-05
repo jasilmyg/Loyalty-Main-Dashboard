@@ -113,6 +113,31 @@
     </div>
 </div>
 
+<!-- Loyalty Point Data Table -->
+<div class="section-card mt-4">
+    <div class="section-header"><i class="bi bi-star"></i> Loyalty Point Matrix</div>
+    <div class="table-responsive">
+        <table class="cohort-table" id="loyalty-table">
+            <thead>
+                <tr>
+                    <th>Cohort Year</th>
+                    <th>Jan 2026</th>
+                    <th>Feb 2026</th>
+                    <th>Mar 2026</th>
+                    <th>Apr 2026</th>
+                    <th>May 2026</th>
+                    <th>Total Pts</th>
+                    <th>Total R.Sales</th>
+                    <th>Total R.Cust</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td colspan="9" class="text-center py-4"><div class="spinner-ring"></div></td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
 <!-- FUTURISTIC AI CONSOLE SECTION -->
 <div class="row mt-5 mb-5">
     <div class="col-12 mb-4 text-center">
@@ -259,14 +284,20 @@
 
             // Aggregate by month for waterfall
             let monthTotals = {
-                'Jan 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0}, 
-                'Feb 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0}, 
-                'Mar 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0}, 
-                'Apr 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0}, 
-                'May 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0}
+                'Jan 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0}, 
+                'Feb 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0}, 
+                'Mar 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0}, 
+                'Apr 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0}, 
+                'May 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0}
             };
 
             let tableHtml = '';
+            let loyaltyTableHtml = '';
+
+            // Grand totals for loyalty
+            let grandTotalPts = 0;
+            let grandTotalSales = 0;
+            let grandTotalCust = 0;
 
             data.forEach(cohort => {
                 totalBase += cohort.initial_base;
@@ -274,12 +305,22 @@
                 totalRev += cohort.reactivated_revenue;
 
                 let monthCells = '';
+                let loyaltyMonthCells = '';
+                let cohortTotalPts = 0;
+                let cohortTotalSales = 0;
+                let cohortTotalCust = 0;
+
                 cohort.monthly_breakdown.forEach(mb => {
                     monthTotals[mb.month].reactivated += mb.reactivated;
                     monthTotals[mb.month].revenue += mb.revenue;
                     monthTotals[mb.month].remaining += mb.remaining;
                     monthTotals[mb.month].redeemed_points += mb.redeemed_points;
                     monthTotals[mb.month].redeemed_sales += mb.redeemed_sales;
+                    monthTotals[mb.month].redeemed_customers += mb.redeemed_customers;
+                    
+                    cohortTotalPts += mb.redeemed_points;
+                    cohortTotalSales += mb.redeemed_sales;
+                    cohortTotalCust += mb.redeemed_customers;
                     
                     monthCells += `
                         <td>
@@ -288,12 +329,25 @@
                                 <span class="hm-sub">Rate: <span style="color:#10b981; font-weight:600;">${(mb.reactivated / cohort.initial_base * 100).toFixed(2)}%</span></span>
                                 <span class="hm-sub">Bal: ${fmtNum(mb.remaining)}</span>
                                 <span class="hm-sub" style="color: #f59e0b; font-weight: 600; margin-top: 2px;">${fmtRs(mb.revenue)}</span>
+                            </div>
+                        </td>
+                    `;
+
+                    loyaltyMonthCells += `
+                        <td>
+                            <div class="hm-cell">
+                                <span class="hm-val" style="color:#0f172a;">${fmtNum(mb.reactivated)}</span>
                                 <span class="hm-sub" style="color: #8b5cf6; font-size: 0.65rem;">Pts: ${fmtNum(mb.redeemed_points)}</span>
                                 <span class="hm-sub" style="color: #ec4899; font-size: 0.65rem;">R.Sales: ${fmtRs(mb.redeemed_sales)}</span>
+                                <span class="hm-sub" style="color: #0ea5e9; font-size: 0.65rem;">R.Cust: ${fmtNum(mb.redeemed_customers)}</span>
                             </div>
                         </td>
                     `;
                 });
+
+                grandTotalPts += cohortTotalPts;
+                grandTotalSales += cohortTotalSales;
+                grandTotalCust += cohortTotalCust;
 
                 tableHtml += `
                     <tr>
@@ -305,6 +359,16 @@
                         <td style="color:#f59e0b; font-weight:700;">${fmtRs(cohort.reactivated_revenue)}</td>
                     </tr>
                 `;
+
+                loyaltyTableHtml += `
+                    <tr>
+                        <td><span class="cohort-badge">${cohort.cohort_year} Cohort</span></td>
+                        ${loyaltyMonthCells}
+                        <td style="color:#8b5cf6; font-weight:700;">${fmtNum(cohortTotalPts)}</td>
+                        <td style="color:#ec4899; font-weight:700;">${fmtRs(cohortTotalSales)}</td>
+                        <td style="color:#0ea5e9; font-weight:700;">${fmtNum(cohortTotalCust)}</td>
+                    </tr>
+                `;
             });
 
             // Calculate overall KPIs early for the Total row
@@ -312,9 +376,11 @@
 
             // Generate Total Row
             let totalMonthCells = '';
+            let totalLoyaltyMonthCells = '';
             ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026'].forEach(m => {
                 let mData = monthTotals[m];
                 let mRate = totalBase > 0 ? ((mData.reactivated / totalBase) * 100).toFixed(2) : 0;
+                
                 totalMonthCells += `
                         <td>
                             <div class="hm-cell">
@@ -322,8 +388,17 @@
                                 <span class="hm-sub">Rate: <span style="color:#10b981; font-weight:700;">${mRate}%</span></span>
                                 <span class="hm-sub">Bal: ${fmtNum(mData.remaining)}</span>
                                 <span class="hm-sub" style="color: #f59e0b; font-weight: 700; margin-top: 2px;">${fmtRs(mData.revenue)}</span>
+                            </div>
+                        </td>
+                `;
+
+                totalLoyaltyMonthCells += `
+                        <td>
+                            <div class="hm-cell">
+                                <span class="hm-val" style="font-size: 1.05em; color:#0f172a;">${fmtNum(mData.reactivated)}</span>
                                 <span class="hm-sub" style="color: #8b5cf6; font-size: 0.65rem;">Pts: ${fmtNum(mData.redeemed_points)}</span>
                                 <span class="hm-sub" style="color: #ec4899; font-size: 0.65rem;">R.Sales: ${fmtRs(mData.redeemed_sales)}</span>
+                                <span class="hm-sub" style="color: #0ea5e9; font-size: 0.65rem;">R.Cust: ${fmtNum(mData.redeemed_customers)}</span>
                             </div>
                         </td>
                 `;
@@ -340,8 +415,19 @@
                 </tr>
             `;
 
-            // Update Table
+            loyaltyTableHtml += `
+                <tr style="background-color: #f8fafc; border-top: 2px solid #cbd5e1; border-bottom: 2px solid #cbd5e1;">
+                    <td><span class="cohort-badge" style="background: #0f172a; color: #fff;">TOTAL</span></td>
+                    ${totalLoyaltyMonthCells}
+                    <td style="color:#8b5cf6; font-weight:900; font-size: 1.1em;">${fmtNum(grandTotalPts)}</td>
+                    <td style="color:#ec4899; font-weight:900; font-size: 1.1em;">${fmtRs(grandTotalSales)}</td>
+                    <td style="color:#0ea5e9; font-weight:900; font-size: 1.1em;">${fmtNum(grandTotalCust)}</td>
+                </tr>
+            `;
+
+            // Update Tables
             document.querySelector('#cohort-table tbody').innerHTML = tableHtml;
+            document.querySelector('#loyalty-table tbody').innerHTML = loyaltyTableHtml;
 
             // Update KPIs
             document.getElementById('kpi-container').innerHTML = `

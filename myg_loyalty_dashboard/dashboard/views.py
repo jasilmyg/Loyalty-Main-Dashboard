@@ -512,7 +512,8 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                     unique_customers,
                     total_revenue,
                     total_redeemed_points,
-                    total_redeemed_sales
+                    total_redeemed_sales,
+                    total_redeemed_customers
                 FROM mv_dormant_reactivation
                 ORDER BY cohort_year ASC, first_2026_month ASC NULLS FIRST
             """)
@@ -536,6 +537,7 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                 rev = row[3] or 0
                 pts = row[4] or 0
                 r_sales = row[5] or 0
+                r_cust = row[6] or 0
                 
                 if c_year in cohort_data:
                     cohort_data[c_year]['initial_base'] += count
@@ -547,7 +549,8 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                             'count': count,
                             'revenue': float(rev),
                             'redeemed_points': float(pts),
-                            'redeemed_sales': float(r_sales)
+                            'redeemed_sales': float(r_sales),
+                            'redeemed_customers': int(r_cust)
                         }
                         cohort_data[c_year]['reactivated_revenue'] += float(rev)
 
@@ -568,11 +571,12 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                 total_reactivated = 0
                 
                 for m in months:
-                    r_data = data['reactivations'].get(m, {'count': 0, 'revenue': 0.0, 'redeemed_points': 0.0, 'redeemed_sales': 0.0})
+                    r_data = data['reactivations'].get(m, {'count': 0, 'revenue': 0.0, 'redeemed_points': 0.0, 'redeemed_sales': 0.0, 'redeemed_customers': 0})
                     r_count = r_data['count']
                     r_rev = r_data['revenue']
                     r_pts = r_data.get('redeemed_points', 0.0)
                     r_sales = r_data.get('redeemed_sales', 0.0)
+                    r_cust = r_data.get('redeemed_customers', 0)
                     running_balance -= r_count
                     total_reactivated += r_count
                     monthly_breakdown.append({
@@ -581,6 +585,7 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                         'revenue': r_rev,
                         'redeemed_points': r_pts,
                         'redeemed_sales': r_sales,
+                        'redeemed_customers': r_cust,
                         'remaining': running_balance
                     })
                 

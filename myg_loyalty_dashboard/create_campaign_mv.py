@@ -18,7 +18,8 @@ try:
                     MIN(DATE_TRUNC('month', parsed_date)) FILTER (WHERE parsed_date >= '2026-01-01') AS first_2026_month,
                     SUM("Total Value"::numeric) FILTER (WHERE parsed_date >= '2026-01-01') AS reactivated_revenue,
                     SUM(NULLIF(REPLACE(REPLACE("POINT REDUMPTION (DEDUCTION)", ',', ''), ' ', ''), '')::numeric) FILTER (WHERE parsed_date >= '2026-01-01') AS reactivated_redeemed_points,
-                    SUM(CASE WHEN NULLIF(REPLACE(REPLACE("POINT REDUMPTION (DEDUCTION)", ',', ''), ' ', ''), '')::numeric > 0 THEN "Total Value"::numeric ELSE 0 END) FILTER (WHERE parsed_date >= '2026-01-01') AS reactivated_redeemed_sales
+                    SUM(CASE WHEN NULLIF(REPLACE(REPLACE("POINT REDUMPTION (DEDUCTION)", ',', ''), ' ', ''), '')::numeric > 0 THEN "Total Value"::numeric ELSE 0 END) FILTER (WHERE parsed_date >= '2026-01-01') AS reactivated_redeemed_sales,
+                    COUNT(DISTINCT CASE WHEN NULLIF(REPLACE(REPLACE("POINT REDUMPTION (DEDUCTION)", ',', ''), ' ', ''), '')::numeric > 0 THEN "Customer Mobile" END) FILTER (WHERE parsed_date >= '2026-01-01') AS reactivated_redeemed_customers
                 FROM sales_data
                 WHERE "Customer Mobile" IS NOT NULL
                   AND LENGTH("Customer Mobile") = 10
@@ -31,7 +32,8 @@ try:
                 COUNT(*) AS unique_customers,
                 SUM(reactivated_revenue) AS total_revenue,
                 SUM(reactivated_redeemed_points) AS total_redeemed_points,
-                SUM(reactivated_redeemed_sales) AS total_redeemed_sales
+                SUM(reactivated_redeemed_sales) AS total_redeemed_sales,
+                SUM(reactivated_redeemed_customers) AS total_redeemed_customers
             FROM customer_history
             WHERE cohort_year BETWEEN 2020 AND 2024
             GROUP BY cohort_year, first_2026_month
