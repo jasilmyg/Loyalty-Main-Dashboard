@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>AI Performance Dashboard</h2>
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card text-white bg-primary mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Average Response Time</h5>
+                    <p class="card-text fs-2">{{ avg_time_sec|floatformat:2 }}s</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card text-white bg-danger mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Max Response Time</h5>
+                    <p class="card-text fs-2">{{ max_time_sec|floatformat:2 }}s</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h4 class="mt-4">Last 50 Queries</h4>
+    <table class="table table-striped mt-3">
+        <thead>
+            <tr>
+                <th>Prompt</th>
+                <th>Agent</th>
+                <th>Execution Time</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td>{{ log.prompt|truncatechars:50 }}</td>
+                <td><span class="badge bg-secondary">{{ log.matched_agent }}</span></td>
+                <td>{{ log.execution_time_ms|add:"0"|divisibleby:1000|floatformat:2|default:log.execution_time_ms }} ms</td>
+                <td>{{ log.created_at|date:"M d, H:i:s" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

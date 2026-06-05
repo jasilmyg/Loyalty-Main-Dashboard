@@ -15,7 +15,7 @@ TABLE = 'v_sales_data'
 
 VALID_MOBILE = """
     "Customer Mobile" IS NOT NULL
-    AND "Customer Mobile" ~ '^[0-9]{{10}}$'
+    AND "Customer Mobile" ~ '^[0-9]{10}$'
     AND "Customer Mobile" NOT IN ('1313131313','0000000000','9999999999')
 """
 
@@ -277,25 +277,37 @@ END) <= %s::DATE''')
         where_sql, params = self._build_where_clause(filters)
         seg_pred = self._SEGMENT_FILTER.get(segment, '1=0')
         with connection.cursor() as cur:
-            cur.execute(f"""
-                WITH customer_stats AS (
-                    SELECT "Customer Mobile", MAX("Customer Name") AS customer_name,
-                        COUNT(DISTINCT "Date") AS visits,
-                        SUM("Total Value")::FLOAT AS net_revenue,
-                        MAX("Date") AS last_visit
-                    FROM {TABLE} WHERE {where_sql} AND {VALID_MOBILE}
-                    GROUP BY "Customer Mobile"
-                )
-                SELECT "Customer Mobile", customer_name, visits, net_revenue, last_visit
-                FROM customer_stats WHERE {seg_pred}
-                ORDER BY net_revenue DESC NULLS LAST
-                LIMIT {self.SEGMENT_CHUNK_SIZE} OFFSET {offset}
-            """, params)
+            if where_sql == "1=1":
+                cur.execute(f"""
+                    SELECT mobile AS "Customer Mobile", '' AS customer_name, visits, total_spend AS net_revenue, last_visit
+                    FROM mv_customer_summary
+                    WHERE {seg_pred}
+                    ORDER BY total_spend DESC NULLS LAST, mobile ASC
+                    LIMIT {self.SEGMENT_CHUNK_SIZE} OFFSET {offset}
+                """)
+            else:
+                cur.execute(f"""
+                    WITH customer_stats AS (
+                        SELECT "Customer Mobile", MAX("Customer Name") AS customer_name,
+                            COUNT(DISTINCT "Date") AS visits,
+                            SUM("Total Value")::FLOAT AS net_revenue,
+                            MAX("Date") AS last_visit
+                        FROM {TABLE} WHERE {where_sql} AND {VALID_MOBILE}
+                        GROUP BY "Customer Mobile"
+                    )
+                    SELECT "Customer Mobile", customer_name, visits, net_revenue, last_visit
+                    FROM customer_stats WHERE {seg_pred}
+                    ORDER BY net_revenue DESC NULLS LAST, "Customer Mobile" ASC
+                    LIMIT {self.SEGMENT_CHUNK_SIZE} OFFSET {offset}
+                """, params)
             return [d[0] for d in cur.description], cur.fetchall()
 
     def count_customers_for_segment(self, filters, segment):
         where_sql, params = self._build_where_clause(filters)
         seg_pred = self._SEGMENT_FILTER.get(segment, '1=0')
+        if where_sql == "1=1":
+            r = _q1(f"SELECT COUNT(*) FROM mv_customer_summary WHERE {seg_pred}")
+            return r[0] if r else 0
         r = _q1(f"""
             WITH cs AS (
                 SELECT "Customer Mobile", COUNT(DISTINCT "Date") AS visits
@@ -304,6 +316,44 @@ END) <= %s::DATE''')
             )
             SELECT COUNT(*) FROM cs WHERE {seg_pred}
         """, params)
+        return r[0] if r else 0
+
+    def get_all_customers(self, filters, offset=0):
+        where_sql, params = self._build_where_clause(filters)
+        with connection.cursor() as cur:
+            if where_sql == "1=1":
+                cur.execute(f"""
+                    SELECT mobile AS "Customer Mobile", '' AS customer_name, visits, total_spend AS net_revenue, last_visit
+                    FROM mv_customer_summary
+                    ORDER BY total_spend DESC NULLS LAST, mobile ASC
+                    LIMIT {self.SEGMENT_CHUNK_SIZE} OFFSET {offset}
+                """)
+            else:
+                cur.execute(f"""
+                    WITH customer_stats AS (
+                        SELECT "Customer Mobile", MAX("Customer Name") AS customer_name,
+                            COUNT(DISTINCT "Date") AS visits,
+                            SUM("Total Value")::FLOAT AS net_revenue,
+                            MAX("Date") AS last_visit
+                        FROM {TABLE} WHERE {where_sql} AND {VALID_MOBILE}
+                        GROUP BY "Customer Mobile"
+                    )
+                    SELECT "Customer Mobile", customer_name, visits, net_revenue, last_visit
+                    FROM customer_stats
+                    ORDER BY net_revenue DESC NULLS LAST, "Customer Mobile" ASC
+                    LIMIT {self.SEGMENT_CHUNK_SIZE} OFFSET {offset}
+                """, params)
+            return [d[0] for d in cur.description], cur.fetchall()
+
+    def count_all_customers(self, filters):
+        where_sql, params = self._build_where_clause(filters)
+        if where_sql == "1=1":
+            r = _q1("SELECT COUNT(*) FROM mv_customer_summary")
+        else:
+            r = _q1(f"""
+                SELECT COUNT(DISTINCT "Customer Mobile")
+                FROM {TABLE} WHERE {where_sql} AND {VALID_MOBILE}
+            """, params)
         return r[0] if r else 0
 
     # ── RFM ──────────────────────────────────────────────────────────────────
@@ -1008,8 +1058,8 @@ END))::INT AS recency_days
             row = _q1(f"""
                 WITH parsed AS (
                     SELECT mobile, visits,
-                        GREATEST({last_expr}, {first_expr}) AS d_last,
-                        LEAST({last_expr},    {first_expr}) AS d_first
+                        GREATEST({last_expr}, {first_visit}) AS d_last,
+                        LEAST({last_expr},    {first_visit}) AS d_first
                     FROM mv_customer_summary
                 )
                 SELECT

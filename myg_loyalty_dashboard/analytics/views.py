@@ -451,6 +451,25 @@ def export_view(request, module):
                            'Net Revenue (INR)', 'Last Visit Date']
         return _build_xlsx_response(filename, display_headers, rows)
 
+    elif module == 'all-customers':
+        part = int(request.GET.get('part', '1'))
+        chunk = svc.SEGMENT_CHUNK_SIZE
+
+        if part == 0:
+            total = svc.count_all_customers(filters)
+            total_parts = max(1, math.ceil(total / chunk))
+            return HttpResponse(
+                json.dumps({"total_parts": total_parts, "total_customers": total}),
+                content_type='application/json'
+            )
+
+        offset = (part - 1) * chunk
+        headers, rows = svc.get_all_customers(filters, offset)
+
+        filename = f"all_customers_part{part}.xlsx" if svc.count_all_customers(filters) > chunk else "all_customers.xlsx"
+        display_headers = ['Customer Mobile', 'Customer Name', 'Visits', 'Net Revenue (INR)', 'Last Visit Date']
+        return _build_xlsx_response(filename, display_headers, rows)
+
     elif module == 'retail-analytics':
         rows_data, db_start = svc.get_retail_loyalty_matrix(filters)
 

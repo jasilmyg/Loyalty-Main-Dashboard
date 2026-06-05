@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'dashboard',
     'users',
     'django.contrib.humanize',
+    'ai_agent',
 ]
 
 MIDDLEWARE = [
@@ -141,13 +142,23 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'
 
-# Caching Configuration
+# Caching Configuration (Local Memory for development)
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
         'LOCATION': 'unique-snowflake',
     }
 }
+
+# Celery Configuration
+CELERY_BROKER_URL = 'memory://'
+CELERY_RESULT_BACKEND = 'cache+memory://'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+
+# Run Celery tasks synchronously locally to bypass Redis crashes
+CELERY_TASK_ALWAYS_EAGER = True
+CELERY_TASK_STORE_EAGER_RESULT = True
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'

@@ -259,11 +259,11 @@
 
             // Aggregate by month for waterfall
             let monthTotals = {
-                'Jan 2026': {reactivated: 0, revenue: 0, remaining: 0}, 
-                'Feb 2026': {reactivated: 0, revenue: 0, remaining: 0}, 
-                'Mar 2026': {reactivated: 0, revenue: 0, remaining: 0}, 
-                'Apr 2026': {reactivated: 0, revenue: 0, remaining: 0}, 
-                'May 2026': {reactivated: 0, revenue: 0, remaining: 0}
+                'Jan 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0}, 
+                'Feb 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0}, 
+                'Mar 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0}, 
+                'Apr 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0}, 
+                'May 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0}
             };
 
             let tableHtml = '';
@@ -278,6 +278,8 @@
                     monthTotals[mb.month].reactivated += mb.reactivated;
                     monthTotals[mb.month].revenue += mb.revenue;
                     monthTotals[mb.month].remaining += mb.remaining;
+                    monthTotals[mb.month].redeemed_points += mb.redeemed_points;
+                    monthTotals[mb.month].redeemed_sales += mb.redeemed_sales;
                     
                     monthCells += `
                         <td>
@@ -286,6 +288,8 @@
                                 <span class="hm-sub">Rate: <span style="color:#10b981; font-weight:600;">${(mb.reactivated / cohort.initial_base * 100).toFixed(2)}%</span></span>
                                 <span class="hm-sub">Bal: ${fmtNum(mb.remaining)}</span>
                                 <span class="hm-sub" style="color: #f59e0b; font-weight: 600; margin-top: 2px;">${fmtRs(mb.revenue)}</span>
+                                <span class="hm-sub" style="color: #8b5cf6; font-size: 0.65rem;">Pts: ${fmtNum(mb.redeemed_points)}</span>
+                                <span class="hm-sub" style="color: #ec4899; font-size: 0.65rem;">R.Sales: ${fmtRs(mb.redeemed_sales)}</span>
                             </div>
                         </td>
                     `;
@@ -318,6 +322,8 @@
                                 <span class="hm-sub">Rate: <span style="color:#10b981; font-weight:700;">${mRate}%</span></span>
                                 <span class="hm-sub">Bal: ${fmtNum(mData.remaining)}</span>
                                 <span class="hm-sub" style="color: #f59e0b; font-weight: 700; margin-top: 2px;">${fmtRs(mData.revenue)}</span>
+                                <span class="hm-sub" style="color: #8b5cf6; font-size: 0.65rem;">Pts: ${fmtNum(mData.redeemed_points)}</span>
+                                <span class="hm-sub" style="color: #ec4899; font-size: 0.65rem;">R.Sales: ${fmtRs(mData.redeemed_sales)}</span>
                             </div>
                         </td>
                 `;

@@ -180,6 +180,9 @@
                 <a class="nav-link {% if request.resolver_match.url_name == 'campaign_analysis' %}active{% endif %}" href="{% url 'campaign_analysis' %}"><i class="bi bi-megaphone"></i> Campaign Analysis</a>
             </li>
             <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'redemption_analysis' %}active{% endif %}" href="{% url 'redemption_analysis' %}"><i class="bi bi-gift"></i> Redemption Analysis</a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'target_executive' %}active{% endif %}" href="{% url 'target_executive' %}"><i class="bi bi-bullseye text-danger"></i> Target Analysis Dashboard</a>
             </li>
         </ul>
@@ -203,6 +206,18 @@
             <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'enterprise_dashboard' %}active{% endif %}" href="{% url 'enterprise_dashboard' %}">
                     <i class="bi bi-graph-up-arrow"></i> Executive Dashboard
+                </a>
+            </li>
+        </ul>
+
+        <div class="mb-2 mt-3" style="padding-left: 2.5rem;">
+            <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">Enterprise Intelligence</small>
+        </div>
+        <ul class="nav flex-column mb-4">
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'ai_chat' %}active{% endif %}" href="{% url 'ai_chat' %}" style="border-left: 4px solid #10b981; color: #10b981; background: rgba(16, 185, 129, 0.04); font-weight: 600;">
+                    <i class="bi bi-robot" style="color: #10b981; font-size: 1.25rem; margin-right: 12px !important;"></i> Enterprise AI Agent
+                    <span class="badge bg-success ms-1" style="font-size: 8px; font-weight: 800; vertical-align: middle; box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);">NEW</span>
                 </a>
             </li>
         </ul>

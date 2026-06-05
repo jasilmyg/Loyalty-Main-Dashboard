@@ -510,7 +510,9 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                     cohort_year,
                     first_2026_month,
                     unique_customers,
-                    total_revenue
+                    total_revenue,
+                    total_redeemed_points,
+                    total_redeemed_sales
                 FROM mv_dormant_reactivation
                 ORDER BY cohort_year ASC, first_2026_month ASC NULLS FIRST
             """)
@@ -532,6 +534,8 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                 month_val = row[1]
                 count = row[2]
                 rev = row[3] or 0
+                pts = row[4] or 0
+                r_sales = row[5] or 0
                 
                 if c_year in cohort_data:
                     cohort_data[c_year]['initial_base'] += count
@@ -541,7 +545,9 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                         month_str = month_val.strftime('%b %Y')
                         cohort_data[c_year]['reactivations'][month_str] = {
                             'count': count,
-                            'revenue': float(rev)
+                            'revenue': float(rev),
+                            'redeemed_points': float(pts),
+                            'redeemed_sales': float(r_sales)
                         }
                         cohort_data[c_year]['reactivated_revenue'] += float(rev)
 
@@ -562,15 +568,19 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                 total_reactivated = 0
                 
                 for m in months:
-                    r_data = data['reactivations'].get(m, {'count': 0, 'revenue': 0.0})
+                    r_data = data['reactivations'].get(m, {'count': 0, 'revenue': 0.0, 'redeemed_points': 0.0, 'redeemed_sales': 0.0})
                     r_count = r_data['count']
                     r_rev = r_data['revenue']
+                    r_pts = r_data.get('redeemed_points', 0.0)
+                    r_sales = r_data.get('redeemed_sales', 0.0)
                     running_balance -= r_count
                     total_reactivated += r_count
                     monthly_breakdown.append({
                         'month': m,
                         'reactivated': r_count,
                         'revenue': r_rev,
+                        'redeemed_points': r_pts,
+                        'redeemed_sales': r_sales,
                         'remaining': running_balance
                     })
                 
@@ -904,3 +914,42 @@ class SheStartDetailedDataAPIView(UserPassesTestMixin, View):
         from analytics.she_start_detailed_engine import fetch_she_start_detailed_data
         response_data = fetch_she_start_detailed_data()
         return JsonResponse(response_data)
+
+class RedemptionAnalysisView(LoginRequiredMixin, TemplateView):
+    template_name = 'dashboard/redemption_analysis.html'
+
+class RedemptionAnalysisAPIView(LoginRequiredMixin, View):
+    def get(self, request):
+        from analytics.services import _q
+        import traceback
+        try:
+            rows = _q("""
+                SELECT
+                    month_label,
+                    redeemed_customer_count,
+                    redeemed_point_value,
+                    redeemed_sale_value,
+                    pct_loyalty_discount,
+                    asp
+                FROM mv_redemption_analysis
+                ORDER BY month_start ASC
+            """)
+            
+            data = [
+                {
+                    'month': r[0],
+                    'customer_count': r[1],
+                    'point_value': float(r[2] or 0),
+                    'sale_value': float(r[3] or 0),
+                    'pct_discount': float(r[4] or 0),
+                    'asp': float(r[5] or 0),
+                }
+                for r in rows
+            ]
+            return JsonResponse({'status': 'success', 'data': data})
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': str(e),
+                'trace': traceback.format_exc()
+            }, status=500)

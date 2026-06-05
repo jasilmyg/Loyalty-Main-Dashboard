@@ -3,7 +3,7 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="fw-bold m-0">Customer Analytics</h2>
-    {% if request.user.username != 'myguser' %}
+    {% if request.user.username == 'mygadmin' %}
     <button id="freq-export-btn" class="btn btn-success" onclick="downloadReport()">
         <i class="bi bi-file-earmark-excel"></i> <span id="export-btn-label">Download Report</span>
     </button>
@@ -14,7 +14,14 @@
     <!-- Stat Cards -->
     <div class="col-md-4">
         <div class="card stat-card p-4 h-100">
-            <div class="stat-label">Total Customers</div>
+            <div class="stat-label d-flex justify-content-between align-items-center">
+                Unique Customers
+                {% if request.user.username == 'mygadmin' %}
+                <button id="dl-all-customers" class="btn btn-sm btn-outline-success border-0 p-0" onclick="downloadAllCustomers()" title="Download all unique customers">
+                    <i class="bi bi-cloud-arrow-down fs-5"></i>
+                </button>
+                {% endif %}
+            </div>
             <div class="stat-value" id="c-total">0</div>
         </div>
     </div>
@@ -50,7 +57,7 @@
                                 <th class="text-end">Net Revenue</th>
                                 <th class="text-end">Rev %</th>
                                 <th class="text-end">ASP</th>
-                                {% if request.user.username != 'myguser' %}
+                                {% if request.user.username == 'mygadmin' %}
                                 <th class="text-center">Download</th>
                                 {% endif %}
                             </tr>
@@ -218,7 +225,7 @@
                         <td class="text-end">${INR(d.net_revenue)}</td>
                         <td class="text-end">${d.rev_pct}%</td>
                         <td class="text-end">${INR(d.asp)}</td>
-                        ${'{% if request.user.username != "myguser" %}true{% else %}false{% endif %}' === 'true' ? `
+                        ${'{% if request.user.username == "mygadmin" %}true{% else %}false{% endif %}' === 'true' ? `
                         <td class="text-center">
                             <button id="${btnId}"
                                 class="btn btn-sm btn-outline-success"
@@ -302,6 +309,64 @@
         } finally {
             btn.disabled = false;
             btn.innerHTML = '<i class="bi bi-cloud-arrow-down"></i>';
+        }
+    }
+
+    // ── All customers download ──────────────────────────────────────────────
+    async function downloadAllCustomers() {
+        const btn = document.getElementById('dl-all-customers');
+        if (!btn || btn.disabled) return;
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm text-success"></span>';
+
+        try {
+            const ts  = Date.now();
+            const qs  = currentFilterStr ? `&${currentFilterStr}` : '';
+            const base = `/api/v1/download/all-customers/?${qs}&_t=${ts}`;
+
+            const infoResp = await fetch(`${base}&part=0`);
+            if (!infoResp.ok) throw new Error('Failed to get part info');
+            const info = await infoResp.json();
+            const totalParts = info.total_parts;
+
+            if (totalParts > 1) {
+                showToast(`All Customers: downloading ${totalParts} parts…`);
+            }
+
+            for (let p = 1; p <= totalParts; p++) {
+                if (totalParts > 1) {
+                    btn.innerHTML = `<span class="spinner-border spinner-border-sm text-success"></span> ${p}/${totalParts}`;
+                }
+                const resp = await fetch(`${base}&part=${p}`);
+                if (!resp.ok) throw new Error(`Part ${p} failed`);
+                const blob = await resp.blob();
+                const excelBlob = new Blob([blob], {
+                    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                });
+                const url = window.URL.createObjectURL(excelBlob);
+                const a   = document.createElement('a');
+                a.style.display = 'none';
+                a.href     = url;
+                a.download = totalParts > 1
+                    ? `all_customers_part${p}.xlsx`
+                    : `all_customers.xlsx`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+                if (p < totalParts) await new Promise(r => setTimeout(r, 800));
+            }
+
+            if (totalParts > 1) showToast(`All Customers: all ${totalParts} parts downloaded ✓`, 'success');
+
+        } catch (err) {
+            console.error('All Customers download failed:', err);
+            alert(`Download failed for "All Customers". Please try again.`);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-cloud-arrow-down fs-5"></i>';
         }
     }
 

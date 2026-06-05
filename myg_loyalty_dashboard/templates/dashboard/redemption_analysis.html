@@ -1,0 +1,247 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+    .kpi-card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        border: 1px solid #f1f5f9;
+        transition: transform 0.2s;
+        height: 100%;
+    }
+    .kpi-card:hover {
+        transform: translateY(-2px);
+    }
+    .kpi-title {
+        color: #64748b;
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.5rem;
+    }
+    .kpi-value {
+        color: #0f172a;
+        font-size: 1.875rem;
+        font-weight: 700;
+    }
+    .kpi-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+    .bg-primary-light { background: #e0e7ff; color: #4f46e5; }
+    .bg-success-light { background: #dcfce7; color: #16a34a; }
+    .bg-warning-light { background: #fef3c7; color: #d97706; }
+    .bg-purple-light { background: #f3e8ff; color: #9333ea; }
+    
+    .table-container {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        border: 1px solid #f1f5f9;
+        overflow: hidden;
+    }
+    .data-table th {
+        background: #f8fafc;
+        color: #475569;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 0.05em;
+        padding: 1rem;
+        border-bottom: 2px solid #e2e8f0;
+    }
+    .data-table td {
+        padding: 1rem;
+        color: #334155;
+        vertical-align: middle;
+        border-bottom: 1px solid #f1f5f9;
+    }
+    .data-table tbody tr:hover {
+        background-color: #f8fafc;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1">Redemption Analysis</h2>
+            <p class="text-muted mb-0">Monthly analysis of loyalty point redemptions and their impact on sales.</p>
+        </div>
+        <button class="btn btn-outline-primary" onclick="loadData()"><i class="bi bi-arrow-clockwise me-2"></i>Refresh Data</button>
+    </div>
+
+    <!-- KPIs -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-3">
+            <div class="kpi-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="kpi-title">Avg Pct Discount</div>
+                        <div class="kpi-value" id="kpi-discount">0%</div>
+                    </div>
+                    <div class="kpi-icon bg-primary-light">
+                        <i class="bi bi-percent"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="kpi-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="kpi-title">Total Redeemed Points</div>
+                        <div class="kpi-value" id="kpi-points">0</div>
+                    </div>
+                    <div class="kpi-icon bg-warning-light">
+                        <i class="bi bi-star-fill"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="kpi-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="kpi-title">Total Redeemed Sale Value</div>
+                        <div class="kpi-value" id="kpi-sales">₹0</div>
+                    </div>
+                    <div class="kpi-icon bg-success-light">
+                        <i class="bi bi-currency-rupee"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="kpi-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="kpi-title">Avg ASP</div>
+                        <div class="kpi-value" id="kpi-asp">₹0</div>
+                    </div>
+                    <div class="kpi-icon bg-purple-light">
+                        <i class="bi bi-graph-up-arrow"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="table-container mb-5">
+        <div class="table-responsive">
+            <table class="table data-table mb-0" id="redemptionTable">
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        <th class="text-end">Redeemed Customer Count</th>
+                        <th class="text-end">Redeemed Point Value</th>
+                        <th class="text-end">Redeemed Sale Value</th>
+                        <th class="text-end">% Loyalty Discount</th>
+                        <th class="text-end">ASP</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">
+                            <div class="spinner-border text-primary mb-2" role="status"></div>
+                            <div>Loading Redemption Data...</div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const formatTableNumber = (num) => {
+        if(num === null || num === undefined) return '0';
+        return new Intl.NumberFormat('en-IN').format(Math.round(num));
+    };
+
+    const formatTableCurrency = (num) => {
+        if(num === null || num === undefined) return '₹0';
+        return new Intl.NumberFormat('en-IN', {
+            style: 'currency',
+            currency: 'INR',
+            maximumFractionDigits: 0
+        }).format(num);
+    };
+
+    const formatTablePercent = (num) => {
+        if(num === null || num === undefined) return '0%';
+        return num.toFixed(1) + '%';
+    };
+
+    async function loadData() {
+        try {
+            const tbody = document.querySelector('#redemptionTable tbody');
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-5 text-muted"><div class="spinner-border text-primary mb-2" role="status"></div><div>Loading Redemption Data...</div></td></tr>`;
+            
+            const response = await fetch('/api/v1/redemption-analysis/');
+            const result = await response.json();
+            
+            if (result.status === 'success' && result.data.length > 0) {
+                let html = '';
+                let totalPoints = 0;
+                let totalSales = 0;
+                let totalCustomers = 0;
+                
+                result.data.forEach(row => {
+                    totalPoints += row.point_value;
+                    totalSales += row.sale_value;
+                    totalCustomers += row.customer_count;
+                    
+                    html += `
+                        <tr>
+                            <td class="fw-semibold text-dark">${row.month}</td>
+                            <td class="text-end">${formatTableNumber(row.customer_count)}</td>
+                            <td class="text-end fw-medium text-warning">${formatTableNumber(row.point_value)}</td>
+                            <td class="text-end fw-medium text-success">${formatTableNumber(row.sale_value)}</td>
+                            <td class="text-end fw-bold text-primary">${formatTablePercent(row.pct_discount)}</td>
+                            <td class="text-end text-muted">${formatTableNumber(row.asp)}</td>
+                        </tr>
+                    `;
+                });
+                
+                tbody.innerHTML = html;
+                
+                // Update KPIs
+                document.getElementById('kpi-points').textContent = formatTableNumber(totalPoints);
+                document.getElementById('kpi-sales').textContent = formatTableCurrency(totalSales);
+                
+                if (totalSales > 0) {
+                    const avgPct = (totalPoints / totalSales) * 100;
+                    document.getElementById('kpi-discount').textContent = formatTablePercent(avgPct);
+                }
+                if (totalCustomers > 0) {
+                    const avgAsp = totalSales / totalCustomers;
+                    document.getElementById('kpi-asp').textContent = formatTableCurrency(avgAsp);
+                }
+                
+            } else {
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-5 text-muted">No redemption data found. Ensure Materialized View is built.</td></tr>`;
+            }
+        } catch (error) {
+            console.error("Error loading redemption data:", error);
+            const tbody = document.querySelector('#redemptionTable tbody');
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-5 text-danger"><i class="bi bi-exclamation-triangle me-2"></i>Failed to load data.</td></tr>`;
+        }
+    }
+
+    loadData();
+</script>
+{% endblock %}
