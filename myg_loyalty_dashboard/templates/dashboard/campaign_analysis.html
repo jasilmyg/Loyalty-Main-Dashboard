@@ -258,6 +258,8 @@
 {% block extra_js %}
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 <script>
+    const isMyAdmin = "{{ request.user.username }}" === "mygadmin" || "{{ request.user.is_superuser }}" === "True";
+
     function fmtNum(n) { return Number(n).toLocaleString('en-IN'); }
     function fmtRs(n) {
         if (n >= 1e7) return '₹' + (n / 1e7).toFixed(2) + ' Cr';
@@ -327,8 +329,14 @@
                             <div class="hm-cell">
                                 <span class="hm-val">${fmtNum(mb.reactivated)}</span>
                                 <span class="hm-sub">Rate: <span style="color:#10b981; font-weight:600;">${(mb.reactivated / cohort.initial_base * 100).toFixed(2)}%</span></span>
-                                <span class="hm-sub">Bal: ${fmtNum(mb.remaining)}</span>
-                                <span class="hm-sub" style="color: #f59e0b; font-weight: 600; margin-top: 2px;">${fmtRs(mb.revenue)}</span>
+                                <span class="hm-sub">
+                                    Bal: ${fmtNum(mb.remaining)}
+                                    ${mb.remaining > 0 && isMyAdmin ? `<a href="/api/v1/campaign-analysis/download-dormant/?cohort_year=${cohort.cohort_year}&month=${mb.month}" target="_blank" style="text-decoration:none; margin-left: 4px;" title="Download Dormant Customers"><i class="bi bi-file-earmark-excel text-danger"></i></a>` : ''}
+                                </span>
+                                <span class="hm-sub" style="color: #f59e0b; font-weight: 600; margin-top: 2px;">
+                                    ${fmtRs(mb.revenue)}
+                                    ${mb.reactivated > 0 && isMyAdmin ? `<a href="/api/v1/campaign-analysis/download-resurrected/?cohort_year=${cohort.cohort_year}&month=${mb.month}" target="_blank" style="text-decoration:none; margin-left: 4px;" title="Download Customer Details"><i class="bi bi-file-earmark-excel text-success"></i></a>` : ''}
+                                </span>
                             </div>
                         </td>
                     `;
@@ -341,7 +349,7 @@
                                 <span class="hm-sub" style="color: #ec4899; font-size: 0.65rem;">R.Sales: ${fmtRs(mb.redeemed_sales)}</span>
                                 <span class="hm-sub" style="color: #0ea5e9; font-size: 0.65rem;">
                                     R.Cust: ${fmtNum(mb.redeemed_customers)}
-                                    ${mb.redeemed_customers > 0 ? `<a href="/api/v1/campaign-analysis/download-loyalty/?cohort_year=${cohort.cohort_year}&month=${mb.month}" target="_blank" style="text-decoration:none; margin-left: 4px;" title="Download Customer Details"><i class="bi bi-file-earmark-excel text-success"></i></a>` : ''}
+                                    ${mb.redeemed_customers > 0 && isMyAdmin ? `<a href="/api/v1/campaign-analysis/download-loyalty/?cohort_year=${cohort.cohort_year}&month=${mb.month}" target="_blank" style="text-decoration:none; margin-left: 4px;" title="Download Customer Details"><i class="bi bi-file-earmark-excel text-success"></i></a>` : ''}
                                 </span>
                             </div>
                         </td>
