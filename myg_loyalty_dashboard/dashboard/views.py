@@ -958,3 +958,98 @@ class RedemptionAnalysisAPIView(LoginRequiredMixin, View):
                 'message': str(e),
                 'trace': traceback.format_exc()
             }, status=500)
+
+
+class CampaignLoyaltyDownloadAPIView(View):
+    def get(self, request):
+        from analytics.services import _q
+        import traceback
+        import io
+        import xlsxwriter
+        from django.http import HttpResponse
+
+        cohort_year = request.GET.get('cohort_year')
+        month_str = request.GET.get('month')
+
+        if not cohort_year or not month_str:
+            return JsonResponse({'status': 'error', 'message': 'Missing cohort_year or month'}, status=400)
+
+        month_map = {
+            'Jan 2026': '2026-01-01',
+            'Feb 2026': '2026-02-01',
+            'Mar 2026': '2026-03-01',
+            'Apr 2026': '2026-04-01',
+            'May 2026': '2026-05-01'
+        }
+        
+        target_date = month_map.get(month_str)
+        if not target_date:
+            return JsonResponse({'status': 'error', 'message': 'Invalid month'}, status=400)
+
+        try:
+            cohort_year = int(cohort_year)
+            rows = _q("""
+                SELECT 
+                    "Customer Mobile",
+                    customer_name,
+                    last_branch,
+                    last_purchase_date,
+                    reactivated_revenue,
+                    reactivated_redeemed_points,
+                    reactivated_redeemed_sales
+                FROM mv_dormant_reactivation_customers
+                WHERE cohort_year = %s
+                  AND first_2026_month = %s
+                  AND reactivated_redeemed_customers > 0
+                ORDER BY reactivated_redeemed_points DESC NULLS LAST
+            """, [cohort_year, target_date])
+
+            output = io.BytesIO()
+            workbook = xlsxwriter.Workbook(output)
+            worksheet = workbook.add_worksheet('Loyalty Customers')
+
+            # Formats
+            header_format = workbook.add_format({
+                'bold': True, 'bg_color': '#0f172a', 'font_color': 'white', 
+                'border': 1, 'align': 'center'
+            })
+            cell_format = workbook.add_format({'border': 1})
+            num_format = workbook.add_format({'border': 1, 'num_format': '#,##0'})
+            curr_format = workbook.add_format({'border': 1, 'num_format': '₹ #,##0.00'})
+            date_format = workbook.add_format({'border': 1, 'num_format': 'yyyy-mm-dd'})
+
+            headers = [
+                'Customer Mobile', 'Customer Name', 'Last Branch', 'Last Purchase Date', 
+                'Reactivated Revenue', 'Redeemed Points', 'Redeemed Sales'
+            ]
+
+            for col_num, header in enumerate(headers):
+                worksheet.write(0, col_num, header, header_format)
+
+            worksheet.set_column('A:A', 15)
+            worksheet.set_column('B:B', 25)
+            worksheet.set_column('C:C', 20)
+            worksheet.set_column('D:D', 15)
+            worksheet.set_column('E:G', 18)
+
+            for row_num, row in enumerate(rows, 1):
+                worksheet.write(row_num, 0, row[0], cell_format)
+                worksheet.write(row_num, 1, row[1], cell_format)
+                worksheet.write(row_num, 2, row[2], cell_format)
+                worksheet.write_datetime(row_num, 3, row[3], date_format) if row[3] else worksheet.write(row_num, 3, '', cell_format)
+                worksheet.write(row_num, 4, float(row[4] or 0), curr_format)
+                worksheet.write(row_num, 5, float(row[5] or 0), num_format)
+                worksheet.write(row_num, 6, float(row[6] or 0), curr_format)
+
+            workbook.close()
+            output.seek(0)
+
+            response = HttpResponse(
+                output.read(),
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            response['Content-Disposition'] = f'attachment; filename="Loyalty_Customers_{cohort_year}_{month_str.replace(" ", "_")}.xlsx"'
+            return response
+
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e), 'trace': traceback.format_exc()}, status=500)

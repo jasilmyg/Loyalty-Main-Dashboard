@@ -339,7 +339,10 @@
                                 <span class="hm-val" style="color:#0f172a;">${fmtNum(mb.reactivated)}</span>
                                 <span class="hm-sub" style="color: #8b5cf6; font-size: 0.65rem;">Pts: ${fmtNum(mb.redeemed_points)}</span>
                                 <span class="hm-sub" style="color: #ec4899; font-size: 0.65rem;">R.Sales: ${fmtRs(mb.redeemed_sales)}</span>
-                                <span class="hm-sub" style="color: #0ea5e9; font-size: 0.65rem;">R.Cust: ${fmtNum(mb.redeemed_customers)}</span>
+                                <span class="hm-sub" style="color: #0ea5e9; font-size: 0.65rem;">
+                                    R.Cust: ${fmtNum(mb.redeemed_customers)}
+                                    ${mb.redeemed_customers > 0 ? `<a href="/api/v1/campaign-analysis/download-loyalty/?cohort_year=${cohort.cohort_year}&month=${mb.month}" target="_blank" style="text-decoration:none; margin-left: 4px;" title="Download Customer Details"><i class="bi bi-file-earmark-excel text-success"></i></a>` : ''}
+                                </span>
                             </div>
                         </td>
                     `;
