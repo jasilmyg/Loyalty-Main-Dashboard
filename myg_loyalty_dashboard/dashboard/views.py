@@ -164,12 +164,9 @@ class DBManagerView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                 
                 # --- DATA HYGIENE FILTERS ---
                 if 'Invoice Number' in df.columns:
-                    # Remove any row where Invoice Number contains 'SMC/EI'
-                    # fillna('') ensures we don't break on NaN values
                     df = df[~df['Invoice Number'].astype(str).str.contains('SMC/EI', na=False, case=False)]
                 
                 if 'Branch' in df.columns:
-                    # Remove specific branches
                     df = df[~df['Branch'].astype(str).str.upper().str.strip().isin(['HEAD OFFICE', 'UG SMART CHOICE'])]
                     
                 final_count = len(df)
@@ -186,14 +183,41 @@ class DBManagerView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                 # Append directly to sales_data
                 df.to_sql('sales_data', con=engine, if_exists='append', index=False)
                 
-                # Trigger the Materialized Views refresh asynchronously so it doesn't block the UI
-                import subprocess
-                import sys
-                subprocess.Popen([sys.executable, 'refresh_mvs.py'])
+                # ── CRITICAL: Populate parsed_date for newly inserted rows ──────────
+                # All dashboard queries filter on parsed_date (a proper DATE column).
+                # Raw uploads from Excel have Date as text/timestamp but parsed_date=NULL.
+                # Without this step, ALL new rows are invisible to every dashboard chart.
+                from django.db import connection as _conn
+                with _conn.cursor() as _cur:
+                    _cur.execute("""
+                        UPDATE sales_data
+                        SET parsed_date = CASE
+                            WHEN ("Date"::text) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+                                THEN TO_DATE(SUBSTRING(("Date"::text), 1, 10), 'YYYY-MM-DD')
+                            WHEN ("Date"::text) ~ '^[0-9]{2}-[0-9]{2}-[0-9]{4}'
+                                THEN TO_DATE(("Date"::text), 'DD-MM-YYYY')
+                            WHEN ("Date"::text) ~ '^[0-9]{2}/[0-9]{2}/[0-9]{4}'
+                                THEN TO_DATE(("Date"::text), 'DD/MM/YYYY')
+                            WHEN ("Date"::text) ~ '^[0-9]{4}/[0-9]{2}/[0-9]{2}'
+                                THEN TO_DATE(SUBSTRING(("Date"::text), 1, 10), 'YYYY/MM/DD')
+                            ELSE NULL
+                        END
+                        WHERE parsed_date IS NULL;
+                    """)
                 
                 # Clear entire cache so sidebar and views update immediately
                 from django.core.cache import cache
                 cache.clear()
+                
+                # Return JSON for AJAX upload flow
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'status': 'success',
+                        'records_uploaded': final_count,
+                        'records_filtered': filtered_out,
+                        'original_count': original_count,
+                        'filename': upload_file.name,
+                    })
                 
                 msg = f"Successfully uploaded {final_count:,} records into PostgreSQL."
                 if filtered_out > 0:
@@ -201,9 +225,58 @@ class DBManagerView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                 
                 messages.success(request, msg)
             except Exception as e:
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
                 messages.error(request, f"Error uploading data: {str(e)}")
                 
         return redirect('db_manager')
+
+
+class DBManagerRefreshMVsView(LoginRequiredMixin, View):
+    """Triggers async materialized view refresh and streams progress via SSE."""
+    def post(self, request, *args, **kwargs):
+        if not request.user.is_superuser:
+            return JsonResponse({'error': 'Unauthorized'}, status=403)
+
+        import threading
+        from django.db import connection as db_conn
+
+        results = {}
+
+        def refresh_all():
+            try:
+                with db_conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT matviewname FROM pg_matviews WHERE schemaname = 'public' ORDER BY matviewname;
+                    """)
+                    mvs = [r[0] for r in cur.fetchall()]
+
+                for mv in mvs:
+                    try:
+                        with db_conn.cursor() as cur:
+                            try:
+                                cur.execute(f'REFRESH MATERIALIZED VIEW CONCURRENTLY "{mv}"')
+                            except Exception:
+                                cur.execute(f'REFRESH MATERIALIZED VIEW "{mv}"')
+                        results[mv] = 'ok'
+                    except Exception as e:
+                        results[mv] = f'error: {e}'
+            except Exception as e:
+                results['__error__'] = str(e)
+
+        thread = threading.Thread(target=refresh_all, daemon=True)
+        thread.start()
+        thread.join(timeout=300)  # max 5 minutes
+
+        failed = [k for k, v in results.items() if v != 'ok' and k != '__error__']
+        return JsonResponse({
+            'status': 'done',
+            'total': len(results),
+            'succeeded': len([v for v in results.values() if v == 'ok']),
+            'failed': failed,
+        })
+
+
 
 class ReactDashboardView(LoginRequiredMixin, TemplateView):
     template_name = 'dashboard/react_dashboard.html'
@@ -564,7 +637,7 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                 if base == 0:
                     continue
                     
-                months = ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026']
+                months = ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026', 'Jun 2026']
                 
                 monthly_breakdown = []
                 running_balance = base
@@ -611,12 +684,13 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
             from analytics.malayalam_calendar import MalayalamCalendarFeaturizer
 
             # Aggregate total reactivations per month
-            month_totals = { 'Jan 2026': 0, 'Feb 2026': 0, 'Mar 2026': 0, 'Apr 2026': 0, 'May 2026': 0 }
+            month_totals = { 'Jan 2026': 0, 'Feb 2026': 0, 'Mar 2026': 0, 'Apr 2026': 0, 'May 2026': 0, 'Jun 2026': 0 }
             for r in results:
                 for mb in r['monthly_breakdown']:
-                    month_totals[mb['month']] += mb['reactivated']
+                    if mb['month'] in month_totals:
+                        month_totals[mb['month']] += mb['reactivated']
                     
-            y_actual = [month_totals[m] for m in ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026']]
+            y_actual = [month_totals[m] for m in ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026', 'Jun 2026']]
             
             # Setup Dates for Calendar Featurizer 
             # 1. Generate Historical Training Set (2020-2025) to teach the network seasonal patterns
@@ -638,8 +712,8 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                     y_historical.append(int(vol))
             
             # 2. Add Actual 2026 Data
-            train_dates = [date(2026, 1, 15), date(2026, 2, 15), date(2026, 3, 15), date(2026, 4, 15), date(2026, 5, 15)]
-            pred_dates = [date(2026, 6, 15), date(2026, 7, 15), date(2026, 8, 15)]
+            train_dates = [date(2026, 1, 15), date(2026, 2, 15), date(2026, 3, 15), date(2026, 4, 15), date(2026, 5, 15), date(2026, 6, 15)]
+            pred_dates = [date(2026, 7, 15), date(2026, 8, 15), date(2026, 9, 15)]
             
             featurizer = MalayalamCalendarFeaturizer()
             

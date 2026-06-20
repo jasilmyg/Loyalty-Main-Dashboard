@@ -13,7 +13,7 @@ class VisualizationAgent:
         import uuid
         
         # 1. Let SQLAgent generate the query
-        generated_sql, error_msg = sql_agent.generate_query(user_prompt, user_context, model_name="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning")
+        generated_sql, error_msg = sql_agent.generate_query(user_prompt, user_context, model_name="nvidia/nemotron-3-ultra-550b-a55b:free")
         if error_msg:
             return {"error": error_msg}
             
@@ -30,20 +30,29 @@ class VisualizationAgent:
         x_col = headers[0]
         y_col = headers[1]
         
-        x_data = [str(row[x_col]) for row in results]
-        y_data = [row[y_col] for row in results]
+        # Aggregate data by X to prevent vertical spikes if query returns unaggregated data (e.g., daily instead of monthly)
+        from collections import defaultdict
+        agg_data = defaultdict(float)
+        
+        for row in results:
+            x_val = str(row[x_col])
+            y_val = row[y_col]
+            if y_val is None:
+                continue
+            try:
+                agg_data[x_val] += float(y_val)
+            except (ValueError, TypeError):
+                pass
+                
+        # Sort by X to ensure chronological or alphabetical order
+        sorted_items = sorted(agg_data.items(), key=lambda item: item[0])
+        x_data = [item[0] for item in sorted_items]
+        y_data = [item[1] for item in sorted_items]
         
         prompt_lower = user_prompt.lower()
         chart_id = f"chart_{uuid.uuid4().hex[:8]}"
         
         if "trend" in prompt_lower or "date" in x_col.lower() or "month" in x_col.lower():
-            # Sort by x_data to prevent zig-zag lines if SQL didn't ORDER BY
-            try:
-                sorted_pairs = sorted(zip(x_data, y_data), key=lambda pair: pair[0])
-                x_data = [pair[0] for pair in sorted_pairs]
-                y_data = [pair[1] for pair in sorted_pairs]
-            except Exception:
-                pass
 
             # Line Chart
             return {

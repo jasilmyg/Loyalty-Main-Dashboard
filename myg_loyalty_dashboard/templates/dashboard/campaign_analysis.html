@@ -101,13 +101,14 @@
                     <th>Mar 2026</th>
                     <th>Apr 2026</th>
                     <th>May 2026</th>
+                    <th>Jun 2026</th>
                     <th>Total Reactivated</th>
                     <th>Resurrection Rate</th>
                     <th>Revenue Generated</th>
                 </tr>
             </thead>
             <tbody>
-                <tr><td colspan="10" class="text-center py-4"><div class="spinner-ring"></div></td></tr>
+                <tr><td colspan="11" class="text-center py-4"><div class="spinner-ring"></div></td></tr>
             </tbody>
         </table>
     </div>
@@ -126,13 +127,14 @@
                     <th>Mar 2026</th>
                     <th>Apr 2026</th>
                     <th>May 2026</th>
+                    <th>Jun 2026</th>
                     <th>Total Pts</th>
                     <th>Total R.Sales</th>
                     <th>Total R.Cust</th>
                 </tr>
             </thead>
             <tbody>
-                <tr><td colspan="9" class="text-center py-4"><div class="spinner-ring"></div></td></tr>
+                <tr><td colspan="10" class="text-center py-4"><div class="spinner-ring"></div></td></tr>
             </tbody>
         </table>
     </div>
@@ -290,7 +292,8 @@
                 'Feb 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0}, 
                 'Mar 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0}, 
                 'Apr 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0}, 
-                'May 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0}
+                'May 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0},
+                'Jun 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0}
             };
 
             let tableHtml = '';
@@ -313,6 +316,7 @@
                 let cohortTotalCust = 0;
 
                 cohort.monthly_breakdown.forEach(mb => {
+                    if (!monthTotals[mb.month]) return; // skip unknown months
                     monthTotals[mb.month].reactivated += mb.reactivated;
                     monthTotals[mb.month].revenue += mb.revenue;
                     monthTotals[mb.month].remaining += mb.remaining;
@@ -388,7 +392,7 @@
             // Generate Total Row
             let totalMonthCells = '';
             let totalLoyaltyMonthCells = '';
-            ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026'].forEach(m => {
+            ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026', 'Jun 2026'].forEach(m => {
                 let mData = monthTotals[m];
                 let mRate = totalBase > 0 ? ((mData.reactivated / totalBase) * 100).toFixed(2) : 0;
                 
@@ -461,7 +465,7 @@
             `;
 
             // Plotly Waterfall
-            const wfX = ['Initial Base', 'Jan Return', 'Feb Return', 'Mar Return', 'Apr Return', 'May Return', 'Remaining Dormant'];
+            const wfX = ['Initial Base', 'Jan Return', 'Feb Return', 'Mar Return', 'Apr Return', 'May Return', 'Jun Return', 'Remaining Dormant'];
             const wfY = [
                 totalBase, 
                 -monthTotals['Jan 2026'].reactivated, 
@@ -469,9 +473,10 @@
                 -monthTotals['Mar 2026'].reactivated, 
                 -monthTotals['Apr 2026'].reactivated, 
                 -monthTotals['May 2026'].reactivated, 
+                -monthTotals['Jun 2026'].reactivated, 
                 totalBase - totalReactivated
             ];
-            const wfMeasure = ['absolute', 'relative', 'relative', 'relative', 'relative', 'relative', 'total'];
+            const wfMeasure = ['absolute', 'relative', 'relative', 'relative', 'relative', 'relative', 'relative', 'total'];
             
             const wfData = [{
                 name: 'Customers',
@@ -610,26 +615,26 @@
             }
 
             // 4. LSTM FORECAST CHART (Real Sklearn Predictions)
-            const lstmX = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun (Pred)', 'Jul (Pred)', 'Aug (Pred)'];
+            const lstmX = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul (Pred)', 'Aug (Pred)', 'Sep (Pred)'];
             const histY = aiData.historical;
             const predY = aiData.predictions;
             
             const traceHist = {
-                x: lstmX.slice(0, 5), y: histY,
+                x: lstmX.slice(0, 6), y: histY,
                 mode: 'lines+markers', name: 'Actual',
                 line: { color: '#0f172a', width: 3, shape: 'spline' },
                 marker: { size: 6, color: '#0f172a' }
             };
             
             const tracePred = {
-                x: lstmX.slice(4), y: [histY[4]].concat(predY),
+                x: lstmX.slice(5), y: [histY[5]].concat(predY),
                 mode: 'lines', name: 'Forecast',
                 line: { color: '#6366f1', width: 3, dash: 'dot', shape: 'spline' }
             };
 
             const traceBand = {
-                x: lstmX.slice(4).concat(lstmX.slice(4).reverse()),
-                y: [histY[4]].concat(aiData.upper_bound).concat([histY[4]].concat(aiData.lower_bound).reverse()),
+                x: lstmX.slice(5).concat(lstmX.slice(5).reverse()),
+                y: [histY[5]].concat(aiData.upper_bound).concat([histY[5]].concat(aiData.lower_bound).reverse()),
                 fill: 'toself', fillcolor: 'rgba(99, 102, 241, 0.15)',
                 line: { color: 'transparent' },
                 name: '95% Confidence Interval', showlegend: true, type: 'scatter'

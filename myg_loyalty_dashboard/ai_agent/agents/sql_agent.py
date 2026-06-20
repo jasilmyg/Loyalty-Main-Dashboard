@@ -11,7 +11,7 @@ class SQLAgent:
         self.knowledge_base = DATABASE_DICTIONARY
         self.model = "gpt-4" # Placeholder for actual LLM integration
 
-    def generate_query(self, user_prompt: str, user_context: dict, model_name: str = "google/gemma-3n-e4b-it") -> tuple[str, str]:
+    def generate_query(self, user_prompt: str, user_context: dict, model_name: str = "nvidia/nemotron-3-ultra-550b-a55b:free") -> tuple[str, str]:
         """
         Translates Natural Language to SQL.
         Returns (generated_sql, error_msg)
@@ -72,6 +72,7 @@ When answering questions:
 9. Return exact values from the database.
 10. Provide business insights after retrieving data (if applicable).
 11. Calculate Average Lifetime Value (LTV) using: `SUM("Total Value") / NULLIF(COUNT(DISTINCT "Customer Mobile"), 0)`
+12. Calculate Average Ticket Value (ATV) using: `SUM("Total Value") / NULLIF(COUNT(DISTINCT "Invoice Number"), 0)`
 Always explain assumptions.
 
 Schema (Only use these tables):
@@ -87,68 +88,104 @@ CRITICAL SYSTEM RULES (DO NOT IGNORE):
 7. IMPORTANT: NEVER use text matching (LIKE/ILIKE) on DATE columns! If filtering a DATE column by a specific year (e.g. 2024), use `date_column >= '2024-01-01' AND date_column < '2025-01-01'`. If filtering by a month (e.g. April 2026), use `EXTRACT(MONTH FROM date_column) = 4 AND EXTRACT(YEAR FROM date_column) = 2026`.
 8. IMPORTANT: If the user asks for a "trend" (like revenue trend or sales trend) without specifying a time interval, ALWAYS aggregate the data by MONTH using DATE_TRUNC('month', date_column) AND include a GROUP BY DATE_TRUNC('month', date_column) to show a smooth monthly trend, not a noisy daily one.
 9. IF YOU CANNOT generate a SQL query because the user's request is nonsensical or impossible, ALWAYS fallback to this exact query format: `SELECT 'ERROR: I could not understand your request or find the necessary data' AS error;`
+12. CRITICAL DATA FRESHNESS RULE — DATA IS COMPLETE ONLY UP TO MAY 2026:
+    - The database contains complete, finalized data up to and including May 31, 2026.
+    - June 2026 is the CURRENT month and has only PARTIAL data (a few days). It MUST be EXCLUDED from ALL trend, recent, or last-N-months queries to prevent misleading low values.
+    - Whenever you write a date filter for "recent", "last X months", "this year", or any open-ended range, ALWAYS cap the upper bound at '2026-06-01' (exclusive) so June 2026 is never included.
+    - For materialized views (mv_monthly_summary etc.), cap with: month_date < '2026-06-01'
+    - For raw sales_data, cap with: parsed_date < '2026-06-01'
+    - Example "last 6 months" = Dec 2025 through May 2026: parsed_date >= '2025-12-01' AND parsed_date < '2026-06-01'
+    - Example "last 12 months" = Jun 2025 through May 2026: parsed_date >= '2025-06-01' AND parsed_date < '2026-06-01'
+    - NEVER query using CURRENT_DATE or NOW() as the upper bound for aggregated trend queries.
 10. CRITICAL BUSINESS LOGIC: 
     - If a user asks for "Future Stores" or "Future Branches", you MUST filter using `branch_column ILIKE '%FUTURE%'`. 
     - If a user asks for "Normal Stores", you MUST filter using `branch_column NOT ILIKE '%FUTURE%'`.
     - Never guess what a future store is; strictly use the ILIKE '%FUTURE%' filter on the branch/store name column.
+13. PAYMENT MODE COMPARISONS:
+    - The columns "EMI", "Finance", "UPI Cashback", "Cash", "Debit Card", and "Credit Card" are TEXT columns indicating the amount paid.
+    - To analyze or compare sales across payment methods, you MUST sum the "Total Value" column conditionally using CASE statements.
+    - DO NOT try to sum the text columns directly.
+    - Example for EMI vs UPI comparison: `SELECT SUM(CASE WHEN "Finance" IS NOT NULL AND "Finance" != '' AND "Finance" != '0' THEN "Total Value" ELSE 0 END) AS emi_sales, SUM(CASE WHEN "UPI Cashback" IS NOT NULL AND "UPI Cashback" != '' AND "UPI Cashback" != '0' THEN "Total Value" ELSE 0 END) AS upi_sales FROM sales_data;`
+11. CROSS-YEAR CUSTOMER COHORT QUERIES — Use the `sales_data` table (NOT materialized views):
+    - `sales_data` has columns: `parsed_date` (date type), `"Customer Mobile"` (text), `"Total Value"` (numeric), `"Branch"` (text).
+    - For "customers who bought in year X but NOT in year Y", use NOT EXISTS pattern:
+      SELECT COUNT(DISTINCT sd."Customer Mobile") AS unique_customer_count
+      FROM sales_data sd
+      WHERE EXTRACT(YEAR FROM sd.parsed_date) = X
+        AND NOT EXISTS (
+            SELECT 1 FROM sales_data sd2
+            WHERE sd2."Customer Mobile" = sd."Customer Mobile"
+              AND EXTRACT(YEAR FROM sd2.parsed_date) = Y
+        );
+    - NEVER use mv_branch_resurrection_2024_2026 for counting unique customers — it does NOT have a unique_customers column.
 
 EXAMPLES:
 Q: dormant customers from 2024 who came back in 2026?
 A: ```sql\nWITH cohort24 AS (SELECT "Customer Mobile" FROM v_sales_data WHERE "Date">='2024-01-01' AND "Date"<'2025-01-01'), cohort26 AS (SELECT "Customer Mobile" FROM v_sales_data WHERE "Date">='2026-01-01' AND "Date"<'2027-01-01') SELECT COUNT(DISTINCT a."Customer Mobile") FROM cohort26 a INNER JOIN cohort24 b ON a."Customer Mobile" = b."Customer Mobile";\n```
+
+Q: unique customer count whose purchase in 2024 but not purchase in 2026
+A: ```sql\nSELECT COUNT(DISTINCT sd."Customer Mobile") AS unique_customer_count FROM sales_data sd WHERE EXTRACT(YEAR FROM sd.parsed_date) = 2024 AND NOT EXISTS (SELECT 1 FROM sales_data sd2 WHERE sd2."Customer Mobile" = sd."Customer Mobile" AND EXTRACT(YEAR FROM sd2.parsed_date) = 2026);\n```
+
+Q: how many customers bought in 2023 but did not buy in 2024?
+A: ```sql\nSELECT COUNT(DISTINCT sd."Customer Mobile") AS unique_customer_count FROM sales_data sd WHERE EXTRACT(YEAR FROM sd.parsed_date) = 2023 AND NOT EXISTS (SELECT 1 FROM sales_data sd2 WHERE sd2."Customer Mobile" = sd."Customer Mobile" AND EXTRACT(YEAR FROM sd2.parsed_date) = 2024);\n```
 """
         
         import requests
 
-        invoke_url = "https://integrate.api.nvidia.com/v1/chat/completions"
+        # ── Route: OpenRouter (Nemotron Ultra) vs NVIDIA direct API ───────────
+        OPENROUTER_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+        NVIDIA_KEY     = os.environ.get("NVIDIA_API_KEY", "")
 
-        # ── NVIDIA API Key Routing (one key per model family) ──────────────────
         model_lower = model_name.lower()
+        use_openrouter = "openrouter" in model_lower or ":free" in model_lower or "550b" in model_lower
 
-        if "kimi" in model_lower or "moonshot" in model_lower:
-            # 🌙 Moonshot AI — Kimi K2.6
-            api_key = "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"
-
-        elif "llama-3.1" in model_lower or "llama_fast" in model_lower:
-            # ⚡ Meta — Llama 3.1 8B (Fast)
-            api_key = "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"
-
+        if use_openrouter or "nemotron" in model_lower:
+            # 🧠 Nemotron Ultra 550B via OpenRouter — same endpoint as AnalystAgent
+            invoke_url = "https://openrouter.ai/api/v1/chat/completions"
+            api_key    = OPENROUTER_KEY
+            # Normalise model name to the OpenRouter slug
+            model_name = "nvidia/nemotron-3-ultra-550b-a55b:free"
+        elif "kimi" in model_lower or "moonshot" in model_lower:
+            invoke_url = "https://integrate.api.nvidia.com/v1/chat/completions"
+            api_key    = NVIDIA_KEY
         elif "llama" in model_lower or "meta" in model_lower:
-            # 🦙 Meta — Llama 4 Maverick
-            api_key = "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"
-            
-        elif "nemotron" in model_lower:
-            # 🧠 NVIDIA — Nemotron 3 Nano Omni 30b Reasoning
-            api_key = os.environ.get("NVIDIA_API_KEY", "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")
-
+            invoke_url = "https://integrate.api.nvidia.com/v1/chat/completions"
+            api_key    = NVIDIA_KEY
         else:
-            # 🔴 Default — Google Gemma 3n
-            api_key = "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"
+            # Default fallback — NVIDIA direct
+            invoke_url = "https://integrate.api.nvidia.com/v1/chat/completions"
+            api_key    = NVIDIA_KEY
 
         headers = {
             "Authorization": f"Bearer {api_key}",
-            "Accept": "application/json"
+            "Content-Type":  "application/json",
+            "Accept":        "application/json",
+            "HTTP-Referer":  "https://myg-loyalty.com",
+            "X-Title":       "myG Loyalty SQL Agent"
         }
-        
+
         payload = {
             "model": model_name,
             "messages": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Write a Postgres query for: {user_prompt}"}
+                {"role": "user",   "content": f"Write a Postgres SQL query for: {user_prompt}"}
             ],
-            "max_tokens": 512,
-            "temperature": 0.20,
-            "stream": False
+            "max_tokens":  1024,
+            "temperature": 0.1,    # near-deterministic for SQL accuracy
+            "stream":      False
         }
-        
-        if "nemotron" in model_lower:
-            payload["max_tokens"] = 65536
-            payload["temperature"] = 0.6
-            payload["top_p"] = 0.95
-            payload["chat_template_kwargs"] = {"enable_thinking": True}
-            payload["reasoning_budget"] = 16384
+
+        # OpenRouter reasoning toggle (replaces nvidia chat_template_kwargs)
+        if use_openrouter or "nemotron" in model_lower:
+            payload["reasoning"] = {"enabled": True}
+        else:
+            # For non-Nemotron NVIDIA models keep original token limits
+            payload["max_tokens"] = 512
+            payload["top_p"]      = 0.9
 
         try:
-            response = requests.post(invoke_url, headers=headers, json=payload, timeout=60)
+            # Nemotron Ultra 253B — allow up to 30s for complex reasoning before fallback
+            response = requests.post(invoke_url, headers=headers, json=payload, timeout=30)
             response.raise_for_status()
             data = response.json()
             
@@ -186,13 +223,25 @@ A: ```sql\nWITH cohort24 AS (SELECT "Customer Mobile" FROM v_sales_data WHERE "D
             if not generated_sql.upper().startswith("SELECT") and not generated_sql.upper().startswith("WITH"):
                 # If everything failed, inject a safe fallback SQL
                 generated_sql = "SELECT 'ERROR: Could not generate SQL for this prompt. Try rephrasing.' AS result;"
-        except requests.exceptions.Timeout:
-            # Fallback to Llama 3.1 8B if Kimi times out
-            fallback_model = "meta/llama-3.1-8b-instruct"
+        except Exception as nemotron_error:
+            # Fallback: Nemotron Ultra failed (Timeout, KeyError, rate limit) — retry with Llama 4 Maverick
+            print(f"Nemotron failed: {nemotron_error}, falling back to Llama...")
+            fallback_model = "meta/llama-4-maverick-17b-128e-instruct"
             payload["model"] = fallback_model
-            headers["Authorization"] = "Bearer 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"
+            # Reset nemotron-specific params for Llama
+            payload.pop("chat_template_kwargs", None)
+            payload.pop("reasoning_budget", None)
+            payload.pop("reasoning", None)
+            payload["max_tokens"]  = 1024
+            payload["temperature"] = 0.2
+            payload["top_p"]       = 0.9
+            headers["Authorization"] = f"Bearer {os.environ.get('NVIDIA_API_KEY', '')}"
+            
+            # Use NVIDIA's direct API for the fallback to avoid OpenRouter issues
+            invoke_url = "https://integrate.api.nvidia.com/v1/chat/completions"
+            
             try:
-                response = requests.post(invoke_url, headers=headers, json=payload, timeout=30)
+                response = requests.post(invoke_url, headers=headers, json=payload, timeout=45)
                 response.raise_for_status()
                 data = response.json()
                 import re
@@ -209,16 +258,12 @@ A: ```sql\nWITH cohort24 AS (SELECT "Customer Mobile" FROM v_sales_data WHERE "D
                 
                 error_msg = None
                 if not generated_sql.upper().startswith("SELECT") and not generated_sql.upper().startswith("WITH"):
-                    error_msg = f"Model did not output a SELECT statement. Raw output: {sql_result[:100]}..."
+                    error_msg = f"Fallback model did not output a SELECT statement. Raw output: {sql_result[:100]}..."
                     generated_sql = None
             except Exception as e2:
                 import traceback
                 generated_sql = None
-                error_msg = f"Fallback model failed: {traceback.format_exc()}"
-        except Exception as e:
-            import traceback
-            generated_sql = None
-            error_msg = f"{str(e)}\nTraceback: {traceback.format_exc()}"
+                error_msg = f"Nemotron error: {nemotron_error}\nFallback Llama failed: {traceback.format_exc()}"
 
         if not generated_sql:
             return None, f"AI model failed to generate a valid SQL query. Error: {error_msg}"

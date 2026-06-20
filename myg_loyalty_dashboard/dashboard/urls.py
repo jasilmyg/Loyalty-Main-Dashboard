@@ -15,6 +15,7 @@ urlpatterns = [
     path('retail-analytics/', views.RetailAnalyticsView.as_view(), name='retail_analytics'),
     path('invalid-mobiles/', views.InvalidMobilesView.as_view(), name='invalid_mobiles'),
     path('db-manager/', views.DBManagerView.as_view(), name='db_manager'),
+    path('api/v1/db-manager/refresh-mvs/', views.DBManagerRefreshMVsView.as_view(), name='db_manager_refresh_mvs'),
     path('target-executive/', views.TargetExecutiveView.as_view(), name='target_executive'),
     path('react-dashboard/', views.ReactDashboardView.as_view(), name='react_dashboard'),
     path('profile/', views.ProfileView.as_view(), name='profile'),

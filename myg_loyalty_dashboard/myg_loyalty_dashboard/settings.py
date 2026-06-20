@@ -96,7 +96,7 @@ DATABASES = {
             'sslmode': 'require',
             'connect_timeout': 30,
         },
-        'CONN_MAX_AGE': 60,
+        'CONN_MAX_AGE': 0,  # Always fresh connection — prevents stale DNS errors with DigitalOcean
     }
 }
 

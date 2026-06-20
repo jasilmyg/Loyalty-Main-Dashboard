@@ -24,6 +24,7 @@ class AIMessage(models.Model):
     conversation = models.ForeignKey(AIConversation, on_delete=models.CASCADE, related_name='messages')
     role = models.CharField(max_length=10, choices=ROLE_CHOICES)
     content = models.TextField()
+    reasoning_details = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

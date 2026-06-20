@@ -119,6 +119,10 @@ myg_loyalty_dashboard/analytics/customer_propensity_engine.py
 myg_loyalty_dashboard/myg_loyalty_dashboard/dev_settings.py
 myg_loyalty_dashboard/myg_loyalty_dashboard/local_settings.py
 myg_loyalty_dashboard/myg_loyalty_dashboard/dev_urls.py
+myg_loyalty_dashboard/analyse_daynight_sales.py
+myg_loyalty_dashboard/compare_may29_30_31.py
+myg_loyalty_dashboard/compare_may30_31.py
+myg_loyalty_dashboard/run_future_stores_query.py
 
 # Scratch/temp
 scratch/
