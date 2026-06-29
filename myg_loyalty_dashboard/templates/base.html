@@ -139,6 +139,251 @@
         .text-primary {
             color: #f97316 !important;
         }
+
+        /* ── Branch Customer Download Panel ─────────────────────── */
+        .branch-download-panel {
+            border-radius: 14px;
+            overflow: hidden;
+            border: 1.5px solid #d1fae5;
+            box-shadow: 0 4px 18px rgba(16, 185, 129, 0.08);
+            background: #f0fdf4;
+        }
+        .bcd-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+            color: #fff;
+            user-select: none;
+            transition: background 0.2s;
+        }
+        .bcd-header:hover {
+            background: linear-gradient(135deg, #047857 0%, #059669 100%);
+        }
+        .bcd-icon-wrap {
+            width: 28px;
+            height: 28px;
+            background: rgba(255,255,255,0.18);
+            border-radius: 7px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.95rem;
+            flex-shrink: 0;
+        }
+        .bcd-title {
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            flex: 1;
+        }
+        .bcd-chevron {
+            font-size: 0.75rem;
+            transition: transform 0.25s ease;
+        }
+        .bcd-chevron.open {
+            transform: rotate(-180deg);
+        }
+        .bcd-body {
+            padding: 0.85rem 0.9rem 1rem;
+            background: #f0fdf4;
+        }
+        .bcd-label {
+            display: block;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: #065f46;
+            margin-bottom: 4px;
+        }
+        .bcd-select,
+        .bcd-input {
+            width: 100%;
+            font-size: 0.78rem;
+            padding: 0.42rem 0.65rem;
+            border: 1.5px solid #a7f3d0;
+            border-radius: 8px;
+            background: #fff;
+            color: #065f46;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            font-family: 'Inter', sans-serif;
+        }
+        .bcd-select:focus,
+        .bcd-input:focus {
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+        }
+        .bcd-download-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.6rem 1rem;
+            background: linear-gradient(135deg, #059669, #10b981);
+            color: #fff;
+            font-weight: 700;
+            font-size: 0.8rem;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+            letter-spacing: 0.3px;
+            font-family: 'Inter', sans-serif;
+        }
+        .bcd-download-btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #047857, #059669);
+            box-shadow: 0 6px 18px rgba(16, 185, 129, 0.4);
+            transform: translateY(-1px);
+        }
+        .bcd-download-btn:disabled {
+            opacity: 0.65;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .bcd-status {
+            font-size: 0.73rem;
+            font-weight: 600;
+            padding: 0.4rem 0.6rem;
+            border-radius: 7px;
+            text-align: center;
+        }
+        .bcd-status.success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .bcd-status.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .bcd-status.info {
+            background: #eff6ff;
+            color: #1e40af;
+        }
+
+        /* ── Multi-select dropdown ── */
+        .bcd-count-badge {
+            display: inline-block;
+            background: #059669;
+            color: #fff;
+            font-size: 0.6rem;
+            font-weight: 800;
+            padding: 1px 6px;
+            border-radius: 20px;
+            margin-left: 5px;
+            vertical-align: middle;
+        }
+        .bcd-ms-wrap {
+            position: relative;
+        }
+        .bcd-ms-trigger {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            font-size: 0.78rem;
+            padding: 0.42rem 0.65rem;
+            border: 1.5px solid #a7f3d0;
+            border-radius: 8px;
+            background: #fff;
+            color: #065f46;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            text-align: left;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .bcd-ms-trigger:focus,
+        .bcd-ms-trigger.open {
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+            outline: none;
+        }
+        .bcd-ms-chev {
+            font-size: 0.65rem;
+            transition: transform 0.2s;
+        }
+        .bcd-ms-chev.open {
+            transform: rotate(-180deg);
+        }
+        .bcd-ms-panel {
+            position: absolute;
+            left: 0; right: 0;
+            top: calc(100% + 4px);
+            background: #fff;
+            border: 1.5px solid #6ee7b7;
+            border-radius: 10px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+            z-index: 9999;
+            max-height: 240px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .bcd-ms-search-row {
+            display: flex;
+            align-items: center;
+            padding: 0.4rem 0.6rem;
+            border-bottom: 1px solid #d1fae5;
+            background: #f0fdf4;
+            flex-shrink: 0;
+        }
+        .bcd-ms-search-icon {
+            color: #6ee7b7;
+            font-size: 0.75rem;
+            margin-right: 5px;
+        }
+        .bcd-ms-search-input {
+            border: none;
+            outline: none;
+            background: transparent;
+            font-size: 0.75rem;
+            color: #065f46;
+            width: 100%;
+            font-family: 'Inter', sans-serif;
+        }
+        .bcd-ms-all-item {
+            padding: 0.4rem 0.65rem;
+            font-weight: 700;
+            color: #065f46;
+            background: #f0fdf4;
+            flex-shrink: 0;
+        }
+        .bcd-ms-divider {
+            height: 1px;
+            background: #d1fae5;
+            flex-shrink: 0;
+        }
+        .bcd-ms-list {
+            overflow-y: auto;
+            flex: 1;
+        }
+        .bcd-ms-item {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 0.35rem 0.65rem;
+            font-size: 0.75rem;
+            color: #374151;
+            cursor: pointer;
+            transition: background 0.12s;
+            user-select: none;
+        }
+        .bcd-ms-item:hover {
+            background: #ecfdf5;
+            color: #065f46;
+        }
+        .bcd-ms-item input[type=checkbox] {
+            accent-color: #059669;
+            width: 13px;
+            height: 13px;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+        .bcd-ms-item.hidden {
+            display: none;
+        }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -220,7 +465,75 @@
                     <span class="badge bg-success ms-1" style="font-size: 8px; font-weight: 800; vertical-align: middle; box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);">NEW</span>
                 </a>
             </li>
+            <li class="nav-item mt-2">
+                <a id="n8n-sidebar-btn" class="nav-link shadow-sm" href="#" style="border-left: 4px solid #8b5cf6; color: #8b5cf6; background: rgba(139, 92, 246, 0.08); font-weight: 700; border-radius: 8px 12px 12px 8px; margin-left: 0.5rem; transition: all 0.3s ease;">
+                    <i class="bi bi-chat-square-dots-fill" style="color: #8b5cf6; font-size: 1.3rem; margin-right: 12px !important;"></i> n8n AI Analyst
+                    <span class="badge ms-2" style="background: linear-gradient(135deg, #8b5cf6, #c084fc); font-size: 9px; font-weight: 800; padding: 0.35em 0.65em; letter-spacing: 0.5px; border-radius: 6px; box-shadow: 0 2px 8px rgba(139, 92, 246, 0.4);">LIVE</span>
+                </a>
+            </li>
         </ul>
+        {% endif %}
+
+        {% if request.user.username != 'shestart' %}
+        <!-- Branch Customer Download Section -->
+        <div class="mb-2 mt-3" style="padding-left: 2.5rem;">
+            <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">Data Export</small>
+        </div>
+        <div class="branch-download-panel mx-2 mb-4">
+            <div class="bcd-header" id="bcd-toggle" onclick="toggleBranchDownloadPanel()" title="Click to expand/collapse">
+                <span class="bcd-icon-wrap"><i class="bi bi-cloud-download-fill"></i></span>
+                <span class="bcd-title">Branch Customer Data</span>
+                <i class="bi bi-chevron-down bcd-chevron" id="bcd-chevron"></i>
+            </div>
+            <div class="bcd-body" id="bcd-body" style="display:none;">
+
+                <!-- Multi-Branch Selector -->
+                <div class="mb-2">
+                    <label class="bcd-label"><i class="bi bi-shop me-1"></i>Branch
+                        <span id="bcd-sel-count" class="bcd-count-badge" style="display:none;">0</span>
+                    </label>
+                    <!-- Trigger button -->
+                    <div class="bcd-ms-wrap" id="bcd-ms-wrap">
+                        <button type="button" class="bcd-ms-trigger" id="bcd-ms-trigger" onclick="toggleBcdDropdown(event)">
+                            <i class="bi bi-buildings me-1" style="opacity:0.7;"></i>
+                            <span id="bcd-ms-label">All Branches</span>
+                            <i class="bi bi-chevron-down ms-auto bcd-ms-chev" id="bcd-ms-chev"></i>
+                        </button>
+                        <!-- Dropdown panel -->
+                        <div class="bcd-ms-panel" id="bcd-ms-panel" style="display:none;">
+                            <!-- Search -->
+                            <div class="bcd-ms-search-row">
+                                <i class="bi bi-search bcd-ms-search-icon"></i>
+                                <input type="text" id="bcd-ms-search" class="bcd-ms-search-input"
+                                       placeholder="Search branch…"
+                                       oninput="filterBcdBranches(this.value)">
+                            </div>
+                            <!-- Select All -->
+                            <label class="bcd-ms-item bcd-ms-all-item" id="bcd-ms-all-label">
+                                <input type="checkbox" id="bcd-ms-all" onchange="bcdToggleAll(this)"> All Branches
+                            </label>
+                            <div class="bcd-ms-divider"></div>
+                            <!-- Branch list -->
+                            <div class="bcd-ms-list" id="bcd-ms-list"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-2">
+                    <label class="bcd-label"><i class="bi bi-calendar-event me-1"></i>From Date</label>
+                    <input type="date" id="bcd-start" class="bcd-input">
+                </div>
+                <div class="mb-2">
+                    <label class="bcd-label"><i class="bi bi-calendar-check me-1"></i>To Date</label>
+                    <input type="date" id="bcd-end" class="bcd-input">
+                </div>
+                <button id="bcd-download-btn" class="bcd-download-btn w-100" onclick="downloadBranchCustomerData()">
+                    <span id="bcd-btn-icon"><i class="bi bi-file-earmark-excel-fill me-2"></i></span>
+                    <span id="bcd-btn-text">Download Excel</span>
+                </button>
+                <div id="bcd-status" class="bcd-status mt-2" style="display:none;"></div>
+            </div>
+        </div>
         {% endif %}
 
         {% if request.user.username == 'shestart' or request.user.username == 'mygadmin' %}
@@ -419,6 +732,225 @@
     });
 </script>
 
+<!-- n8n AI Chat Widget -->
+<link href="https://cdn.jsdelivr.net/npm/@n8n/chat/dist/style.css" rel="stylesheet" />
+<script type="module">
+import { createChat } from 'https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js';
+
+createChat({
+    webhookUrl: 'https://jasil.app.n8n.cloud/webhook/67906e13-6f22-4e0a-bf2c-c09f02d8f79f/chat',
+    mode: 'window',
+    showWelcomeScreen: true,
+    initialMessages: [
+        'Hi there! 👋',
+        'My name is Jasu. How can I assist you today?'
+    ]
+});
+
+// Attach a click event to the sidebar button to show a hint or try to open the widget
+document.addEventListener('DOMContentLoaded', () => {
+    const aiButton = document.getElementById('n8n-sidebar-btn');
+    if (aiButton) {
+        aiButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            // Since the n8n widget doesn't expose a simple toggle API in this bundle usually,
+            // we remind the user where the chat is.
+            const n8nButton = document.querySelector('.n8n-chat-widget-button');
+            if (n8nButton) {
+                n8nButton.click(); // Programmatically click the n8n chat bubble!
+            } else {
+                alert("The AI Chat widget is loading in the bottom right corner of your screen! Look for the floating icon.");
+            }
+        });
+    }
+});
+</script>
+
 {% block extra_js %}{% endblock %}
+
+<script>
+/* ── Branch Customer Download Panel — Multi-Select Logic ────── */
+
+let _bcdBranchesLoaded = false;
+
+// Toggle main panel open/close
+function toggleBranchDownloadPanel() {
+    const body    = document.getElementById('bcd-body');
+    const chevron = document.getElementById('bcd-chevron');
+    if (!body) return;
+    const isOpen = body.style.display !== 'none';
+    body.style.display = isOpen ? 'none' : 'block';
+    chevron.classList.toggle('open', !isOpen);
+    if (!isOpen && !_bcdBranchesLoaded) populateBcdBranches();
+}
+
+// Toggle the branch multi-select dropdown
+function toggleBcdDropdown(e) {
+    e.stopPropagation();
+    const panel   = document.getElementById('bcd-ms-panel');
+    const trigger = document.getElementById('bcd-ms-trigger');
+    const chev    = document.getElementById('bcd-ms-chev');
+    if (!panel) return;
+    const open = panel.style.display !== 'none';
+    panel.style.display = open ? 'none' : 'flex';
+    trigger.classList.toggle('open', !open);
+    chev.classList.toggle('open', !open);
+    if (!open) document.getElementById('bcd-ms-search')?.focus();
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+    const wrap = document.getElementById('bcd-ms-wrap');
+    if (wrap && !wrap.contains(e.target)) {
+        const panel   = document.getElementById('bcd-ms-panel');
+        const trigger = document.getElementById('bcd-ms-trigger');
+        const chev    = document.getElementById('bcd-ms-chev');
+        if (panel)   panel.style.display   = 'none';
+        if (trigger) trigger.classList.remove('open');
+        if (chev)    chev.classList.remove('open');
+    }
+});
+
+// Populate checkbox list from API
+async function populateBcdBranches() {
+    const list = document.getElementById('bcd-ms-list');
+    if (!list) return;
+    try {
+        const res = await fetch('/api/v1/branches-list/');
+        if (!res.ok) return;
+        const branches = await res.json();
+        list.innerHTML = '';
+        branches.forEach(b => {
+            const lbl = document.createElement('label');
+            lbl.className = 'bcd-ms-item';
+            lbl.dataset.branch = b.toLowerCase();
+            lbl.innerHTML = `<input type="checkbox" class="bcd-ms-cb" value="${b}" onchange="bcdUpdateSelection()"> ${b}`;
+            list.appendChild(lbl);
+        });
+        _bcdBranchesLoaded = true;
+    } catch(err) { console.error('BCD branch load error', err); }
+}
+
+// Toggle all checkboxes
+function bcdToggleAll(allCb) {
+    document.querySelectorAll('.bcd-ms-cb').forEach(cb => {
+        if (!cb.closest('.bcd-ms-item').classList.contains('hidden')) {
+            cb.checked = allCb.checked;
+        }
+    });
+    bcdUpdateSelection();
+}
+
+// Filter branches by search text
+function filterBcdBranches(query) {
+    const q = query.toLowerCase().trim();
+    let visibleCount = 0;
+    document.querySelectorAll('#bcd-ms-list .bcd-ms-item').forEach(item => {
+        const match = !q || item.dataset.branch.includes(q);
+        item.classList.toggle('hidden', !match);
+        if (match) visibleCount++;
+    });
+    // Hide "Select All" when filtering
+    const allLabel = document.getElementById('bcd-ms-all-label');
+    if (allLabel) allLabel.style.display = q ? 'none' : '';
+    document.querySelector('.bcd-ms-divider').style.display = q ? 'none' : '';
+}
+
+// Update trigger label + count badge after any checkbox change
+function bcdUpdateSelection() {
+    const checked = [...document.querySelectorAll('.bcd-ms-cb:checked')];
+    const total   = document.querySelectorAll('.bcd-ms-cb').length;
+    const label   = document.getElementById('bcd-ms-label');
+    const badge   = document.getElementById('bcd-sel-count');
+    const allCb   = document.getElementById('bcd-ms-all');
+
+    if (checked.length === 0) {
+        label.textContent = 'All Branches';
+        badge.style.display = 'none';
+        if (allCb) allCb.checked = false;
+    } else if (checked.length === total) {
+        label.textContent = 'All Branches';
+        badge.style.display = 'none';
+        if (allCb) allCb.checked = true;
+    } else if (checked.length === 1) {
+        label.textContent = checked[0].value;
+        badge.style.display = 'none';
+    } else {
+        label.textContent = `${checked.length} Branches`;
+        badge.textContent = checked.length;
+        badge.style.display = 'inline-block';
+        if (allCb) allCb.checked = false;
+    }
+}
+
+// Get selected branches as array (empty = all)
+function bcdGetSelectedBranches() {
+    const checked = [...document.querySelectorAll('.bcd-ms-cb:checked')].map(cb => cb.value);
+    const total   = document.querySelectorAll('.bcd-ms-cb').length;
+    // If all checked or none checked → treat as "All Branches"
+    return (checked.length === 0 || checked.length === total) ? [] : checked;
+}
+
+// Main download handler
+async function downloadBranchCustomerData() {
+    const selectedBranches = bcdGetSelectedBranches();
+    const startDate = document.getElementById('bcd-start')?.value || '';
+    const endDate   = document.getElementById('bcd-end')?.value   || '';
+    const btn       = document.getElementById('bcd-download-btn');
+    const btnText   = document.getElementById('bcd-btn-text');
+    const btnIcon   = document.getElementById('bcd-btn-icon');
+    const status    = document.getElementById('bcd-status');
+
+    // Build URL — pass branches as comma-separated single param
+    const params = new URLSearchParams();
+    if (selectedBranches.length > 0) params.append('branches', selectedBranches.join(','));
+    if (startDate) params.append('start_date', startDate);
+    if (endDate)   params.append('end_date',   endDate);
+
+    // Loading state
+    btn.disabled = true;
+    btnIcon.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>';
+    btnText.textContent = 'Preparing…';
+    status.style.display = 'none';
+    status.className = 'bcd-status mt-2';
+
+    try {
+        const url = '/api/v1/branch-customer-download/?' + params.toString();
+        const response = await fetch(url);
+
+        if (!response.ok) {
+            const errJson = await response.json().catch(() => ({}));
+            throw new Error(errJson.message || `Server error ${response.status}`);
+        }
+
+        // Trigger file download
+        const blob = await response.blob();
+        const disposition = response.headers.get('Content-Disposition') || '';
+        let filename = 'Branch_Customers.xlsx';
+        const match = disposition.match(/filename="?([^"]+)"?/);
+        if (match) filename = match[1];
+
+        const dlUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = dlUrl; a.download = filename;
+        document.body.appendChild(a);
+        a.click(); a.remove();
+        URL.revokeObjectURL(dlUrl);
+
+        status.style.display = 'block';
+        status.classList.add('success');
+        status.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Download ready!';
+    } catch(err) {
+        status.style.display = 'block';
+        status.classList.add('error');
+        status.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i>' + err.message;
+    } finally {
+        btn.disabled = false;
+        btnIcon.innerHTML = '<i class="bi bi-file-earmark-excel-fill me-2"></i>';
+        btnText.textContent = 'Download Excel';
+        setTimeout(() => { status.style.display = 'none'; }, 6000);
+    }
+}
+</script>
 </body>
 </html>

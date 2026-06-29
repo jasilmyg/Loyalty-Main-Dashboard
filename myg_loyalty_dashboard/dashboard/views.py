@@ -1313,3 +1313,261 @@ class CampaignDormantDownloadAPIView(UserPassesTestMixin, View):
 
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': str(e), 'trace': traceback.format_exc()}, status=500)
+
+
+# ── Branch Customer Download ─────────────────────────────────────────────────
+class BranchCustomerDownloadAPIView(LoginRequiredMixin, View):
+    """
+    GET /api/v1/branch-customer-download/
+    Params:
+        branches    – comma-separated branch names (optional; omit for all)
+        start_date  – YYYY-MM-DD (optional)
+        end_date    – YYYY-MM-DD (optional)
+
+    Returns an Excel file with unique customer data for the specified branches
+    and custom date range. Columns:
+        Sr No | Customer Mobile | Customer Name | Branch | First Visit |
+        Last Visit | Total Visits | Total Spend (₹)
+    """
+
+    def get(self, request):
+        import io
+        import traceback
+        import xlsxwriter
+        from analytics.services import _q, _parse_date
+
+        # ── Parse branches (comma-separated) ───────────────────────
+        branches_raw = request.GET.get('branches', '').strip()
+        if branches_raw:
+            selected_branches = [b.strip() for b in branches_raw.split(',') if b.strip()]
+            # Filter out generic "all" values
+            selected_branches = [
+                b for b in selected_branches
+                if b.lower() not in ('all branches', 'all', '')
+            ]
+        else:
+            selected_branches = []
+
+        start_raw  = request.GET.get('start_date', '').strip()
+        end_raw    = request.GET.get('end_date', '').strip()
+        start_date = _parse_date(start_raw) if start_raw else None
+        end_date   = _parse_date(end_raw)   if end_raw   else None
+
+        try:
+            # ── Build WHERE clause ──────────────────────────────────
+            conditions = [
+                "\"Customer Mobile\" IS NOT NULL",
+                "\"Customer Mobile\" ~ '^[0-9]{10}$'",
+                "\"Customer Mobile\" NOT IN ('1313131313','0000000000','9999999999')",
+            ]
+            params = []
+
+            date_expr = """(CASE
+                WHEN SUBSTRING("Date"::text, 5, 1) = '-'
+                    THEN TO_DATE(SUBSTRING("Date"::text, 1, 10), 'YYYY-MM-DD')
+                WHEN SUBSTRING("Date"::text, 3, 1) = '-'
+                    THEN TO_DATE("Date"::text, 'DD-MM-YYYY')
+                ELSE NULL
+            END)"""
+
+            if start_date:
+                conditions.append(f'{date_expr} >= %s::DATE')
+                params.append(start_date)
+            if end_date:
+                conditions.append(f'{date_expr} <= %s::DATE')
+                params.append(end_date)
+            if selected_branches:
+                if len(selected_branches) == 1:
+                    conditions.append('UPPER("Branch") = UPPER(%s)')
+                    params.append(selected_branches[0])
+                else:
+                    # Multiple branches → use IN clause
+                    placeholders = ','.join(['%s'] * len(selected_branches))
+                    conditions.append(f'UPPER("Branch") IN ({placeholders})')
+                    params.extend([b.upper() for b in selected_branches])
+
+            where = ' AND '.join(conditions)
+
+            # ── Query: one row per unique mobile ───────────────────
+            sql = f"""
+                SELECT
+                    "Customer Mobile"                        AS mobile,
+                    MAX("Customer Name")                     AS customer_name,
+                    MAX("Branch")                            AS branch,
+                    MIN({date_expr})                         AS first_visit,
+                    MAX({date_expr})                         AS last_visit,
+                    COUNT(*)                                 AS total_visits,
+                    SUM(COALESCE("Total Value"::NUMERIC, 0)) AS total_spend
+                FROM v_sales_data
+                WHERE {where}
+                GROUP BY "Customer Mobile"
+                ORDER BY total_spend DESC NULLS LAST
+            """
+
+            rows = _q(sql, params)
+
+            # ── Build filename ──────────────────────────────────────
+            from datetime import datetime
+            if not selected_branches:
+                branch_part = 'All_Branches'
+                branch_display = 'All'
+            elif len(selected_branches) == 1:
+                branch_part = selected_branches[0].replace(' ', '_')
+                branch_display = selected_branches[0]
+            else:
+                branch_part = f'{len(selected_branches)}_Branches'
+                branch_display = ', '.join(selected_branches)
+
+            date_part   = datetime.now().strftime('%Y%m%d_%H%M')
+            if start_date and end_date:
+                date_range_part = f'{start_date}_to_{end_date}'
+            elif start_date:
+                date_range_part = f'from_{start_date}'
+            elif end_date:
+                date_range_part = f'upto_{end_date}'
+            else:
+                date_range_part = 'All_Dates'
+
+            filename = f'UniqueCustomers_{branch_part}_{date_range_part}_{date_part}.xlsx'
+
+            # ── Build Excel ─────────────────────────────────────────
+            output = io.BytesIO()
+            workbook  = xlsxwriter.Workbook(output, {'in_memory': True})
+            worksheet = workbook.add_worksheet('Customer Data')
+
+            # Formats
+            title_fmt = workbook.add_format({
+                'bold': True, 'font_size': 13,
+                'font_color': '#0f172a', 'font_name': 'Calibri',
+            })
+            header_fmt = workbook.add_format({
+                'bold': True, 'bg_color': '#059669', 'font_color': '#ffffff',
+                'border': 1, 'align': 'center', 'valign': 'vcenter',
+                'font_name': 'Calibri', 'font_size': 10,
+            })
+            cell_fmt = workbook.add_format({
+                'border': 1, 'valign': 'vcenter',
+                'font_name': 'Calibri', 'font_size': 10,
+            })
+            num_fmt = workbook.add_format({
+                'border': 1, 'valign': 'vcenter',
+                'font_name': 'Calibri', 'font_size': 10,
+                'num_format': '#,##0',
+            })
+            money_fmt = workbook.add_format({
+                'border': 1, 'valign': 'vcenter',
+                'font_name': 'Calibri', 'font_size': 10,
+                'num_format': '₹#,##0.00',
+            })
+            date_fmt = workbook.add_format({
+                'border': 1, 'valign': 'vcenter',
+                'font_name': 'Calibri', 'font_size': 10,
+                'num_format': 'dd-mmm-yyyy',
+            })
+            center_fmt = workbook.add_format({
+                'border': 1, 'align': 'center', 'valign': 'vcenter',
+                'font_name': 'Calibri', 'font_size': 10,
+            })
+            alt_cell_fmt = workbook.add_format({
+                'bg_color': '#f0fdf4', 'border': 1, 'valign': 'vcenter',
+                'font_name': 'Calibri', 'font_size': 10,
+            })
+            alt_num_fmt = workbook.add_format({
+                'bg_color': '#f0fdf4', 'border': 1, 'valign': 'vcenter',
+                'font_name': 'Calibri', 'font_size': 10,
+                'num_format': '#,##0',
+            })
+            alt_money_fmt = workbook.add_format({
+                'bg_color': '#f0fdf4', 'border': 1, 'valign': 'vcenter',
+                'font_name': 'Calibri', 'font_size': 10,
+                'num_format': '₹#,##0.00',
+            })
+            alt_date_fmt = workbook.add_format({
+                'bg_color': '#f0fdf4', 'border': 1, 'valign': 'vcenter',
+                'font_name': 'Calibri', 'font_size': 10,
+                'num_format': 'dd-mmm-yyyy',
+            })
+            alt_center_fmt = workbook.add_format({
+                'bg_color': '#f0fdf4', 'border': 1, 'align': 'center', 'valign': 'vcenter',
+                'font_name': 'Calibri', 'font_size': 10,
+            })
+
+            # Title row
+            filter_desc = f'Branch: {branch_display}  |  Period: {start_date or "All"} → {end_date or "All"}'
+            worksheet.merge_range('A1:H1', f'myG Loyalty — Unique Customer Report | {filter_desc}', title_fmt)
+
+            # Summary row
+            summary_fmt = workbook.add_format({
+                'italic': True, 'font_color': '#475569', 'font_name': 'Calibri', 'font_size': 9,
+            })
+            worksheet.merge_range('A2:H2', f'Total Unique Customers: {len(rows)} | Generated: {datetime.now().strftime("%d %b %Y %H:%M")}', summary_fmt)
+
+            # Header row (row index 2 → Excel row 3)
+            headers = [
+                'Sr No', 'Customer Mobile', 'Customer Name',
+                'Branch', 'First Visit', 'Last Visit',
+                'Total Visits', 'Total Spend (₹)',
+            ]
+            for col, h in enumerate(headers):
+                worksheet.write(2, col, h, header_fmt)
+
+            # Column widths
+            worksheet.set_column('A:A', 7)   # Sr No
+            worksheet.set_column('B:B', 16)  # Mobile
+            worksheet.set_column('C:C', 26)  # Name
+            worksheet.set_column('D:D', 22)  # Branch
+            worksheet.set_column('E:E', 14)  # First Visit
+            worksheet.set_column('F:F', 14)  # Last Visit
+            worksheet.set_column('G:G', 13)  # Total Visits
+            worksheet.set_column('H:H', 16)  # Total Spend
+
+            worksheet.set_row(0, 22)  # title row height
+            worksheet.set_row(2, 18)  # header row height
+
+            # Data rows (starting at row index 3 → Excel row 4)
+            for row_idx, row in enumerate(rows):
+                excel_row = row_idx + 3
+                is_alt    = (row_idx % 2 == 1)
+
+                cf        = alt_cell_fmt   if is_alt else cell_fmt
+                nf        = alt_num_fmt    if is_alt else num_fmt
+                mf        = alt_money_fmt  if is_alt else money_fmt
+                df        = alt_date_fmt   if is_alt else date_fmt
+                ccf       = alt_center_fmt if is_alt else center_fmt
+
+                mobile, name, br, first_v, last_v, visits, spend = row
+
+                worksheet.write(excel_row, 0, row_idx + 1,              ccf)
+                worksheet.write(excel_row, 1, str(mobile or ''),        cf)
+                worksheet.write(excel_row, 2, str(name or 'N/A'),       cf)
+                worksheet.write(excel_row, 3, str(br or ''),            cf)
+
+                # Dates — write as Excel date if valid datetime, else text
+                for col_i, dt_val in [(4, first_v), (5, last_v)]:
+                    if dt_val and hasattr(dt_val, 'strftime'):
+                        worksheet.write_datetime(excel_row, col_i, dt_val, df)
+                    else:
+                        worksheet.write(excel_row, col_i, str(dt_val or ''), df)
+
+                worksheet.write(excel_row, 6, int(visits or 0),         nf)
+                worksheet.write(excel_row, 7, float(spend or 0),        mf)
+
+            # Freeze panes at row 4 (after title + summary + header)
+            worksheet.freeze_panes(3, 0)
+
+            workbook.close()
+            output.seek(0)
+
+            response = HttpResponse(
+                output.read(),
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': str(e),
+                'trace': traceback.format_exc()
+            }, status=500)

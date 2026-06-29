@@ -43,4 +43,5 @@ urlpatterns = [
     path('api/v1/she-start/save-score/', views.SheStartSaveScoreAPIView.as_view(), name='she_start_save_score_api'),
     path('she-start-detailed/', views.SheStartDetailedView.as_view(), name='she_start_detailed'),
     path('api/v1/she-start-detailed/data/', views.SheStartDetailedDataAPIView.as_view(), name='she_start_detailed_data_api'),
+    path('api/v1/branch-customer-download/', views.BranchCustomerDownloadAPIView.as_view(), name='branch_customer_download'),
 ]
