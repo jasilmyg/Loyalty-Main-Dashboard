@@ -29,21 +29,27 @@ def get_analytics():
 
 def get_filters(request):
     """Extract standard filters from GET parameters."""
+    # Support multi-branch: ?branches=BranchA,BranchB or repeated ?branch=...
+    branches_param = request.GET.get('branches', '')
+    branch_param   = request.GET.get('branch', '')
+
     filters = {
         'start_date': request.GET.get('start_date'),
-        'end_date': request.GET.get('end_date'),
-        'branch': request.GET.get('branch'),
-        'staff': request.GET.get('staff'),
-        'rbm': request.GET.get('rbm'),
-        'bdm': request.GET.get('bdm'),
-        'period': request.GET.get('period', 'monthly'),
+        'end_date':   request.GET.get('end_date'),
+        'branch':     branch_param,
+        'branches':   branches_param,   # comma-separated multi-branch
+        'staff':      request.GET.get('staff'),
+        'rbm':        request.GET.get('rbm'),
+        'bdm':        request.GET.get('bdm'),
+        'period':     request.GET.get('period', 'monthly'),
     }
-    
+
     # Simple Role-Based Access Control logic
     user = request.user
     if user.is_authenticated:
         if user.role == 'Staff' and user.branch:
             filters['branch'] = user.branch
+            filters['branches'] = user.branch
     return filters
 
 class SalesOverviewAPI(APIView):
@@ -359,12 +365,50 @@ def _build_xlsx_response(filename, headers, rows):
     return response
 
 
+def _apply_multi_branch_to_filters(filters):
+    """
+    If 'branches' param contains multiple branches (comma-separated),
+    temporarily set 'branch' to a sentinel and return a branch list.
+    Returns (updated_filters, branch_list_or_None).
+    """
+    branches_raw = filters.get('branches', '')
+    if branches_raw:
+        branch_list = [b.strip() for b in branches_raw.split(',') if b.strip()]
+        if len(branch_list) == 1:
+            # Single branch — use normal single-branch path
+            f = dict(filters)
+            f['branch'] = branch_list[0]
+            f['branches'] = ''
+            return f, None
+        elif len(branch_list) > 1:
+            # Multi-branch: clear single branch so _build_where_clause doesn't add it
+            f = dict(filters)
+            f['branch'] = ''
+            f['branches'] = ''
+            return f, branch_list
+    return filters, None
+
+
 def export_view(request, module):
     """Plain Django download view — avoids DRF response wrapping that can corrupt binary files."""
     import json, math
     svc = get_analytics()
     filters = get_filters(request)
+
+    # ── Resolve multi-branch for this export ──────────────────────────────────
+    filters, multi_branches = _apply_multi_branch_to_filters(filters)
     where_sql, params = svc._build_where_clause(filters)
+
+    # If multiple branches selected, inject an IN clause
+    if multi_branches:
+        placeholders = ', '.join(['%s'] * len(multi_branches))
+        upper_list   = [b.upper() for b in multi_branches]
+        branch_cond  = f'UPPER("Branch") IN ({placeholders})'
+        if where_sql == '1=1':
+            where_sql = branch_cond
+        else:
+            where_sql = f'{where_sql} AND {branch_cond}'
+        params = list(params) + upper_list
 
     if module == 'customer-frequency':
         rows_data = svc.get_frequency_distribution(filters)
@@ -379,7 +423,7 @@ def export_view(request, module):
     elif module in ('rfm', 'rfm-segments'):
         segment = request.GET.get('segment')
         if not segment:
-            # Summary Export (The list circled by the user)
+            # Summary Export
             rows_data = svc.get_rfm_segments(filters)
             headers = ['RFM Segment', 'Customer Count', 'Total Revenue (INR)', 'Average Revenue (INR)']
             rows = [
@@ -388,24 +432,30 @@ def export_view(request, module):
             ]
             return _build_xlsx_response('rfm_summary_report.xlsx', headers, rows)
         else:
-            # Detail Export for a specific segment
-            # Limit to 100k rows to prevent server crash or Excel limit issues
-            from django.db import connection
-            query, params = svc.get_rfm_details_query(filters, segment)
+            # Detail Export for a specific segment — respect multi-branch filter
+            from django.db import connection as db_conn
+            query, q_params = svc.get_rfm_details_query(filters, segment)
+
+            # If multi-branch was selected, rebuild query with branch IN clause
+            if multi_branches:
+                query, q_params = _build_rfm_segment_query_multi_branch(
+                    svc, filters, multi_branches, segment
+                )
+
             query += " LIMIT 100000"
-            with connection.cursor() as cur:
-                cur.execute(query, params)
+            with db_conn.cursor() as cur:
+                cur.execute(query, q_params)
                 headers = [col[0] for col in cur.description]
                 rows = cur.fetchall()
-            
+
             filename = f"rfm_{segment.lower().replace(' ', '_')}_details.xlsx"
             return _build_xlsx_response(filename, headers, rows)
 
     elif module == 'sales':
-        from django.db import connection
+        from django.db import connection as db_conn
         table = "sales_data"
         query = f'SELECT * FROM {table} WHERE {where_sql} LIMIT 50000'
-        with connection.cursor() as cur:
+        with db_conn.cursor() as cur:
             cur.execute(query, params)
             headers = [col[0] for col in cur.description]
             rows = cur.fetchall()
@@ -484,11 +534,11 @@ def export_view(request, module):
         rows = []
         rolling_db = db_start
         prev_final_db = rolling_db
-        
+
         for r in rows_data:
             raw_period = r.get('month', '')
             display_period = raw_period
-            
+
             if period == 'monthly' and '-' in raw_period:
                 try:
                     y, m = raw_period.split('-')
@@ -505,7 +555,7 @@ def export_view(request, module):
 
             rolling_db += r.get('new_members', 0)
             final_db = r.get('db_size', 0) if r.get('db_size', 0) > 0 else rolling_db
-            
+
             retention_pct = (r.get('repeat_members', 0) / prev_final_db * 100) if prev_final_db > 0 else 0
             prev_final_db = final_db
 
@@ -521,7 +571,7 @@ def export_view(request, module):
                 f"{round(retention_pct, 2)}%",
                 final_db
             ))
-            
+
         return _build_xlsx_response(f'retail_loyalty_analytics_{period}_report.xlsx', headers, rows)
 
     elif module == 'invalid-mobiles':
@@ -569,6 +619,82 @@ def export_view(request, module):
         return _build_xlsx_response('fy_sales_report.xlsx', headers, rows)
 
     return HttpResponse("Unknown export module", status=400)
+
+
+def _build_rfm_segment_query_multi_branch(svc, filters, multi_branches, segment):
+    """
+    Build the RFM details query with a multi-branch IN filter injected
+    into the CTE base scan instead of a single-branch equality.
+    """
+    from .services import TABLE, VALID_MOBILE
+
+    placeholders = ', '.join(['%s'] * len(multi_branches))
+    upper_list   = [b.upper() for b in multi_branches]
+    branch_cond  = f'UPPER("Branch") IN ({placeholders})'
+
+    # Build extra WHERE conditions (date range, staff, rbm, bdm) — without branch
+    branch_less_filters = dict(filters)
+    branch_less_filters['branch'] = ''
+    where_sql, base_params = svc._build_where_clause(branch_less_filters)
+
+    # Inject branch IN clause
+    if where_sql == '1=1':
+        combined_where = branch_cond
+    else:
+        combined_where = f'{where_sql} AND {branch_cond}'
+
+    combined_params = list(base_params) + upper_list
+
+    # Use the slow-path CTE (forces raw v_sales_data scan so Branch is available)
+    cte = f"""
+        WITH rfm_base AS (
+            SELECT "Customer Mobile" AS mobile,
+                MAX("Customer Name")              AS customer_name,
+                (CURRENT_DATE - MAX("Date"))::INT AS recency,
+                COUNT(DISTINCT "Date")            AS frequency,
+                SUM("Total Value")::FLOAT         AS monetary,
+                MAX("Date")                       AS last_visit
+            FROM {TABLE}
+            WHERE {combined_where}
+              AND "Customer Mobile" ~ '^[0-9]{{10}}$'
+            GROUP BY "Customer Mobile"
+        ),
+        scored AS (
+            SELECT *,
+                CASE WHEN recency<=90 THEN 5 WHEN recency<=180 THEN 4
+                     WHEN recency<=365 THEN 3 WHEN recency<=730 THEN 2 ELSE 1 END AS r_score,
+                CASE WHEN frequency>=5 THEN 5 WHEN frequency=4 THEN 4
+                     WHEN frequency=3 THEN 3 WHEN frequency=2 THEN 2 ELSE 1 END AS f_score,
+                NTILE(5) OVER (ORDER BY monetary ASC) AS m_score
+            FROM rfm_base
+        ),
+        segmented AS (
+            SELECT *,
+                r_score::TEXT||f_score::TEXT||m_score::TEXT AS rfm_code,
+                CASE
+                    WHEN r_score>=4 AND f_score>=4 AND m_score>=4 THEN 'Champions'
+                    WHEN r_score>=3 AND f_score>=3 AND m_score>=3 THEN 'Loyal'
+                    WHEN r_score>=4 AND f_score<=2               THEN 'New'
+                    WHEN r_score=2 AND f_score>=3 AND m_score>=3 THEN 'At Risk'
+                    WHEN r_score=1                               THEN 'Lost'
+                    ELSE 'Others'
+                END AS segment
+            FROM scored
+        )
+    """
+
+    query = f"""
+        {cte}
+        SELECT customer_name AS "Customer Name", mobile AS "Customer Mobile",
+            recency AS "Recency (Days)", frequency AS "Frequency (Visits)",
+            monetary AS "Monetary Value", r_score AS "R Score",
+            f_score AS "F Score", m_score AS "M Score",
+            rfm_code AS "RFM Code", segment AS "RFM Segment",
+            last_visit AS "Last Visit Date"
+        FROM segmented WHERE segment = %s
+        ORDER BY monetary DESC NULLS LAST
+    """
+    return query, combined_params + [segment]
 
 
 # Keep the old DRF class so existing URL patterns still resolve without errors

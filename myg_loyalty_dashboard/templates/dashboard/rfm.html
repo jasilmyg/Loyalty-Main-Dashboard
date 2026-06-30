@@ -83,9 +83,124 @@
 .info-trigger:hover {
     color: #3b82f6;
 }
+
+/* ── Branch Download Modal ───────────────────────────────────────── */
+#branchDownloadOverlay .custom-modal-container {
+    max-width: 520px;
+}
+#branchDownloadOverlay .branch-search-box {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+#branchDownloadOverlay .branch-search-box:focus {
+    border-color: #3b82f6;
+}
+#branchDownloadOverlay .branch-list-container {
+    max-height: 240px;
+    overflow-y: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 6px 0;
+    background: #f8fafc;
+    margin-bottom: 12px;
+}
+#branchDownloadOverlay .branch-list-container::-webkit-scrollbar { width: 6px; }
+#branchDownloadOverlay .branch-list-container::-webkit-scrollbar-track { background: #f1f5f9; }
+#branchDownloadOverlay .branch-list-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+.branch-check-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 14px;
+    cursor: pointer;
+    transition: background 0.15s;
+    border-radius: 4px;
+    font-size: 0.88rem;
+    color: #334155;
+}
+.branch-check-item:hover { background: #e0f2fe; }
+.branch-check-item input[type=checkbox] {
+    accent-color: #3b82f6;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+.branch-select-btns {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.branch-select-btns button {
+    font-size: 0.78rem;
+    padding: 3px 10px;
+    border-radius: 6px;
+    border: 1px solid #cbd5e1;
+    background: #f1f5f9;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.branch-select-btns button:hover { background: #dbeafe; border-color: #93c5fd; color: #1d4ed8; }
+.branch-selected-badge {
+    display: inline-block;
+    background: #dbeafe;
+    color: #1d4ed8;
+    border-radius: 20px;
+    padding: 2px 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+.btn-download-segment {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 22px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+    justify-content: center;
+}
+.btn-download-segment:hover { opacity: 0.9; transform: translateY(-1px); }
+.btn-download-segment:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+.download-modal-seg-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+.download-modal-seg-badge {
+    display: inline-block;
+    padding: 3px 12px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #fff;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+.no-branches-msg {
+    color: #94a3b8;
+    text-align: center;
+    font-size: 0.85rem;
+    padding: 20px 0;
+}
 </style>
 
-<!-- Modal Structure -->
+<!-- Segment Info Modal -->
 <div id="segmentInfoOverlay" class="custom-modal-overlay" onclick="handleOverlayClick(event)">
     <div class="custom-modal-container">
         <div class="custom-modal-header">
@@ -99,6 +214,45 @@
             <div class="info-label">Detailed:</div>
             <div id="modalDetailedDesc" class="info-content detailed">Longer business logic explanation here...</div>
         </div>
+    </div>
+</div>
+
+<!-- Branch Download Modal -->
+<div id="branchDownloadOverlay" class="custom-modal-overlay" onclick="handleBranchOverlayClick(event)">
+    <div class="custom-modal-container">
+        <div class="custom-modal-header">
+            <div>
+                <span class="download-modal-seg-name">Download Segment Data</span>
+                <span id="dlModalSegBadge" class="download-modal-seg-badge">—</span>
+            </div>
+            <button class="close-modal-btn" onclick="closeBranchDownloadModal()">&times;</button>
+        </div>
+
+        <div class="mb-2 d-flex align-items-center justify-content-between">
+            <span class="info-label mb-0" style="font-size:0.8rem;">Select Branches</span>
+            <span id="branchSelectedCount" class="branch-selected-badge">0 selected</span>
+        </div>
+
+        <div class="branch-select-btns">
+            <button onclick="selectAllBranches()" id="btnSelectAll">Select All</button>
+            <button onclick="clearAllBranches()" id="btnClearAll">Clear All</button>
+        </div>
+
+        <input type="text" id="branchSearchBox" class="branch-search-box" placeholder="🔍 Search branches..." oninput="filterBranchList(this.value)">
+
+        <div class="branch-list-container" id="branchCheckboxList">
+            <div class="no-branches-msg">Loading branches…</div>
+        </div>
+
+        <div class="mb-2" style="font-size:0.78rem; color:#94a3b8;">
+            <i class="bi bi-info-circle"></i>
+            Leave all unchecked to download <strong>all branches</strong> for this segment.
+        </div>
+
+        <button class="btn-download-segment" id="btnStartSegmentDownload" onclick="startSegmentDownload()">
+            <i class="bi bi-cloud-arrow-down"></i>
+            <span id="dlBtnLabel">Download Excel</span>
+        </button>
     </div>
 </div>
 
@@ -268,6 +422,7 @@
     let rfmChart = null;
     let currentFilterStr = "";
 
+    // ── Segment info data ──────────────────────────────────────────────────────
     const segmentExplanations = {
         'Champions': {
             simple: 'Best customers – recent, frequent, and high spending',
@@ -282,16 +437,16 @@
             detailed: 'Customers who purchased recently (R=4–5) but have low frequency (F=1–2). These are early-stage customers with strong potential to grow.'
         },
         'At Risk': {
-            simple: 'High-value customers who haven’t visited for a while',
+            simple: 'High-value customers who haven\'t visited for a while',
             detailed: 'Customers with low recency (R=1–2) but high frequency and spending (F≥3, M≥3). These are high-value customers at high risk of churn.'
         },
         'Lost': {
-            simple: 'Inactive customers who haven’t purchased for long',
+            simple: 'Inactive customers who haven\'t purchased for long',
             detailed: 'Customers with very low recency (R=1) and low engagement. They have not purchased for a long time and are likely churned.'
         },
         'Others': {
-            simple: 'Customers who don’t fit specific high-value or lost categories',
-            detailed: 'A combination of average, potential, and mid-engagement customers. These are stable users who may require general engagement but aren’t currently in a critical risk or high-growth phase.'
+            simple: 'Customers who don\'t fit specific high-value or lost categories',
+            detailed: 'A combination of average, potential, and mid-engagement customers. These are stable users who may require general engagement but aren\'t currently in a critical risk or high-growth phase.'
         }
     };
 
@@ -304,41 +459,183 @@
         'Others': 'Not falling other categories.'
     };
 
+    const colorMap = {
+        'Champions': '#10b981',
+        'Loyal': '#3b82f6',
+        'New': '#f59e0b',
+        'At Risk': '#f97316',
+        'Lost': '#ef4444',
+        'Others': '#64748b'
+    };
+
+    // ── Segment Info Modal ─────────────────────────────────────────────────────
     function showSegmentInfo(segment) {
         const info = segmentExplanations[segment];
         if (!info) return;
-        
         document.getElementById('modalSegmentName').textContent = segment;
         document.getElementById('modalSimpleDesc').textContent = info.simple;
         document.getElementById('modalDetailedDesc').textContent = info.detailed;
-        
         document.getElementById('segmentInfoOverlay').classList.add('active');
-        document.body.style.overflow = 'hidden'; // Prevent scrolling
+        document.body.style.overflow = 'hidden';
     }
 
     function closeSegmentInfo() {
         document.getElementById('segmentInfoOverlay').classList.remove('active');
-        document.body.style.overflow = ''; // Restore scrolling
+        document.body.style.overflow = '';
     }
 
     function handleOverlayClick(e) {
-        if (e.target.id === 'segmentInfoOverlay') {
-            closeSegmentInfo();
-        }
+        if (e.target.id === 'segmentInfoOverlay') closeSegmentInfo();
     }
 
-    // Close on ESC
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && document.getElementById('segmentInfoOverlay').classList.contains('active')) {
-            closeSegmentInfo();
+        if (e.key === 'Escape') {
+            if (document.getElementById('segmentInfoOverlay').classList.contains('active')) closeSegmentInfo();
+            if (document.getElementById('branchDownloadOverlay').classList.contains('active')) closeBranchDownloadModal();
         }
     });
 
-    // Mark nav link active
-    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-    const rfmLink = document.querySelector('.nav-link[href*="rfm"]');
-    if (rfmLink) rfmLink.classList.add('active');
+    // ── Branch Download Modal state ────────────────────────────────────────────
+    let allBranches = [];           // full list fetched from API
+    let currentDownloadSegment = null;
 
+    async function ensureBranchesLoaded() {
+        if (allBranches.length > 0) return;
+        try {
+            const res = await fetch('/api/v1/branches-list/');
+            if (!res.ok) throw new Error('Failed to load branches');
+            const data = await res.json();
+            // data may be array of strings or array of objects
+            allBranches = Array.isArray(data)
+                ? data.map(b => typeof b === 'string' ? b : (b.branch || b.name || String(b)))
+                : [];
+        } catch (e) {
+            console.error('Branch load error:', e);
+            allBranches = [];
+        }
+    }
+
+    function renderBranchList(filter = '') {
+        const container = document.getElementById('branchCheckboxList');
+        const lc = filter.toLowerCase();
+        const filtered = allBranches.filter(b => b.toLowerCase().includes(lc));
+        if (filtered.length === 0) {
+            container.innerHTML = `<div class="no-branches-msg">${filter ? 'No branches match your search.' : 'No branches found.'}</div>`;
+            return;
+        }
+        container.innerHTML = filtered.map(b => {
+            const safeName = b.replace(/"/g, '&quot;');
+            return `
+                <label class="branch-check-item">
+                    <input type="checkbox" class="branch-cb" value="${safeName}" onchange="updateBranchCount()">
+                    <span>${b}</span>
+                </label>`;
+        }).join('');
+        updateBranchCount();
+    }
+
+    function filterBranchList(val) {
+        renderBranchList(val);
+    }
+
+    function selectAllBranches() {
+        document.querySelectorAll('.branch-cb').forEach(cb => cb.checked = true);
+        updateBranchCount();
+    }
+
+    function clearAllBranches() {
+        document.querySelectorAll('.branch-cb').forEach(cb => cb.checked = false);
+        updateBranchCount();
+    }
+
+    function updateBranchCount() {
+        const count = document.querySelectorAll('.branch-cb:checked').length;
+        const badge = document.getElementById('branchSelectedCount');
+        badge.textContent = count === 0 ? 'All branches' : `${count} selected`;
+        badge.style.background = count === 0 ? '#f0fdf4' : '#dbeafe';
+        badge.style.color = count === 0 ? '#15803d' : '#1d4ed8';
+    }
+
+    async function openBranchDownloadModal(segment) {
+        currentDownloadSegment = segment;
+
+        // Badge
+        const badge = document.getElementById('dlModalSegBadge');
+        badge.textContent = segment;
+        badge.style.backgroundColor = colorMap[segment] || '#64748b';
+
+        // Reset search
+        document.getElementById('branchSearchBox').value = '';
+        document.getElementById('branchCheckboxList').innerHTML = '<div class="no-branches-msg">Loading branches…</div>';
+        document.getElementById('dlBtnLabel').textContent = 'Download Excel';
+        document.getElementById('btnStartSegmentDownload').disabled = false;
+
+        document.getElementById('branchDownloadOverlay').classList.add('active');
+        document.body.style.overflow = 'hidden';
+
+        await ensureBranchesLoaded();
+        renderBranchList('');
+    }
+
+    function closeBranchDownloadModal() {
+        document.getElementById('branchDownloadOverlay').classList.remove('active');
+        document.body.style.overflow = '';
+        currentDownloadSegment = null;
+    }
+
+    function handleBranchOverlayClick(e) {
+        if (e.target.id === 'branchDownloadOverlay') closeBranchDownloadModal();
+    }
+
+    function startSegmentDownload() {
+        if (!currentDownloadSegment) return;
+
+        const btn = document.getElementById('btnStartSegmentDownload');
+        const label = document.getElementById('dlBtnLabel');
+
+        const checkedBoxes = document.querySelectorAll('.branch-cb:checked');
+        const selectedBranches = Array.from(checkedBoxes).map(cb => cb.value);
+
+        // Build URL
+        let url = `/api/v1/download/rfm/?segment=${encodeURIComponent(currentDownloadSegment)}`;
+
+        // Add current page filters (date, etc.)
+        if (currentFilterStr) {
+            url += `&${currentFilterStr}`;
+        }
+
+        // Add branch filter
+        if (selectedBranches.length > 0) {
+            url += `&branches=${encodeURIComponent(selectedBranches.join(','))}`;
+        }
+
+        // Animate button
+        label.textContent = 'Preparing…';
+        btn.disabled = true;
+
+        // Trigger download
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        const segSlug = currentDownloadSegment.toLowerCase().replace(/\s+/g, '_');
+        const branchLabel = selectedBranches.length > 0
+            ? `_${selectedBranches.length}branch`
+            : '_all_branches';
+        a.download = `rfm_${segSlug}${branchLabel}_export.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+
+        setTimeout(() => {
+            document.body.removeChild(a);
+            label.textContent = '✓ Downloaded!';
+            setTimeout(() => {
+                label.textContent = 'Download Excel';
+                btn.disabled = false;
+            }, 2500);
+        }, 1500);
+    }
+
+    // ── Global (summary) export ────────────────────────────────────────────────
     function downloadExport(segment = null, btnId = 'export-btn') {
         const btn = document.getElementById(btnId);
         const originalHtml = btn ? btn.innerHTML : '';
@@ -363,6 +660,12 @@
         }, 3000);
     }
 
+    // ── Mark nav link active ───────────────────────────────────────────────────
+    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+    const rfmLink = document.querySelector('.nav-link[href*="rfm"]');
+    if (rfmLink) rfmLink.classList.add('active');
+
+    // ── Load RFM Data ──────────────────────────────────────────────────────────
     async function loadRFMData(filterStr = "") {
         if (typeof window.showLoading === 'function') window.showLoading();
         currentFilterStr = filterStr;
@@ -380,7 +683,7 @@
                 return;
             }
             
-            // Calculate aggregations for KPI top cards
+            // KPI cards
             let totalCustomers = 0;
             let totalSales = 0;
             data.forEach(d => {
@@ -395,15 +698,6 @@
             
             const labels = data.map(d => d.segment);
             const values = data.map(d => d.count);
-            
-            const colorMap = {
-                'Champions': '#10b981',
-                'Loyal': '#3b82f6',
-                'New': '#f59e0b',
-                'At Risk': '#f97316',
-                'Lost': '#ef4444',
-                'Others': '#64748b'
-            };
             const bgColors = labels.map(l => colorMap[l] || '#64748b');
 
             if (rfmChart) rfmChart.destroy();
@@ -458,21 +752,24 @@
                         </div>
                         ${canDownload ? `
                         <div>
-                            <button id="btn-${safeSeg}" class="btn btn-sm btn-outline-success" onclick="downloadExport('${d.segment}', 'btn-${safeSeg}')" title="Download ${d.segment} customers">
+                            <button id="btn-${safeSeg}"
+                                class="btn btn-sm btn-outline-success d-flex align-items-center gap-1"
+                                onclick="openBranchDownloadModal('${d.segment}')"
+                                title="Download ${d.segment} customers by branch">
                                 <i class="bi bi-cloud-arrow-down"></i>
+                                <span style="font-size:0.75rem;">Download</span>
                             </button>
                         </div>` : ''}
                     </li>
                 `;
             });
             
-            // Render Monetary Quintiles
+            // Monetary Quintiles
             if (quintileResponse.ok) {
                 const quintileData = await quintileResponse.json();
                 const qBody = document.getElementById('quintile-table-body');
                 qBody.innerHTML = '';
                 
-                // Calculate total spend across all quintiles
                 let totalQuintileSpend = 0;
                 quintileData.forEach(q => {
                     totalQuintileSpend += (q.avg_spend * q.count);
