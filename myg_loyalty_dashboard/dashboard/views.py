@@ -119,18 +119,32 @@ class TargetExecutiveView(LoginRequiredMixin, TemplateView):
         # Determine risk/commentary
         prob_target = kpis.get("Prob_Target", 0)
         
-        if prob_target >= 95:
-            risk_level = "HIGH CONFIDENCE"
-            risk_color = "#10B981" # Emerald Green
-            status_badge = "OPTIMAL"
-        elif prob_target >= 85:
-            risk_level = "MODERATE CONFIDENCE"
-            risk_color = "#F59E0B" # Amber
-            status_badge = "ON TRACK"
+        days_remaining = kpis.get("Days_Remaining", 0)
+        achieved_pct = kpis.get("Achieved_Pct", 0)
+        
+        if days_remaining <= 0:
+            # Quarter is over, deterministic outcome
+            if achieved_pct >= 100:
+                risk_level = "TARGET ACHIEVED"
+                risk_color = "#10B981" # Emerald Green
+                status_badge = "ACHIEVED"
+            else:
+                risk_level = "TARGET MISSED"
+                risk_color = "#EF4444" # Red
+                status_badge = "MISSED"
         else:
-            risk_level = "LOW CONFIDENCE"
-            risk_color = "#EF4444" # Red
-            status_badge = "AT RISK"
+            if prob_target >= 95:
+                risk_level = "HIGH CONFIDENCE"
+                risk_color = "#10B981" # Emerald Green
+                status_badge = "OPTIMAL"
+            elif prob_target >= 85:
+                risk_level = "MODERATE CONFIDENCE"
+                risk_color = "#F59E0B" # Amber
+                status_badge = "ON TRACK"
+            else:
+                risk_level = "LOW CONFIDENCE"
+                risk_color = "#EF4444" # Red
+                status_badge = "AT RISK"
             
         context.update(kpis)
         context.update({

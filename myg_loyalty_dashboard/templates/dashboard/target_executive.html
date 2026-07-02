@@ -429,15 +429,15 @@
             </div>
             <div class="header-info-item">
                 <div class="info-label">Model Confidence</div>
-                <div class="info-value" style="color: #2563eb;">{{ Forecast_Confidence|default:"92.4" }}%</div>
+                <div class="info-value" style="color: #2563eb;">{{ Forecast_Confidence|floatformat:1|default:"92.4" }}%</div>
             </div>
             <div class="header-info-item">
                 <div class="info-label">Data Range</div>
                 <div class="info-value">Jul 2020 – {{ data_range_end|default:"May 17 2026" }}</div>
             </div>
             <div class="header-info-item">
-                <div class="info-label">Forecast Horizon</div>
-                <div class="info-value">{{ forecast_start|default:"May 18" }} – Jun 30 2026</div>
+                <div class="info-label">FORECAST HORIZON</div>
+                <div class="info-value">{% if forecast_start == "None" %}Completed{% else %}{{ forecast_start|default:"May 18" }} – Jun 30 2026{% endif %}</div>
             </div>
             <div class="header-info-item">
                 <div class="info-label">Regional Context</div>
@@ -454,13 +454,18 @@
                 <svg width="40" height="40" viewBox="0 0 40 40">
                     <circle cx="20" cy="20" r="16" fill="none" stroke="#f3f4f6" stroke-width="4"/>
                     <circle cx="20" cy="20" r="16" fill="none" stroke="{{ risk_color|default:"#f59e0b" }}" stroke-width="4"
-                        stroke-dasharray="{% if Prob_Target %}{{ Prob_Target|floatformat:0 }} 100{% else %}85 15{% endif %}" stroke-dashoffset="25" stroke-linecap="round"/>
+                        stroke-dasharray="{% if Days_Remaining <= 0 %}{{ Achieved_Pct|default:"0"|floatformat:0 }} 100{% elif Prob_Target %}{{ Prob_Target|floatformat:0 }} 100{% else %}85 15{% endif %}" stroke-dashoffset="25" stroke-linecap="round"/>
                 </svg>
             </div>
             <div class="ts-status" style="color: {{ risk_color|default:"#f59e0b" }};">{{ status_badge|default:"ON TRACK" }}</div>
         </div>
+        {% if Days_Remaining <= 0 %}
+        <div class="ts-prob-label">Final Achievement</div>
+        <div class="ts-prob-value" style="color: {{ risk_color|default:"#2563eb" }};">{{ Achieved_Pct|floatformat:1|default:"0.0" }}%</div>
+        {% else %}
         <div class="ts-prob-label">Target Achievement Probability</div>
         <div class="ts-prob-value" style="color: {{ risk_color|default:"#2563eb" }};">{{ Prob_Target|floatformat:1|default:"85.9" }}%</div>
+        {% endif %}
     </div>
 </div>
 
@@ -494,7 +499,7 @@
         <div class="kpi-icon" style="background: #fff1f2; color: #e11d48;"><i class="bi bi-exclamation-circle"></i></div>
         <div class="kpi-label">Gap Remaining</div>
         <div class="kpi-value" style="color: #e11d48;">{{ Gap|intcomma|default:"192,362" }}</div>
-        <div class="kpi-sub" style="color: #e11d48; font-weight: 600;">{{ Achieved_Pct|floatformat:1|default:"52.2" }}% Achieved</div>
+        <div class="kpi-sub" style="color: #e11d48; font-weight: 600;">Remaining to Target</div>
         <canvas id="spark4" class="kpi-sparkline"></canvas>
     </div>
 
@@ -509,7 +514,7 @@
     <div class="kpi-card">
         <div class="kpi-icon" style="background: #eff6ff; color: #0ea5e9;"><i class="bi bi-shield-check"></i></div>
         <div class="kpi-label">Forecast Confidence</div>
-        <div class="kpi-value" style="color: #0ea5e9;">{{ Forecast_Confidence|default:"92.4" }}%</div>
+        <div class="kpi-value" style="color: #0ea5e9;">{{ Forecast_Confidence|floatformat:1|default:"92.4" }}%</div>
         <div class="kpi-sub" style="color: #0ea5e9; font-weight: 600;">High Confidence</div>
         <canvas id="spark6" class="kpi-sparkline"></canvas>
     </div>
@@ -724,8 +729,8 @@ window.addEventListener('load', () => {
     
     const lastActualDate = histDates[histDates.length - 1] || '2026-05-17';
     const lastActualVal = actualVals[actualVals.length - 1] || 210302;
-    const lastForecastDate = forecastDates[forecastDates.length - 1] || '2026-06-30';
-    const lastForecastVal = forecastVals[forecastVals.length - 1] || 346094;
+    const lastForecastDate = forecastDates.length > 0 ? forecastDates[forecastDates.length - 1] : lastActualDate;
+    const lastForecastVal = forecastVals.length > 0 ? forecastVals[forecastVals.length - 1] : lastActualVal;
 
     const traces = [
         // 95% confidence (outer, lighter)
@@ -844,7 +849,7 @@ window.addEventListener('load', () => {
             {
                 x: lastActualDate,
                 y: lastActualVal,
-                text: `<b>Actuals (Jun 19, 2026)</b><br>+${lastActualVal.toLocaleString('en-IN')}`,
+                text: `<b>Actuals (${new Date(lastActualDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})</b><br>+${lastActualVal.toLocaleString('en-IN')}`,
                 showarrow: true,
                 arrowhead: 2,
                 arrowcolor: '#f97316',
@@ -860,10 +865,10 @@ window.addEventListener('load', () => {
                 ay: -55
             },
             // Forecast label: floats ABOVE the last forecast point, slightly left to avoid edge clip
-            {
+            ...(forecastDates.length > 0 ? [{
                 x: lastForecastDate,
                 y: lastForecastVal,
-                text: `<b>Forecast (Jun 30, 2026)</b><br>${lastForecastVal.toLocaleString('en-IN')}`,
+                text: `<b>Forecast (${new Date(lastForecastDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})</b><br>${Math.round(lastForecastVal).toLocaleString('en-IN')}`,
                 showarrow: true,
                 arrowhead: 2,
                 arrowcolor: '#2563eb',
@@ -877,7 +882,7 @@ window.addEventListener('load', () => {
                 yanchor: 'bottom',
                 ax: -10,
                 ay: -55
-            }
+            }] : [])
         ],
         shapes: [
             {

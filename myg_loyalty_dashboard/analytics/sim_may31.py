@@ -28,8 +28,13 @@ def generate_forecast():
     TOTAL_DB = 5033297 # Or query it if needed
     from sqlalchemy import text
     try:
-        with engine.connect() as con:
-            res = con.execute(text("SELECT COUNT(DISTINCT customer_mobile) FROM mv_true_repeat_amj_2026"))
+        query_amj = text("""
+            SELECT COUNT(DISTINCT customer_mobile) 
+            FROM mv_true_repeat_amj_2026
+            WHERE first_amj_purchase <= '2026-05-31'
+        """)
+        with engine.connect() as conn:
+            res = conn.execute(query_amj)
             AMJ_REPEAT = res.scalar()
     except Exception as e:
         print("Failed to get AMJ_REPEAT from DB, falling back:", e)
@@ -46,20 +51,20 @@ def generate_forecast():
     query_daily = """
         SELECT parsed_date as "Date", COUNT(DISTINCT "Customer Mobile") as daily_count 
         FROM sales_data 
-        WHERE parsed_date >= '2026-04-01' AND parsed_date <= '2026-06-30'
+        WHERE parsed_date >= '2026-04-01' AND parsed_date <= '2026-05-31'
         GROUP BY parsed_date
     """
     df_daily = pd.read_sql(query_daily, engine)
     
     if not df_daily.empty:
-        df_daily['Date'] = pd.to_datetime(df_daily['Date'], format='%d-%m-%Y')
+        df_daily['Date'] = pd.to_datetime(df_daily['Date'], format='%Y-%m-%d')
         df_daily = df_daily.sort_values('Date').reset_index(drop=True)
     else:
         # Fallback if no real data
         dates = pd.date_range(start=AMJ_START, end="2026-05-17", freq='D')
         df_daily = pd.DataFrame({'Date': dates, 'daily_count': np.random.randint(1000, 3000, len(dates))})
         
-    actuals_end = df_daily['Date'].max()
+    actuals_end = pd.to_datetime("2026-05-31")
     all_dates = pd.date_range(start=AMJ_START, end=actuals_end, freq='D')
     amj_df = pd.DataFrame({'Date': all_dates})
     amj_df = amj_df.merge(df_daily, on='Date', how='left').fillna(0)
@@ -95,14 +100,16 @@ def generate_forecast():
     # 3.3. Holt-Winters (Exponential Smoothing)
     hw = ExponentialSmoothing(y_daily, trend='add', seasonal=None)
     hw_fit = hw.fit()
-    pred_hw = hw_fit.forecast(remaining_days).values if remaining_days > 0 else np.array([])
+    pred_hw = hw_fit.forecast(remaining_days) if remaining_days > 0 else np.array([])
+    if isinstance(pred_hw, pd.Series):
+        pred_hw = pred_hw.values
     
     # Ensemble Average
     if remaining_days > 0:
         pred_ensemble = (pred_mlp + pred_gbr + pred_hw) / 3
         
         # Smooth and blend to avoid jump
-        last_actual = y_daily.iloc[-1]
+        last_actual = y_daily[-1]
         pred_ensemble = np.insert(pred_ensemble, 0, last_actual)
         ensemble_daily = pd.Series(pred_ensemble).rolling(window=3, min_periods=1).mean().values[1:]
     else:
@@ -188,71 +195,14 @@ def generate_forecast():
     momentum_vals = (np.linspace(10, 25, 30) + np.random.normal(0, 2, 30)).tolist()
 
     # Forecast Confidence calculation
-    forecast_confidence = 100.0 if remaining_days == 0 else max(0.0, 100.0 - (mape_ensemble * 100))
+    forecast_confidence = 100.0
 
     # --- 6. COMPILE JSON ---
-    output = {
-        "KPIs": {
-            "Total_DB": TOTAL_DB,
-            "Target_Repeat": TARGET_REPEAT,
-            "Target_Pct": TARGET_PCT * 100,
-            "Achieved_Repeat": AMJ_REPEAT,
-            "Achieved_Pct": (AMJ_REPEAT / TARGET_REPEAT) * 100,
-            "Gap": TARGET_REPEAT - AMJ_REPEAT,
-            "Forecast_Final": int(final_forecast),
-            "Forecast_Pct": (final_forecast / TOTAL_DB) * 100,
-            "Prob_Target": prob_target,
-            "Forecast_Confidence": forecast_confidence,
-            "Current_Run_Rate": int(current_run_rate),
-            "Required_Run_Rate": int(required_run_rate),
-            "Pace_Variance_Pct": ((current_run_rate / required_run_rate) - 1) * 100 if required_run_rate > 0 else 0,
-            "Health_Score": int(min(100, max(0, 100 - (100 - prob_target) * 1.5))),
-            "Days_Remaining": int(remaining_days),
-            "Metrics": metrics,
-            "data_range_end": actuals_end.strftime("%b %d %Y"),
-            "forecast_start": (actuals_end + timedelta(days=1)).strftime("%b %d") if remaining_days > 0 else "None"
-        },
-        "Charts": {
-            "BurnUp": {
-                "Actual_Dates": amj_df['Date'].dt.strftime('%Y-%m-%d').tolist(),
-                "Actual_Vals": amj_df['Cumulative'].tolist(),
-                "Forecast_Dates": forecast_dates.strftime('%Y-%m-%d').tolist(),
-                "Forecast_Vals": cumulative_forecast.tolist(),
-                "Upper_80": upper_80.tolist(),
-                "Lower_80": lower_80.tolist(),
-                "Upper_95": upper_95.tolist(),
-                "Lower_95": lower_95.tolist(),
-                "Target": TARGET_REPEAT,
-                "Stretch": int(TARGET_REPEAT * 1.25),
-                "Min": int(TARGET_REPEAT * 0.8)
-            },
-            "Heatmap": {
-                "x": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-                "y": ["Week 1", "Week 2", "Week 3", "Week 4"],
-                "z": heatmap_z
-            },
-            "RBM": {
-                "Labels": rbm_labels,
-                "Vals": rbm_vals
-            },
-            "Cohort": {
-                "Labels": cohort_months,
-                "Vals": cohort_vals
-            },
-            "Momentum": {
-                "Labels": momentum_dates,
-                "Vals": momentum_vals
-            }
-        }
-    }
-    
-    # Save to JSON
-    os.makedirs(os.path.dirname(os.path.abspath(__file__)), exist_ok=True)
-    cache_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_forecast_cache.json')
-    with open(cache_path, 'w') as f:
-        json.dump(output, f)
-        
-    print(f"AI Forecast generated and cached successfully at {cache_path}")
+    print("-------------------------------------------------")
+    print("SIMULATED FINAL FORECAST AS OF MAY 31:", final_forecast)
+    print("-------------------------------------------------")
+    import sys
+    sys.exit(0)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     generate_forecast()
