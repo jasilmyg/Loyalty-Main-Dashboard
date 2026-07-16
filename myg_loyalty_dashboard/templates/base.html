@@ -384,6 +384,77 @@
         .bcd-ms-item.hidden {
             display: none;
         }
+
+        /* ── Dormant Customer Download Panel ─────────────────────── */
+        .dcd-panel {
+            border-radius: 14px;
+            overflow: hidden;
+            border: 1.5px solid #fed7aa;
+            box-shadow: 0 4px 18px rgba(249, 115, 22, 0.08);
+            background: #fff7ed;
+        }
+        .dcd-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            background: linear-gradient(135deg, #ea580c 0%, #f97316 100%);
+            color: #fff;
+            user-select: none;
+            transition: background 0.2s;
+        }
+        .dcd-header:hover { background: linear-gradient(135deg, #c2410c 0%, #ea580c 100%); }
+        .dcd-icon-wrap {
+            width: 28px; height: 28px;
+            background: rgba(255,255,255,0.18);
+            border-radius: 7px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.95rem; flex-shrink: 0;
+        }
+        .dcd-title { font-size: 0.82rem; font-weight: 700; letter-spacing: 0.2px; flex: 1; }
+        .dcd-chevron { font-size: 0.75rem; transition: transform 0.25s ease; }
+        .dcd-chevron.open { transform: rotate(-180deg); }
+        .dcd-body { padding: 0.85rem 0.9rem 1rem; background: #fff7ed; }
+        .dcd-label {
+            display: block; font-size: 0.7rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.6px;
+            color: #9a3412; margin-bottom: 4px;
+        }
+        .dcd-select, .dcd-input {
+            width: 100%; font-size: 0.78rem; padding: 0.42rem 0.65rem;
+            border: 1.5px solid #fdba74; border-radius: 8px;
+            background: #fff; color: #7c2d12; outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            font-family: 'Inter', sans-serif;
+        }
+        .dcd-select:focus, .dcd-input:focus {
+            border-color: #f97316;
+            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+        }
+        .dcd-download-btn {
+            display: flex; align-items: center; justify-content: center;
+            padding: 0.6rem 1rem;
+            background: linear-gradient(135deg, #ea580c, #f97316);
+            color: #fff; font-weight: 700; font-size: 0.8rem;
+            border: none; border-radius: 10px; cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+            letter-spacing: 0.3px; font-family: 'Inter', sans-serif;
+        }
+        .dcd-download-btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #c2410c, #ea580c);
+            box-shadow: 0 6px 18px rgba(249, 115, 22, 0.4);
+            transform: translateY(-1px);
+        }
+        .dcd-download-btn:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
+        .dcd-status {
+            font-size: 0.73rem; font-weight: 600;
+            padding: 0.4rem 0.6rem; border-radius: 7px; text-align: center;
+        }
+        .dcd-status.success { background: #d1fae5; color: #065f46; }
+        .dcd-status.error   { background: #fee2e2; color: #991b1b; }
+        .dcd-status.info    { background: #eff6ff; color: #1e40af; }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -475,6 +546,19 @@
         {% endif %}
 
         {% if request.user.username != 'shestart' %}
+        <div class="mb-2 mt-3" style="padding-left: 2.5rem;">
+            <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">Store Analytics</small>
+        </div>
+        <ul class="nav flex-column mb-4">
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'store_analysis_upload' %}active{% endif %}" href="{% url 'store_analysis_upload' %}">
+                    <i class="bi bi-file-earmark-spreadsheet text-success"></i> Store Excel Analysis
+                </a>
+            </li>
+        </ul>
+        {% endif %}
+
+        {% if request.user.username != 'shestart' %}
         <!-- Branch Customer Download Section -->
         <div class="mb-2 mt-3" style="padding-left: 2.5rem;">
             <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">Data Export</small>
@@ -532,6 +616,51 @@
                     <span id="bcd-btn-text">Download Excel</span>
                 </button>
                 <div id="bcd-status" class="bcd-status mt-2" style="display:none;"></div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if request.user.username != 'shestart' %}
+        <!-- Dormant High-Value Customer Download -->
+        <div class="mb-2 mt-2" style="padding-left: 2.5rem;">
+            <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">Dormant Customer Export</small>
+        </div>
+        <div class="dcd-panel mx-2 mb-4">
+            <div class="dcd-header" id="dcd-toggle" onclick="toggleDcdPanel()" title="Click to expand/collapse">
+                <span class="dcd-icon-wrap"><i class="bi bi-person-dash-fill"></i></span>
+                <span class="dcd-title">Dormant High-Value</span>
+                <i class="bi bi-chevron-down dcd-chevron" id="dcd-chevron"></i>
+            </div>
+            <div class="dcd-body" id="dcd-body" style="display:none;">
+                <!-- Amount Range -->
+                <div class="mb-2">
+                    <label class="dcd-label"><i class="bi bi-cash-stack me-1"></i>Bill Amount Range (Rs.)</label>
+                    <div style="display:flex; gap:6px;">
+                        <input type="number" id="dcd-min" class="dcd-input" placeholder="Min" value="40000" min="0" step="1000">
+                        <input type="number" id="dcd-max" class="dcd-input" placeholder="Max" value="80000" min="0" step="1000">
+                    </div>
+                </div>
+                <!-- Dormancy Duration -->
+                <div class="mb-3">
+                    <label class="dcd-label"><i class="bi bi-clock-history me-1"></i>No Visit Since (Days)</label>
+                    <select id="dcd-days" class="dcd-select" onchange="dcdToggleCustomDays(this)">
+                        <option value="180">180 days (6 months)</option>
+                        <option value="365" selected>365 days (1 year)</option>
+                        <option value="540">540 days (1.5 years)</option>
+                        <option value="730">730 days (2 years)</option>
+                        <option value="1095">1095 days (3 years)</option>
+                        <option value="custom">Custom…</option>
+                    </select>
+                    <input type="number" id="dcd-days-custom" class="dcd-input mt-1" placeholder="Enter custom days" min="1" style="display:none;">
+                </div>
+                <button id="dcd-download-btn" class="dcd-download-btn w-100" onclick="downloadDormantData()">
+                    <span id="dcd-btn-icon"><i class="bi bi-filetype-csv me-2"></i></span>
+                    <span id="dcd-btn-text">Download Full CSV</span>
+                </button>
+                <div style="text-align:center; font-size:0.68rem; color:#9a3412; margin-top:5px; opacity:0.8;">
+                    All matching records · No row limit
+                </div>
+                <div id="dcd-status" class="dcd-status mt-2" style="display:none;"></div>
             </div>
         </div>
         {% endif %}
@@ -948,6 +1077,98 @@ async function downloadBranchCustomerData() {
         btn.disabled = false;
         btnIcon.innerHTML = '<i class="bi bi-file-earmark-excel-fill me-2"></i>';
         btnText.textContent = 'Download Excel';
+        setTimeout(() => { status.style.display = 'none'; }, 6000);
+    }
+}
+</script>
+
+<script>
+/* ── Dormant High-Value Customer Download Panel ─────────────── */
+
+function toggleDcdPanel() {
+    const body    = document.getElementById('dcd-body');
+    const chevron = document.getElementById('dcd-chevron');
+    if (!body) return;
+    const isOpen = body.style.display !== 'none';
+    body.style.display = isOpen ? 'none' : 'block';
+    chevron.classList.toggle('open', !isOpen);
+}
+
+function dcdToggleCustomDays(sel) {
+    const customInput = document.getElementById('dcd-days-custom');
+    if (!customInput) return;
+    customInput.style.display = (sel.value === 'custom') ? 'block' : 'none';
+    if (sel.value === 'custom') customInput.focus();
+}
+
+async function downloadDormantData() {
+    const minAmt  = document.getElementById('dcd-min')?.value  || '40000';
+    const maxAmt  = document.getElementById('dcd-max')?.value  || '80000';
+    const daysSel = document.getElementById('dcd-days')?.value || '365';
+    const daysCustom = document.getElementById('dcd-days-custom')?.value || '';
+    const dormantDays = (daysSel === 'custom') ? (daysCustom || '365') : daysSel;
+
+    const btn     = document.getElementById('dcd-download-btn');
+    const btnText = document.getElementById('dcd-btn-text');
+    const btnIcon = document.getElementById('dcd-btn-icon');
+    const status  = document.getElementById('dcd-status');
+
+    // Validation
+    if (parseFloat(minAmt) >= parseFloat(maxAmt)) {
+        status.style.display = 'block';
+        status.className = 'dcd-status mt-2 error';
+        status.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i>Min must be less than Max.';
+        setTimeout(() => { status.style.display = 'none'; }, 4000);
+        return;
+    }
+
+    const params = new URLSearchParams({
+        min_amount:   minAmt,
+        max_amount:   maxAmt,
+        dormant_days: dormantDays,
+    });
+
+    // Loading state
+    btn.disabled = true;
+    btnIcon.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>';
+    btnText.textContent = 'Querying DB…';
+    status.style.display = 'block';
+    status.className = 'dcd-status mt-2 info';
+    status.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Large query — please wait, do not close this tab…';
+
+    try {
+        const url = '/api/v1/dormant-bill-range-download/?' + params.toString();
+        const response = await fetch(url);
+
+        if (!response.ok) {
+            const errJson = await response.json().catch(() => ({}));
+            throw new Error(errJson.message || `Server error ${response.status}`);
+        }
+
+        const blob = await response.blob();
+        const disposition = response.headers.get('Content-Disposition') || '';
+        let filename = 'Dormant_Customers.xlsx';
+        const match = disposition.match(/filename="?([^"]+)"?/);
+        if (match) filename = match[1];
+
+        const dlUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = dlUrl; a.download = filename;
+        document.body.appendChild(a);
+        a.click(); a.remove();
+        URL.revokeObjectURL(dlUrl);
+
+        status.style.display = 'block';
+        status.classList.add('success');
+        status.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Download ready!';
+    } catch(err) {
+        status.style.display = 'block';
+        status.classList.add('error');
+        status.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i>' + err.message;
+    } finally {
+        btn.disabled = false;
+        btnIcon.innerHTML = '<i class="bi bi-filetype-csv me-2"></i>';
+        btnText.textContent = 'Download Full CSV';
         setTimeout(() => { status.style.display = 'none'; }, 6000);
     }
 }

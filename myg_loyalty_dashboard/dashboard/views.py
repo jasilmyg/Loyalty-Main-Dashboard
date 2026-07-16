@@ -1585,3 +1585,409 @@ class BranchCustomerDownloadAPIView(LoginRequiredMixin, View):
                 'message': str(e),
                 'trace': traceback.format_exc()
             }, status=500)
+
+
+class DormantBillRangeDownloadAPIView(LoginRequiredMixin, View):
+    """
+    GET /api/v1/dormant-bill-range-download/
+    Params:
+        min_amount   – minimum single bill amount (default 40000)
+        max_amount   – maximum single bill amount (default 80000)
+        dormant_days – number of days of inactivity to qualify as dormant (default 365)
+
+    Returns an Excel file of unique customers who:
+      1. Had at least one bill in [min_amount, max_amount]
+      2. Have NOT visited in the last `dormant_days` days
+    Columns: Sr No | Mobile | Name | Branch | Last Visit | Max Bill | Total Bills | Total Spend
+    """
+
+    def get(self, request):
+        import csv, io, traceback
+        from datetime import date, timedelta, datetime
+        from django.db import connection
+        from django.http import StreamingHttpResponse
+
+        # ── Parse params ───────────────────────────────────────────
+        try:
+            min_amount   = float(request.GET.get('min_amount', 40000))
+            max_amount   = float(request.GET.get('max_amount', 80000))
+            dormant_days = int(request.GET.get('dormant_days', 365))
+        except (ValueError, TypeError):
+            return JsonResponse({'status': 'error', 'message': 'Invalid parameters.'}, status=400)
+
+        cutoff_date = date.today() - timedelta(days=dormant_days)
+        ts          = datetime.now().strftime('%Y%m%d_%H%M')
+        filename    = f'Dormant_Customers_{int(min_amount)}-{int(max_amount)}_Last{dormant_days}d_{ts}.csv'
+
+        sql = """
+            SELECT
+                "Customer Mobile"                                                        AS mobile,
+                MAX("Customer Name")                                                     AS customer_name,
+                MAX("Branch")                                                            AS branch,
+                MAX(parsed_date)                                                         AS last_visit,
+                MAX("Total Value") FILTER (WHERE "Total Value" BETWEEN %s AND %s)        AS max_bill_in_range,
+                COUNT(*)                                                                 AS total_bills,
+                SUM(COALESCE("Total Value"::NUMERIC, 0))                                AS total_spend
+            FROM sales_data
+            WHERE "Customer Mobile" ~ '^[0-9]{10}$'
+              AND "Customer Mobile" NOT IN ('1313131313','0000000000','9999999999')
+            GROUP BY "Customer Mobile"
+            HAVING
+                MAX("Total Value") FILTER (WHERE "Total Value" BETWEEN %s AND %s) IS NOT NULL
+                AND MAX(parsed_date) < %s
+            ORDER BY max_bill_in_range DESC NULLS LAST
+        """
+        params_list = [min_amount, max_amount, min_amount, max_amount, cutoff_date]
+
+        def csv_stream():
+            """Generator that yields CSV rows — streams directly to browser."""
+            buf = io.StringIO()
+            writer = csv.writer(buf)
+
+            # Header row
+            writer.writerow([
+                'Sr No', 'Customer Mobile', 'Customer Name',
+                'Branch', 'Last Visit', 'Max Single Bill (Rs.)',
+                'Total Bills', 'Total Spend (Rs.)',
+            ])
+            yield buf.getvalue()
+            buf.truncate(0); buf.seek(0)
+
+            # Open a server-side cursor for memory-efficient streaming
+            try:
+                with connection.cursor() as cur:
+                    cur.execute("SET LOCAL statement_timeout = '600000'")  # 10 min
+                    cur.execute(sql, params_list)
+
+                    sr = 1
+                    while True:
+                        chunk = cur.fetchmany(2000)   # fetch 2000 rows at a time
+                        if not chunk:
+                            break
+                        for row in chunk:
+                            mobile, name, branch, last_visit, max_bill, total_bills, total_spend = row
+                            last_visit_str = last_visit.strftime('%d-%b-%Y') if last_visit and hasattr(last_visit, 'strftime') else str(last_visit or '')
+                            writer.writerow([
+                                sr,
+                                str(mobile or ''),
+                                str(name or 'N/A'),
+                                str(branch or ''),
+                                last_visit_str,
+                                round(float(max_bill or 0), 2),
+                                int(total_bills or 0),
+                                round(float(total_spend or 0), 2),
+                            ])
+                            sr += 1
+                        yield buf.getvalue()
+                        buf.truncate(0); buf.seek(0)
+            except Exception as e:
+                writer.writerow([f'ERROR: {e}'])
+                yield buf.getvalue()
+
+        response = StreamingHttpResponse(csv_stream(), content_type='text/csv; charset=utf-8')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+
+
+import pandas as pd
+from django.db import connection
+
+class StoreAnalysisUploadView(LoginRequiredMixin, TemplateView):
+    template_name = 'dashboard/store_upload.html'
+
+class StoreAnalysisResultsView(LoginRequiredMixin, TemplateView):
+    template_name = 'dashboard/store_analysis.html'
+
+class StoreAnalysisProcessAPIView(LoginRequiredMixin, View):
+    def post(self, request, *args, **kwargs):
+        if 'excel_file' not in request.FILES:
+            return JsonResponse({'status': 'error', 'message': 'No file uploaded'})
+            
+        file = request.FILES['excel_file']
+        
+        try:
+            df = pd.read_excel(file)
+            
+            # Clean column names
+            df.columns = df.columns.str.strip()
+            
+            # Check required columns
+            required_cols = ['Customer Mobile', 'Date', 'Branch']
+            missing = [c for c in required_cols if c not in df.columns]
+            if missing:
+                return JsonResponse({'status': 'error', 'message': f'Missing columns in Excel: {missing}'})
+            
+            # Clean Mobile Numbers
+            df['Customer Mobile'] = df['Customer Mobile'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip()
+            # Filter out obvious bad numbers if needed, but for now just process all
+            
+            # Extract basic file stats
+            df['Parsed Date'] = pd.to_datetime(df['Date'], dayfirst=True, errors='coerce')
+            
+            # Apply date filters if provided
+            filter_start = request.POST.get('start_date')
+            filter_end = request.POST.get('end_date')
+            
+            if filter_start:
+                df = df[df['Parsed Date'] >= pd.to_datetime(filter_start)]
+            if filter_end:
+                df = df[df['Parsed Date'] <= pd.to_datetime(filter_end)]
+                
+            if df.empty:
+                return JsonResponse({'status': 'error', 'message': 'No data available in the selected date range.'})
+            
+            start_date = df['Parsed Date'].min().strftime('%Y-%m-%d')
+            end_date = df['Parsed Date'].max().strftime('%Y-%m-%d')
+            branch = str(df['Branch'].iloc[0])
+            
+            mobiles = df['Customer Mobile'].unique().tolist()
+            
+            # Now we query the PostgreSQL database to get the real 'first_purchase_date' for these mobiles across Kerala
+            if not mobiles:
+                return JsonResponse({'status': 'error', 'message': 'No customer mobiles found in the file.'})
+                
+            # To avoid huge IN clauses if file is massive, we can pass them in batches or as ANY(ARRAY)
+            # Fetch lifetime metrics from mv_customer_summary which has (mobile, first_visit, total_spend, visits)
+            query = """
+                SELECT mobile, first_visit, total_spend, visits 
+                FROM mv_customer_summary 
+                WHERE mobile = ANY(%s)
+            """
+            
+            db_customers = {}
+            with connection.cursor() as cur:
+                cur.execute(query, [mobiles])
+                for row in cur.fetchall():
+                    # mobile, first_visit, total_spend, visits
+                    mob = str(row[0])
+                    fv = row[1]
+                    ts = row[2] or 0
+                    v = row[3] or 0
+                    db_customers[mob] = {
+                        'first_visit': fv if isinstance(fv, str) else (fv.strftime('%Y-%m-%d') if fv else None),
+                        'total_spend': float(ts),
+                        'visits': int(v)
+                    }
+                    
+            # Wait, the requirement says: "whose first-ever purchase in the entire Kerala database was made at this store"
+            # We need the first_purchase_store as well. The mv_customer_summary might not have it.
+            # Let's query v_sales_data directly for these customers to get the exact first purchase date and store.
+            
+            # We don't need to run a heavy query on v_sales_data to find the exact first branch.
+            # We already have first_visit from mv_customer_summary.
+            # If their first_visit is >= start_date, they are 'New' and we can infer first_branch as current_store.
+            first_purchase_details = {}
+            for mob, vals in db_customers.items():
+                first_purchase_details[mob] = {
+                    'first_date': vals['first_visit'],
+                    'first_branch': None
+                }
+                
+            # Now, for Repeat customers, we can find their exact first branch from sales_data
+            repeat_mobiles = [mob for mob, vals in db_customers.items() if vals['first_visit'] and vals['first_visit'] < start_date]
+            if repeat_mobiles:
+                query_branch = """
+                    SELECT "Customer Mobile", "Branch", "Date"
+                    FROM sales_data
+                    WHERE "Customer Mobile" = ANY(%s)
+                """
+                with connection.cursor() as cur:
+                    cur.execute(query_branch, [repeat_mobiles])
+                    for row in cur.fetchall():
+                        m = str(row[0])
+                        b = str(row[1])
+                        d = str(row[2])
+                        
+                        # normalize date from sales_data (can be YYYY-MM-DD or DD-MM-YYYY and may have time)
+                        d_norm = d.split(' ')[0] if ' ' in d else d
+                        if '-' in d_norm and len(d_norm) == 10:
+                            if d_norm[2] == '-': # DD-MM-YYYY
+                                d_norm = f"{d_norm[6:10]}-{d_norm[3:5]}-{d_norm[0:2]}"
+                                
+                        if m in first_purchase_details and d_norm == first_purchase_details[m]['first_date']:
+                            if first_purchase_details[m]['first_branch'] is None:
+                                first_purchase_details[m]['first_branch'] = b
+            
+            # Now aggregate metrics
+            total_sales = df['Sold Price'].sum() if 'Sold Price' in df.columns else 0
+            total_bills = df['Invoice Number'].nunique() if 'Invoice Number' in df.columns else 0
+            total_qty = df['QTY'].sum() if 'QTY' in df.columns else 0
+            
+            new_customers = 0
+            repeat_customers = 0
+            
+            customer_details = []
+            
+            # Group excel data by customer to get their current purchase info
+            cust_group = df.groupby('Customer Mobile')
+            
+            # For category and brand breakdown
+            df['Customer_Type'] = 'Repeat' # default
+            
+            for mob, group in cust_group:
+                current_date = group['Parsed Date'].min().strftime('%Y-%m-%d') if not pd.isna(group['Parsed Date'].min()) else 'N/A'
+                current_store = branch
+                
+                c_first_dt = first_purchase_details.get(mob, {}).get('first_date')
+                c_first_br = first_purchase_details.get(mob, {}).get('first_branch')
+                
+                lifetime_visits = db_customers.get(mob, {}).get('visits', 1)
+                lifetime_sales = db_customers.get(mob, {}).get('total_spend', group['Sold Price'].sum() if 'Sold Price' in group.columns else 0)
+                
+                # Check New vs Repeat condition
+                is_new = False
+                if c_first_dt:
+                    if c_first_dt >= start_date and c_first_dt <= end_date:
+                        is_new = True
+                        c_first_br = current_store
+                    else:
+                        c_first_br = c_first_br or 'Other Branch'
+
+                else:
+                    # Not found in DB, meaning they only exist in this Excel so far (or DB is missing them)
+                    is_new = True
+                    c_first_dt = current_date
+                    c_first_br = current_store
+                
+                cust_type = 'New' if is_new else 'Repeat'
+                if is_new:
+                    new_customers += 1
+                else:
+                    repeat_customers += 1
+                    
+                df.loc[df['Customer Mobile'] == mob, 'Customer_Type'] = cust_type
+                
+                customer_details.append({
+                    'mobile': mob,
+                    'customer_type': cust_type,
+                    'first_purchase_date': c_first_dt,
+                    'first_purchase_store': c_first_br,
+                    'current_purchase_date': current_date,
+                    'current_store': current_store,
+                    'lifetime_visits': lifetime_visits,
+                    'lifetime_sales': lifetime_sales
+                })
+                
+            total_customers = len(mobiles)
+            new_pct = round((new_customers / total_customers * 100), 1) if total_customers > 0 else 0
+            repeat_pct = round((repeat_customers / total_customers * 100), 1) if total_customers > 0 else 0
+            
+            abv = total_sales / total_bills if total_bills > 0 else 0
+            ipb = total_qty / total_bills if total_bills > 0 else 0
+            
+            # Category Comparison
+            cat_comp = []
+            if 'Item Category' in df.columns:
+                df['Item Category'] = df['Item Category'].fillna('Unknown')
+                cat_df = df.groupby(['Item Category', 'Customer_Type'])['Sold Price'].sum().unstack(fill_value=0).reset_index()
+                for _, r in cat_df.iterrows():
+                    cat_comp.append({
+                        'category': r['Item Category'],
+                        'new_sales': float(r.get('New', 0)),
+                        'repeat_sales': float(r.get('Repeat', 0))
+                    })
+                    
+            # Brand Comparison
+            brand_comp = []
+            if 'Brand' in df.columns:
+                df['Brand'] = df['Brand'].fillna('Unknown')
+                brand_df = df.groupby(['Brand', 'Customer_Type'])['Sold Price'].sum().unstack(fill_value=0).reset_index()
+                # Sort by total sales to get top brands
+                if 'New' not in brand_df.columns: brand_df['New'] = 0
+                if 'Repeat' not in brand_df.columns: brand_df['Repeat'] = 0
+                brand_df['Total'] = brand_df['New'] + brand_df['Repeat']
+                brand_df = brand_df.sort_values('Total', ascending=False).head(15) # Top 15
+                
+                for _, r in brand_df.iterrows():
+                    brand_comp.append({
+                        'brand': r['Brand'],
+                        'new_sales': float(r['New']),
+                        'repeat_sales': float(r['Repeat'])
+                    })
+
+            # Type Category Report
+            type_cat_report = []
+            if 'Item Category' in df.columns and 'Brand' in df.columns:
+                agg_dict = {'Sold Price': 'sum'}
+                if 'QTY' in df.columns:
+                    agg_dict['QTY'] = 'sum'
+                    
+                df_new = df[df['Customer_Type'] == 'New']
+                df_repeat = df[df['Customer_Type'] == 'Repeat']
+                
+                new_agg = df_new.groupby(['Item Category', 'Brand']).agg(agg_dict).reset_index().rename(columns={'Sold Price': 'New_Sales', 'QTY': 'New_QTY'})
+                repeat_agg = df_repeat.groupby(['Item Category', 'Brand']).agg(agg_dict).reset_index().rename(columns={'Sold Price': 'Repeat_Sales', 'QTY': 'Repeat_QTY'})
+                
+                tc_df = df.groupby(['Item Category', 'Brand']).agg(agg_dict).reset_index()
+                
+                if not new_agg.empty:
+                    tc_df = pd.merge(tc_df, new_agg, on=['Item Category', 'Brand'], how='left')
+                else:
+                    tc_df['New_Sales'] = 0
+                    tc_df['New_QTY'] = 0
+                    
+                if not repeat_agg.empty:
+                    tc_df = pd.merge(tc_df, repeat_agg, on=['Item Category', 'Brand'], how='left')
+                else:
+                    tc_df['Repeat_Sales'] = 0
+                    tc_df['Repeat_QTY'] = 0
+                    
+                tc_df = tc_df.fillna(0)
+                tc_df = tc_df.sort_values('Sold Price', ascending=False)
+                
+                total_new_sales = df_new['Sold Price'].sum() if 'Sold Price' in df_new.columns else 0
+                total_repeat_sales = df_repeat['Sold Price'].sum() if 'Sold Price' in df_repeat.columns else 0
+                
+                for _, r in tc_df.iterrows():
+                    qty = int(r.get('QTY', 0))
+                    sales = float(r['Sold Price'])
+                    pct = round((sales / total_sales * 100), 2) if total_sales > 0 else 0
+                    
+                    new_qty = int(r.get('New_QTY', 0))
+                    new_s = float(r.get('New_Sales', 0))
+                    tc_new_pct = round((new_s / total_new_sales * 100), 2) if total_new_sales > 0 else 0
+                    
+                    repeat_qty = int(r.get('Repeat_QTY', 0))
+                    repeat_s = float(r.get('Repeat_Sales', 0))
+                    tc_repeat_pct = round((repeat_s / total_repeat_sales * 100), 2) if total_repeat_sales > 0 else 0
+                    
+                    type_cat_report.append({
+                        'category': r['Item Category'],
+                        'brand': r['Brand'],
+                        'qty': qty,
+                        'sales': sales,
+                        'pct': pct,
+                        'new_qty': new_qty,
+                        'new_sales': new_s,
+                        'new_pct': tc_new_pct,
+                        'repeat_qty': repeat_qty,
+                        'repeat_sales': repeat_s,
+                        'repeat_pct': tc_repeat_pct
+                    })
+
+            result_data = {
+                'start_date': start_date,
+                'end_date': end_date,
+                'branch': branch,
+                'total_bills': int(total_bills),
+                'total_customers': int(total_customers),
+                'new_customers': new_customers,
+                'repeat_customers': repeat_customers,
+                'new_pct': new_pct,
+                'repeat_pct': repeat_pct,
+                'total_sales': float(total_sales),
+                'average_bill_value': float(abv),
+                'average_items_per_bill': float(ipb),
+                'customer_details': customer_details,
+                'category_comparison': cat_comp,
+                'brand_comparison': brand_comp,
+                'type_category_report': type_cat_report
+            }
+            
+            return JsonResponse({'status': 'success', 'data': result_data})
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({'status': 'error', 'message': str(e)})

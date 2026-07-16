@@ -1,0 +1,392 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold m-0">Store Data Analysis Results</h2>
+        <p class="text-muted mb-0 mt-1" id="store-meta-info">Loading...</p>
+    </div>
+    <div>
+        <button class="btn btn-success me-2" onclick="exportAllToExcel('Store_Analysis_Report.xlsx')">
+            <i class="bi bi-file-earmark-excel"></i> Download Full Excel
+        </button>
+        <button class="btn btn-outline-secondary" onclick="window.location.href='{% url 'store_analysis_upload' %}'">
+            <i class="bi bi-arrow-left"></i> Upload Another File
+        </button>
+    </div>
+</div>
+
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<!-- Summary Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card p-3 h-100">
+            <div class="stat-label">Total Bills</div>
+            <div class="stat-value" id="val-total-bills">0</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card p-3 h-100">
+            <div class="stat-label">Total Customers</div>
+            <div class="stat-value" id="val-total-customers">0</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card p-3 h-100" style="border-left-color: #10b981;">
+            <div class="stat-label">New Customers (Kerala)</div>
+            <div class="stat-value text-success" id="val-new-customers">0 <span class="fs-6 text-muted" id="val-new-pct">(0%)</span></div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card p-3 h-100" style="border-left-color: #3b82f6;">
+            <div class="stat-label">Repeat Customers (Kerala)</div>
+            <div class="stat-value text-primary" id="val-repeat-customers">0 <span class="fs-6 text-muted" id="val-repeat-pct">(0%)</span></div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card p-3 h-100">
+            <div class="stat-label">Total Sales (Rs)</div>
+            <div class="stat-value" id="val-total-sales">0</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card p-3 h-100">
+            <div class="stat-label">Average Bill Value (ABV)</div>
+            <div class="stat-value" id="val-abv">0</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card p-3 h-100">
+            <div class="stat-label">Average Items per Bill</div>
+            <div class="stat-value" id="val-items-per-bill">0</div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row g-4 mb-4">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header border-0 pb-0">
+                <h5 class="fw-bold mb-0">Category Comparison</h5>
+            </div>
+            <div class="card-body">
+                <div id="categoryChart" style="height: 350px;"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header border-0 pb-0">
+                <h5 class="fw-bold mb-0">Brand Comparison</h5>
+            </div>
+            <div class="card-body">
+                <div id="brandChart" style="height: 350px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Type Category Report -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+        <h5 class="fw-bold m-0">Type Category Report</h5>
+        <div class="d-flex align-items-center">
+            <div class="btn-group btn-group-sm me-3" role="group">
+                <input type="radio" class="btn-check" name="btnradio" id="btnAll" autocomplete="off" checked onchange="renderTypeCategoryReport('all')">
+                <label class="btn btn-outline-primary" for="btnAll">All</label>
+              
+                <input type="radio" class="btn-check" name="btnradio" id="btnRepeat" autocomplete="off" onchange="renderTypeCategoryReport('repeat')">
+                <label class="btn btn-outline-primary" for="btnRepeat">Repeat</label>
+              
+                <input type="radio" class="btn-check" name="btnradio" id="btnNew" autocomplete="off" onchange="renderTypeCategoryReport('new')">
+                <label class="btn btn-outline-primary" for="btnNew">New</label>
+            </div>
+            <div>
+                <button class="btn btn-sm btn-outline-success me-1" onclick="exportTableToCSV('category_report.csv', 'typeCatTable')">
+                    <i class="bi bi-filetype-csv"></i> Export CSV
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+            <table class="table table-hover table-striped mb-0 align-middle text-nowrap" id="typeCatTable">
+                <thead class="table-light sticky-top">
+                    <tr>
+                        <th>Category</th>
+                        <th>Brand</th>
+                        <th class="text-end">Quantity</th>
+                        <th class="text-end">Value (Rs)</th>
+                        <th class="text-end">Contribution %</th>
+                    </tr>
+                </thead>
+                <tbody id="typeCatTableBody">
+                    <!-- Data populated via JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Customer Table -->
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+        <h5 class="fw-bold m-0">Detailed Customer Data</h5>
+        <div>
+            <button class="btn btn-sm btn-outline-success me-1" onclick="exportTableToCSV('store_customers.csv', 'customersTable')">
+                <i class="bi bi-filetype-csv"></i> Export CSV
+            </button>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+            <table class="table table-hover table-striped mb-0 align-middle text-nowrap" id="customersTable">
+                <thead class="table-light sticky-top">
+                    <tr>
+                        <th>Customer Mobile</th>
+                        <th>Type (Kerala-wide)</th>
+                        <th>First Purchase Date</th>
+                        <th>First Purchase Store</th>
+                        <th>Current Purchase Date</th>
+                        <th>Current Store</th>
+                        <th class="text-end">Lifetime Visits</th>
+                        <th class="text-end">Lifetime Sales (Rs)</th>
+                    </tr>
+                </thead>
+                <tbody id="customersTableBody">
+                    <!-- Data populated via JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+const formatMoney = (val) => new Intl.NumberFormat('en-IN').format(Math.round(val));
+const formatNum = (val) => new Intl.NumberFormat('en-IN').format(val);
+
+document.addEventListener('DOMContentLoaded', function() {
+    const dataStr = sessionStorage.getItem('storeAnalysisResults');
+    if (!dataStr) {
+        alert("No analysis data found. Please upload a file first.");
+        window.location.href = "{% url 'store_analysis_upload' %}";
+        return;
+    }
+    
+    const data = JSON.parse(dataStr);
+    
+    // Meta Info
+    document.getElementById('store-meta-info').innerText = `Branch: ${data.branch} | Period: ${data.start_date} to ${data.end_date}`;
+
+    // Summary Cards
+    document.getElementById('val-total-bills').innerText = formatNum(data.total_bills);
+    document.getElementById('val-total-customers').innerText = formatNum(data.total_customers);
+    
+    document.getElementById('val-new-customers').innerHTML = `${formatNum(data.new_customers)} <span class="fs-6 text-muted">(${data.new_pct}%)</span>`;
+    document.getElementById('val-repeat-customers').innerHTML = `${formatNum(data.repeat_customers)} <span class="fs-6 text-muted">(${data.repeat_pct}%)</span>`;
+    
+    document.getElementById('val-total-sales').innerText = '₹ ' + formatMoney(data.total_sales);
+    document.getElementById('val-abv').innerText = '₹ ' + formatMoney(data.average_bill_value);
+    document.getElementById('val-items-per-bill').innerText = parseFloat(data.average_items_per_bill).toFixed(2);
+
+    // Populate Table
+    const tbody = document.getElementById('customersTableBody');
+    let rowsHtml = '';
+    data.customer_details.forEach(c => {
+        const typeBadge = c.customer_type === 'New' 
+            ? '<span class="badge bg-success-subtle text-success border border-success-subtle">New Customer</span>'
+            : '<span class="badge bg-primary-subtle text-primary border border-primary-subtle">Repeat Customer</span>';
+            
+        rowsHtml += `
+            <tr>
+                <td class="fw-semibold">${c.mobile}</td>
+                <td>${typeBadge}</td>
+                <td>${c.first_purchase_date || 'N/A'}</td>
+                <td>${c.first_purchase_store || 'N/A'}</td>
+                <td>${c.current_purchase_date}</td>
+                <td>${c.current_store}</td>
+                <td class="text-end">${formatNum(c.lifetime_visits)}</td>
+                <td class="text-end">₹ ${formatMoney(c.lifetime_sales)}</td>
+            </tr>
+        `;
+    });
+    tbody.innerHTML = rowsHtml;
+
+    // Populate Type Category Report
+    window.renderTypeCategoryReport = function(filterType) {
+        const tcBody = document.getElementById('typeCatTableBody');
+        let tcHtml = '';
+        let totalQty = 0;
+        let totalSales = 0;
+        let totalPct = 0;
+        
+        if (data.type_category_report && data.type_category_report.length > 0) {
+            data.type_category_report.forEach(r => {
+                let qty = r.qty;
+                let sales = r.sales;
+                let pct = r.pct;
+                
+                // Failsafe: if the user hasn't re-uploaded yet, new_qty won't exist in the JSON payload
+                if (filterType !== 'all' && typeof r.new_qty === 'undefined') {
+                    tcHtml = '<tr><td colspan="5" class="text-center text-danger fw-bold py-4">Data update required! Please click "Choose File" and upload your Excel file again to enable these filters.</td></tr>';
+                    return;
+                }
+                
+                if (filterType === 'new') {
+                    qty = r.new_qty;
+                    sales = r.new_sales;
+                    pct = r.new_pct;
+                } else if (filterType === 'repeat') {
+                    qty = r.repeat_qty;
+                    sales = r.repeat_sales;
+                    pct = r.repeat_pct;
+                }
+                
+                // Only show rows that actually have data for this filter
+                if (sales > 0 || qty > 0) {
+                    totalQty += qty;
+                    totalSales += sales;
+                    totalPct += pct;
+                    
+                    tcHtml += `
+                        <tr>
+                            <td class="fw-semibold">${r.category}</td>
+                            <td>${r.brand}</td>
+                            <td class="text-end">${formatNum(qty)}</td>
+                            <td class="text-end">₹ ${formatMoney(sales)}</td>
+                            <td class="text-end fw-bold">${pct}%</td>
+                        </tr>
+                    `;
+                }
+            });
+            
+            if (tcHtml === '') {
+                tcHtml = '<tr><td colspan="5" class="text-center text-muted">No data for this filter</td></tr>';
+            } else {
+                tcHtml += `
+                    <tr class="table-active border-top border-2 border-dark fw-bold">
+                        <td colspan="2" class="text-end fs-6">GRAND TOTAL:</td>
+                        <td class="text-end fs-6">${formatNum(totalQty)}</td>
+                        <td class="text-end fs-6 text-primary">₹ ${formatMoney(totalSales)}</td>
+                        <td class="text-end fs-6 text-danger">${totalPct.toFixed(2)}%</td>
+                    </tr>
+                `;
+            }
+        } else {
+            tcHtml = '<tr><td colspan="5" class="text-center text-muted">No category/brand data available</td></tr>';
+        }
+        tcBody.innerHTML = tcHtml;
+    };
+    
+    // Initial Render
+    window.renderTypeCategoryReport('all');
+
+    // Render Charts
+    renderCharts(data.category_comparison, data.brand_comparison);
+});
+
+function renderCharts(catData, brandData) {
+    // Category Chart
+    const catLabels = catData.map(d => d.category || 'Unknown');
+    const catNew = catData.map(d => d.new_sales);
+    const catRepeat = catData.map(d => d.repeat_sales);
+
+    Plotly.newPlot('categoryChart', [
+        {
+            x: catLabels, y: catNew, name: 'New Customers', type: 'bar', marker: { color: '#10b981' }
+        },
+        {
+            x: catLabels, y: catRepeat, name: 'Repeat Customers', type: 'bar', marker: { color: '#3b82f6' }
+        }
+    ], {
+        barmode: 'group',
+        margin: { t: 20, l: 50, r: 20, b: 80 },
+        legend: { orientation: 'h', y: -0.2 }
+    });
+
+    // Brand Chart
+    const brandLabels = brandData.map(d => d.brand || 'Unknown');
+    const brandNew = brandData.map(d => d.new_sales);
+    const brandRepeat = brandData.map(d => d.repeat_sales);
+
+    Plotly.newPlot('brandChart', [
+        {
+            x: brandLabels, y: brandNew, name: 'New Customers', type: 'bar', marker: { color: '#10b981' }
+        },
+        {
+            x: brandLabels, y: brandRepeat, name: 'Repeat Customers', type: 'bar', marker: { color: '#3b82f6' }
+        }
+    ], {
+        barmode: 'group',
+        margin: { t: 20, l: 50, r: 20, b: 80 },
+        legend: { orientation: 'h', y: -0.2 }
+    });
+}
+
+function exportTableToCSV(filename, tableId = 'customersTable') {
+    let csv = [];
+    let rows = document.getElementById(tableId).querySelectorAll("tr");
+    
+    for (let i = 0; i < rows.length; i++) {
+        let row = [], cols = rows[i].querySelectorAll("td, th");
+        for (let j = 0; j < cols.length; j++) 
+            row.push('"' + cols[j].innerText.replace(/"/g, '""') + '"');
+        csv.push(row.join(","));
+    }
+    
+    let csvFile = new Blob([csv.join("\n")], {type: "text/csv"});
+    let downloadLink = document.createElement("a");
+    downloadLink.download = filename;
+    downloadLink.href = window.URL.createObjectURL(csvFile);
+    downloadLink.style.display = "none";
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+}
+
+function exportAllToExcel(filename) {
+    if (typeof XLSX === 'undefined') {
+        alert('Excel export library is still loading or failed to load. Please wait a moment and try again.');
+        return;
+    }
+    try {
+        const dataStr = sessionStorage.getItem('storeAnalysisResults');
+        const data = JSON.parse(dataStr);
+        
+        let wb = XLSX.utils.book_new();
+        
+        // 1. Summary KPIs Sheet
+        let kpiData = [
+            ["Metric", "Value"],
+            ["Total Bills", data.total_bills],
+            ["Total Customers", data.total_customers],
+            ["New Customers (Kerala)", data.new_customers + " (" + data.new_pct + "%)"],
+            ["Repeat Customers (Kerala)", data.repeat_customers + " (" + data.repeat_pct + "%)"],
+            ["Total Sales (Rs)", "₹ " + formatMoney(data.total_sales)],
+            ["Average Bill Value (ABV)", "₹ " + formatMoney(data.average_bill_value)],
+            ["Average Items Per Bill", data.average_items_per_bill]
+        ];
+        let ws_kpi = XLSX.utils.aoa_to_sheet(kpiData);
+        XLSX.utils.book_append_sheet(wb, ws_kpi, "Summary KPIs");
+        
+        // 2. Category Report Sheet
+        let table1 = document.getElementById('typeCatTable');
+        let ws1 = XLSX.utils.table_to_sheet(table1, {raw: true});
+        XLSX.utils.book_append_sheet(wb, ws1, "Category Report");
+        
+        // 3. Customer Data Sheet
+        let table2 = document.getElementById('customersTable');
+        let ws2 = XLSX.utils.table_to_sheet(table2, {raw: true});
+        XLSX.utils.book_append_sheet(wb, ws2, "Customer Data");
+        
+        XLSX.writeFile(wb, filename);
+    } catch (e) {
+        console.error(e);
+        alert('Failed to generate Excel file: ' + e.message);
+    }
+}
+</script>
+{% endblock %}

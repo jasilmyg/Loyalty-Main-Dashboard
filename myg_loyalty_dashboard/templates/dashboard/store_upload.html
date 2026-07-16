@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold m-0">Store Excel Data Analysis</h2>
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body p-5 text-center">
+        <h5 class="card-title fw-bold mb-3">Upload Store Data (Excel)</h5>
+        <p class="text-muted mb-4">Upload the store's sales data file (e.g., MARINE DRIVE DATA.xlsx) to compare its performance against the complete Kerala database.</p>
+        
+        <form id="uploadForm" enctype="multipart/form-data" class="d-flex flex-column align-items-center">
+            {% csrf_token %}
+            <div class="mb-4 w-50">
+                <input class="form-control form-control-lg mb-3" type="file" id="excelFile" name="excel_file" accept=".xlsx, .xls" required>
+                
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small text-start w-100 fw-bold">Start Date (Optional)</label>
+                        <input type="date" class="form-control" name="start_date" id="filterStartDate">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small text-start w-100 fw-bold">End Date (Optional)</label>
+                        <input type="date" class="form-control" name="end_date" id="filterEndDate">
+                    </div>
+                </div>
+                <div class="form-text mt-2">Leave dates empty to analyze the entire file.</div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-lg px-5 shadow-sm">
+                <i class="bi bi-cloud-arrow-up-fill me-2"></i> Upload and Analyze
+            </button>
+        </form>
+
+        <div id="uploadStatus" class="mt-4" style="display: none;">
+            <div class="spinner-border text-primary mb-2" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="text-muted fw-semibold" id="statusMessage">Uploading and processing data... This may take a few minutes as we query the Kerala database.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('uploadForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const fileInput = document.getElementById('excelFile');
+    if (!fileInput.files.length) {
+        alert('Please select a file to upload.');
+        return;
+    }
+
+    const formData = new FormData(this);
+    
+    document.getElementById('uploadForm').style.display = 'none';
+    document.getElementById('uploadStatus').style.display = 'block';
+
+    fetch("{% url 'store_analysis_process_api' %}", {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            // Save results to sessionStorage and redirect to results page
+            sessionStorage.setItem('storeAnalysisResults', JSON.stringify(data.data));
+            window.location.href = "{% url 'store_analysis_results' %}";
+        } else {
+            alert('Error: ' + data.message);
+            resetForm();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An unexpected error occurred. Check the console for details.');
+        resetForm();
+    });
+});
+
+function resetForm() {
+    document.getElementById('uploadForm').style.display = 'flex';
+    document.getElementById('uploadStatus').style.display = 'none';
+    document.getElementById('uploadForm').reset();
+}
+</script>
+{% endblock %}

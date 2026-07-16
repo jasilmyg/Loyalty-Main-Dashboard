@@ -44,4 +44,10 @@ urlpatterns = [
     path('she-start-detailed/', views.SheStartDetailedView.as_view(), name='she_start_detailed'),
     path('api/v1/she-start-detailed/data/', views.SheStartDetailedDataAPIView.as_view(), name='she_start_detailed_data_api'),
     path('api/v1/branch-customer-download/', views.BranchCustomerDownloadAPIView.as_view(), name='branch_customer_download'),
+    path('api/v1/dormant-bill-range-download/', views.DormantBillRangeDownloadAPIView.as_view(), name='dormant_bill_range_download'),
+    
+    # Store Excel Analysis
+    path('store-analysis/upload/', views.StoreAnalysisUploadView.as_view(), name='store_analysis_upload'),
+    path('store-analysis/results/', views.StoreAnalysisResultsView.as_view(), name='store_analysis_results'),
+    path('api/v1/store-analysis/process/', views.StoreAnalysisProcessAPIView.as_view(), name='store_analysis_process_api'),
 ]
