@@ -121,31 +121,19 @@ def execute_readonly_query(sql: str) -> List[Dict[str, Any]]:
 if __name__ == "__main__":
     import uvicorn
     from starlette.middleware.cors import CORSMiddleware
-    from starlette.responses import RedirectResponse
-    
-    # Create the ASGI app
-    app = mcp.sse_app()
-    
-    # Add root redirect for clients that check the base URL
-    async def redirect_to_sse(scope, receive, send):
-        if scope["type"] == "http" and scope["path"] == "/":
-            response = RedirectResponse(url="/sse")
-            await response(scope, receive, send)
-            return
-        await app(scope, receive, send)
-    
-    # Add CORS middleware so Gemini UI can connect
-    from starlette.applications import Starlette
-    wrapper = Starlette()
-    wrapper.add_route("/", lambda req: RedirectResponse(url="/sse"))
-    wrapper.mount("/", app)
-    
-    wrapper.add_middleware(
+
+    # Gemini custom connected apps require streamable-http transport (NOT SSE)
+    # The endpoint is at /mcp by default
+    app = mcp.streamable_http_app()
+
+    # Add CORS middleware so Gemini UI can connect from gemini.google.com
+    app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    
-    # Run the server
-    uvicorn.run(wrapper, host="0.0.0.0", port=port)
+
+    # Run the server — Render injects PORT automatically
+    uvicorn.run(app, host="0.0.0.0", port=port)
+
