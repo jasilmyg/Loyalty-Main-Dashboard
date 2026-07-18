@@ -28,4 +28,4 @@ gspread==6.2.1
 django-redis>=5.4.0
 celery>=5.4.0
 pgvector>=0.2.5
-mcp
+mcp[cli]
