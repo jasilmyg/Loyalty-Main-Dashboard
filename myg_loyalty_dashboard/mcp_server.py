@@ -117,4 +117,6 @@ def execute_readonly_query(sql: str) -> List[Dict[str, Any]]:
 
 if __name__ == "__main__":
     # If run directly, start the MCP server
-    mcp.run(transport="sse", port=8001)
+    port = int(os.environ.get("PORT", 8001))
+    # Use host 0.0.0.0 so it binds correctly on Render and other cloud platforms
+    mcp.run(transport="sse", port=port, host="0.0.0.0")
