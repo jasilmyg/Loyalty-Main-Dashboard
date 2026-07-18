@@ -12,8 +12,11 @@ django.setup()
 from django.apps import apps
 from django.db import connection
 
+# Determine port from Render environment variables
+port = int(os.environ.get("PORT", 8001))
+
 # Create FastMCP server
-mcp = FastMCP("myg-portal")
+mcp = FastMCP("myg-portal", host="0.0.0.0", port=port)
 
 @mcp.tool()
 def list_django_models() -> List[Dict[str, str]]:
@@ -117,6 +120,4 @@ def execute_readonly_query(sql: str) -> List[Dict[str, Any]]:
 
 if __name__ == "__main__":
     # If run directly, start the MCP server
-    port = int(os.environ.get("PORT", 8001))
-    # Use host 0.0.0.0 so it binds correctly on Render and other cloud platforms
-    mcp.run(transport="sse", port=port, host="0.0.0.0")
+    mcp.run(transport="sse")
