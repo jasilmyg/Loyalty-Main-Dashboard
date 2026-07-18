@@ -119,5 +119,19 @@ def execute_readonly_query(sql: str) -> List[Dict[str, Any]]:
         return [{"error": str(e)}]
 
 if __name__ == "__main__":
-    # If run directly, start the MCP server
-    mcp.run(transport="sse")
+    import uvicorn
+    from starlette.middleware.cors import CORSMiddleware
+    
+    # Create the ASGI app
+    app = mcp.sse_app()
+    
+    # Add CORS middleware so Gemini UI can connect
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    
+    # Run the server
+    uvicorn.run(app, host="0.0.0.0", port=port)
