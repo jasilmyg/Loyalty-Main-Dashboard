@@ -22,3 +22,27 @@ services:
         sync: false   # Set this secret in Render Dashboard → Environment tab
       - key: PYTHON_VERSION
         value: "3.11"
+
+  - type: web
+    name: loyalty-mcp-server
+    env: python
+    region: singapore
+    plan: free
+    rootDir: myg_loyalty_dashboard
+    buildCommand: pip install -r requirements.txt
+    startCommand: mcp run mcp_server:mcp --transport sse --port $PORT --host 0.0.0.0
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: myg_loyalty_dashboard.settings
+      - key: PGDATABASE
+        value: defaultdb
+      - key: PGUSER
+        value: doadmin
+      - key: PGHOST
+        value: db-postgresql-blr1-90397-do-user-3146770-0.e.db.ondigitalocean.com
+      - key: PGPORT
+        value: "25060"
+      - key: PGPASSWORD
+        sync: false   # Set this secret in Render Dashboard → Environment tab
+      - key: PYTHON_VERSION
+        value: "3.11"

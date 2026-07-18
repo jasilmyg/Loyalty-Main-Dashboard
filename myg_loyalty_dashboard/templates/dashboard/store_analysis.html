@@ -94,8 +94,51 @@
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
         <h5 class="fw-bold m-0">Type Category Report</h5>
-        <div class="d-flex align-items-center">
-            <div class="btn-group btn-group-sm me-3" role="group">
+        <div class="d-flex align-items-center flex-wrap">
+            <div class="dropdown me-2 mb-1">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                    <i class="bi bi-funnel"></i> Product
+                </button>
+                <div class="dropdown-menu p-3 shadow-sm" style="min-width: 200px; max-height: 300px; overflow-y: auto; z-index: 1050;" id="filter-product-menu">
+                    <!-- Checkboxes injected via JS -->
+                </div>
+            </div>
+            
+            <div class="dropdown me-2 mb-1">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                    <i class="bi bi-funnel"></i> Category
+                </button>
+                <div class="dropdown-menu p-3 shadow-sm" style="min-width: 200px; max-height: 300px; overflow-y: auto; z-index: 1050;" id="filter-category-menu">
+                    <!-- Checkboxes injected via JS -->
+                </div>
+            </div>
+            
+            <div class="dropdown me-2 mb-1">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                    <i class="bi bi-funnel"></i> Item Category
+                </button>
+                <div class="dropdown-menu p-3 shadow-sm" style="min-width: 250px; max-height: 300px; overflow-y: auto; z-index: 1050;" id="filter-item-category-menu">
+                    <!-- Checkboxes injected via JS -->
+                </div>
+            </div>
+            
+            <div class="dropdown me-3 mb-1">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                    <i class="bi bi-funnel"></i> Financier
+                </button>
+                <div class="dropdown-menu p-3 shadow-sm" style="min-width: 250px; max-height: 300px; overflow-y: auto; z-index: 1050;" id="filter-financier-menu">
+                    <!-- Checkboxes injected via JS -->
+                </div>
+            </div>
+            
+            <button class="btn btn-sm btn-primary me-2 mb-1" onclick="applyFilters()">
+                Apply Filters
+            </button>
+            <button class="btn btn-sm btn-outline-danger me-3 mb-1" onclick="clearFilters()">
+                Clear
+            </button>
+
+            <div class="btn-group btn-group-sm me-3 mb-1" role="group">
                 <input type="radio" class="btn-check" name="btnradio" id="btnAll" autocomplete="off" checked onchange="renderTypeCategoryReport('all')">
                 <label class="btn btn-outline-primary" for="btnAll">All</label>
               
@@ -117,8 +160,7 @@
             <table class="table table-hover table-striped mb-0 align-middle text-nowrap" id="typeCatTable">
                 <thead class="table-light sticky-top">
                     <tr>
-                        <th>Category</th>
-                        <th>Brand</th>
+                        <th>Product</th>
                         <th class="text-end">Quantity</th>
                         <th class="text-end">Value (Rs)</th>
                         <th class="text-end">Contribution %</th>
@@ -132,35 +174,41 @@
     </div>
 </div>
 
-<!-- Detailed Customer Table -->
-<div class="card border-0 shadow-sm">
+<!-- Finance and Financier Dashboard -->
+<div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
-        <h5 class="fw-bold m-0">Detailed Customer Data</h5>
+        <h5 class="fw-bold m-0"><i class="bi bi-bank me-2 text-primary"></i>Finance & Financier Dashboard</h5>
         <div>
-            <button class="btn btn-sm btn-outline-success me-1" onclick="exportTableToCSV('store_customers.csv', 'customersTable')">
+            <button class="btn btn-sm btn-outline-success me-1" onclick="exportTableToCSV('finance_report.csv', 'financeTable')">
                 <i class="bi bi-filetype-csv"></i> Export CSV
             </button>
         </div>
     </div>
-    <div class="card-body p-0">
-        <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
-            <table class="table table-hover table-striped mb-0 align-middle text-nowrap" id="customersTable">
-                <thead class="table-light sticky-top">
-                    <tr>
-                        <th>Customer Mobile</th>
-                        <th>Type (Kerala-wide)</th>
-                        <th>First Purchase Date</th>
-                        <th>First Purchase Store</th>
-                        <th>Current Purchase Date</th>
-                        <th>Current Store</th>
-                        <th class="text-end">Lifetime Visits</th>
-                        <th class="text-end">Lifetime Sales (Rs)</th>
-                    </tr>
-                </thead>
-                <tbody id="customersTableBody">
-                    <!-- Data populated via JS -->
-                </tbody>
-            </table>
+    <div class="card-body">
+        <div class="row g-4">
+            <!-- Table Side -->
+            <div class="col-lg-8">
+                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-hover table-striped mb-0 align-middle text-nowrap" id="financeTable">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th>Financier</th>
+                                <th class="text-end">Total Sales (Rs)</th>
+                                <th class="text-end">Finance Amount (Rs)</th>
+                                <th class="text-end">Finance %</th>
+                            </tr>
+                        </thead>
+                        <tbody id="financeTableBody">
+                            <!-- Data populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Chart Side -->
+            <div class="col-lg-4">
+                <div id="financierPieChart" style="height: 400px; width: 100%;"></div>
+            </div>
         </div>
     </div>
 </div>
@@ -193,42 +241,171 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('val-abv').innerText = '₹ ' + formatMoney(data.average_bill_value);
     document.getElementById('val-items-per-bill').innerText = parseFloat(data.average_items_per_bill).toFixed(2);
 
-    // Populate Table
-    const tbody = document.getElementById('customersTableBody');
-    let rowsHtml = '';
-    data.customer_details.forEach(c => {
-        const typeBadge = c.customer_type === 'New' 
-            ? '<span class="badge bg-success-subtle text-success border border-success-subtle">New Customer</span>'
-            : '<span class="badge bg-primary-subtle text-primary border border-primary-subtle">Repeat Customer</span>';
+    // Populate Finance Table and Chart
+    if (data.finance_report && data.finance_report.length > 0) {
+        const finBody = document.getElementById('financeTableBody');
+        let finHtml = '';
+        
+        let totalFinSales = 0;
+        let totalFinAmount = 0;
+        let pieLabels = [];
+        let pieValues = [];
+
+        // First pass: Calculate totals
+        data.finance_report.forEach(f => {
+            totalFinSales += f.sold_price;
+            totalFinAmount += f.finance;
             
-        rowsHtml += `
-            <tr>
-                <td class="fw-semibold">${c.mobile}</td>
-                <td>${typeBadge}</td>
-                <td>${c.first_purchase_date || 'N/A'}</td>
-                <td>${c.first_purchase_store || 'N/A'}</td>
-                <td>${c.current_purchase_date}</td>
-                <td>${c.current_store}</td>
-                <td class="text-end">${formatNum(c.lifetime_visits)}</td>
-                <td class="text-end">₹ ${formatMoney(c.lifetime_sales)}</td>
+            if (f.financier !== 'Unknown' && f.finance > 0) {
+                pieLabels.push(f.financier);
+                pieValues.push(f.finance);
+            }
+        });
+
+        // Second pass: Generate HTML
+        data.finance_report.forEach(f => {
+            const pct = totalFinAmount > 0 ? (f.finance / totalFinAmount * 100).toFixed(1) : 0;
+            
+            finHtml += `
+                <tr>
+                    <td class="fw-semibold">${f.financier}</td>
+                    <td class="text-end">₹ ${formatMoney(f.sold_price)}</td>
+                    <td class="text-end text-primary">₹ ${formatMoney(f.finance)}</td>
+                    <td class="text-end fw-bold">${pct}%</td>
+                </tr>
+            `;
+        });
+        
+        const totalPct = totalFinAmount > 0 ? '100.0' : '0.0';
+        
+        finHtml += `
+            <tr class="table-active border-top border-2 border-dark fw-bold">
+                <td class="text-end fs-6">GRAND TOTAL:</td>
+                <td class="text-end fs-6">₹ ${formatMoney(totalFinSales)}</td>
+                <td class="text-end fs-6 text-primary">₹ ${formatMoney(totalFinAmount)}</td>
+                <td class="text-end fs-6 text-danger">${totalPct}%</td>
             </tr>
         `;
-    });
-    tbody.innerHTML = rowsHtml;
+        
+        finBody.innerHTML = finHtml;
+        
+        // Render Pie Chart
+        if (pieLabels.length > 0) {
+            Plotly.newPlot('financierPieChart', [{
+                values: pieValues,
+                labels: pieLabels,
+                type: 'pie',
+                hole: 0.4,
+                textinfo: 'label+percent',
+                textposition: 'inside',
+                insidetextorientation: 'radial'
+            }], {
+                margin: { t: 20, l: 20, r: 20, b: 20 },
+                showlegend: false,
+                annotations: [{
+                    font: { size: 14, weight: 'bold' },
+                    showarrow: false,
+                    text: 'Finance<br>Share',
+                    x: 0.5,
+                    y: 0.5
+                }]
+            });
+        }
+    } else {
+        document.getElementById('financeTableBody').innerHTML = '<tr><td colspan="6" class="text-center text-muted">No finance data available</td></tr>';
+    }
+
+    let currentFilterType = 'all';
+    
+    // Extracted unique values for dropdowns
+    let uniqueProducts = new Set();
+    let uniqueCategories = new Set();
+    let uniqueItemCategories = new Set();
+    let uniqueFinanciers = new Set();
+    
+    if (data.type_category_report) {
+        data.type_category_report.forEach(r => {
+            if (r.product) uniqueProducts.add(r.product);
+            if (r.main_category) uniqueCategories.add(r.main_category);
+            if (r.category) uniqueItemCategories.add(r.category);
+            if (r.financier) uniqueFinanciers.add(r.financier);
+        });
+    }
+    
+    // Function to populate dropdown checkboxes
+    function populateDropdown(menuId, items, filterName) {
+        const menu = document.getElementById(menuId);
+        if (!menu) return;
+        
+        let html = '';
+        if (items.size === 0 || (items.size === 1 && items.has('Unknown'))) {
+            html = '<div class="text-muted small">No data available</div>';
+        } else {
+            // Sort items alphabetically
+            const sortedItems = Array.from(items).sort();
+            sortedItems.forEach((item, index) => {
+                const safeId = filterName + '-' + index;
+                html += `
+                <div class="form-check mb-1">
+                    <input class="form-check-input filter-checkbox" type="checkbox" value="${item}" id="${safeId}" data-filter-type="${filterName}">
+                    <label class="form-check-label small" for="${safeId}">
+                        ${item}
+                    </label>
+                </div>
+                `;
+            });
+        }
+        menu.innerHTML = html;
+    }
+    
+    populateDropdown('filter-product-menu', uniqueProducts, 'product');
+    populateDropdown('filter-category-menu', uniqueCategories, 'main_category');
+    populateDropdown('filter-item-category-menu', uniqueItemCategories, 'category');
+    populateDropdown('filter-financier-menu', uniqueFinanciers, 'financier');
+
+    window.applyFilters = function() {
+        renderTypeCategoryReport(currentFilterType);
+    };
+
+    window.clearFilters = function() {
+        const checkboxes = document.querySelectorAll('.filter-checkbox');
+        checkboxes.forEach(cb => cb.checked = false);
+        renderTypeCategoryReport(currentFilterType);
+    };
 
     // Populate Type Category Report
     window.renderTypeCategoryReport = function(filterType) {
+        currentFilterType = filterType;
         const tcBody = document.getElementById('typeCatTableBody');
         let tcHtml = '';
         let totalQty = 0;
         let totalSales = 0;
         let totalPct = 0;
         
+        // Get selected filters
+        const getSelected = (filterName) => {
+            const checkboxes = document.querySelectorAll(`.filter-checkbox[data-filter-type="${filterName}"]:checked`);
+            return Array.from(checkboxes).map(cb => cb.value);
+        };
+        
+        const selProducts = getSelected('product');
+        const selCategories = getSelected('main_category');
+        const selItemCategories = getSelected('category');
+        const selFinanciers = getSelected('financier');
+        
+        let aggregatedData = {};
+        
         if (data.type_category_report && data.type_category_report.length > 0) {
+            // First, aggregate the data to prevent duplicate rows (since backend now groups by Financier too)
             data.type_category_report.forEach(r => {
+                // Apply multiselect filters
+                if (selProducts.length > 0 && !selProducts.includes(r.product)) return;
+                if (selCategories.length > 0 && !selCategories.includes(r.main_category)) return;
+                if (selItemCategories.length > 0 && !selItemCategories.includes(r.category)) return;
+                if (selFinanciers.length > 0 && !selFinanciers.includes(r.financier)) return;
+                
                 let qty = r.qty;
                 let sales = r.sales;
-                let pct = r.pct;
                 
                 // Failsafe: if the user hasn't re-uploaded yet, new_qty won't exist in the JSON payload
                 if (filterType !== 'all' && typeof r.new_qty === 'undefined') {
@@ -239,28 +416,86 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (filterType === 'new') {
                     qty = r.new_qty;
                     sales = r.new_sales;
-                    pct = r.new_pct;
                 } else if (filterType === 'repeat') {
                     qty = r.repeat_qty;
                     sales = r.repeat_sales;
-                    pct = r.repeat_pct;
                 }
                 
-                // Only show rows that actually have data for this filter
-                if (sales > 0 || qty > 0) {
-                    totalQty += qty;
-                    totalSales += sales;
-                    totalPct += pct;
+                if (qty > 0 || sales > 0) {
+                    const key = `${r.product}`;
+                    if (!aggregatedData[key]) {
+                        aggregatedData[key] = {
+                            product: r.product,
+                            qty: 0,
+                            sales: 0,
+                            brands: {}
+                        };
+                    }
+                    aggregatedData[key].qty += qty;
+                    aggregatedData[key].sales += sales;
                     
-                    tcHtml += `
-                        <tr>
-                            <td class="fw-semibold">${r.category}</td>
-                            <td>${r.brand}</td>
-                            <td class="text-end">${formatNum(qty)}</td>
-                            <td class="text-end">₹ ${formatMoney(sales)}</td>
-                            <td class="text-end fw-bold">${pct}%</td>
-                        </tr>
-                    `;
+                    const brandKey = r.brand || 'Unknown';
+                    if (!aggregatedData[key].brands[brandKey]) {
+                        aggregatedData[key].brands[brandKey] = {
+                            qty: 0,
+                            sales: 0
+                        };
+                    }
+                    aggregatedData[key].brands[brandKey].qty += qty;
+                    aggregatedData[key].brands[brandKey].sales += sales;
+                }
+            });
+            
+            // Now render the aggregated rows
+            const rows = Object.values(aggregatedData);
+            rows.sort((a, b) => b.sales - a.sales);
+            
+            rows.forEach(r => {
+                totalQty += r.qty;
+                totalSales += r.sales;
+            });
+            
+            rows.forEach((r, index) => {
+                const pct = totalSales > 0 ? (r.sales / totalSales * 100).toFixed(2) : '0.00';
+                const collapseId = `collapseProduct-${index}`;
+                
+                // Has brands?
+                const hasBrands = Object.keys(r.brands).length > 0;
+                const toggleBtn = hasBrands ? `
+                    <button class="btn btn-sm btn-link text-decoration-none p-0 me-2" type="button" data-bs-toggle="collapse" data-bs-target=".${collapseId}" aria-expanded="false">
+                        <i class="bi bi-plus-square text-primary"></i>
+                    </button>
+                ` : '<span class="me-4"></span>';
+
+                tcHtml += `
+                    <tr>
+                        <td class="fw-semibold">
+                            ${toggleBtn}
+                            ${r.product || 'Unknown'}
+                        </td>
+                        <td class="text-end">${formatNum(r.qty)}</td>
+                        <td class="text-end">₹ ${formatMoney(r.sales)}</td>
+                        <td class="text-end fw-bold">${pct}%</td>
+                    </tr>
+                `;
+                
+                if (hasBrands) {
+                    const brandRows = Object.entries(r.brands).map(([b, data]) => {
+                        return { brand: b, qty: data.qty, sales: data.sales };
+                    });
+                    brandRows.sort((a, b) => b.sales - a.sales);
+                    
+                    brandRows.forEach(br => {
+                        const brPct = totalSales > 0 ? (br.sales / totalSales * 100).toFixed(2) : '0.00';
+                        tcHtml += `
+                            <tr class="collapse ${collapseId} bg-light">
+                                <td class="ps-5 text-muted border-bottom-0"><i class="bi bi-arrow-return-right me-2"></i>${br.brand}</td>
+                                <td class="text-end text-muted border-bottom-0">${formatNum(br.qty)}</td>
+                                <td class="text-end text-muted border-bottom-0">₹ ${formatMoney(br.sales)}</td>
+                                <td class="text-end text-muted border-bottom-0">${brPct}%</td>
+                            </tr>
+                        `;
+                    });
                 }
             });
             
@@ -269,10 +504,10 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 tcHtml += `
                     <tr class="table-active border-top border-2 border-dark fw-bold">
-                        <td colspan="2" class="text-end fs-6">GRAND TOTAL:</td>
+                        <td class="text-end fs-6">GRAND TOTAL:</td>
                         <td class="text-end fs-6">${formatNum(totalQty)}</td>
                         <td class="text-end fs-6 text-primary">₹ ${formatMoney(totalSales)}</td>
-                        <td class="text-end fs-6 text-danger">${totalPct.toFixed(2)}%</td>
+                        <td class="text-end fs-6 text-danger">100.00%</td>
                     </tr>
                 `;
             }

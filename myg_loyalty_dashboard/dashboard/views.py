@@ -1817,8 +1817,6 @@ class StoreAnalysisProcessAPIView(LoginRequiredMixin, View):
             new_customers = 0
             repeat_customers = 0
             
-            customer_details = []
-            
             # Group excel data by customer to get their current purchase info
             cust_group = df.groupby('Customer Mobile')
             
@@ -1832,23 +1830,14 @@ class StoreAnalysisProcessAPIView(LoginRequiredMixin, View):
                 c_first_dt = first_purchase_details.get(mob, {}).get('first_date')
                 c_first_br = first_purchase_details.get(mob, {}).get('first_branch')
                 
-                lifetime_visits = db_customers.get(mob, {}).get('visits', 1)
-                lifetime_sales = db_customers.get(mob, {}).get('total_spend', group['Sold Price'].sum() if 'Sold Price' in group.columns else 0)
-                
                 # Check New vs Repeat condition
                 is_new = False
                 if c_first_dt:
                     if c_first_dt >= start_date and c_first_dt <= end_date:
                         is_new = True
-                        c_first_br = current_store
-                    else:
-                        c_first_br = c_first_br or 'Other Branch'
-
                 else:
                     # Not found in DB, meaning they only exist in this Excel so far (or DB is missing them)
                     is_new = True
-                    c_first_dt = current_date
-                    c_first_br = current_store
                 
                 cust_type = 'New' if is_new else 'Repeat'
                 if is_new:
@@ -1857,17 +1846,6 @@ class StoreAnalysisProcessAPIView(LoginRequiredMixin, View):
                     repeat_customers += 1
                     
                 df.loc[df['Customer Mobile'] == mob, 'Customer_Type'] = cust_type
-                
-                customer_details.append({
-                    'mobile': mob,
-                    'customer_type': cust_type,
-                    'first_purchase_date': c_first_dt,
-                    'first_purchase_store': c_first_br,
-                    'current_purchase_date': current_date,
-                    'current_store': current_store,
-                    'lifetime_visits': lifetime_visits,
-                    'lifetime_sales': lifetime_sales
-                })
                 
             total_customers = len(mobiles)
             new_pct = round((new_customers / total_customers * 100), 1) if total_customers > 0 else 0
@@ -1908,7 +1886,24 @@ class StoreAnalysisProcessAPIView(LoginRequiredMixin, View):
 
             # Type Category Report
             type_cat_report = []
-            if 'Item Category' in df.columns and 'Brand' in df.columns:
+            if any(c.strip().lower() == 'item category' for c in df.columns) and any(c.strip().lower() == 'brand' for c in df.columns):
+                expected = ['Product', 'Category', 'Item Category', 'Brand', 'Financier']
+                col_map = {}
+                for e in expected:
+                    for c in df.columns:
+                        if c.strip().lower() == e.strip().lower():
+                            col_map[c] = e
+                df = df.rename(columns=col_map)
+                
+                groupby_cols = []
+                for col in expected:
+                    if col in df.columns:
+                        df[col] = df[col].fillna('Unknown')
+                        groupby_cols.append(col)
+                        
+                if not groupby_cols:
+                    groupby_cols = ['Item Category', 'Brand']
+                    
                 agg_dict = {'Sold Price': 'sum'}
                 if 'QTY' in df.columns:
                     agg_dict['QTY'] = 'sum'
@@ -1916,19 +1911,19 @@ class StoreAnalysisProcessAPIView(LoginRequiredMixin, View):
                 df_new = df[df['Customer_Type'] == 'New']
                 df_repeat = df[df['Customer_Type'] == 'Repeat']
                 
-                new_agg = df_new.groupby(['Item Category', 'Brand']).agg(agg_dict).reset_index().rename(columns={'Sold Price': 'New_Sales', 'QTY': 'New_QTY'})
-                repeat_agg = df_repeat.groupby(['Item Category', 'Brand']).agg(agg_dict).reset_index().rename(columns={'Sold Price': 'Repeat_Sales', 'QTY': 'Repeat_QTY'})
+                new_agg = df_new.groupby(groupby_cols).agg(agg_dict).reset_index().rename(columns={'Sold Price': 'New_Sales', 'QTY': 'New_QTY'})
+                repeat_agg = df_repeat.groupby(groupby_cols).agg(agg_dict).reset_index().rename(columns={'Sold Price': 'Repeat_Sales', 'QTY': 'Repeat_QTY'})
                 
-                tc_df = df.groupby(['Item Category', 'Brand']).agg(agg_dict).reset_index()
+                tc_df = df.groupby(groupby_cols).agg(agg_dict).reset_index()
                 
                 if not new_agg.empty:
-                    tc_df = pd.merge(tc_df, new_agg, on=['Item Category', 'Brand'], how='left')
+                    tc_df = pd.merge(tc_df, new_agg, on=groupby_cols, how='left')
                 else:
                     tc_df['New_Sales'] = 0
                     tc_df['New_QTY'] = 0
                     
                 if not repeat_agg.empty:
-                    tc_df = pd.merge(tc_df, repeat_agg, on=['Item Category', 'Brand'], how='left')
+                    tc_df = pd.merge(tc_df, repeat_agg, on=groupby_cols, how='left')
                 else:
                     tc_df['Repeat_Sales'] = 0
                     tc_df['Repeat_QTY'] = 0
@@ -1953,8 +1948,11 @@ class StoreAnalysisProcessAPIView(LoginRequiredMixin, View):
                     tc_repeat_pct = round((repeat_s / total_repeat_sales * 100), 2) if total_repeat_sales > 0 else 0
                     
                     type_cat_report.append({
-                        'category': r['Item Category'],
-                        'brand': r['Brand'],
+                        'product': r.get('Product', 'Unknown'),
+                        'main_category': r.get('Category', 'Unknown'),
+                        'category': r.get('Item Category', 'Unknown'),
+                        'brand': r.get('Brand', 'Unknown'),
+                        'financier': r.get('Financier', 'Unknown'),
                         'qty': qty,
                         'sales': sales,
                         'pct': pct,
@@ -1965,6 +1963,62 @@ class StoreAnalysisProcessAPIView(LoginRequiredMixin, View):
                         'repeat_sales': repeat_s,
                         'repeat_pct': tc_repeat_pct
                     })
+
+            # Finance and Financier Report
+            finance_report = []
+            if 'Financier' in df.columns:
+                df['Financier'] = df['Financier'].fillna('Unknown')
+                df['Financier'] = df['Financier'].replace({
+                    'DPF_BAJAJ FINANCE': 'BAJAJ FINANCE',
+                    'CD_BAJAJ FINANCE': 'BAJAJ FINANCE'
+                })
+                
+                finance_cols = ['Sold Price', 'Finance', 'Down Payment', 'Margin Money']
+                agg_dict_fin = {}
+                for col in finance_cols:
+                    if col in df.columns:
+                        agg_dict_fin[col] = 'sum'
+                
+                if agg_dict_fin:
+                    inv_cols = ['Finance', 'Down Payment', 'Margin Money']
+                    has_inv_cols = any(c in df.columns for c in inv_cols)
+                    
+                    if has_inv_cols and 'Invoice Number' in df.columns:
+                        inv_df = df.drop_duplicates(subset=['Invoice Number'])
+                        inv_agg = {}
+                        for c in inv_cols:
+                            if c in df.columns:
+                                inv_agg[c] = 'sum'
+                        inv_res = inv_df.groupby('Financier').agg(inv_agg).reset_index()
+                        
+                        if 'Sold Price' in df.columns:
+                            item_res = df.groupby('Financier').agg({'Sold Price': 'sum'}).reset_index()
+                            fin_df = pd.merge(item_res, inv_res, on='Financier', how='outer')
+                        else:
+                            fin_df = inv_res
+                        fin_df = fin_df.fillna(0)
+                    else:
+                        fin_df = df.groupby('Financier').agg(agg_dict_fin).reset_index()
+                        
+                    if 'Sold Price' in agg_dict_fin:
+                        fin_df = fin_df.sort_values(by='Sold Price', ascending=False)
+                    elif 'Finance' in agg_dict_fin:
+                        fin_df = fin_df.sort_values(by='Finance', ascending=False)
+                    else:
+                        fin_df = fin_df.sort_values(by='Financier')
+                    
+                    for _, r in fin_df.iterrows():
+                        # Skip if financier is actually just completely missing or NaN disguised as Unknown but has 0 finance
+                        if r['Financier'] == 'Unknown' and r.get('Finance', 0) == 0:
+                            continue
+                            
+                        finance_report.append({
+                            'financier': r['Financier'],
+                            'sold_price': float(r.get('Sold Price', 0)),
+                            'finance': float(r.get('Finance', 0)),
+                            'down_payment': float(r.get('Down Payment', 0)),
+                            'margin_money': float(r.get('Margin Money', 0)),
+                        })
 
             result_data = {
                 'start_date': start_date,
@@ -1979,7 +2033,7 @@ class StoreAnalysisProcessAPIView(LoginRequiredMixin, View):
                 'total_sales': float(total_sales),
                 'average_bill_value': float(abv),
                 'average_items_per_bill': float(ipb),
-                'customer_details': customer_details,
+                'finance_report': finance_report,
                 'category_comparison': cat_comp,
                 'brand_comparison': brand_comp,
                 'type_category_report': type_cat_report
