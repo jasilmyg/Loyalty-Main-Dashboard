@@ -29,7 +29,7 @@ services:
     region: singapore
     plan: free
     rootDir: myg_loyalty_dashboard
-    buildCommand: pip install -r requirements.txt
+    buildCommand: grep -v "torch" requirements.txt > req_mcp.txt && pip install -r req_mcp.txt
     startCommand: mcp run mcp_server:mcp --transport sse --port $PORT --host 0.0.0.0
     envVars:
       - key: DJANGO_SETTINGS_MODULE
