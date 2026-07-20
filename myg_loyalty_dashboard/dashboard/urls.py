@@ -1,6 +1,7 @@
 from django.urls import path
 from django.views.generic import RedirectView
 from . import views
+from .ai_chat_views import AIChatView, AIChatAPIView
 
 urlpatterns = [
     path('', views.DashboardView.as_view(), name='dashboard'),
@@ -50,4 +51,8 @@ urlpatterns = [
     path('store-analysis/upload/', views.StoreAnalysisUploadView.as_view(), name='store_analysis_upload'),
     path('store-analysis/results/', views.StoreAnalysisResultsView.as_view(), name='store_analysis_results'),
     path('api/v1/store-analysis/process/', views.StoreAnalysisProcessAPIView.as_view(), name='store_analysis_process_api'),
+
+    # AI Chat
+    path('ai-chat/', AIChatView.as_view(), name='ai_chat'),
+    path('ai-chat/api/', AIChatAPIView.as_view(), name='ai_chat_api'),
 ]

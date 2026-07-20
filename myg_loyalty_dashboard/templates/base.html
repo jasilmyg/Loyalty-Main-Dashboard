@@ -472,6 +472,13 @@
         {% if request.user.username != 'shestart' %}
         <ul class="nav flex-column mb-4">
             <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'ai_chat' %}active{% endif %}" 
+                   href="{% url 'ai_chat' %}" 
+                   style="{% if request.resolver_match.url_name == 'ai_chat' %}{% else %}background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.08)); border-left: 4px solid #6366f1; color: #4f46e5;{% endif %}">
+                    <i class="bi bi-stars" style="color: #6366f1;"></i> AI Assistant ✨
+                </a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}"><i class="bi bi-grid-1x2"></i> Sales Overview</a>
             </li>
             <li class="nav-item">
