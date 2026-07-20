@@ -7,7 +7,10 @@ from typing import List, Dict, Any
 # Bootstrap Django
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'myg_loyalty_dashboard.settings')
+# Allow synchronous Django DB calls from FastMCP's async context
+os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
 django.setup()
+
 
 from django.apps import apps
 from django.db import connection
