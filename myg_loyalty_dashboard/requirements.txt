@@ -29,4 +29,4 @@ django-redis>=5.4.0
 celery>=5.4.0
 pgvector>=0.2.5
 mcp[cli]
-google-generativeai>=0.8.0
+google-genai>=1.0.0

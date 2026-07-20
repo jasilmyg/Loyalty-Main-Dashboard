@@ -1,16 +1,16 @@
 """
-AI Chat view using Gemini API with direct database function calling.
+AI Chat view using Gemini API (new google-genai SDK) with direct database function calling.
 Provides a natural language interface to query the myG portal database.
 """
 import json
 import os
+import re
 from django.views import View
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.db import connection
-import re
 
 
 def _run_db_query(sql: str):
@@ -37,32 +37,52 @@ def _run_db_query(sql: str):
 
 
 # Database schema context for Gemini
-DB_SCHEMA = """
-You are an AI assistant for myG Loyalty Portal — a retail loyalty program platform for myG stores in Kerala, India.
-You have access to a PostgreSQL database. When the user asks any question about sales, revenue, customers, 
-branches, staff, or products — you MUST use the query_database function to get the answer from the live database.
-Do NOT guess or make up data. Always query the database for factual answers.
+DB_SYSTEM_PROMPT = """You are an AI assistant for myG Loyalty Portal — a retail loyalty program platform for myG stores in Kerala, India.
+You have access to a live PostgreSQL database via the query_database function.
+
+When the user asks any question about sales, revenue, customers, branches, staff, or products:
+- ALWAYS use query_database to get real-time data from the database
+- NEVER guess, estimate, or make up numbers
+- After getting data, present it clearly in a readable format with ₹ symbol for amounts
 
 Main database tables:
 1. sales_data — All transaction records
-   Columns: "Slno", "Date" (text), "Time", "Invoice Number", "Branch", "Staff", "Customer Name", 
-   "Customer Mobile", "Financier", "Finance", "Cash", "Total Value" (numeric), 
-   "Exchange", "Discount", "Customer Type", parsed_date (date — USE THIS for date filtering)
-
-2. analytics_productsale — Product-level sales
+   Columns: "Slno", "Date" (text), "Time", "Invoice Number", "Branch", "Staff", 
+   "Customer Name", "Customer Mobile", "Total Value" (numeric — the sale amount),
+   parsed_date (date — ALWAYS use this for date filtering, NOT "Date")
+   
+2. analytics_productsale — Product-level sales  
    Columns: id, date (date), invoice_number, branch, product, category, brand, qty (int), sold_price (numeric)
 
-3. analytics_shestartcandidatescore — SHE Start program candidates
-   Columns: id, branch, staff_name, score, created_at
-
-Important notes:
-- For date filtering, always use parsed_date on sales_data (e.g. WHERE parsed_date >= '2026-06-01')
-- Column names with spaces in sales_data must be quoted: "Total Value", "Branch", "Staff", etc.
-- June 2026 = parsed_date >= '2026-06-01' AND parsed_date <= '2026-06-30'
-- Q2 2026 = parsed_date >= '2026-04-01' AND parsed_date <= '2026-06-30'
-- Always SUM("Total Value") for total revenue from sales_data
+IMPORTANT SQL rules:
+- Column names with spaces MUST be double-quoted: "Total Value", "Branch", "Staff", "Invoice Number"
+- Date filtering: WHERE parsed_date >= '2026-06-01' AND parsed_date <= '2026-06-30'
+- June 2026: parsed_date >= '2026-06-01' AND parsed_date <= '2026-06-30'
+- April 2026: parsed_date >= '2026-04-01' AND parsed_date <= '2026-04-30'
+- May 2026: parsed_date >= '2026-05-01' AND parsed_date <= '2026-05-31'
+- Q2 2026: parsed_date >= '2026-04-01' AND parsed_date <= '2026-06-30'
+- Total revenue = SUM("Total Value") from sales_data
 - Currency is Indian Rupees (₹)
 """
+
+QUERY_DB_TOOL = {
+    "name": "query_database",
+    "description": (
+        "Execute a read-only SQL SELECT query on the myG loyalty portal PostgreSQL database. "
+        "Use this to answer ANY question about sales, revenue, customers, branches, staff, or products. "
+        "Always use this instead of guessing. Returns columns and rows."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "sql": {
+                "type": "string",
+                "description": "A valid PostgreSQL SELECT query. Use double quotes for column names with spaces."
+            }
+        },
+        "required": ["sql"]
+    }
+}
 
 
 class AIChatView(View):
@@ -88,98 +108,81 @@ class AIChatAPIView(View):
             if not api_key:
                 return JsonResponse({'error': 'Gemini API key not configured'}, status=500)
 
-            import google.generativeai as genai
+            # Use new google-genai SDK
+            from google import genai
+            from google.genai import types
 
-            genai.configure(api_key=api_key)
+            client = genai.Client(api_key=api_key)
 
-            # Define the database query tool for Gemini
-            query_db_tool = genai.protos.Tool(
-                function_declarations=[
-                    genai.protos.FunctionDeclaration(
-                        name="query_database",
-                        description=(
-                            "Execute a read-only SQL SELECT query on the myG portal database to get real-time data. "
-                            "Use this for any question about sales, revenue, customers, branches, staff, products, "
-                            "or any business data. Always use this instead of guessing."
-                        ),
-                        parameters=genai.protos.Schema(
-                            type=genai.protos.Type.OBJECT,
-                            properties={
-                                "sql": genai.protos.Schema(
-                                    type=genai.protos.Type.STRING,
-                                    description="A valid PostgreSQL SELECT query to execute against the database."
-                                )
-                            },
-                            required=["sql"]
-                        )
-                    )
-                ]
-            )
-
-            model = genai.GenerativeModel(
-                model_name="gemini-1.5-flash",
-                tools=[query_db_tool],
-                system_instruction=DB_SCHEMA
-            )
-
-            # Build history for multi-turn conversation
-            history = []
-            for msg in chat_history:
+            # Build conversation history
+            contents = []
+            for msg in chat_history[-10:]:  # Keep last 10 messages for context
                 role = "user" if msg['role'] == 'user' else "model"
-                history.append({"role": role, "parts": [msg['content']]})
+                contents.append(types.Content(role=role, parts=[types.Part(text=msg['content'])]))
 
-            chat = model.start_chat(history=history)
+            # Add current user message
+            contents.append(types.Content(role="user", parts=[types.Part(text=user_message)]))
 
-            # Send user message
-            response = chat.send_message(user_message)
+            # Configure tools
+            tools = [types.Tool(function_declarations=[types.FunctionDeclaration(**QUERY_DB_TOOL)])]
 
-            # Handle function calls (Gemini asking to query DB)
-            max_iterations = 5
-            iteration = 0
+            config = types.GenerateContentConfig(
+                system_instruction=DB_SYSTEM_PROMPT,
+                tools=tools,
+                temperature=0.1,  # Low temperature for factual DB answers
+            )
+
             sql_queries_run = []
+            max_iterations = 5
 
-            while iteration < max_iterations:
-                iteration += 1
-                # Check if Gemini wants to call a function
+            for _ in range(max_iterations):
+                response = client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=contents,
+                    config=config,
+                )
+
+                # Check for function calls
                 function_calls = []
-                for candidate in response.candidates:
-                    for part in candidate.content.parts:
-                        if hasattr(part, 'function_call') and part.function_call.name:
-                            function_calls.append(part.function_call)
+                for part in response.candidates[0].content.parts:
+                    if hasattr(part, 'function_call') and part.function_call is not None:
+                        function_calls.append(part.function_call)
 
                 if not function_calls:
-                    break  # No more function calls, we have the final text response
+                    # No function calls, extract final text
+                    final_text = ""
+                    for part in response.candidates[0].content.parts:
+                        if hasattr(part, 'text') and part.text:
+                            final_text += part.text
+                    return JsonResponse({
+                        'response': final_text,
+                        'queries_run': sql_queries_run
+                    })
 
-                # Execute all requested function calls
-                function_responses = []
+                # Execute function calls and build responses
+                # First add the model's function call turn to contents
+                contents.append(response.candidates[0].content)
+
+                # Build function response parts
+                function_response_parts = []
                 for fc in function_calls:
                     if fc.name == "query_database":
                         sql = fc.args.get("sql", "")
                         sql_queries_run.append(sql)
                         result = _run_db_query(sql)
-                        function_responses.append(
-                            genai.protos.Part(
-                                function_response=genai.protos.FunctionResponse(
+                        function_response_parts.append(
+                            types.Part(
+                                function_response=types.FunctionResponse(
                                     name="query_database",
                                     response={"result": json.dumps(result)}
                                 )
                             )
                         )
 
-                # Send function results back to Gemini
-                response = chat.send_message(function_responses)
+                # Add function responses to contents
+                contents.append(types.Content(role="user", parts=function_response_parts))
 
-            # Extract final text response
-            final_text = ""
-            for candidate in response.candidates:
-                for part in candidate.content.parts:
-                    if hasattr(part, 'text') and part.text:
-                        final_text += part.text
-
-            return JsonResponse({
-                'response': final_text,
-                'queries_run': sql_queries_run
-            })
+            return JsonResponse({'error': 'Max iterations reached'}, status=500)
 
         except Exception as e:
             import traceback
