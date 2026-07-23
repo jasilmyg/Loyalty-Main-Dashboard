@@ -62,18 +62,10 @@ class AnalyticsService:
             branch = None
 
         if start_date:
-            conditions.append(f'''(CASE
-    WHEN SUBSTRING("Date"::text, 5, 1) = '-' THEN TO_DATE(SUBSTRING("Date"::text, 1, 10), 'YYYY-MM-DD')
-    WHEN SUBSTRING("Date"::text, 3, 1) = '-' THEN TO_DATE("Date"::text, 'DD-MM-YYYY')
-    ELSE NULL
-END) >= %s::DATE''')
+            conditions.append('parsed_date >= %s::DATE')
             params.append(start_date)
         if end_date:
-            conditions.append(f'''(CASE
-    WHEN SUBSTRING("Date"::text, 5, 1) = '-' THEN TO_DATE(SUBSTRING("Date"::text, 1, 10), 'YYYY-MM-DD')
-    WHEN SUBSTRING("Date"::text, 3, 1) = '-' THEN TO_DATE("Date"::text, 'DD-MM-YYYY')
-    ELSE NULL
-END) <= %s::DATE''')
+            conditions.append('parsed_date <= %s::DATE')
             params.append(end_date)
         if branch:
             conditions.append(f'UPPER({p}"Branch") = UPPER(%s)')

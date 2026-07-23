@@ -131,15 +131,15 @@ class FrequencyDistributionAPI(APIView):
 
 class LoyaltyOverviewAPI(APIView):
     permission_classes = [IsAuthenticated]
+    @method_decorator(cache_page(60 * 60))  # Cache for 1 hour
     def get(self, request):
-        # Service layer uses MD5 filter caching (24h global / 1h filtered)
         data = get_analytics().get_loyalty_overview_kpis(get_filters(request))
         return Response(data)
 
 class GapAnalysisAPI(APIView):
     permission_classes = [IsAuthenticated]
+    @method_decorator(cache_page(60 * 60))  # Cache for 1 hour
     def get(self, request):
-        # Service layer uses MD5 filter caching (24h global / 1h filtered)
         data = get_analytics().get_gap_segmentation(get_filters(request))
         return Response(data)
 
@@ -152,8 +152,8 @@ class LoyaltySegmentationAPI(APIView):
 
 class ActionEngineAPI(APIView):
     permission_classes = [IsAuthenticated]
+    @method_decorator(cache_page(60 * 60))  # Cache for 1 hour
     def get(self, request):
-        # Service layer uses MD5 filter caching (24h global / 1h filtered)
         data = get_analytics().get_action_engine_data(get_filters(request))
         return Response(data)
 
@@ -185,12 +185,14 @@ class RetailLoyaltyAdvancedReportAPI(APIView):
 
 class FYLoyaltyReportAPI(APIView):
     permission_classes = [IsAuthenticated]
+    @method_decorator(cache_page(60 * 30))  # Cache for 30 minutes
     def get(self, request):
         data = get_analytics().get_fy_loyalty_report(get_filters(request))
         return Response(data)
 
 class FYSalesReportAPI(APIView):
     permission_classes = [IsAuthenticated]
+    @method_decorator(cache_page(60 * 30))  # Cache for 30 minutes
     def get(self, request):
         data = get_analytics().get_fy_sales_report(get_filters(request))
         return Response(data)
