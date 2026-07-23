@@ -94,7 +94,10 @@ DATABASES = {
         'PORT':     os.environ.get('PGPORT',     '25060'),
         'OPTIONS': {
             'sslmode': 'require',
-            'connect_timeout': 30,
+            'connect_timeout': 10,
+            # Auto-kill any query running longer than 5 minutes
+            # This prevents zombie queries from piling up and exhausting DB connection slots
+            'options': '-c statement_timeout=300000 -c idle_in_transaction_session_timeout=120000',
         },
         'CONN_MAX_AGE': 0,  # Always fresh connection — prevents stale DNS errors with DigitalOcean
     }
