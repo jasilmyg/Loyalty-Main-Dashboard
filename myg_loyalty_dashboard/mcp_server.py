@@ -32,6 +32,9 @@ mcp = FastMCP(
     - sales_data: All transaction records with Total Value, parsed_date, Branch, Staff, Customer Name etc.
     - analytics_productsale: Product-level sales with date, branch, product, category, brand, qty, sold_price
     - analytics_shestartcandidatescore: SHE Start program candidate scoring data
+    - mv_customer_lifetime_summary: (Materialized View) Use this for ALL customer lifetime, retention, or churn queries.
+      Columns: customer_mobile, total_spend, first_visit_date, last_visit_date, total_visits.
+      This table is pre-aggregated and lightning fast!
     
     Always use the appropriate tool based on what the user is asking.
     """
@@ -263,6 +266,7 @@ def execute_custom_query(sql: str) -> List[Dict[str, Any]]:
     Only SELECT and WITH queries are allowed for security.
     
     Main tables available:
+    - mv_customer_lifetime_summary: (Materialized View) customer_mobile, total_spend, first_visit_date, last_visit_date, total_visits
     - sales_data: Slno, Date, Time, Invoice Number, Branch, Staff, Customer Name, 
       Customer Mobile, Total Value (numeric), parsed_date (date)
     - analytics_productsale: id, date, invoice_number, branch, product, category, brand, qty, sold_price

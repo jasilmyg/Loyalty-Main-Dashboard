@@ -265,16 +265,29 @@ class DBManagerRefreshMVsView(LoginRequiredMixin, View):
                     """)
                     mvs = [r[0] for r in cur.fetchall()]
 
-                for mv in mvs:
+                import concurrent.futures
+                
+                def refresh_single_mv(mv):
+                    # We need a local connection inside the thread pool worker
+                    from django.db import connection as local_conn
                     try:
-                        with db_conn.cursor() as cur:
+                        with local_conn.cursor() as cur:
                             try:
                                 cur.execute(f'REFRESH MATERIALIZED VIEW CONCURRENTLY "{mv}"')
                             except Exception:
                                 cur.execute(f'REFRESH MATERIALIZED VIEW "{mv}"')
-                        results[mv] = 'ok'
+                        return mv, 'ok'
                     except Exception as e:
-                        results[mv] = f'error: {e}'
+                        return mv, f'error: {e}'
+                    finally:
+                        local_conn.close()
+
+                # Use a ThreadPoolExecutor to refresh MVs in parallel
+                with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                    futures = [executor.submit(refresh_single_mv, mv) for mv in mvs]
+                    for future in concurrent.futures.as_completed(futures):
+                        mv, status = future.result()
+                        results[mv] = status
             except Exception as e:
                 results['__error__'] = str(e)
 

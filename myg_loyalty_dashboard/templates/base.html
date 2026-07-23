@@ -472,13 +472,6 @@
         {% if request.user.username != 'shestart' %}
         <ul class="nav flex-column mb-4">
             <li class="nav-item">
-                <a class="nav-link {% if request.resolver_match.url_name == 'ai_chat' %}active{% endif %}" 
-                   href="{% url 'ai_chat' %}" 
-                   style="{% if request.resolver_match.url_name == 'ai_chat' %}{% else %}background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.08)); border-left: 4px solid #6366f1; color: #4f46e5;{% endif %}">
-                    <i class="bi bi-stars" style="color: #6366f1;"></i> AI Assistant ✨
-                </a>
-            </li>
-            <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}"><i class="bi bi-grid-1x2"></i> Sales Overview</a>
             </li>
             <li class="nav-item">
@@ -537,12 +530,6 @@
             <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">Enterprise Intelligence</small>
         </div>
         <ul class="nav flex-column mb-4">
-            <li class="nav-item">
-                <a class="nav-link {% if request.resolver_match.url_name == 'ai_chat' %}active{% endif %}" href="{% url 'ai_chat' %}" style="border-left: 4px solid #10b981; color: #10b981; background: rgba(16, 185, 129, 0.04); font-weight: 600;">
-                    <i class="bi bi-robot" style="color: #10b981; font-size: 1.25rem; margin-right: 12px !important;"></i> Enterprise AI Agent
-                    <span class="badge bg-success ms-1" style="font-size: 8px; font-weight: 800; vertical-align: middle; box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);">NEW</span>
-                </a>
-            </li>
             <li class="nav-item mt-2">
                 <a id="n8n-sidebar-btn" class="nav-link shadow-sm" href="#" style="border-left: 4px solid #8b5cf6; color: #8b5cf6; background: rgba(139, 92, 246, 0.08); font-weight: 700; border-radius: 8px 12px 12px 8px; margin-left: 0.5rem; transition: all 0.3s ease;">
                     <i class="bi bi-chat-square-dots-fill" style="color: #8b5cf6; font-size: 1.3rem; margin-right: 12px !important;"></i> n8n AI Analyst
