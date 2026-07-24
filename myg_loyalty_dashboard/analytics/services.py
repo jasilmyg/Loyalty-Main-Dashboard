@@ -1204,8 +1204,8 @@ END))::INT AS recency_days
         if not has_dim_filter or has_branch:
             if period == 'yearly':
                 mv_table = 'mv_yearly_members_branch' if has_branch else 'mv_yearly_members'
-                trunc_expr = 'year_date'
-                label_expr = "TO_CHAR(year_date, 'YYYY')"
+                trunc_expr = 'MAKE_DATE(active_year, 1, 1)'
+                label_expr = 'active_year::TEXT'
             elif period == 'quarterly':
                 mv_table = 'mv_quarterly_members_branch' if has_branch else 'mv_quarterly_members'
                 trunc_expr = 'quarter_date'

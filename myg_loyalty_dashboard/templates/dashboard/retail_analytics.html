@@ -442,60 +442,66 @@ async function loadMatrixData() {
         }
         
         const res = await fetch(fetchUrl, fetchOpts);
+        if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        
         const data = await res.json();
         const monthly = data.monthly || [];
 
-        if (monthly.length === 0) {
+        if (!monthly || !Array.isArray(monthly) || monthly.length === 0) {
             if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="text-center py-5 text-warning">Insufficient data for the selected period.</td></tr>`;
             return;
         }
 
-        // Add calculated fields (MoM %, Cumulative DB estimate based on previous knowledge if backend doesn't send db_size per month accurately)
-        // Note: The previous logic showed how we can derive MoM directly.
+        // Add calculated fields safely
         monthly.forEach((r, i) => {
             if (i === 0) { 
                 r.mom_members = null; 
                 r.mom_visits = null; 
             } else {
                 const prev = monthly[i - 1];
-                r.mom_members = prev.total_members ? ((r.total_members - prev.total_members) / prev.total_members * 100) : 0;
-                r.mom_visits = prev.total_visits ? ((r.total_visits - prev.total_visits) / prev.total_visits * 100) : 0;
+                r.mom_members = (prev && prev.total_members) ? (((r.total_members || 0) - prev.total_members) / prev.total_members * 100) : 0;
+                r.mom_visits = (prev && prev.total_visits) ? (((r.total_visits || 0) - prev.total_visits) / prev.total_visits * 100) : 0;
             }
         });
 
-        // Some data might not send db_size smoothly (DuckDB requires rolling window), but we can estimate Cumulative DB 
-        // dynamically or use db_size if the backend API passes it properly. 
-        // In the user's screenshot, it's called 'Cumulative DB'.
-        // Assuming r.db_size exists. If it is undefined or 0, we can use a basic cumulative sum logic of new_members over an initial base.
-        let rollingDb = data.summary?.db_start || 0;
-        let prevFinalDb = data.summary?.db_start || 0;
+        let rollingDb = (data.summary && data.summary.db_start) ? data.summary.db_start : 0;
+        let prevFinalDb = (data.summary && data.summary.db_start) ? data.summary.db_start : 0;
 
         if (tbody) {
-            tbody.innerHTML = monthly.map((r, i) => {
-                rollingDb += r.new_members; // A rough fallback if db_size is inaccurate, though backend usually tracks it
-                const finalDb = r.db_size && r.db_size > 0 ? r.db_size : rollingDb;
-                
-                let retentionPct = prevFinalDb > 0 ? (r.repeat_members / prevFinalDb) * 100 : 0;
-                prevFinalDb = finalDb;
-                
-                return `
-                <tr style="transition: all 0.2s;" onmouseover="this.style.backgroundColor='rgba(59, 130, 246, 0.05)'" onmouseout="this.style.backgroundColor='transparent'">
-                    <td class="ps-4 fw-bold text-primary" style="font-family: monospace;">${FORMAT_PERIOD(r.month)}</td>
-                    <td class="text-end fw-bold text-dark">${NUM(r.total_members)}</td>
-                    <td class="text-end" style="background: rgba(59,130,246,0.06)">${PCT(r.mom_members)}</td>
-                    <td class="text-end text-success">${NUM(r.new_members)}</td>
-                    <td class="text-end text-primary">${NUM(r.repeat_members)}</td>
-                    <td class="text-end"><span class="badge ${r.repeat_pct >= 50 ? 'bg-success bg-opacity-25 text-success border border-success' : 'bg-secondary bg-opacity-25 text-secondary border border-secondary'}">${(r.repeat_pct || 0).toFixed(2)}%</span></td>
-                    <td class="text-end"><span class="badge" style="color: #4f46e5; background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.3);">${retentionPct.toFixed(2)}%</span></td>
-                    <td class="pe-4 text-end text-dark" style="font-family: monospace;">${NUM(finalDb)}</td>
-                </tr>
-                `;
-            }).join('');
+            let htmlString = '';
+            for (let i = 0; i < monthly.length; i++) {
+                try {
+                    const r = monthly[i];
+                    rollingDb += (r.new_members || 0); 
+                    const finalDb = (r.db_size && r.db_size > 0) ? r.db_size : rollingDb;
+                    
+                    let retentionPct = prevFinalDb > 0 ? ((r.repeat_members || 0) / prevFinalDb) * 100 : 0;
+                    prevFinalDb = finalDb;
+                    
+                    htmlString += `
+                    <tr style="transition: all 0.2s;" onmouseover="this.style.backgroundColor='rgba(59, 130, 246, 0.05)'" onmouseout="this.style.backgroundColor='transparent'">
+                        <td class="ps-4 fw-bold text-primary" style="font-family: monospace;">${FORMAT_PERIOD(r.month)}</td>
+                        <td class="text-end fw-bold text-dark">${NUM(r.total_members || 0)}</td>
+                        <td class="text-end" style="background: rgba(59,130,246,0.06)">${PCT(r.mom_members)}</td>
+                        <td class="text-end text-success">${NUM(r.new_members || 0)}</td>
+                        <td class="text-end text-primary">${NUM(r.repeat_members || 0)}</td>
+                        <td class="text-end"><span class="badge ${(r.repeat_pct || 0) >= 50 ? 'bg-success bg-opacity-25 text-success border border-success' : 'bg-secondary bg-opacity-25 text-secondary border border-secondary'}">${(r.repeat_pct || 0).toFixed(2)}%</span></td>
+                        <td class="text-end"><span class="badge" style="color: #4f46e5; background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.3);">${retentionPct.toFixed(2)}%</span></td>
+                        <td class="pe-4 text-end text-dark" style="font-family: monospace;">${NUM(finalDb)}</td>
+                    </tr>
+                    `;
+                } catch(rowErr) {
+                    console.error("Error formatting row:", rowErr);
+                }
+            }
+            tbody.innerHTML = htmlString;
         }
     } catch(e) {
         console.error('Matrix Error:', e);
         const tbody = document.getElementById('dynamic-matrix-body');
-        if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="text-center py-5 text-danger">Failed to load data.</td></tr>`;
+        if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="text-center py-5 text-danger">Failed to load data: ${e.message}</td></tr>`;
     }
 }
 
