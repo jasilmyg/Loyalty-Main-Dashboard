@@ -476,7 +476,9 @@ class CustomerPropensitySearchAPIView(LoginRequiredMixin, View):
         try:
             with connection.cursor() as cursor:
                 cursor.execute("""
-                    SELECT mobile, (probability/100.0)::double precision, recency::int, frequency::int, monetary::int
+                    SELECT mobile,
+                           GREATEST(0.0, LEAST(1.0, 1.0 - (churn_score / 3.0)))::double precision AS repeat_prob,
+                           recency::int, frequency::int, monetary::int
                     FROM mv_customer_propensity
                     WHERE mobile = %s
                     LIMIT 1;
