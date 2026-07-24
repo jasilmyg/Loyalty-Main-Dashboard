@@ -617,6 +617,8 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                     total_redeemed_sales,
                     total_redeemed_customers
                 FROM mv_dormant_reactivation
+                WHERE first_2026_month IS NULL
+                   OR first_2026_month < '2026-07-01'
                 ORDER BY cohort_year ASC, first_2026_month ASC NULLS FIRST
             """)
             
