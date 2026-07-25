@@ -41,6 +41,34 @@ def _q1(query, params=None):
         return cur.fetchone()
 
 
+# ── ClickHouse helpers ───────────────────────────────────────────────────────
+try:
+    from analytics.clickhouse_service import ch_query as _ch_raw, is_ch_available as _ch_avail
+    CLICKHOUSE_ENABLED = True
+except Exception:
+    CLICKHOUSE_ENABLED = False
+
+
+def _ch_q(sql, params=None):
+    """Run query on ClickHouse. Returns list of tuples like PG fetchall()."""
+    from analytics.clickhouse_service import ch_query
+    return ch_query(sql, params or {})
+
+
+def _ch_q1(sql, params=None):
+    """Run query on ClickHouse. Returns single row like PG fetchone()."""
+    rows = _ch_q(sql, params)
+    return rows[0] if rows else None
+
+
+CH_VALID_MOBILE = """
+    LENGTH(customer_mobile) = 10
+    AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+    AND customer_mobile != ''
+"""
+# ─────────────────────────────────────────────────────────────────────────────
+
+
 class AnalyticsService:
     using_native = True
 
@@ -82,25 +110,10 @@ class AnalyticsService:
 
         return (' AND '.join(conditions) if conditions else '1=1'), params
 
-    # ── helpers kept for backward-compat ─────────────────────────────────────
-    def _get_mobile_expr(self):   return '"Customer Mobile"'
-    def _get_date_expr(self):     return '"Date"'
-    def _get_val_expr(self):      return '"Total Value"'
-    def _get_unique_customer_count(self, where_sql, params):
-        r = _q1(f"""
-            SELECT COUNT(DISTINCT "Customer Mobile")
-            FROM {TABLE}
-            WHERE {where_sql} AND {VALID_MOBILE}
-        """, params)
-        return r[0] or 0 if r else 0
+    def _build_ch_where_clause(self, filters):
+        """Build ClickHouse-compatible WHERE clause. Returns (sql_str, params_dict)."""
+        conditions, params = [], {}
 
-    # ── Sales Overview ───────────────────────────────────────────────────────
-    def get_sales_overview(self, filters):
-        where_sql, params = self._build_where_clause(filters)
-
-        # Use the materialized view (pre-aggregated monthly data) for speed.
-        # We build a WHERE clause that maps to the mv columns.
-        mv_conds, mv_params = [], []
         start_date = _parse_date(filters.get('start_date'))
         end_date   = _parse_date(filters.get('end_date'))
         branch     = filters.get('branch')
@@ -109,148 +122,189 @@ class AnalyticsService:
         bdm        = filters.get('bdm')
 
         if branch and str(branch).strip().lower() not in ('all branches', 'all', ''):
-            mv_conds.append('UPPER("Branch") = UPPER(%s)'); mv_params.append(branch)
-        if staff:
-            mv_conds.append('UPPER("Staff") = UPPER(%s)'); mv_params.append(staff)
-        if rbm:
-            mv_conds.append('UPPER("RBM") = UPPER(%s)'); mv_params.append(rbm)
-        if bdm:
-            mv_conds.append('UPPER("BDM") = UPPER(%s)'); mv_params.append(bdm)
+            conditions.append("upper(branch) = upper({branch:String})")
+            params['branch'] = branch
         if start_date:
-            mv_conds.append('month_date >= %s::DATE'); mv_params.append(start_date)
+            conditions.append("parsed_date >= {start_date:Date}")
+            params['start_date'] = start_date
         if end_date:
-            mv_conds.append('month_date <= %s::DATE'); mv_params.append(end_date)
+            conditions.append("parsed_date <= {end_date:Date}")
+            params['end_date'] = end_date
+        if staff:
+            conditions.append("upper(staff) = upper({staff:String})")
+            params['staff'] = staff
+        if rbm:
+            conditions.append("upper(rbm) = upper({rbm:String})")
+            params['rbm'] = rbm
+        if bdm:
+            conditions.append("upper(bdm) = upper({bdm:String})")
+            params['bdm'] = bdm
 
-        mv_where = 'WHERE ' + ' AND '.join(mv_conds) if mv_conds else ''
+        where = ' AND '.join(conditions) if conditions else '1=1'
+        return where, params
 
-        # Summary totals (sub-second from materialized view)
-        row = _q1(f"""
-            SELECT SUM(revenue)::FLOAT, SUM(invoices)
-            FROM mv_monthly_summary
-            {mv_where}
-        """, mv_params)
+    def _ch_is_filtered(self, filters):
+        """Return True if any filter is active (i.e., not a global query)."""
+        b = filters.get('branch', '')
+        return bool(
+            filters.get('start_date') or filters.get('end_date') or
+            filters.get('staff') or filters.get('rbm') or filters.get('bdm') or
+            (b and str(b).strip().lower() not in ('all branches', 'all', ''))
+        )
 
-        tr  = float(row[0] or 0) if row else 0
-        ti  = int(row[1]   or 0) if row else 0
-        atv = tr / ti if ti > 0 else 0
+    # ── helpers kept for backward-compat ─────────────────────────────────────
+    def _get_mobile_expr(self):   return '"Customer Mobile"'
+    def _get_date_expr(self):     return '"Date"'
+    def _get_val_expr(self):      return '"Total Value"'
 
-        # Monthly trend (aggregated from materialized view)
-        monthly = _q(f"""
-            SELECT
-                TO_CHAR(month_date, 'Mon YY') AS m_label,
-                SUM(revenue)::FLOAT           AS revenue
-            FROM mv_monthly_summary
-            {mv_where}
-            GROUP BY month_date
-            ORDER BY month_date ASC
-        """, mv_params)
+    # ── Sales Overview ────────────────────────────────────────────────────────
+    def get_sales_overview(self, filters):
+        ch_where, ch_params = self._build_ch_where_clause(filters)
+        try:
+            # ClickHouse: SUM/COUNT over 1.3Cr rows in <0.5s
+            row = _ch_q1(f"""
+                SELECT
+                    SUM(total_value)              AS total_revenue,
+                    COUNT(DISTINCT invoice_number) AS total_invoices
+                FROM sales_data
+                WHERE {ch_where}
+            """, ch_params)
+            tr = float(row[0] or 0) if row else 0
+            ti = int(row[1] or 0)   if row else 0
+            atv = tr / ti if ti > 0 else 0
 
-        return {
-            'total_revenue':  tr,
-            'total_invoices': ti,
-            'atv':            atv,
-            'monthly_trend':  [{'month': r[0], 'revenue': float(r[1] or 0)} for r in monthly],
-        }
+            monthly = _ch_q(f"""
+                SELECT
+                    formatDateTime(toStartOfMonth(parsed_date), '%b %y') AS m_label,
+                    SUM(total_value) AS revenue
+                FROM sales_data
+                WHERE {ch_where}
+                GROUP BY toStartOfMonth(parsed_date), m_label
+                ORDER BY toStartOfMonth(parsed_date) ASC
+            """, ch_params)
+            return {
+                'total_revenue':  tr,
+                'total_invoices': ti,
+                'atv':            atv,
+                'monthly_trend':  [{'month': r[0], 'revenue': float(r[1] or 0)} for r in monthly],
+            }
+        except Exception as e:
+            print(f"[CH] sales_overview fallback to PG MV: {e}")
+            # ── PG Materialized View fallback ──────────────────────────────
+            where_sql, params = self._build_where_clause(filters)
+            mv_conds, mv_params = [], []
+            start_date = _parse_date(filters.get('start_date'))
+            end_date   = _parse_date(filters.get('end_date'))
+            branch = filters.get('branch'); staff = filters.get('staff')
+            rbm = filters.get('rbm');       bdm   = filters.get('bdm')
+            if branch and str(branch).strip().lower() not in ('all branches', 'all', ''):
+                mv_conds.append('UPPER("Branch") = UPPER(%s)'); mv_params.append(branch)
+            if staff: mv_conds.append('UPPER("Staff") = UPPER(%s)'); mv_params.append(staff)
+            if rbm:   mv_conds.append('UPPER("RBM") = UPPER(%s)'); mv_params.append(rbm)
+            if bdm:   mv_conds.append('UPPER("BDM") = UPPER(%s)'); mv_params.append(bdm)
+            if start_date: mv_conds.append('month_date >= %s::DATE'); mv_params.append(start_date)
+            if end_date:   mv_conds.append('month_date <= %s::DATE'); mv_params.append(end_date)
+            mv_where = 'WHERE ' + ' AND '.join(mv_conds) if mv_conds else ''
+            row = _q1(f"SELECT SUM(revenue)::FLOAT, SUM(invoices) FROM mv_monthly_summary {mv_where}", mv_params)
+            tr  = float(row[0] or 0) if row else 0
+            ti  = int(row[1]   or 0) if row else 0
+            atv = tr / ti if ti > 0 else 0
+            monthly = _q(f"""
+                SELECT TO_CHAR(month_date, 'Mon YY'), SUM(revenue)::FLOAT
+                FROM mv_monthly_summary {mv_where}
+                GROUP BY month_date ORDER BY month_date ASC
+            """, mv_params)
+            return {
+                'total_revenue': tr, 'total_invoices': ti, 'atv': atv,
+                'monthly_trend': [{'month': r[0], 'revenue': float(r[1] or 0)} for r in monthly],
+            }
 
-
-    # ── Customer Analytics ───────────────────────────────────────────────────
+    # ── Customer Analytics ─────────────────────────────────────────────────────────
     def get_customer_analytics(self, filters):
-        where_sql, params = self._build_where_clause(filters)
-
-        if where_sql == "1=1":
-            # Fast path using materialized view
+        ch_where, ch_params = self._build_ch_where_clause(filters)
+        try:
+            row = _ch_q1(f"""
+                WITH customer_agg AS (
+                    SELECT customer_mobile, COUNT() AS visit_count, SUM(total_value) AS spend
+                    FROM sales_data WHERE {ch_where} AND {CH_VALID_MOBILE}
+                    GROUP BY customer_mobile
+                )
+                SELECT SUM(spend), COUNT(DISTINCT customer_mobile), COUNTIf(visit_count > 1)
+                FROM customer_agg
+            """, ch_params)
+            total_ltv        = float(row[0] or 0) if row else 0
+            total_customers  = int(row[1] or 0)   if row else 0
+            repeat_customers = int(row[2] or 0)   if row else 0
+        except Exception as e:
+            print(f"[CH] customer_analytics fallback to PG MV: {e}")
             row = _q1("""
-                SELECT 
-                    SUM(total_spend) AS total_ltv,
-                    COUNT(*) AS total_customers,
-                    COUNT(CASE WHEN visits > 1 THEN 1 END) AS repeat_customers
+                SELECT SUM(total_spend), COUNT(*), COUNT(CASE WHEN visits > 1 THEN 1 END)
                 FROM mv_customer_summary
             """)
             if not row: row = (0, 0, 0)
-            total_ltv = float(row[0] or 0)
-            total_customers = int(row[1] or 0)
+            total_ltv        = float(row[0] or 0)
+            total_customers  = int(row[1] or 0)
             repeat_customers = int(row[2] or 0)
-        else:
-            total_customers = (_q1(f"""
-                SELECT COUNT(DISTINCT "Customer Mobile")
-                FROM {TABLE} WHERE {where_sql} AND {VALID_MOBILE}
-            """, params) or (0,))[0] or 0
-
-            rows = _q(f"""
-                WITH period_data AS (
-                    SELECT "Customer Mobile" as mobile, SUM("Total Value")::FLOAT AS period_ltv
-                    FROM {TABLE} WHERE {where_sql} AND {VALID_MOBILE}
-                    GROUP BY "Customer Mobile"
-                )
-                SELECT SUM(p.period_ltv), COUNT(CASE WHEN m.visits > 1 THEN 1 END)
-                FROM period_data p
-                JOIN mv_customer_summary m ON p.mobile = m.mobile
-            """, params)
-            if not rows or not rows[0]:
-                total_ltv, repeat_customers = 0, 0
-            else:
-                total_ltv = float(rows[0][0] or 0)
-                repeat_customers = int(rows[0][1] or 0)
-
         repeat_rate = (repeat_customers / total_customers * 100) if total_customers > 0 else 0
-
         return {
             'total_ltv': total_ltv, 'total_customers': total_customers,
             'repeat_customers': repeat_customers, 'repeat_purchase_rate': repeat_rate,
         }
 
-    # ── Frequency Distribution ───────────────────────────────────────────────
+    # ── Frequency Distribution ──────────────────────────────────────────────────────
     def get_frequency_distribution(self, filters):
-        where_sql, params = self._build_where_clause(filters)
-
-        if where_sql == "1=1":
-            stats_query = """
-                SELECT mobile AS "Customer Mobile", visits, total_spend AS revenue
-                FROM mv_customer_summary
-            """
-            params = []
-        else:
-            stats_query = f"""
-                SELECT "Customer Mobile",
-                    COUNT(DISTINCT "Date")    AS visits,
-                    SUM("Total Value")::FLOAT AS revenue
-                FROM {TABLE} WHERE {where_sql} AND {VALID_MOBILE}
-                GROUP BY "Customer Mobile"
-            """
-
-        rows = _q(f"""
-            WITH customer_stats AS (
-                {stats_query}
-            ),
-            bucketed AS (
-                SELECT
-                    CASE
-                        WHEN visits = 1                THEN '1 Visit'
-                        WHEN visits = 2                THEN '2 Visits'
-                        WHEN visits = 3                THEN '3 Visits'
-                        WHEN visits = 4                THEN '4 Visits'
-                        WHEN visits BETWEEN 5  AND 9   THEN '5-9 Visits'
-                        WHEN visits BETWEEN 10 AND 20  THEN '10-20 Visits'
-                        WHEN visits BETWEEN 21 AND 50  THEN '21-50 Visits'
+        ch_where, ch_params = self._build_ch_where_clause(filters)
+        try:
+            rows = _ch_q(f"""
+                WITH customer_stats AS (
+                    SELECT customer_mobile, COUNT() AS visits, SUM(total_value) AS revenue
+                    FROM sales_data WHERE {ch_where} AND {CH_VALID_MOBILE}
+                    GROUP BY customer_mobile
+                ),
+                bucketed AS (
+                    SELECT multiIf(
+                        visits=1,'1 Visit', visits=2,'2 Visits', visits=3,'3 Visits',
+                        visits=4,'4 Visits', visits BETWEEN 5 AND 9,'5-9 Visits',
+                        visits BETWEEN 10 AND 20,'10-20 Visits',
+                        visits BETWEEN 21 AND 50,'21-50 Visits',
+                        visits BETWEEN 51 AND 100,'51-100 Visits',
+                        'Above 100 Visits') AS segment,
+                        visits, revenue
+                    FROM customer_stats
+                )
+                SELECT segment, COUNT() AS customers, SUM(revenue) AS net_revenue,
+                    COUNT()*100.0/SUM(COUNT()) OVER() AS cust_pct,
+                    SUM(revenue)*100.0/SUM(SUM(revenue)) OVER() AS rev_pct,
+                    SUM(revenue)/COUNT() AS asp
+                FROM bucketed GROUP BY segment
+                ORDER BY multiIf(
+                    segment='1 Visit',1, segment='2 Visits',2, segment='3 Visits',3,
+                    segment='4 Visits',4, segment='5-9 Visits',5, segment='10-20 Visits',6,
+                    segment='21-50 Visits',7, segment='51-100 Visits',8, 9)
+            """, ch_params)
+        except Exception as e:
+            print(f"[CH] frequency_distribution fallback to PG MV: {e}")
+            rows = _q("""
+                WITH cs AS (SELECT visits, total_spend AS revenue FROM mv_customer_summary),
+                bucketed AS (
+                    SELECT CASE WHEN visits=1 THEN '1 Visit' WHEN visits=2 THEN '2 Visits'
+                        WHEN visits=3 THEN '3 Visits' WHEN visits=4 THEN '4 Visits'
+                        WHEN visits BETWEEN 5 AND 9 THEN '5-9 Visits'
+                        WHEN visits BETWEEN 10 AND 20 THEN '10-20 Visits'
+                        WHEN visits BETWEEN 21 AND 50 THEN '21-50 Visits'
                         WHEN visits BETWEEN 51 AND 100 THEN '51-100 Visits'
-                        ELSE 'Above 100 Visits'
-                    END AS segment,
-                    visits, revenue
-                FROM customer_stats
-            )
-            SELECT segment,
-                COUNT(*) AS customers,
-                COALESCE(SUM(revenue),0) AS net_revenue,
-                COUNT(*)*100.0/SUM(COUNT(*)) OVER() AS cust_pct,
-                COALESCE(SUM(revenue),0)*100.0/NULLIF(SUM(SUM(revenue)) OVER(),0) AS rev_pct,
-                COALESCE(SUM(revenue),0)/NULLIF(COUNT(*),0) AS asp
-            FROM bucketed GROUP BY segment
-            ORDER BY CASE segment
-                WHEN '1 Visit' THEN 1 WHEN '2 Visits' THEN 2 WHEN '3 Visits' THEN 3
-                WHEN '4 Visits' THEN 4 WHEN '5-9 Visits' THEN 5 WHEN '10-20 Visits' THEN 6
-                WHEN '21-50 Visits' THEN 7 WHEN '51-100 Visits' THEN 8 ELSE 9 END
-        """, params)
-
+                        ELSE 'Above 100 Visits' END AS segment, visits, revenue FROM cs
+                )
+                SELECT segment, COUNT(*) AS customers, COALESCE(SUM(revenue),0) AS net_revenue,
+                    COUNT(*)*100.0/SUM(COUNT(*)) OVER() AS cust_pct,
+                    COALESCE(SUM(revenue),0)*100.0/NULLIF(SUM(SUM(revenue)) OVER(),0) AS rev_pct,
+                    COALESCE(SUM(revenue),0)/NULLIF(COUNT(*),0) AS asp
+                FROM bucketed GROUP BY segment
+                ORDER BY CASE segment WHEN '1 Visit' THEN 1 WHEN '2 Visits' THEN 2
+                    WHEN '3 Visits' THEN 3 WHEN '4 Visits' THEN 4 WHEN '5-9 Visits' THEN 5
+                    WHEN '10-20 Visits' THEN 6 WHEN '21-50 Visits' THEN 7
+                    WHEN '51-100 Visits' THEN 8 ELSE 9 END
+            """)
         return [{'segment': r[0], 'customers': r[1],
                  'net_revenue': round(float(r[2] or 0), 2),
                  'cust_pct':    round(float(r[3] or 0), 2),
@@ -265,11 +319,22 @@ class AnalyticsService:
         '51-100 Visits':'visits BETWEEN 51 AND 100', 'Above 100 Visits':'visits>100',
     }
 
+    _CH_SEGMENT_FILTER = {
+        '1 Visit': 'visit_count=1', '2 Visits': 'visit_count=2',
+        '3 Visits': 'visit_count=3', '4 Visits': 'visit_count=4',
+        '5-9 Visits': 'visit_count BETWEEN 5 AND 9',
+        '10-20 Visits': 'visit_count BETWEEN 10 AND 20',
+        '21-50 Visits': 'visit_count BETWEEN 21 AND 50',
+        '51-100 Visits': 'visit_count BETWEEN 51 AND 100',
+        'Above 100 Visits': 'visit_count > 100',
+    }
+
     def get_customers_for_segment(self, filters, segment, offset=0):
         where_sql, params = self._build_where_clause(filters)
         seg_pred = self._SEGMENT_FILTER.get(segment, '1=0')
-        with connection.cursor() as cur:
-            if where_sql == "1=1":
+        hdrs = ['Customer Mobile', 'customer_name', 'visits', 'net_revenue', 'last_visit']
+        if where_sql == "1=1":
+            with connection.cursor() as cur:
                 cur.execute(f"""
                     SELECT mobile AS "Customer Mobile", '' AS customer_name, visits, total_spend AS net_revenue, last_visit
                     FROM mv_customer_summary
@@ -277,7 +342,30 @@ class AnalyticsService:
                     ORDER BY total_spend DESC NULLS LAST, mobile ASC
                     LIMIT {self.SEGMENT_CHUNK_SIZE} OFFSET {offset}
                 """)
-            else:
+                return [d[0] for d in cur.description], cur.fetchall()
+        # ClickHouse fast path for filtered queries
+        ch_where, ch_params = self._build_ch_where_clause(filters)
+        ch_seg = self._CH_SEGMENT_FILTER.get(segment, '1=0')
+        try:
+            rows = _ch_q(f"""
+                WITH cs AS (
+                    SELECT customer_mobile, any(customer_name) AS cname,
+                           COUNT() AS visit_count,
+                           SUM(total_value) AS net_revenue,
+                           toString(max(parsed_date)) AS last_visit
+                    FROM sales_data
+                    WHERE {ch_where} AND {CH_VALID_MOBILE}
+                    GROUP BY customer_mobile
+                )
+                SELECT customer_mobile, cname, visit_count, net_revenue, last_visit
+                FROM cs WHERE {ch_seg}
+                ORDER BY net_revenue DESC, customer_mobile ASC
+                LIMIT {self.SEGMENT_CHUNK_SIZE} OFFSET {offset}
+            """, ch_params)
+            return hdrs, rows
+        except Exception as e:
+            print(f"[CH] customers_for_segment fallback: {e}")
+            with connection.cursor() as cur:
                 cur.execute(f"""
                     WITH customer_stats AS (
                         SELECT "Customer Mobile", MAX("Customer Name") AS customer_name,
@@ -292,7 +380,7 @@ class AnalyticsService:
                     ORDER BY net_revenue DESC NULLS LAST, "Customer Mobile" ASC
                     LIMIT {self.SEGMENT_CHUNK_SIZE} OFFSET {offset}
                 """, params)
-            return [d[0] for d in cur.description], cur.fetchall()
+                return [d[0] for d in cur.description], cur.fetchall()
 
     def count_customers_for_segment(self, filters, segment):
         where_sql, params = self._build_where_clause(filters)
@@ -300,27 +388,59 @@ class AnalyticsService:
         if where_sql == "1=1":
             r = _q1(f"SELECT COUNT(*) FROM mv_customer_summary WHERE {seg_pred}")
             return r[0] if r else 0
-        r = _q1(f"""
-            WITH cs AS (
-                SELECT "Customer Mobile", COUNT(DISTINCT "Date") AS visits
-                FROM {TABLE} WHERE {where_sql} AND {VALID_MOBILE}
-                GROUP BY "Customer Mobile"
-            )
-            SELECT COUNT(*) FROM cs WHERE {seg_pred}
-        """, params)
-        return r[0] if r else 0
+        ch_where, ch_params = self._build_ch_where_clause(filters)
+        ch_seg = self._CH_SEGMENT_FILTER.get(segment, '1=0')
+        try:
+            r = _ch_q1(f"""
+                WITH cs AS (
+                    SELECT customer_mobile, COUNT() AS visit_count
+                    FROM sales_data WHERE {ch_where} AND {CH_VALID_MOBILE}
+                    GROUP BY customer_mobile
+                )
+                SELECT COUNT() FROM cs WHERE {ch_seg}
+            """, ch_params)
+            return int(r[0] or 0) if r else 0
+        except Exception as e:
+            print(f"[CH] count_customers_for_segment fallback: {e}")
+            r = _q1(f"""
+                WITH cs AS (
+                    SELECT "Customer Mobile", COUNT(DISTINCT "Date") AS visits
+                    FROM {TABLE} WHERE {where_sql} AND {VALID_MOBILE}
+                    GROUP BY "Customer Mobile"
+                )
+                SELECT COUNT(*) FROM cs WHERE {seg_pred}
+            """, params)
+            return r[0] if r else 0
 
     def get_all_customers(self, filters, offset=0):
         where_sql, params = self._build_where_clause(filters)
-        with connection.cursor() as cur:
-            if where_sql == "1=1":
+        hdrs = ['Customer Mobile', 'customer_name', 'visits', 'net_revenue', 'last_visit']
+        if where_sql == "1=1":
+            with connection.cursor() as cur:
                 cur.execute(f"""
                     SELECT mobile AS "Customer Mobile", '' AS customer_name, visits, total_spend AS net_revenue, last_visit
                     FROM mv_customer_summary
                     ORDER BY total_spend DESC NULLS LAST, mobile ASC
                     LIMIT {self.SEGMENT_CHUNK_SIZE} OFFSET {offset}
                 """)
-            else:
+                return [d[0] for d in cur.description], cur.fetchall()
+        ch_where, ch_params = self._build_ch_where_clause(filters)
+        try:
+            rows = _ch_q(f"""
+                SELECT customer_mobile, any(customer_name) AS cname,
+                       COUNT() AS visits,
+                       SUM(total_value) AS net_revenue,
+                       toString(max(parsed_date)) AS last_visit
+                FROM sales_data
+                WHERE {ch_where} AND {CH_VALID_MOBILE}
+                GROUP BY customer_mobile
+                ORDER BY net_revenue DESC, customer_mobile ASC
+                LIMIT {self.SEGMENT_CHUNK_SIZE} OFFSET {offset}
+            """, ch_params)
+            return hdrs, rows
+        except Exception as e:
+            print(f"[CH] get_all_customers fallback: {e}")
+            with connection.cursor() as cur:
                 cur.execute(f"""
                     WITH customer_stats AS (
                         SELECT "Customer Mobile", MAX("Customer Name") AS customer_name,
@@ -335,18 +455,27 @@ class AnalyticsService:
                     ORDER BY net_revenue DESC NULLS LAST, "Customer Mobile" ASC
                     LIMIT {self.SEGMENT_CHUNK_SIZE} OFFSET {offset}
                 """, params)
-            return [d[0] for d in cur.description], cur.fetchall()
+                return [d[0] for d in cur.description], cur.fetchall()
 
     def count_all_customers(self, filters):
         where_sql, params = self._build_where_clause(filters)
         if where_sql == "1=1":
             r = _q1("SELECT COUNT(*) FROM mv_customer_summary")
-        else:
+            return r[0] if r else 0
+        ch_where, ch_params = self._build_ch_where_clause(filters)
+        try:
+            r = _ch_q1(f"""
+                SELECT COUNT(DISTINCT customer_mobile)
+                FROM sales_data WHERE {ch_where} AND {CH_VALID_MOBILE}
+            """, ch_params)
+            return int(r[0] or 0) if r else 0
+        except Exception as e:
+            print(f"[CH] count_all_customers fallback: {e}")
             r = _q1(f"""
                 SELECT COUNT(DISTINCT "Customer Mobile")
                 FROM {TABLE} WHERE {where_sql} AND {VALID_MOBILE}
             """, params)
-        return r[0] if r else 0
+            return r[0] if r else 0
 
     # ── RFM ──────────────────────────────────────────────────────────────────
     def _get_rfm_base_cte(self, where_sql, params=None):
@@ -426,101 +555,107 @@ class AnalyticsService:
         """
 
     def get_rfm_segments(self, filters):
-        where_sql, params = self._build_where_clause(filters)
-
-        # ── Lightning-fast path: mv_rfm_summary (6 pre-aggregated rows, ~40ms) ──
-        if where_sql == '1=1':
-            from django.core.cache import cache
-            _ck = 'rfm_segments_global'
-            _cached = cache.get(_ck)
-            if _cached is not None:
-                return _cached
+        ch_where, ch_params = self._build_ch_where_clause(filters)
+        try:
+            rows = _ch_q(f"""
+                WITH rfm_base AS (
+                    SELECT customer_mobile AS mobile,
+                           COUNT()            AS frequency,
+                           SUM(total_value)   AS monetary,
+                           dateDiff('day', max(parsed_date), today()) AS recency
+                    FROM sales_data
+                    WHERE {ch_where} AND {CH_VALID_MOBILE}
+                    GROUP BY customer_mobile
+                ),
+                scored AS (
+                    SELECT mobile, monetary,
+                        multiIf(recency<=90,5, recency<=180,4, recency<=365,3, recency<=730,2, 1) AS r_score,
+                        multiIf(frequency>=5,5, frequency=4,4, frequency=3,3, frequency=2,2, 1) AS f_score,
+                        ntile(5) OVER (ORDER BY monetary ASC) AS m_score
+                    FROM rfm_base
+                ),
+                segmented AS (
+                    SELECT mobile, monetary,
+                        multiIf(
+                            r_score>=4 AND f_score>=4 AND m_score>=4, 'Champions',
+                            r_score>=3 AND f_score>=3 AND m_score>=3, 'Loyal',
+                            r_score>=4 AND f_score<=2,               'New',
+                            r_score=2  AND f_score>=3 AND m_score>=3, 'At Risk',
+                            r_score=1,                               'Lost',
+                            'Others'
+                        ) AS segment
+                    FROM scored
+                )
+                SELECT segment, COUNT() AS count,
+                       SUM(monetary) AS total_revenue, avg(monetary) AS avg_revenue
+                FROM segmented GROUP BY segment ORDER BY count DESC
+            """, ch_params)
+            return [{'segment': r[0], 'count': r[1],
+                     'total_revenue': float(r[2] or 0), 'avg_revenue': float(r[3] or 0)} for r in rows]
+        except Exception as e:
+            print(f"[CH] rfm_segments fallback to PG MV: {e}")
+            # PG MV fallback
+            where_sql, params = self._build_where_clause(filters)
             try:
                 rows = _q("SELECT segment, customer_count, total_revenue, avg_revenue FROM mv_rfm_summary ORDER BY customer_count DESC")
                 if rows:
-                    result = [{'segment': r[0], 'count': r[1],
-                               'total_revenue': float(r[2] or 0), 'avg_revenue': float(r[3] or 0)}
-                              for r in rows]
-                    cache.set(_ck, result, 86400)  # 24 h
-                    return result
+                    return [{'segment': r[0], 'count': r[1], 'total_revenue': float(r[2] or 0), 'avg_revenue': float(r[3] or 0)} for r in rows]
             except Exception:
-                pass  # mv_rfm_summary not ready, fall through to row-level MV
-
-            # Fallback: GROUP BY on mv_rfm_segments (still 4.2M rows but pre-computed)
-            try:
-                rows = _q("""
-                    SELECT segment, COUNT(mobile)::bigint AS count,
-                           SUM(monetary)::FLOAT AS total_revenue, AVG(monetary)::FLOAT AS avg_revenue
-                    FROM mv_rfm_segments
-                    GROUP BY segment ORDER BY count DESC
-                """)
-                if rows:
-                    result = [{'segment': r[0], 'count': r[1],
-                               'total_revenue': float(r[2] or 0), 'avg_revenue': float(r[3] or 0)}
-                              for r in rows]
-                    cache.set(_ck, result, 86400)
-                    return result
-            except Exception:
-                pass  # MV not ready, fall through to raw scan
-
-        # ── Slow path: raw scan with filters ────────────────────────────────
-        cte = self._get_rfm_base_cte(where_sql)
-        rows = _q(f"""
-            {cte}
-            SELECT segment, COUNT(mobile) AS count,
-                SUM(monetary)::FLOAT AS total_revenue, AVG(monetary)::FLOAT AS avg_revenue
-            FROM segmented GROUP BY segment ORDER BY count DESC
-        """, params)
-        return [{'segment': r[0], 'count': r[1],
-                 'total_revenue': float(r[2] or 0), 'avg_revenue': float(r[3] or 0)} for r in rows]
+                pass
+            cte = self._get_rfm_base_cte(where_sql)
+            rows = _q(f"""
+                {cte}
+                SELECT segment, COUNT(mobile) AS count,
+                    SUM(monetary)::FLOAT AS total_revenue, AVG(monetary)::FLOAT AS avg_revenue
+                FROM segmented GROUP BY segment ORDER BY count DESC
+            """, params)
+            return [{'segment': r[0], 'count': r[1],
+                     'total_revenue': float(r[2] or 0), 'avg_revenue': float(r[3] or 0)} for r in rows]
 
     def perform_rfm_analysis(self, filters):
         return self.get_rfm_segments(filters)
 
     def get_monetary_quintiles(self, filters):
-        where_sql, params = self._build_where_clause(filters)
         labels = {1:'Top 20%', 2:'Next 20%', 3:'Middle 20%', 4:'Next 20%', 5:'Bottom 20%'}
-
-        # ── Lightning-fast path: mv_monetary_quintiles (5 rows, ~40ms) ────────
-        if where_sql == '1=1':
-            from django.core.cache import cache
-            _ck = 'monetary_quintiles_global'
-            _cached = cache.get(_ck)
-            if _cached is not None:
-                return _cached
-            try:
-                rows = _q("SELECT quintile, avg_spend, customer_count FROM mv_monetary_quintiles ORDER BY quintile")
-                if rows:
-                    result = [{'label': labels.get(r[0], f'Group {r[0]}'),
-                               'avg_spend': float(r[1] or 0), 'count': r[2]}
-                              for r in rows]
-                    cache.set(_ck, result, 86400)  # 24 h
-                    return result
-            except Exception:
-                pass  # MV not ready, fall through
-
-            # Fallback: NTILE over mv_customer_summary
-            cs_query = "SELECT mobile, total_spend FROM mv_customer_summary"
-            params = []
-        else:
-            cs_query = f"""
-                SELECT "Customer Mobile", SUM("Total Value")::FLOAT AS total_spend
-                FROM {TABLE} WHERE {where_sql} AND {VALID_MOBILE}
-                GROUP BY "Customer Mobile"
-            """
-
-        rows = _q(f"""
-            WITH cs AS ({cs_query}),
-            sc AS (SELECT total_spend, NTILE(5) OVER(ORDER BY total_spend DESC) AS quintile FROM cs)
-            SELECT quintile, AVG(total_spend)::FLOAT, COUNT(*) FROM sc GROUP BY quintile ORDER BY quintile
-        """, params)
-        return [{'label': labels.get(r[0], f'Group {r[0]}'), 'avg_spend': float(r[1] or 0), 'count': r[2]} for r in rows]
+        ch_where, ch_params = self._build_ch_where_clause(filters)
+        try:
+            rows = _ch_q(f"""
+                WITH cs AS (
+                    SELECT customer_mobile, SUM(total_value) AS total_spend
+                    FROM sales_data WHERE {ch_where} AND {CH_VALID_MOBILE}
+                    GROUP BY customer_mobile
+                ),
+                sc AS (
+                    SELECT total_spend, ntile(5) OVER (ORDER BY total_spend DESC) AS quintile
+                    FROM cs
+                )
+                SELECT quintile, avg(total_spend), COUNT()
+                FROM sc GROUP BY quintile ORDER BY quintile
+            """, ch_params)
+            return [{'label': labels.get(r[0], f'Group {r[0]}'), 'avg_spend': float(r[1] or 0), 'count': r[2]} for r in rows]
+        except Exception as e:
+            print(f"[CH] monetary_quintiles fallback to PG MV: {e}")
+            # PG fallback: use MV for global, raw table for filtered
+            where_sql, params = self._build_where_clause(filters)
+            if where_sql == '1=1':
+                cs_query = "SELECT mobile, total_spend FROM mv_customer_summary"
+                params = []
+            else:
+                cs_query = f"""
+                    SELECT "Customer Mobile", SUM("Total Value")::FLOAT AS total_spend
+                    FROM {TABLE} WHERE {where_sql} AND {VALID_MOBILE}
+                    GROUP BY "Customer Mobile"
+                """
+            rows = _q(f"""
+                WITH cs AS ({cs_query}),
+                sc AS (SELECT total_spend, NTILE(5) OVER(ORDER BY total_spend DESC) AS quintile FROM cs)
+                SELECT quintile, AVG(total_spend)::FLOAT, COUNT(*) FROM sc GROUP BY quintile ORDER BY quintile
+            """, params)
+            return [{'label': labels.get(r[0] or 0, f'Group {r[0]}'), 'avg_spend': float(r[1] or 0), 'count': r[2]} for r in rows if r[0]]
 
     def get_rfm_details_query(self, filters, segment=None):
         where_sql, params = self._build_where_clause(filters)
-        # Force slow path to ensure we grab MAX("Customer Name") from raw data
-        cte_where = "1=1 AND TRUE" if where_sql == "1=1" else where_sql
-        cte = self._get_rfm_base_cte(cte_where)
+        cte = self._get_rfm_base_cte(where_sql)
         where_seg = ''
         if segment:
             where_seg = 'WHERE segment = %s'
@@ -546,23 +681,41 @@ class AnalyticsService:
         if _cached is not None:
             return _cached
 
-        # Fast path: use pre-computed MV if available
+        # ClickHouse primary path
         try:
-            rows = _q("SELECT cohort_month, month_number, num_users FROM mv_cohort_retention ORDER BY cohort_month, month_number")
-            if rows:
-                cohorts = {}
-                for row in rows:
-                    c_month, m_num, count = row
-                    if c_month not in cohorts:
-                        cohorts[c_month] = {}
-                    cohorts[c_month][m_num] = count
-                result = {'cohorts': cohorts}
-                cache.set(_ck, result, 86400)
-                return result
-        except Exception:
-            pass  # MV not ready, fall through
+            rows = _ch_q("""
+                WITH cohort_items AS (
+                    SELECT customer_mobile,
+                           formatDateTime(min(parsed_date), '%Y-%m') AS cohort_month
+                    FROM sales_data
+                    WHERE length(customer_mobile) = 10 AND customer_mobile != ''
+                    GROUP BY customer_mobile
+                ),
+                user_activities AS (
+                    SELECT s.customer_mobile, ci.cohort_month,
+                           dateDiff('month', toDate(concat(ci.cohort_month, '-01')), s.parsed_date) AS month_number
+                    FROM sales_data s
+                    JOIN cohort_items ci ON s.customer_mobile = ci.customer_mobile
+                    WHERE length(s.customer_mobile) = 10 AND s.customer_mobile != ''
+                )
+                SELECT cohort_month, month_number, COUNT(DISTINCT customer_mobile) AS num_users
+                FROM user_activities
+                GROUP BY cohort_month, month_number
+                ORDER BY cohort_month, month_number
+            """)
+            cohorts = {}
+            for row in rows:
+                c_month, m_num, count = row
+                if c_month not in cohorts:
+                    cohorts[c_month] = {}
+                cohorts[c_month][m_num] = count
+            result = {'cohorts': cohorts}
+            cache.set(_ck, result, 86400)
+            return result
+        except Exception as e:
+            print(f"[CH] cohort_retention fallback to PG: {e}")
 
-        # Slow path: raw scan (only runs once; result is cached 24h)
+        # PG raw scan
         rows = _q(f"""
             WITH cohort_items AS (
                 SELECT "Customer Mobile",
@@ -595,7 +748,7 @@ class AnalyticsService:
                 cohorts[c_month] = {}
             cohorts[c_month][m_num] = count
         result = {'cohorts': cohorts}
-        cache.set(_ck, result, 86400)  # cache 24 h
+        cache.set(_ck, result, 86400)
         return result
 
     def get_yearly_cohort_analysis(self):
@@ -605,7 +758,85 @@ class AnalyticsService:
         if _cached is not None:
             return _cached
 
-        # Fast path: use pre-computed MV if available
+        # ── ClickHouse primary path ──────────────────────────────────────────
+        try:
+            rows = _ch_q("""
+                WITH customer_first_visit AS (
+                    SELECT customer_mobile AS mobile,
+                           toString(toYear(min(parsed_date))) AS cohort_year,
+                           min(parsed_date) AS first_date
+                    FROM sales_data
+                    WHERE length(customer_mobile) = 10 AND customer_mobile != ''
+                    GROUP BY customer_mobile
+                ),
+                customer_activities AS (
+                    SELECT s.customer_mobile AS mobile, s.parsed_date AS activity_date,
+                           s.total_value AS revenue, f.first_date,
+                           f.cohort_year,
+                           toYear(s.parsed_date) - toYear(f.first_date) AS year_index
+                    FROM sales_data s
+                    JOIN customer_first_visit f ON s.customer_mobile = f.mobile
+                    WHERE length(s.customer_mobile) = 10 AND s.customer_mobile != ''
+                ),
+                cohort_yearly_stats AS (
+                    SELECT cohort_year, year_index,
+                           COUNT(DISTINCT mobile) AS active_customers,
+                           SUM(revenue) AS year_revenue
+                    FROM customer_activities GROUP BY cohort_year, year_index
+                ),
+                cohort_base_size AS (
+                    SELECT cohort_year, active_customers AS initial_size
+                    FROM cohort_yearly_stats WHERE year_index = 0
+                ),
+                cohort_otb AS (
+                    SELECT cohort_year, COUNT(DISTINCT mobile) AS one_time_buyers
+                    FROM (
+                        SELECT mobile, cohort_year, COUNT(DISTINCT activity_date) AS lv
+                        FROM customer_activities GROUP BY mobile, cohort_year
+                    ) t WHERE lv = 1 GROUP BY cohort_year
+                ),
+                cohort_nrp AS (
+                    SELECT cohort_year, COUNT(DISTINCT mobile) AS no_return_purchases
+                    FROM (
+                        SELECT mobile, cohort_year, max(year_index) AS myi
+                        FROM customer_activities GROUP BY mobile, cohort_year
+                    ) t WHERE myi = 0 GROUP BY cohort_year
+                )
+                SELECT s.cohort_year, s.year_index, s.active_customers, s.year_revenue,
+                       b.initial_size,
+                       if(b.initial_size > 0, s.active_customers * 100.0 / b.initial_size, 0) AS retention_rate,
+                       coalesce(o.one_time_buyers, 0), coalesce(n.no_return_purchases, 0)
+                FROM cohort_yearly_stats s
+                JOIN cohort_base_size b ON s.cohort_year = b.cohort_year
+                LEFT JOIN cohort_otb o ON s.cohort_year = o.cohort_year
+                LEFT JOIN cohort_nrp n ON s.cohort_year = n.cohort_year
+                ORDER BY s.cohort_year DESC, s.year_index ASC
+            """)
+            if rows:
+                cohort_data = {}
+                for r in rows:
+                    cy, yi, active, rev, size, rate, otb, nrp = r
+                    size = int(size or 0)
+                    if cy not in cohort_data:
+                        cohort_data[cy] = {
+                            'size': size, 'one_time_buyers': int(otb or 0),
+                            'otb_pct': round(float(otb or 0)*100/size, 2) if size else 0,
+                            'no_return_purchases': int(nrp or 0),
+                            'nrp_pct': round(float(nrp or 0)*100/size, 2) if size else 0,
+                            'years': {},
+                        }
+                    cohort_data[cy]['years'][int(yi)] = {
+                        'active': int(active or 0), 'revenue': round(float(rev or 0), 2),
+                        'retention': round(float(rate or 0), 2),
+                        'ltv': round(float(rev or 0)/size, 2) if size else 0,
+                    }
+                cache.set(_ck, cohort_data, 86400)
+                return cohort_data
+        except Exception as _ch_err:
+            import logging
+            logging.getLogger(__name__).warning(f"[CH] yearly_cohort CH path failed: {_ch_err}")
+
+        # ── PG MV fallback ───────────────────────────────────────────────────
         try:
             rows = _q("""
                 SELECT cohort_year, year_index, active_customers, year_revenue,
@@ -614,7 +845,6 @@ class AnalyticsService:
                 ORDER BY cohort_year DESC, year_index ASC
             """)
             if rows:
-                # RFM breakdown — optional, don't let it abort the fast path
                 try:
                     rfm_rows = _q("SELECT cohort_year, segment, customer_count FROM mv_cohort_rfm ORDER BY cohort_year")
                 except Exception:
@@ -750,30 +980,58 @@ class AnalyticsService:
     # ── Staff Performance ────────────────────────────────────────────────────
     def get_staff_performance(self, filters):
         where_sql, params = self._build_where_clause(filters)
-        rows = _q(f"""
-            SELECT "Staff", "Staff Code",
-                SUM("Total Value")::FLOAT AS sales_value,
-                COUNT(DISTINCT "Invoice Number") AS invoice_count,
-                SUM("Total Value")::FLOAT / NULLIF(COUNT(DISTINCT "Invoice Number"),0) AS atv
-            FROM {TABLE}
-            WHERE {where_sql} AND "Staff" IS NOT NULL AND "Staff" != ''
-            GROUP BY "Staff","Staff Code"
-            ORDER BY sales_value DESC NULLS LAST LIMIT 50
-        """, params)
+        ch_where, ch_params = self._build_ch_where_clause(filters)
+        try:
+            rows = _ch_q(f"""
+                SELECT staff, staff_code,
+                    SUM(total_value) AS sales_value,
+                    COUNT(DISTINCT invoice_number) AS invoice_count,
+                    SUM(total_value) / nullIf(COUNT(DISTINCT invoice_number), 0) AS atv
+                FROM sales_data
+                WHERE {ch_where} AND staff != '' AND length(staff) > 0
+                GROUP BY staff, staff_code
+                ORDER BY sales_value DESC LIMIT 50
+            """, ch_params)
+        except Exception as e:
+            print(f"[CH] staff_performance fallback: {e}")
+            rows = _q(f"""
+                SELECT "Staff", "Staff Code",
+                    SUM("Total Value")::FLOAT AS sales_value,
+                    COUNT(DISTINCT "Invoice Number") AS invoice_count,
+                    SUM("Total Value")::FLOAT / NULLIF(COUNT(DISTINCT "Invoice Number"),0) AS atv
+                FROM {TABLE}
+                WHERE {where_sql} AND "Staff" IS NOT NULL AND "Staff" != ''
+                GROUP BY "Staff","Staff Code"
+                ORDER BY sales_value DESC NULLS LAST LIMIT 50
+            """, params)
         return [{'staff':r[0],'code':r[1],'sales':float(r[2] or 0),'invoices':r[3],'atv':float(r[4] or 0)} for r in rows]
 
     def get_branch_performance(self, filters):
         where_sql, params = self._build_where_clause(filters)
-        rows = _q(f"""
-            SELECT "Branch",
-                SUM("Total Value")::FLOAT AS revenue,
-                COUNT(DISTINCT "Invoice Number") AS transactions,
-                COUNT(DISTINCT "Customer Mobile") AS customer_count,
-                SUM("Total Value")::FLOAT / NULLIF(COUNT(DISTINCT "Invoice Number"),0) AS atv
-            FROM {TABLE}
-            WHERE {where_sql} AND "Branch" IS NOT NULL AND "Branch" != ''
-            GROUP BY "Branch" ORDER BY revenue DESC NULLS LAST
-        """, params)
+        ch_where, ch_params = self._build_ch_where_clause(filters)
+        try:
+            rows = _ch_q(f"""
+                SELECT branch,
+                    SUM(total_value) AS revenue,
+                    COUNT(DISTINCT invoice_number) AS transactions,
+                    COUNT(DISTINCT customer_mobile) AS customer_count,
+                    SUM(total_value) / nullIf(COUNT(DISTINCT invoice_number), 0) AS atv
+                FROM sales_data
+                WHERE {ch_where} AND branch != '' AND length(branch) > 0
+                GROUP BY branch ORDER BY revenue DESC
+            """, ch_params)
+        except Exception as e:
+            print(f"[CH] branch_performance fallback: {e}")
+            rows = _q(f"""
+                SELECT "Branch",
+                    SUM("Total Value")::FLOAT AS revenue,
+                    COUNT(DISTINCT "Invoice Number") AS transactions,
+                    COUNT(DISTINCT "Customer Mobile") AS customer_count,
+                    SUM("Total Value")::FLOAT / NULLIF(COUNT(DISTINCT "Invoice Number"),0) AS atv
+                FROM {TABLE}
+                WHERE {where_sql} AND "Branch" IS NOT NULL AND "Branch" != ''
+                GROUP BY "Branch" ORDER BY revenue DESC NULLS LAST
+            """, params)
         return [{'branch':r[0],'revenue':float(r[1] or 0),'transactions':r[2],'customers':r[3],'atv':float(r[4] or 0)} for r in rows]
 
     # ── Gap Analysis ─────────────────────────────────────────────────────────
@@ -801,273 +1059,55 @@ class AnalyticsService:
             10: ('Very Low','Ignore','Ignore / Archive. Customer likely churned.'),
         }
 
-        # ── Fast path: use pre-computed MV for global (no-filter) view ──────
-        if where_sql == '1=1':
-            try:
-                rows = _q("""
-                    SELECT gap_range, customers,
-                           customers*100.0/SUM(customers) OVER() AS pct,
-                           avg_gap, sort_order
-                    FROM mv_gap_analysis ORDER BY sort_order ASC
-                """)
-                if rows:
-                    result = [{
-                        'segment': r[0], 'count': r[1],
-                        'percentage': round(float(r[2] or 0), 2),
-                        'avg_gap': round(float(r[3] or 0), 1),
-                        'signal': signals.get(r[4], ('Medium','Medium',''))[0],
-                        'priority': signals.get(r[4], ('Medium','Medium',''))[1],
-                        'action': signals.get(r[4], ('Medium','Medium',''))[2],
-                    } for r in rows]
-                    cache.set(cache_key, result, 86400) # cache global view for 24h
-                    return result
-            except Exception:
-                pass  # MV not ready, fall through
-
-        # ── Slow path: raw scan with filters ────────────────────────────────
-        rows = _q(f"""
-            WITH daily_visits AS (
-                SELECT "Customer Mobile" AS mobile, "Date" AS purchase_date
-                FROM {TABLE}
-                WHERE {where_sql} AND "Customer Mobile" ~ '^[0-9]{{10}}$'
-                GROUP BY "Customer Mobile","Date"
-            ),
-            ranked AS (
-                SELECT mobile, purchase_date,
-                    LAG(purchase_date) OVER(PARTITION BY mobile ORDER BY purchase_date) AS prev_date
-                FROM daily_visits
-            ),
-            gaps AS (
-                SELECT mobile, (purchase_date - prev_date)::INT AS gap_days
-                FROM ranked WHERE prev_date IS NOT NULL
-            ),
-            customer_avg_gaps AS (
-                SELECT mobile, AVG(gap_days)::FLOAT AS gap_days FROM gaps GROUP BY mobile
-            ),
-            bucketed AS (
-                SELECT mobile, gap_days,
-                    CASE
-                        WHEN gap_days<=7    THEN '1-7 Days'   WHEN gap_days<=30   THEN '8-30 Days'
-                        WHEN gap_days<=60   THEN '31-60 Days' WHEN gap_days<=90   THEN '61-90 Days'
-                        WHEN gap_days<=180  THEN '91-180 Days' WHEN gap_days<=365  THEN '180-365 Days'
-                        WHEN gap_days<=730  THEN '1-2 Years'  WHEN gap_days<=1095 THEN '2-3 Years'
-                        WHEN gap_days<=1460 THEN '3-4 Years'  ELSE '4+ Years'
-                    END AS gap_range,
-                    CASE
-                        WHEN gap_days<=7 THEN 1 WHEN gap_days<=30 THEN 2 WHEN gap_days<=60 THEN 3
-                        WHEN gap_days<=90 THEN 4 WHEN gap_days<=180 THEN 5 WHEN gap_days<=365 THEN 6
-                        WHEN gap_days<=730 THEN 7 WHEN gap_days<=1095 THEN 8 WHEN gap_days<=1460 THEN 9 ELSE 10
-                    END AS sort_order
-                FROM customer_avg_gaps
-            )
-            SELECT gap_range, COUNT(DISTINCT mobile) AS customers,
-                COUNT(DISTINCT mobile)*100.0/SUM(COUNT(DISTINCT mobile)) OVER() AS pct,
-                AVG(gap_days)::FLOAT AS avg_gap, sort_order
-            FROM bucketed GROUP BY gap_range, sort_order ORDER BY sort_order ASC
-        """, params)
-        result = [{
-            'segment': r[0], 'count': r[1],
-            'percentage': round(float(r[2] or 0), 2),
-            'avg_gap': round(float(r[3] or 0), 1),
-            'signal': signals.get(r[4], ('Medium','Medium',''))[0],
-            'priority': signals.get(r[4], ('Medium','Medium',''))[1],
-            'action': signals.get(r[4], ('Medium','Medium',''))[2],
-        } for r in rows]
-        cache.set(cache_key, result, 3600) # cache filtered view for 1 hour
-        return result
-
-    def get_customer_segmentation_matrix(self, filters):
-        where_sql, params = self._build_where_clause(filters)
-        
-        if where_sql == "1=1":
-            cs_query = """
-                SELECT mobile, visits, total_spend, (CURRENT_DATE - (CASE
-    WHEN SUBSTRING(last_visit::text, 5, 1) = '-' THEN TO_DATE(SUBSTRING(last_visit::text, 1, 10), 'YYYY-MM-DD')
-    WHEN SUBSTRING(last_visit::text, 3, 1) = '-' THEN TO_DATE(last_visit::text, 'DD-MM-YYYY')
-    ELSE NULL
-END))::INT AS recency_days
-                FROM mv_customer_summary
-            """
-            params = []
-        else:
-            cs_query = f"""
-                SELECT "Customer Mobile",
-                    COUNT(DISTINCT "Date") AS visits,
-                    SUM("Total Value")::FLOAT AS total_spend,
-                    (CURRENT_DATE - MAX("Date"))::INT AS recency_days
-                FROM {TABLE}
-                WHERE {where_sql} AND "Customer Mobile" ~ '^[0-9]{{10}}$'
-                GROUP BY "Customer Mobile"
-            """
-            
-        rows = _q(f"""
-            WITH cs AS (
-                {cs_query}
-            )
-            SELECT
-                CASE WHEN visits=1 THEN 'One-Time' WHEN visits<=3 THEN 'Occasional' ELSE 'Frequent' END AS freq_seg,
-                CASE WHEN recency_days<=90 THEN 'Active' WHEN recency_days<=365 THEN 'Lapsing' ELSE 'Inactive' END AS rec_seg,
-                COUNT(*) AS customers, AVG(total_spend)::FLOAT AS avg_spend
-            FROM cs GROUP BY freq_seg, rec_seg ORDER BY freq_seg, rec_seg
-        """, params)
-        return [{'freq':r[0],'recency':r[1],'customers':r[2],'avg_spend':round(float(r[3] or 0),2)} for r in rows]
-
-    def get_action_engine_data(self, filters):
-        import json, hashlib
-        from django.core.cache import cache
-
-        cache_key = 'action_engine_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
-        cached = cache.get(cache_key)
-        if cached is not None:
-            return cached
-
-        where_sql, params = self._build_where_clause(filters)
-
-        # ── Lightning fast path: global queries (no filter) ─────────────────
-        if where_sql == '1=1':
-            # Tier 1: mv_action_engine (3 pre-computed rows, ~37ms)
-            try:
-                rows = _q("SELECT segment, customers, revenue_at_risk, action FROM mv_action_engine WHERE customers > 0")
-                if rows:
-                    result = [{'segment': r[0], 'customers': r[1],
-                               'revenue_at_risk': round(float(r[2] or 0), 2), 'action': r[3]}
-                              for r in rows]
-                    cache.set(cache_key, result, 86400)
-                    return result
-            except Exception:
-                pass  # MV not ready, fall through
-
-            # Tier 2: GREATEST/LEAST over mv_customer_summary (~39s fallback)
-            _DATE_EXPR = """
-                CASE
-                    WHEN {col} ~ '^[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}'
-                        THEN SUBSTRING({col}, 1, 10)::DATE
-                    WHEN {col} ~ '^[0-9]{{2}}-[0-9]{{2}}-[0-9]{{4}}'
-                        THEN TO_DATE({col}, 'DD-MM-YYYY')
-                    ELSE NULL
-                END
-            """
-            last_expr  = _DATE_EXPR.format(col='last_visit')
-            first_expr = _DATE_EXPR.format(col='first_visit')
-            try:
-                rows = _q(f"""
-                    WITH cs AS (
-                        SELECT mobile, visits, total_spend,
-                            (CURRENT_DATE - GREATEST({last_expr}, {first_expr}))::INT AS recency_days
-                        FROM mv_customer_summary
-                    )
-                    SELECT 'Lapsing High Value', COUNT(*), SUM(total_spend)::FLOAT,
-                           'Send Win-Back SMS with custom discount'
-                    FROM cs WHERE recency_days BETWEEN 90 AND 180 AND total_spend >= 10000
-                    UNION ALL
-                    SELECT 'Recently Active', COUNT(*), SUM(total_spend)::FLOAT,
-                           'Nurture with product feedback loop'
-                    FROM cs WHERE recency_days <= 30 AND visits = 1
-                    UNION ALL
-                    SELECT 'Frequent Shoppers at Risk', COUNT(*), SUM(total_spend)::FLOAT,
-                           'Trigger premium loyalty offer'
-                    FROM cs WHERE recency_days BETWEEN 45 AND 90 AND visits >= 3
-                """)
-                result = [{'segment': r[0], 'customers': r[1],
-                           'revenue_at_risk': round(float(r[2] or 0), 2), 'action': r[3]}
-                          for r in rows if r[1] > 0]
-                cache.set(cache_key, result, 86400)
-                return result
-            except Exception:
-                pass  # Fall through to raw scan
-
-        # ── Slow path: raw scan with applied filters ─────────────────────────
-        rows = _q(f"""
-            WITH cs AS (
-                SELECT "Customer Mobile",
-                    COUNT(DISTINCT "Date") AS visits,
-                    SUM("Total Value")::FLOAT AS total_spend,
-                    (CURRENT_DATE - MAX("Date"))::INT AS recency_days
-                FROM {TABLE}
-                WHERE {where_sql} AND "Customer Mobile" ~ '^[0-9]{{10}}$'
-                GROUP BY "Customer Mobile"
-            )
-            SELECT 'Lapsing High Value', COUNT(*), SUM(total_spend)::FLOAT, 'Send Win-Back SMS with custom discount'
-            FROM cs WHERE recency_days BETWEEN 90 AND 180 AND total_spend >= 10000
-            UNION ALL
-            SELECT 'Recently Active', COUNT(*), SUM(total_spend)::FLOAT, 'Nurture with product feedback loop'
-            FROM cs WHERE recency_days <= 30 AND visits = 1
-            UNION ALL
-            SELECT 'Frequent Shoppers at Risk', COUNT(*), SUM(total_spend)::FLOAT, 'Trigger premium loyalty offer'
-            FROM cs WHERE recency_days BETWEEN 45 AND 90 AND visits >= 3
-        """, params)
-        result = [{'segment':r[0],'customers':r[1],'revenue_at_risk':round(float(r[2] or 0),2),'action':r[3]} for r in rows if r[1]>0]
-        cache.set(cache_key, result, 3600)
-        return result
-
-    def get_business_insights(self, filters):        return []
-    def get_cohort_business_insights(self):        return []
-
-    # ── Loyalty KPIs ─────────────────────────────────────────────────────────
-    def get_loyalty_overview_kpis(self, filters):
-        import json, hashlib
-        from django.core.cache import cache
-
-        cache_key = 'loyalty_kpis_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
-        cached = cache.get(cache_key)
-        if cached is not None:
-            return cached
-
-        where_sql, params = self._build_where_clause(filters)
-
-        if where_sql == '1=1':
-            # ── Tier 1: mv_loyalty_kpis (1-row pre-computed MV, ~37ms) ────────
-            try:
-                row = _q1("""
-                    SELECT total_customers, repeat_customers, avg_gap_days
-                    FROM mv_loyalty_kpis
-                """)
-                if row and row[0]:
-                    total, repeat = int(row[0]), int(row[1])
-                    result = {
-                        'total_customers':  total,
-                        'repeat_customers': repeat,
-                        'repeat_rate':      round(repeat / total * 100, 1) if total else 0,
-                        'avg_gap':          round(float(row[2] or 0), 1),
-                    }
-                    cache.set(cache_key, result, 86400)
-                    return result
-            except Exception:
-                pass  # MV not ready, fall through
-
-            # ── Tier 2: GREATEST/LEAST over mv_customer_summary (slow, ~54s) ──
-            _PARSE = (
-                "CASE "
-                "  WHEN {col} ~ '^[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}' "
-                "      THEN SUBSTRING({col}, 1, 10)::DATE "
-                "  WHEN {col} ~ '^[0-9]{{2}}-[0-9]{{2}}-[0-9]{{4}}' "
-                "      THEN TO_DATE({col}, 'DD-MM-YYYY') "
-                "  ELSE NULL "
-                "END"
-            )
-            last_expr  = _PARSE.format(col='last_visit')
-            first_expr = _PARSE.format(col='first_visit')
-            row = _q1(f"""
-                WITH parsed AS (
-                    SELECT mobile, visits,
-                        GREATEST({last_expr}, {first_visit}) AS d_last,
-                        LEAST({last_expr},    {first_visit}) AS d_first
-                    FROM mv_customer_summary
+        # ── ClickHouse primary path for all gap analysis (global + filtered) ──
+        ch_where, ch_params = self._build_ch_where_clause(filters)
+        try:
+            rows = _ch_q(f"""
+                WITH daily_visits AS (
+                    SELECT customer_mobile AS mobile, parsed_date AS purchase_date
+                    FROM sales_data
+                    WHERE {ch_where} AND {CH_VALID_MOBILE}
+                    GROUP BY customer_mobile, parsed_date
+                ),
+                ranked AS (
+                    SELECT mobile, purchase_date,
+                           lagInFrame(purchase_date) OVER(
+                               PARTITION BY mobile ORDER BY purchase_date
+                           ) AS prev_date
+                    FROM daily_visits
+                ),
+                gaps AS (
+                    SELECT mobile,
+                           dateDiff('day', prev_date, purchase_date) AS gap_days
+                    FROM ranked WHERE prev_date != toDate('1970-01-01')
+                ),
+                customer_avg_gaps AS (
+                    SELECT mobile, avg(gap_days) AS gap_days FROM gaps GROUP BY mobile
+                ),
+                bucketed AS (
+                    SELECT mobile, gap_days,
+                        multiIf(
+                            gap_days<=7,'1-7 Days', gap_days<=30,'8-30 Days',
+                            gap_days<=60,'31-60 Days', gap_days<=90,'61-90 Days',
+                            gap_days<=180,'91-180 Days', gap_days<=365,'180-365 Days',
+                            gap_days<=730,'1-2 Years', gap_days<=1095,'2-3 Years',
+                            gap_days<=1460,'3-4 Years','4+ Years'
+                        ) AS gap_range,
+                        multiIf(
+                            gap_days<=7,1, gap_days<=30,2, gap_days<=60,3,
+                            gap_days<=90,4, gap_days<=180,5, gap_days<=365,6,
+                            gap_days<=730,7, gap_days<=1095,8, gap_days<=1460,9, 10
+                        ) AS sort_order
+                    FROM customer_avg_gaps
                 )
-                SELECT
-                    COUNT(mobile),
-                    COUNT(mobile) FILTER (WHERE visits > 1),
-                    AVG(
-                        CASE WHEN visits > 1 AND d_last IS NOT NULL AND d_first IS NOT NULL
-                             THEN (d_last - d_first)::FLOAT / (visits - 1)
-                             ELSE NULL
-                        END
-                    )::FLOAT
-                FROM parsed
-            """)
-        else:
-            # ── Filtered path: Single-pass CTE scan over v_sales_data (optimized) ──
-            row = _q1(f"""
+                SELECT gap_range, COUNT(DISTINCT mobile) AS customers,
+                    COUNT(DISTINCT mobile)*100.0/SUM(COUNT(DISTINCT mobile)) OVER() AS pct,
+                    avg(gap_days) AS avg_gap, sort_order
+                FROM bucketed GROUP BY gap_range, sort_order ORDER BY sort_order ASC
+            """, ch_params)
+        except Exception as e:
+            print(f"[CH] gap_segmentation fallback: {e}")
+            rows = _q(f"""
                 WITH daily_visits AS (
                     SELECT "Customer Mobile" AS mobile, "Date" AS purchase_date
                     FROM {TABLE}
@@ -1084,34 +1124,240 @@ END))::INT AS recency_days
                     FROM ranked WHERE prev_date IS NOT NULL
                 ),
                 customer_avg_gaps AS (
-                    SELECT mobile, AVG(gap_days)::FLOAT AS avg_gap_days
+                    SELECT mobile, AVG(gap_days)::FLOAT AS gap_days FROM gaps GROUP BY mobile
+                ),
+                bucketed AS (
+                    SELECT mobile, gap_days,
+                        CASE
+                            WHEN gap_days<=7    THEN '1-7 Days'   WHEN gap_days<=30   THEN '8-30 Days'
+                            WHEN gap_days<=60   THEN '31-60 Days' WHEN gap_days<=90   THEN '61-90 Days'
+                            WHEN gap_days<=180  THEN '91-180 Days' WHEN gap_days<=365  THEN '180-365 Days'
+                            WHEN gap_days<=730  THEN '1-2 Years'  WHEN gap_days<=1095 THEN '2-3 Years'
+                            WHEN gap_days<=1460 THEN '3-4 Years'  ELSE '4+ Years'
+                        END AS gap_range,
+                        CASE
+                            WHEN gap_days<=7 THEN 1 WHEN gap_days<=30 THEN 2 WHEN gap_days<=60 THEN 3
+                            WHEN gap_days<=90 THEN 4 WHEN gap_days<=180 THEN 5 WHEN gap_days<=365 THEN 6
+                            WHEN gap_days<=730 THEN 7 WHEN gap_days<=1095 THEN 8 WHEN gap_days<=1460 THEN 9 ELSE 10
+                        END AS sort_order
+                    FROM customer_avg_gaps
+                )
+                SELECT gap_range, COUNT(DISTINCT mobile) AS customers,
+                    COUNT(DISTINCT mobile)*100.0/SUM(COUNT(DISTINCT mobile)) OVER() AS pct,
+                    AVG(gap_days)::FLOAT AS avg_gap, sort_order
+                FROM bucketed GROUP BY gap_range, sort_order ORDER BY sort_order ASC
+            """, params)
+        result = [{
+            'segment': r[0], 'count': r[1],
+            'percentage': round(float(r[2] or 0), 2),
+            'avg_gap': round(float(r[3] or 0), 1),
+            'signal': signals.get(r[4], ('Medium','Medium',''))[0],
+            'priority': signals.get(r[4], ('Medium','Medium',''))[1],
+            'action': signals.get(r[4], ('Medium','Medium',''))[2],
+        } for r in rows]
+        cache.set(cache_key, result, 3600) # cache filtered view for 1 hour
+        return result
+
+    def get_customer_segmentation_matrix(self, filters):
+        ch_where, ch_params = self._build_ch_where_clause(filters)
+        try:
+            rows = _ch_q(f"""
+                WITH cs AS (
+                    SELECT customer_mobile,
+                           COUNT() AS visits,
+                           SUM(total_value) AS total_spend,
+                           dateDiff('day', max(parsed_date), today()) AS recency_days
+                    FROM sales_data
+                    WHERE {ch_where} AND {CH_VALID_MOBILE}
+                    GROUP BY customer_mobile
+                )
+                SELECT
+                    multiIf(visits=1,'One-Time', visits<=3,'Occasional','Frequent') AS freq_seg,
+                    multiIf(recency_days<=90,'Active', recency_days<=365,'Lapsing','Inactive') AS rec_seg,
+                    COUNT() AS customers, avg(total_spend) AS avg_spend
+                FROM cs GROUP BY freq_seg, rec_seg ORDER BY freq_seg, rec_seg
+            """, ch_params)
+            return [{'freq':r[0],'recency':r[1],'customers':r[2],'avg_spend':round(float(r[3] or 0),2)} for r in rows]
+        except Exception as e:
+            print(f"[CH] segmentation_matrix fallback to PG MV: {e}")
+            where_sql, params = self._build_where_clause(filters)
+            if where_sql == '1=1':
+                cs_query = """
+                    SELECT mobile, visits, total_spend,
+                           (CURRENT_DATE - MAX(last_visit::DATE))::INT AS recency_days
+                    FROM mv_customer_summary
+                """
+                params = []
+            else:
+                cs_query = f"""
+                    SELECT "Customer Mobile",
+                        COUNT(DISTINCT "Date") AS visits,
+                        SUM("Total Value")::FLOAT AS total_spend,
+                        (CURRENT_DATE - MAX("Date"))::INT AS recency_days
+                    FROM {TABLE}
+                    WHERE {where_sql} AND "Customer Mobile" ~ '^[0-9]{{10}}$'
+                    GROUP BY "Customer Mobile"
+                """
+            rows = _q(f"""
+                WITH cs AS ({cs_query})
+                SELECT
+                    CASE WHEN visits=1 THEN 'One-Time' WHEN visits<=3 THEN 'Occasional' ELSE 'Frequent' END AS freq_seg,
+                    CASE WHEN recency_days<=90 THEN 'Active' WHEN recency_days<=365 THEN 'Lapsing' ELSE 'Inactive' END AS rec_seg,
+                    COUNT(*) AS customers, AVG(total_spend)::FLOAT AS avg_spend
+                FROM cs GROUP BY freq_seg, rec_seg ORDER BY freq_seg, rec_seg
+            """, params)
+            return [{'freq':r[0],'recency':r[1],'customers':r[2],'avg_spend':round(float(r[3] or 0),2)} for r in rows]
+
+    def get_action_engine_data(self, filters):
+        import json, hashlib
+        from django.core.cache import cache
+
+        cache_key = 'action_engine_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        where_sql, params = self._build_where_clause(filters)
+
+        # ── ClickHouse primary path for all queries ──────────────────────────
+        # ── ClickHouse fast path for action engine filtered queries ──────────
+        ch_where, ch_params = self._build_ch_where_clause(filters)
+        try:
+            rows = _ch_q(f"""
+                WITH cs AS (
+                    SELECT customer_mobile,
+                           COUNT() AS visits,
+                           SUM(total_value) AS total_spend,
+                           dateDiff('day', max(parsed_date), today()) AS recency_days
+                    FROM sales_data
+                    WHERE {ch_where} AND {CH_VALID_MOBILE}
+                    GROUP BY customer_mobile
+                )
+                SELECT 'Lapsing High Value',   countIf(recency_days BETWEEN 90 AND 180 AND total_spend >= 10000),
+                    sumIf(total_spend, recency_days BETWEEN 90 AND 180 AND total_spend >= 10000),
+                    'Send Win-Back SMS with custom discount'
+                FROM cs
+                UNION ALL
+                SELECT 'Recently Active', countIf(recency_days <= 30 AND visits = 1),
+                    sumIf(total_spend, recency_days <= 30 AND visits = 1),
+                    'Nurture with product feedback loop'
+                FROM cs
+                UNION ALL
+                SELECT 'Frequent Shoppers at Risk', countIf(recency_days BETWEEN 45 AND 90 AND visits >= 3),
+                    sumIf(total_spend, recency_days BETWEEN 45 AND 90 AND visits >= 3),
+                    'Trigger premium loyalty offer'
+                FROM cs
+            """, ch_params)
+            result = [{'segment':r[0],'customers':r[1],'revenue_at_risk':round(float(r[2] or 0),2),'action':r[3]} for r in rows if r[1]>0]
+        except Exception as e:
+            print(f"[CH] action_engine fallback: {e}")
+            rows = _q(f"""
+                WITH cs AS (
+                    SELECT "Customer Mobile",
+                        COUNT(DISTINCT "Date") AS visits,
+                        SUM("Total Value")::FLOAT AS total_spend,
+                        (CURRENT_DATE - MAX("Date"))::INT AS recency_days
+                    FROM {TABLE}
+                    WHERE {where_sql} AND "Customer Mobile" ~ '^[0-9]{{10}}$'
+                    GROUP BY "Customer Mobile"
+                )
+                SELECT 'Lapsing High Value', COUNT(*), SUM(total_spend)::FLOAT, 'Send Win-Back SMS with custom discount'
+                FROM cs WHERE recency_days BETWEEN 90 AND 180 AND total_spend >= 10000
+                UNION ALL
+                SELECT 'Recently Active', COUNT(*), SUM(total_spend)::FLOAT, 'Nurture with product feedback loop'
+                FROM cs WHERE recency_days <= 30 AND visits = 1
+                UNION ALL
+                SELECT 'Frequent Shoppers at Risk', COUNT(*), SUM(total_spend)::FLOAT, 'Trigger premium loyalty offer'
+                FROM cs WHERE recency_days BETWEEN 45 AND 90 AND visits >= 3
+            """, params)
+            result = [{'segment':r[0],'customers':r[1],'revenue_at_risk':round(float(r[2] or 0),2),'action':r[3]} for r in rows if r[1]>0]
+        cache.set(cache_key, result, 3600)
+        return result
+
+    def get_business_insights(self, filters):        return []
+    def get_cohort_business_insights(self):        return []
+
+    # ── Loyalty KPIs ─────────────────────────────────────────────────────────
+    def get_loyalty_overview_kpis(self, filters):
+        import json, hashlib
+        from django.core.cache import cache
+
+        cache_key = 'loyalty_kpis_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        ch_where, ch_params = self._build_ch_where_clause(filters)
+        try:
+            row = _ch_q1(f"""
+                WITH daily_visits AS (
+                    SELECT customer_mobile AS mobile, parsed_date AS purchase_date
+                    FROM sales_data
+                    WHERE {ch_where} AND {CH_VALID_MOBILE}
+                    GROUP BY customer_mobile, parsed_date
+                ),
+                ranked AS (
+                    SELECT mobile, purchase_date,
+                           lagInFrame(purchase_date) OVER(
+                               PARTITION BY mobile ORDER BY purchase_date
+                           ) AS prev_date
+                    FROM daily_visits
+                ),
+                gaps AS (
+                    SELECT mobile, dateDiff('day', prev_date, purchase_date) AS gap_days
+                    FROM ranked WHERE prev_date != toDate('1970-01-01')
+                ),
+                customer_avg_gaps AS (
+                    SELECT mobile, avg(gap_days) AS avg_gap_days
                     FROM gaps GROUP BY mobile
                 ),
                 visit_counts AS (
-                    SELECT mobile, COUNT(*) AS visits
-                    FROM daily_visits
-                    GROUP BY mobile
+                    SELECT mobile, COUNT() AS visits
+                    FROM daily_visits GROUP BY mobile
                 )
                 SELECT
                     COUNT(DISTINCT v.mobile),
-                    COUNT(DISTINCT CASE WHEN v.visits > 1 THEN v.mobile END),
-                    AVG(g.avg_gap_days)::FLOAT
+                    countIf(v.visits > 1),
+                    avg(g.avg_gap_days)
                 FROM visit_counts v
                 LEFT JOIN customer_avg_gaps g ON v.mobile = g.mobile
-            """, params)
+            """, ch_params)
+            if row:
+                total, repeat = int(row[0] or 0), int(row[1] or 0)
+                result = {
+                    'total_customers':  total,
+                    'repeat_customers': repeat,
+                    'repeat_rate':      round(repeat / total * 100, 1) if total else 0,
+                    'avg_gap':          round(float(row[2] or 0), 1),
+                }
+                cache.set(cache_key, result, 86400)
+                return result
+        except Exception as e:
+            print(f"[CH] loyalty_kpis fallback to PG MV: {e}")
 
-        if not row:
-            result = {'total_customers': 0, 'repeat_customers': 0, 'repeat_rate': 0, 'avg_gap': 0}
-        else:
-            total, repeat = int(row[0] or 0), int(row[1] or 0)
-            result = {
-                'total_customers':  total,
-                'repeat_customers': repeat,
-                'repeat_rate':      round(repeat / total * 100, 1) if total else 0,
-                'avg_gap':          round(float(row[2] or 0), 1),
-            }
-        
-        cache.set(cache_key, result, 86400 if where_sql == '1=1' else 3600)
+        # ── PG MV fallback ───────────────────────────────────────────────────
+        where_sql, params = self._build_where_clause(filters)
+        if where_sql == '1=1':
+            try:
+                row = _q1("""
+                    SELECT total_customers, repeat_customers, avg_gap_days
+                    FROM mv_loyalty_kpis
+                """)
+                if row and row[0]:
+                    total, repeat = int(row[0]), int(row[1])
+                    result = {
+                        'total_customers':  total,
+                        'repeat_customers': repeat,
+                        'repeat_rate':      round(repeat / total * 100, 1) if total else 0,
+                        'avg_gap':          round(float(row[2] or 0), 1),
+                    }
+                    cache.set(cache_key, result, 86400)
+                    return result
+            except Exception:
+                pass  # MV not ready
+
+        result = {'total_customers': 0, 'repeat_customers': 0, 'repeat_rate': 0, 'avg_gap': 0}
+        cache.set(cache_key, result, 3600)
         return result
 
     # ── Unique Branches ──────────────────────────────────────────────────────
@@ -1176,8 +1422,8 @@ END))::INT AS recency_days
     def get_retail_loyalty_matrix(self, filters):
         """
         Retail Loyalty Performance Matrix.
-        Uses pre-computed materialized views (mv_monthly_members / mv_monthly_members_branch)
-        for instant sub-second responses. Falls back to raw scan if MVs not yet available.
+        Primary: ClickHouse (fast for all filter combinations).
+        Fallback: MVs then raw PG scan.
         Results are cached.
         """
         import json
@@ -1200,7 +1446,102 @@ END))::INT AS recency_days
         bdm    = filters.get('bdm')
         has_dim_filter = has_branch or staff or rbm or bdm
 
-        # ── Fast path: use pre-computed MVs ────────────────────────────────
+        ch_where, ch_params = self._build_ch_where_clause(filters)
+
+        # ── ClickHouse primary path ──────────────────────────────────────────
+        try:
+            if period == 'yearly':
+                trunc_fn = "toStartOfYear"
+                label_fn = "toString(toYear(period_start))"
+            elif period == 'quarterly':
+                trunc_fn = "toStartOfQuarter"
+                label_fn = "concat(toString(toYear(period_start)), '-Q', toString(toQuarter(period_start)))"
+            else:  # monthly
+                trunc_fn = "toStartOfMonth"
+                label_fn = "formatDateTime(period_start, '%Y-%m')"
+
+            rows_sql = _ch_q(f"""
+                WITH base AS (
+                    SELECT customer_mobile AS mob, parsed_date AS sale_d, invoice_number AS inv
+                    FROM sales_data
+                    WHERE {ch_where}
+                      AND length(customer_mobile) = 10 AND customer_mobile != ''
+                      AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                ),
+                cust_first AS (
+                    SELECT mob, {trunc_fn}(min(sale_d)) AS first_bucket
+                    FROM base GROUP BY mob
+                ),
+                agg AS (
+                    SELECT {trunc_fn}(b.sale_d) AS period_start,
+                           COUNT(DISTINCT b.mob) AS total_members,
+                           countDistinctIf(b.mob, {trunc_fn}(b.sale_d) = f.first_bucket) AS new_members,
+                           COUNT(DISTINCT b.inv) AS total_visits
+                    FROM base b JOIN cust_first f ON b.mob = f.mob
+                    GROUP BY period_start
+                )
+                SELECT {label_fn} AS period_id, period_start, total_members, new_members, total_visits
+                FROM agg ORDER BY period_start ASC
+            """, ch_params)
+
+            if rows_sql:
+                db_start = 0
+                if start_date:
+                    first_start = rows_sql[0][1]
+                    r0 = _ch_q1(f"""
+                        WITH base AS (
+                            SELECT customer_mobile AS mob, parsed_date AS sale_d
+                            FROM sales_data
+                            WHERE {ch_where}
+                              AND length(customer_mobile) = 10 AND customer_mobile != ''
+                              AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                        ),
+                        cust_first AS (
+                            SELECT mob, {trunc_fn}(min(sale_d)) AS first_bucket FROM base GROUP BY mob
+                        )
+                        SELECT COUNT() FROM cust_first WHERE first_bucket < {{fs:Date}}
+                    """, {**ch_params, 'fs': str(first_start)})
+                    db_start = int(r0[0] or 0) if r0 else 0
+
+                data, cumulative = [], db_start
+                for i, row in enumerate(rows_sql):
+                    pid = row[0]
+                    total_m      = int(row[2] or 0)
+                    new_m        = int(row[3] or 0)
+                    total_visits = int(row[4] or 0)
+                    repeat_m  = max(0, total_m - new_m)
+                    eng_rate  = total_visits / total_m if total_m else 0
+                    rep_pct   = repeat_m / total_m * 100 if total_m else 0
+
+                    mom_tm = mom_v = mom_nm = mom_rm = 0.0
+                    if i > 0:
+                        prev = data[i - 1]
+                        if prev['total_members']  > 0: mom_tm = (total_m - prev['total_members']) / prev['total_members'] * 100
+                        if prev['total_visits']   > 0: mom_v  = (total_visits - prev['total_visits']) / prev['total_visits'] * 100
+                        if prev['new_members']    > 0: mom_nm = (new_m - prev['new_members']) / prev['new_members'] * 100
+                        if prev['repeat_members'] > 0: mom_rm = (repeat_m - prev['repeat_members']) / prev['repeat_members'] * 100
+                    cumulative += new_m
+                    data.append({
+                        'month': pid,
+                        'total_members': total_m,
+                        'total_visits': total_visits,
+                        'new_members': new_m,
+                        'repeat_members': repeat_m,
+                        'engagement_rate': round(float(eng_rate), 2),
+                        'repeat_pct': round(float(rep_pct), 2),
+                        'mom_total_members': round(mom_tm, 2),
+                        'mom_visits': round(mom_v, 2),
+                        'mom_new_members': round(mom_nm, 2),
+                        'mom_repeat_members': round(mom_rm, 2),
+                        'db_size': cumulative,
+                    })
+
+                cache.set(cache_key, (data, db_start), 86400)
+                return data, db_start
+        except Exception as e:
+            print(f"[CH] retail_loyalty_matrix fallback to MV/PG: {e}")
+
+        # ── PG MV fallback (branch / global, no staff filter) ────────────────
         if not has_dim_filter or has_branch:
             if period == 'yearly':
                 mv_table = 'mv_yearly_members_branch' if has_branch else 'mv_yearly_members'
@@ -1210,76 +1551,41 @@ END))::INT AS recency_days
                 mv_table = 'mv_quarterly_members_branch' if has_branch else 'mv_quarterly_members'
                 trunc_expr = 'quarter_date'
                 label_expr = "TO_CHAR(quarter_date, 'YYYY')||'-Q'||EXTRACT(QUARTER FROM quarter_date)::TEXT"
-            else:  # monthly
+            else:
                 mv_table = 'mv_monthly_members_branch' if has_branch else 'mv_monthly_members'
                 trunc_expr = 'month_date'
                 label_expr = "TO_CHAR(month_date, 'YYYY-MM')"
 
             period_filter, period_params = [], []
             if start_date:
-                period_filter.append(f'{trunc_expr} >= %s::DATE')
-                period_params.append(start_date)
+                period_filter.append(f'{trunc_expr} >= %s::DATE'); period_params.append(start_date)
             if end_date:
-                period_filter.append(f'{trunc_expr} <= %s::DATE')
-                period_params.append(end_date)
+                period_filter.append(f'{trunc_expr} <= %s::DATE'); period_params.append(end_date)
             pf = (' AND ' + ' AND '.join(period_filter)) if period_filter else ''
 
             if has_branch:
-                # branch-level MV
-                mv_sql = f"""
-                    SELECT {label_expr} AS period_id,
-                           {trunc_expr} AS period_start,
-                           SUM(total_members)::bigint,
-                           SUM(new_members)::bigint,
-                           SUM(total_visits)::bigint
-                    FROM {mv_table}
-                    WHERE UPPER(branch) = UPPER(%s){pf}
-                    GROUP BY 1, 2 ORDER BY 2 ASC
-                """
+                mv_sql = f"SELECT {label_expr} AS period_id, {trunc_expr} AS period_start, SUM(total_members)::bigint, SUM(new_members)::bigint, SUM(total_visits)::bigint FROM {mv_table} WHERE UPPER(branch) = UPPER(%s){pf} GROUP BY 1, 2 ORDER BY 2 ASC"
                 params = [branch] + period_params
             else:
-                # global MV
-                mv_sql = f"""
-                    SELECT {label_expr} AS period_id,
-                           {trunc_expr} AS period_start,
-                           SUM(total_members)::bigint,
-                           SUM(new_members)::bigint,
-                           SUM(total_visits)::bigint
-                    FROM {mv_table}
-                    WHERE 1=1{pf}
-                    GROUP BY 1, 2 ORDER BY 2 ASC
-                """
+                mv_sql = f"SELECT {label_expr} AS period_id, {trunc_expr} AS period_start, SUM(total_members)::bigint, SUM(new_members)::bigint, SUM(total_visits)::bigint FROM {mv_table} WHERE 1=1{pf} GROUP BY 1, 2 ORDER BY 2 ASC"
                 params = period_params
 
             try:
                 rows_sql = _q(mv_sql, params)
-                if rows_sql:  # MVs are available and have data
-                    # cumulative DB size before start date
+                if rows_sql:
                     db_start = 0
                     if rows_sql and start_date:
                         first_start = rows_sql[0][1]
                         if has_branch:
-                            r0 = _q1("""
-                                SELECT SUM(new_members)::bigint FROM mv_monthly_members_branch
-                                WHERE UPPER(branch) = UPPER(%s) AND month_date < %s::DATE
-                            """, [branch, first_start])
+                            r0 = _q1("SELECT SUM(new_members)::bigint FROM mv_monthly_members_branch WHERE UPPER(branch) = UPPER(%s) AND month_date < %s::DATE", [branch, first_start])
                         else:
-                            r0 = _q1("""
-                                SELECT SUM(new_members)::bigint FROM mv_monthly_members
-                                WHERE month_date < %s::DATE
-                            """, [first_start])
+                            r0 = _q1("SELECT SUM(new_members)::bigint FROM mv_monthly_members WHERE month_date < %s::DATE", [first_start])
                         db_start = int(r0[0] or 0) if r0 else 0
 
                     data, cumulative = [], db_start
                     for i, row in enumerate(rows_sql):
-                        pid = row[0]
-                        total_m   = int(row[2] or 0)
-                        new_m     = int(row[3] or 0)
-                        total_visits = int(row[4] or 0)
-                        repeat_m  = max(0, total_m - new_m)
-                        eng_rate  = total_visits / total_m if total_m else 0
-                        rep_pct   = repeat_m / total_m * 100 if total_m else 0
-
+                        pid = row[0]; total_m = int(row[2] or 0); new_m = int(row[3] or 0); total_visits = int(row[4] or 0)
+                        repeat_m = max(0, total_m - new_m)
                         mom_tm = mom_v = mom_nm = mom_rm = 0.0
                         if i > 0:
                             prev = data[i - 1]
@@ -1288,21 +1594,13 @@ END))::INT AS recency_days
                             if prev['new_members']    > 0: mom_nm = (new_m - prev['new_members']) / prev['new_members'] * 100
                             if prev['repeat_members'] > 0: mom_rm = (repeat_m - prev['repeat_members']) / prev['repeat_members'] * 100
                         cumulative += new_m
-                        data.append({
-                            'month': pid,
-                            'total_members': total_m,
-                            'total_visits': total_visits,
-                            'new_members': new_m,
-                            'repeat_members': repeat_m,
-                            'engagement_rate': round(float(eng_rate), 2),
-                            'repeat_pct': round(float(rep_pct), 2),
-                            'mom_total_members': round(mom_tm, 2),
-                            'mom_visits': round(mom_v, 2),
-                            'mom_new_members': round(mom_nm, 2),
-                            'mom_repeat_members': round(mom_rm, 2),
-                            'db_size': cumulative,
-                        })
-
+                        data.append({'month': pid, 'total_members': total_m, 'total_visits': total_visits,
+                            'new_members': new_m, 'repeat_members': repeat_m,
+                            'engagement_rate': round(float(total_visits / total_m if total_m else 0), 2),
+                            'repeat_pct': round(float(repeat_m / total_m * 100 if total_m else 0), 2),
+                            'mom_total_members': round(mom_tm, 2), 'mom_visits': round(mom_v, 2),
+                            'mom_new_members': round(mom_nm, 2), 'mom_repeat_members': round(mom_rm, 2),
+                            'db_size': cumulative})
                     cache.set(cache_key, (data, db_start), 86400)
                     return data, db_start
             except Exception:
@@ -1415,8 +1713,7 @@ END))::INT AS recency_days
     def get_fy_loyalty_report(self, filters):
         """
         Financial Year Loyalty Report.
-        Uses pre-computed mv_fy_members / mv_fy_members_branch for instant response.
-        Falls back to raw scan when MVs unavailable.
+        Primary: ClickHouse. Fallback: mv_fy_members / mv_fy_members_branch, then raw PG.
         Results are cached.
         """
         import json
@@ -1430,8 +1727,58 @@ END))::INT AS recency_days
 
         branch = filters.get('branch')
         has_branch = branch and str(branch).strip().lower() not in ('all branches', 'all', '')
+        ch_where, ch_params = self._build_ch_where_clause(filters)
 
-        # ── Fast path: pre-computed MVs ─────────────────────────────────────
+        def _build_fy_result(rows):
+            result, cumulative_db, prev_cumulative_db = [], 0, 0
+            for i, row in enumerate(rows):
+                fy_year = int(row[0]); total_m = int(row[1] or 0); new_m = int(row[2] or 0)
+                repeat_m = max(0, total_m - new_m)
+                cumulative_db += new_m
+                yoy_pct = round((total_m - result[i-1]['total_members'])/result[i-1]['total_members']*100, 2) if i > 0 and result[i-1]['total_members'] > 0 else None
+                repeat_pct = round(repeat_m/total_m*100, 2) if total_m else 0
+                retention_pct = round(repeat_m/prev_cumulative_db*100, 2) if prev_cumulative_db else 0
+                prev_cumulative_db = cumulative_db
+                result.append({
+                    'fy_label': f'FY {fy_year}-{str(fy_year+1)[-2:]}', 'fy_year': fy_year,
+                    'total_members': total_m, 'new_members': new_m, 'repeat_members': repeat_m,
+                    'repeat_pct': repeat_pct, 'yoy_pct': yoy_pct,
+                    'retention_pct_db': retention_pct, 'cumulative_db': cumulative_db,
+                })
+            return result
+
+        # ── ClickHouse primary path ──────────────────────────────────────────
+        try:
+            rows = _ch_q(f"""
+                WITH base AS (
+                    SELECT customer_mobile AS mob, parsed_date AS sale_d
+                    FROM sales_data
+                    WHERE {ch_where}
+                      AND length(customer_mobile) = 10 AND customer_mobile != ''
+                      AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                ),
+                cust_first AS (SELECT mob, min(sale_d) AS first_d FROM base GROUP BY mob),
+                cust_fy AS (
+                    SELECT b.mob,
+                        if(toMonth(b.sale_d) >= 4, toYear(b.sale_d), toYear(b.sale_d) - 1) AS fy_year
+                    FROM base b GROUP BY b.mob, fy_year
+                )
+                SELECT cfy.fy_year,
+                       COUNT(DISTINCT cfy.mob) AS total_members,
+                       countDistinctIf(cfy.mob,
+                           if(toMonth(cf.first_d) >= 4, toYear(cf.first_d), toYear(cf.first_d) - 1) = cfy.fy_year
+                       ) AS new_members
+                FROM cust_fy cfy JOIN cust_first cf ON cf.mob = cfy.mob
+                GROUP BY cfy.fy_year ORDER BY cfy.fy_year ASC
+            """, ch_params)
+            if rows:
+                result = _build_fy_result(rows)
+                cache.set(cache_key, result, 86400)
+                return result
+        except Exception as e:
+            print(f"[CH] fy_loyalty_report fallback to MV: {e}")
+
+        # ── PG MV fallback ───────────────────────────────────────────────────
         try:
             if has_branch:
                 rows = _q("""
@@ -1444,21 +1791,7 @@ END))::INT AS recency_days
                 rows = _q("SELECT fy_year, total_members, new_members FROM mv_fy_members ORDER BY fy_year ASC")
 
             if rows:
-                result, cumulative_db, prev_cumulative_db = [], 0, 0
-                for i, row in enumerate(rows):
-                    fy_year = int(row[0]); total_m = int(row[1] or 0); new_m = int(row[2] or 0)
-                    repeat_m = max(0, total_m - new_m)
-                    cumulative_db += new_m
-                    yoy_pct = round((total_m - result[i-1]['total_members'])/result[i-1]['total_members']*100, 2) if i > 0 and result[i-1]['total_members'] > 0 else None
-                    repeat_pct = round(repeat_m/total_m*100, 2) if total_m else 0
-                    retention_pct = round(repeat_m/prev_cumulative_db*100, 2) if prev_cumulative_db else 0
-                    prev_cumulative_db = cumulative_db
-                    result.append({
-                        'fy_label': f'FY {fy_year}-{str(fy_year+1)[-2:]}', 'fy_year': fy_year,
-                        'total_members': total_m, 'new_members': new_m, 'repeat_members': repeat_m,
-                        'repeat_pct': repeat_pct, 'yoy_pct': yoy_pct,
-                        'retention_pct_db': retention_pct, 'cumulative_db': cumulative_db,
-                    })
+                result = _build_fy_result(rows)
                 cache.set(cache_key, result, 86400)
                 return result
         except Exception:
@@ -1567,7 +1900,39 @@ END))::INT AS recency_days
                 prev_total = total_sale
             return final_data
 
-        # ── Fast path 1: global (no filters at all) ──────────────────────────
+        # ── ClickHouse primary path (all filter combinations) ───────────────
+        ch_where, ch_params = self._build_ch_where_clause(filters)
+        try:
+            rows = _ch_q(f"""
+                WITH base AS (
+                    SELECT customer_mobile AS mob, parsed_date AS sale_d, total_value AS val
+                    FROM sales_data
+                    WHERE {ch_where}
+                      AND length(customer_mobile) = 10 AND customer_mobile != ''
+                      AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                ),
+                cust_first AS (SELECT mob, min(sale_d) AS first_d FROM base GROUP BY mob),
+                agg AS (
+                    SELECT if(toMonth(b.sale_d) >= 4, toYear(b.sale_d), toYear(b.sale_d) - 1) AS fy_year,
+                           SUM(b.val) AS total_sale,
+                           COUNT(DISTINCT b.mob) AS total_customers,
+                           sumIf(b.val,
+                               if(toMonth(cf.first_d) >= 4, toYear(cf.first_d), toYear(cf.first_d) - 1)
+                               = if(toMonth(b.sale_d) >= 4, toYear(b.sale_d), toYear(b.sale_d) - 1)
+                           ) AS new_sale
+                    FROM base b JOIN cust_first cf ON cf.mob = b.mob
+                    GROUP BY fy_year
+                )
+                SELECT fy_year, total_sale, total_customers, new_sale FROM agg ORDER BY fy_year ASC
+            """, ch_params)
+            if rows:
+                result = _build_result(rows)
+                cache.set(cache_key, result, 86400)
+                return result
+        except Exception as e:
+            print(f"[CH] fy_sales_report fallback to MV/PG: {e}")
+
+        # ── PG MV fast path 1: global (no filters at all) ────────────────────
         if not has_date and not has_staff and not has_branch:
             try:
                 rows = _q("""
@@ -1582,7 +1947,7 @@ END))::INT AS recency_days
             except Exception:
                 pass  # MV not ready, fall through
 
-        # ── Fast path 2: branch filter only (no staff / date range) ──────────
+        # ── PG MV fast path 2: branch filter only ────────────────────────────
         if has_branch and not has_date and not has_staff:
             try:
                 rows = _q("""
@@ -1593,12 +1958,12 @@ END))::INT AS recency_days
                 """, [branch])
                 if rows:
                     result = _build_result(rows)
-                    cache.set(cache_key, result, 3600)   # 1 h (branch results)
+                    cache.set(cache_key, result, 3600)
                     return result
             except Exception:
                 pass  # MV not ready, fall through
 
-        # ── Slow path: raw v_sales_data scan (complex filter combination) ────
+        # ── Slow path: raw v_sales_data scan ─────────────────────────────────
         dim_parts, dim_params = [], []
         if has_branch:
             dim_parts.append('UPPER(s."Branch") = UPPER(%s)'); dim_params.append(branch)
