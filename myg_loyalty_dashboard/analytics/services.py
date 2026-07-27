@@ -208,6 +208,13 @@ class AnalyticsService:
 
     # ── Customer Analytics ─────────────────────────────────────────────────────────
     def get_customer_analytics(self, filters):
+        import json, hashlib
+        from django.core.cache import cache
+        cache_key = 'cust_analytics_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         ch_where, ch_params = self._build_ch_where_clause(filters)
         try:
             row = _ch_q1(f"""
@@ -237,13 +244,22 @@ class AnalyticsService:
             total_customers  = int(row[1] or 0)
             repeat_customers = int(row[2] or 0)
         repeat_rate = (repeat_customers / total_customers * 100) if total_customers > 0 else 0
-        return {
+        result = {
             'total_ltv': total_ltv, 'total_customers': total_customers,
             'repeat_customers': repeat_customers, 'repeat_purchase_rate': repeat_rate,
         }
+        cache.set(cache_key, result, 3600)
+        return result
 
     # ── Frequency Distribution ──────────────────────────────────────────────────────
     def get_frequency_distribution(self, filters):
+        import json, hashlib
+        from django.core.cache import cache
+        cache_key = 'freq_dist_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         ch_where, ch_params = self._build_ch_where_clause(filters)
         try:
             rows = _ch_q(f"""
@@ -303,11 +319,13 @@ class AnalyticsService:
                     WHEN '10-20 Visits' THEN 6 WHEN '21-50 Visits' THEN 7
                     WHEN '51-100 Visits' THEN 8 ELSE 9 END
             """, params)
-        return [{'segment': r[0], 'customers': r[1],
+        result = [{'segment': r[0], 'customers': r[1],
                  'net_revenue': round(float(r[2] or 0), 2),
                  'cust_pct':    round(float(r[3] or 0), 2),
                  'rev_pct':     round(float(r[4] or 0), 2),
                  'asp':         round(float(r[5] or 0), 2)} for r in rows]
+        cache.set(cache_key, result, 3600)
+        return result
 
     SEGMENT_CHUNK_SIZE = 1_000_000
     _SEGMENT_FILTER = {

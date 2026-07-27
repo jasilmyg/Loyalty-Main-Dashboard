@@ -145,11 +145,16 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'
 
-# Caching Configuration (Local Memory for development)
+# Caching Configuration (File-based: survives server restarts, shared across workers)
+import os as _os
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'unique-snowflake',
+        'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+        'LOCATION': _os.path.join(BASE_DIR, '.cache'),
+        'TIMEOUT': 3600,
+        'OPTIONS': {
+            'MAX_ENTRIES': 2000,
+        }
     }
 }
 
