@@ -152,13 +152,15 @@ class AnalyticsService:
             (b and str(b).strip().lower() not in ('all branches', 'all', ''))
         )
 
-    # ── helpers kept for backward-compat ─────────────────────────────────────
-    def _get_mobile_expr(self):   return '"Customer Mobile"'
-    def _get_date_expr(self):     return '"Date"'
-    def _get_val_expr(self):      return '"Total Value"'
-
-    # ── Sales Overview ────────────────────────────────────────────────────────
+    # ── Sales Overview ─────────────────────────────────────────────────────────
     def get_sales_overview(self, filters):
+        import json, hashlib
+        from django.core.cache import cache
+        cache_key = 'sales_overview_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         ch_where, ch_params = self._build_ch_where_clause(filters)
         try:
             # ClickHouse: SUM/COUNT over 1.3Cr rows in <0.5s
@@ -182,12 +184,14 @@ class AnalyticsService:
                 GROUP BY toStartOfMonth(parsed_date), m_label
                 ORDER BY toStartOfMonth(parsed_date) ASC
             """, ch_params)
-            return {
+            result = {
                 'total_revenue':  tr,
                 'total_invoices': ti,
                 'atv':            atv,
                 'monthly_trend':  [{'month': r[0], 'revenue': float(r[1] or 0)} for r in monthly],
             }
+            cache.set(cache_key, result, 3600)
+            return result
         except Exception as e:
             print(f"[CH] sales_overview fallback to PG: {e}")
             # ── Raw PG fallback ─────────────────────────────────────────────
@@ -197,14 +201,16 @@ class AnalyticsService:
             ti  = int(row[1]   or 0) if row else 0
             atv = tr / ti if ti > 0 else 0
             monthly = _q(f"""
-                SELECT TO_CHAR(DATE_TRUNC('month', parsed_date), 'Mon YY'), SUM(\"Total Value\")::FLOAT
+                SELECT TO_CHAR(DATE_TRUNC('month', "Date"), 'Mon YY'), SUM("Total Value")::FLOAT
                 FROM {TABLE} WHERE {where_sql}
-                GROUP BY DATE_TRUNC('month', parsed_date) ORDER BY 1 ASC
+                GROUP BY DATE_TRUNC('month', "Date") ORDER BY 1 ASC
             """, params)
-            return {
+            result = {
                 'total_revenue': tr, 'total_invoices': ti, 'atv': atv,
                 'monthly_trend': [{'month': r[0], 'revenue': float(r[1] or 0)} for r in monthly],
             }
+            cache.set(cache_key, result, 1800)
+            return result
 
     # ── Customer Analytics ─────────────────────────────────────────────────────────
     def get_customer_analytics(self, filters):
