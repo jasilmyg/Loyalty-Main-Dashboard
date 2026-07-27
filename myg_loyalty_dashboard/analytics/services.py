@@ -272,7 +272,9 @@ class AnalyticsService:
         try:
             rows = _ch_q(f"""
                 WITH customer_stats AS (
-                    SELECT customer_mobile, COUNT() AS visits, SUM(total_value) AS revenue
+                    SELECT customer_mobile,
+                           COUNT(DISTINCT parsed_date) AS visits,
+                           SUM(total_value) AS revenue
                     FROM sales_data WHERE {ch_where} AND {CH_VALID_MOBILE}
                     GROUP BY customer_mobile
                 ),
