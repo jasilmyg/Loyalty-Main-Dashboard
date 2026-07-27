@@ -225,7 +225,9 @@ class AnalyticsService:
         try:
             row = _ch_q1(f"""
                 WITH customer_agg AS (
-                    SELECT customer_mobile, COUNT() AS visit_count, SUM(total_value) AS spend
+                    SELECT customer_mobile,
+                           COUNT(DISTINCT parsed_date) AS visit_count,
+                           SUM(total_value) AS spend
                     FROM sales_data WHERE {ch_where} AND {CH_VALID_MOBILE}
                     GROUP BY customer_mobile
                 )
