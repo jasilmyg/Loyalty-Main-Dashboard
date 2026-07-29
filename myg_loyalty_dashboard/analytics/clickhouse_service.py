@@ -13,7 +13,7 @@ import threading
 import clickhouse_connect
 from typing import Optional
 
-# ─── Credentials (read from environment or .env) ────────────────────────────
+# ─── Credentials (from environment — set in Render Dashboard) ───────────────
 CH_HOST     = os.environ.get("CH_HOST",     "ytoyqewr56.ap-south-1.aws.clickhouse.cloud")
 CH_PORT     = int(os.environ.get("CH_PORT", "8443"))
 CH_USER     = os.environ.get("CH_USER",     "default")
@@ -37,8 +37,8 @@ def get_ch_client() -> Optional[clickhouse_connect.driver.Client]:
             password=CH_PASSWORD,
             database=CH_DATABASE,
             secure=True,
-            connect_timeout=10,
-            send_receive_timeout=60,
+            connect_timeout=30,          # increased from 10 → 30s
+            send_receive_timeout=120,    # increased from 60 → 120s (matches gunicorn)
         )
         _local.client = client
         return client

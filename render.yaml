@@ -22,6 +22,16 @@ services:
         sync: false   # Set this secret in Render Dashboard → Environment tab
       - key: PYTHON_VERSION
         value: "3.11"
+      - key: CH_HOST
+        value: ytoyqewr56.ap-south-1.aws.clickhouse.cloud
+      - key: CH_PORT
+        value: "8443"
+      - key: CH_USER
+        value: default
+      - key: CH_PASSWORD
+        sync: false   # Set CH password in Render Dashboard → Environment tab
+      - key: CH_DATABASE
+        value: default
 
   - type: web
     name: loyalty-mcp-server
@@ -46,3 +56,13 @@ services:
         sync: false   # Set this secret in Render Dashboard → Environment tab
       - key: PYTHON_VERSION
         value: "3.11"
+      - key: CH_HOST
+        value: ytoyqewr56.ap-south-1.aws.clickhouse.cloud
+      - key: CH_PORT
+        value: "8443"
+      - key: CH_USER
+        value: default
+      - key: CH_PASSWORD
+        sync: false
+      - key: CH_DATABASE
+        value: default
