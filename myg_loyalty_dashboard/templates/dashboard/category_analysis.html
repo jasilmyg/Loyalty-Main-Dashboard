@@ -1,0 +1,163 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1">Category Analysis</h2>
+            <p class="text-muted mb-0">Azure Blob Storage Data - Category Performance</p>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row g-4 mb-4">
+        <!-- Revenue Pie Chart -->
+        <div class="col-lg-6">
+            <div class="card h-100 border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+                    <h5 class="card-title fw-bold text-dark mb-0">Revenue by Category</h5>
+                </div>
+                <div class="card-body p-4">
+                    <div id="revenueChart" style="height: 350px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quantity Bar Chart -->
+        <div class="col-lg-6">
+            <div class="card h-100 border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+                    <h5 class="card-title fw-bold text-dark mb-0">Quantity Sold by Category</h5>
+                </div>
+                <div class="card-body p-4">
+                    <div id="quantityChart" style="height: 350px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px;">
+        <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+            <h5 class="card-title fw-bold text-dark mb-0">Category Performance Table</h5>
+        </div>
+        <div class="card-body p-4">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" id="categoryTable">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="border-0 rounded-start">Category</th>
+                            <th class="border-0 text-end">Quantity Sold</th>
+                            <th class="border-0 text-end rounded-end">Revenue (₹)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        loadData();
+        window.addEventListener('filtersUpdated', loadData);
+    });
+
+    async function loadData() {
+        window.showLoading();
+        try {
+            const filterStr = getQueryFilters();
+            const res = await fetch(`/api/v1/category-analysis/?${filterStr}`);
+            const json = await res.json();
+            
+            if (json.success && json.data) {
+                renderCharts(json.data);
+                renderTable(json.data);
+            } else {
+                console.error("API returned error:", json);
+            }
+        } catch (e) {
+            console.error("Fetch error:", e);
+        } finally {
+            window.hideLoading();
+        }
+    }
+
+    function renderCharts(data) {
+        if (!data || data.length === 0) return;
+
+        const categories = data.map(d => d.category);
+        const revenues = data.map(d => d.revenue);
+        const quantities = data.map(d => d.quantity);
+
+        // Plotly layout templates
+        const layoutTemplate = {
+            margin: { t: 20, r: 20, l: 20, b: 40 },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            font: { family: 'Inter, sans-serif' }
+        };
+
+        // Revenue Pie Chart
+        const revTrace = {
+            labels: categories,
+            values: revenues,
+            type: 'pie',
+            hole: 0.4,
+            textinfo: 'label+percent',
+            marker: {
+                colors: [
+                    '#f97316', '#3b82f6', '#10b981', '#8b5cf6', 
+                    '#ec4899', '#f59e0b', '#06b6d4', '#6366f1'
+                ]
+            }
+        };
+        Plotly.newPlot('revenueChart', [revTrace], {
+            ...layoutTemplate,
+            showlegend: false
+        }, {responsive: true, displayModeBar: false});
+
+        // Quantity Bar Chart
+        const qtyTrace = {
+            x: categories,
+            y: quantities,
+            type: 'bar',
+            marker: {
+                color: '#3b82f6',
+                borderRadius: 4
+            }
+        };
+        Plotly.newPlot('quantityChart', [qtyTrace], {
+            ...layoutTemplate,
+            margin: { t: 20, r: 20, l: 40, b: 80 },
+            xaxis: { tickangle: -45 }
+        }, {responsive: true, displayModeBar: false});
+    }
+
+    function renderTable(data) {
+        const tbody = document.querySelector('#categoryTable tbody');
+        tbody.innerHTML = '';
+        
+        if (!data || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-4">No data available for the selected filters.</td></tr>';
+            return;
+        }
+
+        data.forEach(row => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="fw-medium text-dark">${row.category}</td>
+                <td class="text-end">${row.quantity.toLocaleString('en-IN')}</td>
+                <td class="text-end fw-bold" style="color: #0f172a;">${formatCurrency(row.revenue)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+</script>
+{% endblock %}

@@ -102,6 +102,7 @@
                     <th>Apr 2026</th>
                     <th>May 2026</th>
                     <th>Jun 2026</th>
+                    <th>Jul 2026</th>
                     <th>Total Reactivated</th>
                     <th>Resurrection Rate</th>
                     <th>Revenue Generated</th>
@@ -128,6 +129,7 @@
                     <th>Apr 2026</th>
                     <th>May 2026</th>
                     <th>Jun 2026</th>
+                    <th>Jul 2026</th>
                     <th>Total Pts</th>
                     <th>Total R.Sales</th>
                     <th>Total R.Cust</th>
@@ -293,7 +295,8 @@
                 'Mar 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0}, 
                 'Apr 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0}, 
                 'May 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0},
-                'Jun 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0}
+                'Jun 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0},
+                'Jul 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0}
             };
 
             let tableHtml = '';
@@ -392,8 +395,8 @@
             // Generate Total Row
             let totalMonthCells = '';
             let totalLoyaltyMonthCells = '';
-            ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026', 'Jun 2026'].forEach(m => {
-                let mData = monthTotals[m];
+            ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026', 'Jun 2026', 'Jul 2026'].forEach(m => {
+                let mData = monthTotals[m] || {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0};
                 let mRate = totalBase > 0 ? ((mData.reactivated / totalBase) * 100).toFixed(2) : 0;
                 
                 totalMonthCells += `
@@ -465,18 +468,19 @@
             `;
 
             // Plotly Waterfall
-            const wfX = ['Initial Base', 'Jan Return', 'Feb Return', 'Mar Return', 'Apr Return', 'May Return', 'Jun Return', 'Remaining Dormant'];
+            const wfX = ['Initial Base', 'Jan Return', 'Feb Return', 'Mar Return', 'Apr Return', 'May Return', 'Jun Return', 'Jul Return', 'Remaining Dormant'];
             const wfY = [
                 totalBase, 
-                -monthTotals['Jan 2026'].reactivated, 
-                -monthTotals['Feb 2026'].reactivated, 
-                -monthTotals['Mar 2026'].reactivated, 
-                -monthTotals['Apr 2026'].reactivated, 
-                -monthTotals['May 2026'].reactivated, 
-                -monthTotals['Jun 2026'].reactivated, 
+                -(monthTotals['Jan 2026']?.reactivated || 0), 
+                -(monthTotals['Feb 2026']?.reactivated || 0), 
+                -(monthTotals['Mar 2026']?.reactivated || 0), 
+                -(monthTotals['Apr 2026']?.reactivated || 0), 
+                -(monthTotals['May 2026']?.reactivated || 0), 
+                -(monthTotals['Jun 2026']?.reactivated || 0), 
+                -(monthTotals['Jul 2026']?.reactivated || 0), 
                 totalBase - totalReactivated
             ];
-            const wfMeasure = ['absolute', 'relative', 'relative', 'relative', 'relative', 'relative', 'relative', 'total'];
+            const wfMeasure = ['absolute', 'relative', 'relative', 'relative', 'relative', 'relative', 'relative', 'relative', 'total'];
             
             const wfData = [{
                 name: 'Customers',
@@ -505,7 +509,7 @@
 
             // AI Insights Box (Top)
             document.getElementById('ai-insights').style.display = 'flex';
-            let bestMonth = Object.keys(monthTotals).reduce((a, b) => monthTotals[a].reactivated > monthTotals[b].reactivated ? a : b);
+            let bestMonth = Object.keys(monthTotals).reduce((a, b) => (monthTotals[a]?.reactivated || 0) > (monthTotals[b]?.reactivated || 0) ? a : b);
             document.getElementById('ai-message').innerHTML = `
                 <strong>Analysis complete:</strong> The highest reactivation spike occurred in <strong>${bestMonth}</strong>. 
                 The overall resurrection rate is <strong>${overallRate}%</strong>, contributing <strong>${fmtRs(totalRev)}</strong> in revenue. 

@@ -152,6 +152,66 @@ class AnalyticsService:
             (b and str(b).strip().lower() not in ('all branches', 'all', ''))
         )
 
+    # ── Category Analysis ──────────────────────────────────────────────────────
+    def get_category_analysis(self, filters):
+        ch_where, params = self._build_ch_where_clause(filters)
+        
+        # Replace 'parsed_date' with our string date parsing for item_wise table
+        ch_where = ch_where.replace("parsed_date", "toDate(parseDateTimeBestEffort(date))")
+        
+        sql = f"""
+        SELECT 
+            multiIf(
+                prefix = 'MOB', 'Mobile',
+                prefix = 'STY', 'Stationery',
+                prefix = 'AC', 'Air Conditioner',
+                prefix = 'TV', 'Television',
+                prefix = 'WSM', 'Washing Machine',
+                prefix = 'REF', 'Refrigerator',
+                prefix = 'LAP', 'Laptop',
+                prefix = 'SWA', 'Smart Watch',
+                prefix = 'ACC', 'Accessories',
+                prefix = 'MXI', 'Mixer',
+                prefix = 'IRB', 'Iron Box',
+                prefix = 'GAS', 'Gas Stove',
+                prefix = 'FAN', 'Fan',
+                prefix = 'FRY', 'Air Fryer',
+                prefix = 'PERF', 'Perfume',
+                prefix = 'SRV', 'Services',
+                prefix = 'STB', 'Set Top Box / Sound Bar',
+                prefix = 'GDC', 'Gadgets',
+                prefix = 'PNG', 'PNG',
+                prefix = 'ABGN', 'ABGN',
+                prefix = 'CRC', 'CRC',
+                prefix
+            ) AS category,
+            SUM(sold_price) AS revenue,
+            SUM(qty) AS quantity
+        FROM (
+            SELECT 
+                extract(item_code, '^([A-Za-z]+)') AS prefix,
+                sold_price,
+                qty
+            FROM item_wise_sales_data
+            WHERE {ch_where}
+        )
+        GROUP BY category
+        ORDER BY revenue DESC
+        """
+        
+        rows = _ch_q(sql, params)
+        
+        # Format for charts
+        data = []
+        for r in rows:
+            data.append({
+                'category': r[0],
+                'revenue': float(r[1]) if r[1] else 0,
+                'quantity': int(r[2]) if r[2] else 0
+            })
+            
+        return data
+
     # ── Sales Overview ─────────────────────────────────────────────────────────
     def get_sales_overview(self, filters):
         import json, hashlib
@@ -1191,6 +1251,7 @@ class AnalyticsService:
         if cached is not None:
             return cached
 
+        # Always use ClickHouse (full 2020-2026 data available)
         ch_where, ch_params = self._build_ch_where_clause(filters)
         try:
             row = _ch_q1(f"""
@@ -1222,7 +1283,11 @@ class AnalyticsService:
                 SELECT
                     COUNT(DISTINCT v.mobile),
                     countIf(v.visits > 1),
-                    avg(g.avg_gap_days)
+                    -- FIX: ClickHouse LEFT JOIN returns 0.0 (not NULL) for unmatched
+                    -- Float64 columns, so single-visit customers would be included
+                    -- with avg_gap=0 and drag the average down incorrectly.
+                    -- Use avgIf to only average repeat customers (visits > 1).
+                    avgIf(g.avg_gap_days, v.visits > 1)
                 FROM visit_counts v
                 LEFT JOIN customer_avg_gaps g ON v.mobile = g.mobile
             """, ch_params)
@@ -1237,7 +1302,7 @@ class AnalyticsService:
                 cache.set(cache_key, result, 86400)
                 return result
         except Exception as e:
-            print(f"[CH] loyalty_kpis fallback to PG: {e}")
+            print(f"[CH] loyalty_kpis error: {e}")
 
         result = {'total_customers': 0, 'repeat_customers': 0, 'repeat_rate': 0, 'avg_gap': 0}
         cache.set(cache_key, result, 3600)

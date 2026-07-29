@@ -23,6 +23,7 @@ urlpatterns = [
     path('retail-loyalty-advanced/', views.RetailLoyaltyAdvancedReportAPI.as_view(), name='api-retail-loyalty-advanced'),
     path('fy-loyalty-report/', views.FYLoyaltyReportAPI.as_view(), name='api-fy-loyalty-report'),
     path('fy-sales-report/', views.FYSalesReportAPI.as_view(), name='api-fy-sales-report'),
+    path('category-analysis/', views.CategoryAnalysisAPI.as_view(), name='api-category-analysis'),
     path('invalid-mobiles-list/', views.InvalidMobilesAPI.as_view(), name='api-invalid-mobiles'),
     path('db-manager/', views.DBManagerAPI.as_view(), name='api-db-manager'),
 

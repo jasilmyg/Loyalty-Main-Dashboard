@@ -43,6 +43,9 @@ class RetailAnalyticsView(LoginRequiredMixin, TemplateView):
 class InvalidMobilesView(LoginRequiredMixin, TemplateView):
     template_name = 'dashboard/invalid_mobiles.html'
 
+class CategoryAnalysisView(LoginRequiredMixin, TemplateView):
+    template_name = 'dashboard/category_analysis.html'
+
 class EnterpriseDashboardView(LoginRequiredMixin, TemplateView):
     template_name = 'dashboard/enterprise_dashboard.html'
 
@@ -86,22 +89,21 @@ class TargetExecutiveView(LoginRequiredMixin, TemplateView):
         import os
         import json
         from django.conf import settings
+        from datetime import date
         
         context = super().get_context_data(**kwargs)
         
-        # 1. Try to load from PostgreSQL (works on all environments including Render)
+        # ── 1. AMJ data from ForecastCache ──────────────────────────────────
         ai_data = None
         try:
             from analytics.models import ForecastCache
             ai_data = ForecastCache.get_lstm_cache()
-            # get_lstm_cache returns {"KPIs": {}, ...} on DoesNotExist — treat as missing
             if not ai_data.get("KPIs"):
                 ai_data = None
         except Exception as e:
             print(f"ForecastCache DB read failed: {e}")
             ai_data = None
 
-        # 2. Fallback: local JSON file (for development convenience)
         if ai_data is None:
             cache_path = os.path.join(settings.BASE_DIR, 'analytics', 'lstm_forecast_cache.json')
             try:
@@ -112,50 +114,94 @@ class TargetExecutiveView(LoginRequiredMixin, TemplateView):
                 ai_data = {"KPIs": {}, "Charts": {}, "Insights": []}
                 print(f"Failed to load LSTM Forecast Cache from DB and file: {e}")
             
-        kpis = ai_data.get("KPIs", {})
-        charts = ai_data.get("Charts", {})
+        kpis     = ai_data.get("KPIs", {})
+        charts   = ai_data.get("Charts", {})
         insights = ai_data.get("Insights", [])
         
-        # Determine risk/commentary
-        prob_target = kpis.get("Prob_Target", 0)
-        
+        prob_target    = kpis.get("Prob_Target", 0)
         days_remaining = kpis.get("Days_Remaining", 0)
-        achieved_pct = kpis.get("Achieved_Pct", 0)
+        achieved_pct   = kpis.get("Achieved_Pct", 0)
         
         if days_remaining <= 0:
-            # Quarter is over, deterministic outcome
-            if achieved_pct >= 100:
-                risk_level = "TARGET ACHIEVED"
-                risk_color = "#10B981" # Emerald Green
-                status_badge = "ACHIEVED"
-            else:
-                risk_level = "TARGET MISSED"
-                risk_color = "#EF4444" # Red
-                status_badge = "MISSED"
+            risk_level   = "TARGET ACHIEVED" if achieved_pct >= 100 else "TARGET MISSED"
+            risk_color   = "#10B981"          if achieved_pct >= 100 else "#EF4444"
+            status_badge = "ACHIEVED"         if achieved_pct >= 100 else "MISSED"
         else:
             if prob_target >= 95:
-                risk_level = "HIGH CONFIDENCE"
-                risk_color = "#10B981" # Emerald Green
-                status_badge = "OPTIMAL"
+                risk_level, risk_color, status_badge = "HIGH CONFIDENCE",     "#10B981", "OPTIMAL"
             elif prob_target >= 85:
-                risk_level = "MODERATE CONFIDENCE"
-                risk_color = "#F59E0B" # Amber
-                status_badge = "ON TRACK"
+                risk_level, risk_color, status_badge = "MODERATE CONFIDENCE", "#F59E0B", "ON TRACK"
             else:
-                risk_level = "LOW CONFIDENCE"
-                risk_color = "#EF4444" # Red
-                status_badge = "AT RISK"
+                risk_level, risk_color, status_badge = "LOW CONFIDENCE",      "#EF4444", "AT RISK"
             
         context.update(kpis)
         context.update({
-            'risk_level': risk_level,
-            'risk_color': risk_color,
+            'risk_level':   risk_level,
+            'risk_color':   risk_color,
             'status_badge': status_badge,
-            'burn_json': json.dumps(charts.get("BurnUp", {})),
-            'insights': insights
+            'burn_json':    json.dumps(charts.get("BurnUp", {})),
+            'insights':     insights,
         })
-        
+
+        # ── 2. JAS quarter data — read from pre-computed cache (instant) ─────
+        # Run generate_jas_cache.py once (or nightly) to refresh the cache.
+        from datetime import date
+        today          = date.today()
+        jas_start      = date(2026, 7, 1)
+        jas_end        = date(2026, 9, 30)
+        jas_days_total = 92
+        jas_days_done  = max(0, (min(today, jas_end) - jas_start).days + 1)
+        jas_days_rem   = max(0, (jas_end - today).days)
+
+        jas_cache_path = os.path.join(settings.BASE_DIR, 'analytics', 'jas_cache.json')
+        jas_data = {}
+        try:
+            with open(jas_cache_path, 'r') as f:
+                jas_data = json.load(f)
+        except Exception:
+            pass  # Cache not ready yet — will show zeros
+
+        # Pull values from cache (or defaults if cache missing)
+        jas_target         = jas_data.get('jas_target',         410000)
+        jas_achieved       = jas_data.get('jas_achieved',       0)
+        jas_achieved_pct   = jas_data.get('jas_achieved_pct',   0)
+        jas_gap            = jas_data.get('jas_gap',            jas_target)
+        jas_daily_rate     = jas_data.get('jas_daily_rate',     0)
+        jas_req_daily      = jas_data.get('jas_req_daily',      0)
+        jas_forecast_final = jas_data.get('jas_forecast_final', 0)
+        jas_status_badge   = jas_data.get('jas_status_badge',   'COMPUTING...')
+        jas_risk_color     = jas_data.get('jas_risk_color',     '#6b7280')
+        jas_daily_pts      = jas_data.get('jas_daily_json',     [])
+        base_customers     = jas_data.get('base_customers',     5330462)
+        avg_hist_rate      = jas_data.get('avg_hist_rate',      7.82)
+        # Override live day counts (always current)
+        if jas_data:
+            jas_days_done  = jas_data.get('jas_days_done', jas_days_done)
+            jas_days_rem   = jas_data.get('jas_days_rem',  jas_days_rem)
+        jas_days_rem_pct   = round(jas_days_rem / 92 * 100) if 92 > 0 else 0
+
+        context.update({
+            'jas_target':         jas_target,
+            'jas_achieved':       jas_achieved,
+            'jas_achieved_pct':   jas_achieved_pct,
+            'jas_gap':            jas_gap,
+            'jas_days_done':      jas_days_done,
+            'jas_days_rem':       jas_days_rem,
+            'jas_days_total':     jas_days_total,
+            'jas_days_rem_pct':   jas_days_rem_pct,
+            'jas_daily_rate':     jas_daily_rate,
+            'jas_req_daily':      jas_req_daily,
+            'jas_forecast_final': jas_forecast_final,
+            'jas_status_badge':   jas_status_badge,
+            'jas_risk_color':     jas_risk_color,
+            'jas_daily_json':     json.dumps(jas_daily_pts),
+            'jas_target_json':    jas_target,
+            'base_customers':     base_customers,
+            'avg_hist_rate':      avg_hist_rate,
+        })
+
         return context
+
 
 class DBManagerView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     template_name = 'dashboard/db_manager.html'
@@ -618,7 +664,7 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                     total_redeemed_customers
                 FROM mv_dormant_reactivation
                 WHERE first_2026_month IS NULL
-                   OR first_2026_month < '2026-07-01'
+                   OR first_2026_month < '2026-08-01'
                 ORDER BY cohort_year ASC, first_2026_month ASC NULLS FIRST
             """)
             
@@ -668,7 +714,7 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                 if base == 0:
                     continue
                     
-                months = ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026', 'Jun 2026']
+                months = ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026', 'Jun 2026', 'Jul 2026']
                 
                 monthly_breakdown = []
                 running_balance = base
@@ -715,13 +761,13 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
             from analytics.malayalam_calendar import MalayalamCalendarFeaturizer
 
             # Aggregate total reactivations per month
-            month_totals = { 'Jan 2026': 0, 'Feb 2026': 0, 'Mar 2026': 0, 'Apr 2026': 0, 'May 2026': 0, 'Jun 2026': 0 }
+            month_totals = { 'Jan 2026': 0, 'Feb 2026': 0, 'Mar 2026': 0, 'Apr 2026': 0, 'May 2026': 0, 'Jun 2026': 0, 'Jul 2026': 0 }
             for r in results:
                 for mb in r['monthly_breakdown']:
                     if mb['month'] in month_totals:
                         month_totals[mb['month']] += mb['reactivated']
                     
-            y_actual = [month_totals[m] for m in ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026', 'Jun 2026']]
+            y_actual = [month_totals[m] for m in ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026', 'Jun 2026', 'Jul 2026']]
             
             # Setup Dates for Calendar Featurizer 
             # 1. Generate Historical Training Set (2020-2025) to teach the network seasonal patterns
@@ -743,8 +789,8 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                     y_historical.append(int(vol))
             
             # 2. Add Actual 2026 Data
-            train_dates = [date(2026, 1, 15), date(2026, 2, 15), date(2026, 3, 15), date(2026, 4, 15), date(2026, 5, 15), date(2026, 6, 15)]
-            pred_dates = [date(2026, 7, 15), date(2026, 8, 15), date(2026, 9, 15)]
+            train_dates = [date(2026, 1, 15), date(2026, 2, 15), date(2026, 3, 15), date(2026, 4, 15), date(2026, 5, 15), date(2026, 6, 15), date(2026, 7, 15)]
+            pred_dates = [date(2026, 8, 15), date(2026, 9, 15), date(2026, 10, 15)]
             
             featurizer = MalayalamCalendarFeaturizer()
             

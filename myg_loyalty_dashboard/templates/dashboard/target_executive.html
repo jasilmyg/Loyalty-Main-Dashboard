@@ -416,6 +416,26 @@
 
 {% block content %}
 
+<!-- ── QUARTER TAB SWITCHER ──────────────────────────────────────── -->
+<div style="display:flex; gap:8px; margin-bottom:18px; align-items:center;">
+    <button id="tab-amj" onclick="switchQuarter('amj')"
+        style="padding:7px 22px; border-radius:8px; border:1.5px solid #2563eb;
+               background:#2563eb; color:#fff; font-weight:700; font-size:13px; cursor:pointer;">
+        🏁 AMJ 2026
+    </button>
+    <button id="tab-jas" onclick="switchQuarter('jas')"
+        style="padding:7px 22px; border-radius:8px; border:1.5px solid #d1d5db;
+               background:#fff; color:#374151; font-weight:700; font-size:13px; cursor:pointer;">
+        📅 JAS 2026
+    </button>
+    <span style="font-size:11px; color:#9ca3af; margin-left:6px;">Select a quarter to view its forecast</span>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!--  AMJ PANEL                                                     -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div id="panel-amj">
+
 <!-- TOP HEADER CARD -->
 <div class="top-header-card">
     <div style="flex-grow: 1;">
@@ -628,11 +648,8 @@
     </div>
 </div>
 
-{% endblock %}
-
-{% block extra_js %}
-<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 <script>
+
 // ===== KPI SPARKLINES (Canvas) =====
 function drawSparkline(canvasId, data, color, fill) {
     const canvas = document.getElementById(canvasId);
@@ -912,4 +929,299 @@ window.addEventListener('load', () => {
     Plotly.newPlot('burnup-chart', traces, layout, { responsive: true, displayModeBar: false });
 })();
 </script>
+
+</div><!-- /panel-amj -->
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!--  JAS 2026 PANEL                                               -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div id="panel-jas" style="display:none;">
+
+<!-- TOP HEADER CARD -->
+<div class="top-header-card">
+    <div style="flex-grow:1;">
+        <div class="header-title">JAS 2026 FORECAST INTELLIGENCE</div>
+        <div class="header-subtitle">July · August · September 2026 — Repeat Customer Prediction Engine</div>
+        <div class="header-info-row">
+            <div class="header-info-item">
+                <div class="info-label">Quarter Period</div>
+                <div class="info-value">Jul 1 – Sep 30, 2026</div>
+            </div>
+            <div class="header-info-item">
+                <div class="info-label">Progress</div>
+                <div class="info-value" style="color:#2563eb;">{{ jas_days_done }} / {{ jas_days_total }} days</div>
+            </div>
+            <div class="header-info-item">
+                <div class="info-label">Days Remaining</div>
+                <div class="info-value" style="color:#f59e0b;">{{ jas_days_rem }} days</div>
+            </div>
+        </div>
+    </div>
+    <!-- JAS Status Card -->
+    <div class="target-status-card" style="border-color:{{ jas_risk_color|default:'#10b981' }};">
+        <div class="ts-label">Target Status</div>
+        <div style="display:flex; align-items:center; justify-content:center; gap:8px; margin:4px 0;">
+            <div style="position:relative; width:40px; height:40px;">
+                <svg width="40" height="40" viewBox="0 0 40 40">
+                    <circle cx="20" cy="20" r="16" fill="none" stroke="#f3f4f6" stroke-width="4"/>
+                    <circle cx="20" cy="20" r="16" fill="none" stroke="{{ jas_risk_color|default:'#10b981' }}" stroke-width="4"
+                        stroke-dasharray="{{ jas_achieved_pct|floatformat:0|default:'0' }} 100"
+                        stroke-dashoffset="25" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <div class="ts-status" style="color:{{ jas_risk_color|default:'#10b981' }};">{{ jas_status_badge|default:"IN PROGRESS" }}</div>
+        </div>
+        <div class="ts-prob-label">Achievement So Far</div>
+        <div class="ts-prob-value" style="color:{{ jas_risk_color|default:'#10b981' }};">{{ jas_achieved_pct|floatformat:1|default:"0.0" }}%</div>
+    </div>
+</div>
+
+<!-- JAS KPI CARDS (5 cols) -->
+<div style="display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:24px;">
+    <div class="kpi-card">
+        <div class="kpi-icon" style="background:#f0fdf4; color:#16a34a;"><i class="bi bi-bullseye"></i></div>
+        <div class="kpi-label">JAS Repeat Target (10%)</div>
+        <div class="kpi-value" style="color:#16a34a;">{{ jas_target|intcomma }}</div>
+        <div class="kpi-sub">10% of {{ base_customers|intcomma }} base</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon" style="background:#fff7ed; color:#ea580c;"><i class="bi bi-person-check"></i></div>
+        <div class="kpi-label">Current Achieved (JAS)</div>
+        <div class="kpi-value" style="color:#ea580c;">{{ jas_achieved|intcomma|default:"0" }}</div>
+        <div class="kpi-sub" style="color:#ea580c; font-weight:600;">{{ jas_achieved_pct|floatformat:1|default:"0.0" }}% of Target</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon" style="background:#fff1f2; color:#e11d48;"><i class="bi bi-exclamation-circle"></i></div>
+        <div class="kpi-label">Gap Remaining</div>
+        <div class="kpi-value" style="color:#e11d48;">{{ jas_gap|intcomma|default:"0" }}</div>
+        <div class="kpi-sub" style="color:#e11d48; font-weight:600;">Remaining to Target</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon" style="background:#f5f3ff; color:#7c3aed;"><i class="bi bi-cpu"></i></div>
+        <div class="kpi-label">Projected Final</div>
+        <div class="kpi-value" style="color:#7c3aed;">{{ jas_forecast_final|intcomma|default:"0" }}</div>
+        <div class="kpi-sub">Trend-adjusted YoY model ({{ avg_hist_rate|default:"8.95" }}%)</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon" style="background:#eff6ff; color:#0ea5e9;"><i class="bi bi-speedometer2"></i></div>
+        <div class="kpi-label">Required Daily Rate</div>
+        <div class="kpi-value" style="color:#0ea5e9;">{{ jas_req_daily|intcomma|default:"0" }}</div>
+        <div class="kpi-sub" style="color:#0ea5e9; font-weight:600;">Customers/day needed</div>
+    </div>
+</div>
+
+<!-- JAS MAIN SECTION -->
+<div class="main-section">
+    <!-- LEFT: BURN-UP CHART -->
+    <div class="chart-card">
+        <div class="chart-card-header">
+            <div>
+                <div class="chart-card-title">BURN-UP TRACKER — JAS 2026 &nbsp;<i class="bi bi-info-circle" style="color:#9ca3af; font-size:12px;"></i></div>
+            </div>
+            <div style="display:flex; gap:10px; font-size:11px; color:#9ca3af;">
+                <span>ACTUALS ←</span><span>→ PROJECTED</span>
+            </div>
+        </div>
+        <div class="chart-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:#ea580c;"></div>Daily Actuals</div>
+            <div class="legend-item"><div class="legend-dot dashed" style="border-color:#2563eb;"></div>Linear Projection</div>
+            <div class="legend-item"><div class="legend-dot dashed" style="border-color:#16a34a;"></div>Target ({{ jas_target|intcomma }})</div>
+        </div>
+        <div class="chart-plotly-container" id="jas-burnup-chart"></div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="right-panel">
+        <div class="panel-card">
+            <div class="panel-card-title" style="display:flex; align-items:center; gap:6px; margin-bottom:14px;">
+                <i class="bi bi-speedometer2" style="color:#2563eb;"></i>
+                <span style="font-weight:700; font-size:13px;">Run Rate Intelligence</span>
+            </div>
+            <div style="margin-bottom:14px;">
+                <div style="font-size:10px; color:#9ca3af; font-weight:700; text-transform:uppercase; margin-bottom:4px;">Current Daily Run Rate</div>
+                <div style="font-size:28px; font-weight:800; color:#111827;">{{ jas_daily_rate|floatformat:0|intcomma }}</div>
+                <div style="font-size:11px; color:#6b7280;">customers / day</div>
+                <div style="background:#f3f4f6; border-radius:6px; height:8px; margin-top:8px;">
+                    <div style="background:#ea580c; border-radius:6px; height:8px; width:{{ jas_achieved_pct|floatformat:0|default:0 }}%;"></div>
+                </div>
+            </div>
+            <div style="margin-bottom:14px;">
+                <div style="font-size:10px; color:#9ca3af; font-weight:700; text-transform:uppercase; margin-bottom:4px;">Required Daily Rate</div>
+                <div style="font-size:28px; font-weight:800; color:#e11d48;">{{ jas_req_daily|intcomma|default:"0" }}</div>
+                <div style="font-size:11px; color:#6b7280;">customers / day needed</div>
+                <div style="background:#f3f4f6; border-radius:6px; height:8px; margin-top:8px;">
+                    <div style="background:#e11d48; border-radius:6px; height:8px; width:100%;"></div>
+                </div>
+            </div>
+            <div>
+                <div style="font-size:10px; color:#9ca3af; font-weight:700; text-transform:uppercase; margin-bottom:4px;">Days Remaining</div>
+                <div style="font-size:28px; font-weight:800; color:#f59e0b;">{{ jas_days_rem }}</div>
+                <div style="font-size:11px; color:#6b7280;">days left in JAS quarter</div>
+                <div style="background:#f3f4f6; border-radius:6px; height:8px; margin-top:8px;">
+                    <div style="background:#f59e0b; border-radius:6px; height:8px; width:{{ jas_days_rem_pct }}%;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel-card">
+            <div style="font-weight:700; font-size:13px; margin-bottom:12px;">📊 Quarter Snapshot</div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+                <div style="display:flex; justify-content:space-between; font-size:12px;">
+                    <span style="color:#6b7280;">Quarter Period</span>
+                    <span style="font-weight:600;">Jul 1 – Sep 30, 2026</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:12px;">
+                    <span style="color:#6b7280;">Days Done</span>
+                    <span style="font-weight:600; color:#2563eb;">{{ jas_days_done }} / {{ jas_days_total }}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:12px;">
+                    <span style="color:#6b7280;">Achieved</span>
+                    <span style="font-weight:600; color:#ea580c;">{{ jas_achieved|intcomma }}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:12px;">
+                    <span style="color:#6b7280;">Target</span>
+                    <span style="font-weight:600; color:#16a34a;">{{ jas_target|intcomma }}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:12px;">
+                    <span style="color:#6b7280;">Projected Final</span>
+                    <span style="font-weight:600; color:#7c3aed;">{{ jas_forecast_final|intcomma }}</span>
+                </div>
+                <div style="border-top:1px solid #f3f4f6; padding-top:8px; display:flex; justify-content:space-between; font-size:12px;">
+                    <span style="color:#6b7280;">Status</span>
+                    <span style="font-weight:700; color:{{ jas_risk_color|default:'#10b981' }};">{{ jas_status_badge|default:"IN PROGRESS" }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</div><!-- /panel-jas -->
+
+<!-- ── TAB SWITCHER JS ──────────────────────────────────────────── -->
+<script>
+function switchQuarter(q) {
+    const panels = ['amj', 'jas'];
+    panels.forEach(p => {
+        document.getElementById('panel-' + p).style.display = (p === q) ? '' : 'none';
+        const btn = document.getElementById('tab-' + p);
+        if (p === q) {
+            btn.style.background = '#2563eb';
+            btn.style.color = '#fff';
+            btn.style.borderColor = '#2563eb';
+        } else {
+            btn.style.background = '#fff';
+            btn.style.color = '#374151';
+            btn.style.borderColor = '#d1d5db';
+        }
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (q === 'jas') setTimeout(renderJasBurnup, 200);
+}
+
+// ── JAS Burn-up chart ────────────────────────────────────────────
+function renderJasBurnup() {
+    const daily          = {{ jas_daily_json|safe }};
+    const target         = {{ jas_target_json }};
+    const jasDone        = {{ jas_days_done }};
+    const histProjection = {{ jas_forecast_final }};  // Historical model endpoint
+
+    const startDate = new Date('2026-07-01');
+    const endDate   = new Date('2026-09-30');
+
+    // ── Target line (flat) ──────────────────────────────────────
+    const targetDates = [], targetVals = [];
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate()+1)) {
+        targetDates.push(d.toISOString().slice(0,10));
+        targetVals.push(target);
+    }
+
+    // ── Linear target ramp: 0 on Jul 1 → target on Sep 30 (ideal pace) ──
+    const totalDays = (endDate - startDate) / 86400000;
+    const linTgtDates = [], linTgtVals = [];
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate()+1)) {
+        const dayNum = (d - startDate) / 86400000;
+        linTgtDates.push(d.toISOString().slice(0,10));
+        linTgtVals.push(Math.round(target * dayNum / totalDays));
+    }
+
+    // ── Actuals ─────────────────────────────────────────────────
+    const actualDates = daily.map(r => r.date);
+    const actualVals  = daily.map(r => r.cum);
+
+    // ── Projection: from last actual → historical model endpoint ─
+    // This makes the chart's projection line consistent with the KPI card
+    const projDates = [], projVals = [];
+    if (daily.length > 0) {
+        const lastVal      = daily[daily.length - 1].cum;
+        const lastDate     = new Date(daily[daily.length - 1].date);
+        const totalRemMs   = endDate - lastDate;
+        const totalRemDays = totalRemMs / 86400000;
+
+        for (let d = new Date(lastDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+            const daysElapsed = (d - lastDate) / 86400000;
+            const progress    = totalRemDays > 0 ? daysElapsed / totalRemDays : 1;
+            projDates.push(d.toISOString().slice(0, 10));
+            projVals.push(Math.round(lastVal + (histProjection - lastVal) * progress));
+        }
+    }
+
+    const traces = [
+        {
+            x: targetDates, y: targetVals,
+            name: `Target (${target.toLocaleString('en-IN')})`,
+            mode: 'lines',
+            line: { color: '#16a34a', width: 2, dash: 'dash' },
+            hoverinfo: 'skip'
+        },
+        {
+            x: linTgtDates, y: linTgtVals,
+            name: 'Linear Target (Ideal Pace)',
+            mode: 'lines',
+            line: { color: '#9ca3af', width: 1.5, dash: 'dashdot' },
+        },
+        {
+            x: actualDates, y: actualVals,
+            name: 'Daily Actuals',
+            mode: 'lines+markers',
+            line: { color: '#ea580c', width: 2.5 },
+            marker: { size: 5, color: '#ea580c' }
+        },
+        {
+            x: projDates, y: projVals,
+            name: 'Historical Model Projection',
+            mode: 'lines',
+            line: { color: '#7c3aed', width: 2, dash: 'dot' }
+        },
+    ];
+
+    const layout = {
+        margin: { t: 20, b: 55, l: 75, r: 20 },
+        paper_bgcolor: 'transparent',
+        plot_bgcolor: 'transparent',
+        legend: { orientation: 'h', x: 0, y: -0.18, font: { size: 11 } },
+        xaxis: {
+            showgrid: false,
+            tickfont: { size: 11 },
+            type: 'date',
+            range: ['2026-07-01', '2026-09-30'],   // locked to quarter
+        },
+        yaxis: {
+            showgrid: true,
+            gridcolor: '#f3f4f6',
+            tickfont: { size: 11 },
+            tickformat: ',d',
+            rangemode: 'tozero',                    // always start y from 0
+        },
+        hovermode: 'x unified',
+        font: { family: 'Inter, sans-serif' },
+    };
+
+    Plotly.newPlot('jas-burnup-chart', traces, layout,
+                   { responsive: true, displayModeBar: false });
+}
+
+</script>
+
 {% endblock %}
+
+{% block extra_js %}{% endblock %}

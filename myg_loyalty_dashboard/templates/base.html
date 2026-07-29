@@ -549,6 +549,11 @@
                     <i class="bi bi-file-earmark-spreadsheet text-success"></i> Store Excel Analysis
                 </a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'category_analysis' %}active{% endif %}" href="{% url 'category_analysis' %}">
+                    <i class="bi bi-pie-chart-fill text-primary"></i> Category Analysis
+                </a>
+            </li>
         </ul>
         {% endif %}
 

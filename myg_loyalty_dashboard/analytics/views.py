@@ -59,6 +59,17 @@ class SalesOverviewAPI(APIView):
         data = get_analytics().get_sales_overview(get_filters(request))
         return Response(data)
 
+class CategoryAnalysisAPI(APIView):
+    """
+    Returns category-wise revenue and quantity from Azure Blob data via ClickHouse.
+    """
+    permission_classes = [IsAuthenticated]
+    @method_decorator(cache_page(60 * 15))
+    def get(self, request):
+        filters = get_filters(request)
+        data = get_analytics().get_category_analysis(filters)
+        return Response({'success': True, 'data': data})
+
 class CustomerAnalyticsAPI(APIView):
     permission_classes = [IsAuthenticated]
     @method_decorator(cache_page(60 * 15))

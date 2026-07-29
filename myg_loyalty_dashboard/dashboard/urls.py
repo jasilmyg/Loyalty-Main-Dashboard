@@ -14,6 +14,7 @@ urlpatterns = [
     path('branches/', views.BranchView.as_view(), name='branches'),
     path('loyalty-gap/', views.LoyaltyGapView.as_view(), name='loyalty_gap'),
     path('retail-analytics/', views.RetailAnalyticsView.as_view(), name='retail_analytics'),
+    path('category-analysis/', views.CategoryAnalysisView.as_view(), name='category_analysis'),
     path('invalid-mobiles/', views.InvalidMobilesView.as_view(), name='invalid_mobiles'),
     path('db-manager/', views.DBManagerView.as_view(), name='db_manager'),
     path('api/v1/db-manager/refresh-mvs/', views.DBManagerRefreshMVsView.as_view(), name='db_manager_refresh_mvs'),
