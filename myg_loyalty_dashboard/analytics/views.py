@@ -52,12 +52,50 @@ def get_filters(request):
             filters['branches'] = user.branch
     return filters
 
+class ClickHouseHealthAPI(APIView):
+    """Diagnostic endpoint — /api/v1/ch-health/ — no auth required."""
+    permission_classes = []
+
+    def get(self, request):
+        import time, os
+        from analytics.clickhouse_service import CH_HOST, CH_PORT, CH_USER, CH_DATABASE
+
+        result = {
+            'ch_host':     CH_HOST,
+            'ch_port':     CH_PORT,
+            'ch_user':     CH_USER,
+            'ch_database': CH_DATABASE,
+            'ch_password_set': bool(os.environ.get('CH_PASSWORD')),
+        }
+
+        t0 = time.time()
+        try:
+            from analytics.clickhouse_service import get_ch_client, reset_client
+            reset_client()           # force fresh connection
+            client = get_ch_client()
+            if client is None:
+                result['status'] = 'FAILED'
+                result['error']  = 'get_ch_client() returned None'
+            else:
+                rows = client.query('SELECT COUNT(*) FROM sales_data').result_rows
+                result['status']     = 'OK'
+                result['row_count']  = rows[0][0] if rows else 0
+                result['elapsed_ms'] = round((time.time() - t0) * 1000)
+        except Exception as e:
+            result['status']     = 'ERROR'
+            result['error']      = str(e)
+            result['elapsed_ms'] = round((time.time() - t0) * 1000)
+
+        return Response(result)
+
+
 class SalesOverviewAPI(APIView):
     permission_classes = [IsAuthenticated]
     @method_decorator(cache_page(60 * 15)) # Cache for 15 minutes
     def get(self, request):
         data = get_analytics().get_sales_overview(get_filters(request))
         return Response(data)
+
 
 class CategoryAnalysisAPI(APIView):
     """

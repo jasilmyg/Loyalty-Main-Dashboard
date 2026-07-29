@@ -27,6 +27,9 @@ urlpatterns = [
     path('invalid-mobiles-list/', views.InvalidMobilesAPI.as_view(), name='api-invalid-mobiles'),
     path('db-manager/', views.DBManagerAPI.as_view(), name='api-db-manager'),
 
+    # ── Diagnostics ────────────────────────────────────────────────────────────
+    path('ch-health/', views.ClickHouseHealthAPI.as_view(), name='api-ch-health'),
+
     # Old DRF-wrapped route kept for backward compat
     path('export/<str:module>/', views.ExportAPIView.as_view(), name='api-export'),
     # New plain Django route — reliable binary file downloads
