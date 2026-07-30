@@ -651,22 +651,38 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
         import math
 
         try:
-            # Query the pre-aggregated MV
-            # We want all cohort_year 2020..2024
-            rows = _q("""
-                SELECT
+            from analytics.clickhouse_service import get_ch_client
+            from datetime import date
+            client = get_ch_client()
+            rows = client.query("""
+                SELECT 
                     cohort_year,
-                    first_2026_month,
-                    unique_customers,
-                    total_revenue,
-                    total_redeemed_points,
-                    total_redeemed_sales,
-                    total_redeemed_customers
-                FROM mv_dormant_reactivation
-                WHERE first_2026_month IS NULL
-                   OR first_2026_month < '2026-08-01'
-                ORDER BY cohort_year ASC, first_2026_month ASC NULLS FIRST
-            """)
+                    toStartOfMonth(first_2026_date) AS first_2026_month,
+                    COUNT(*) AS unique_customers,
+                    SUM(reactivated_revenue) AS total_revenue,
+                    SUM(reactivated_redeemed_points) AS total_redeemed_points,
+                    SUM(reactivated_redeemed_sales) AS total_redeemed_sales,
+                    SUM(reactivated_redeemed_customers) AS total_redeemed_customers
+                FROM (
+                    SELECT
+                        customer_mobile,
+                        maxIf(toYear(parsed_date), parsed_date < toDate('2026-01-01')) AS cohort_year,
+                        minIf(parsed_date, parsed_date >= toDate('2026-01-01')) AS first_2026_date,
+                        sumIf(total_value, parsed_date >= toDate('2026-01-01')) AS reactivated_revenue,
+                        sumIf(toFloat64OrZero(replaceRegexpAll(point_redemption, '[^0-9.]', '')), parsed_date >= toDate('2026-01-01')) AS reactivated_redeemed_points,
+                        sumIf(total_value, parsed_date >= toDate('2026-01-01') AND toFloat64OrZero(replaceRegexpAll(point_redemption, '[^0-9.]', '')) > 0) AS reactivated_redeemed_sales,
+                        countIf(parsed_date >= toDate('2026-01-01') AND toFloat64OrZero(replaceRegexpAll(point_redemption, '[^0-9.]', '')) > 0) AS reactivated_redeemed_customers
+                    FROM sales_data
+                    WHERE length(customer_mobile) = 10
+                        AND customer_mobile != ''
+                        AND parsed_date != toDate('1970-01-01')
+                    GROUP BY customer_mobile
+                )
+                WHERE cohort_year BETWEEN 2020 AND 2024
+                    AND (first_2026_date = toDate('1970-01-01') OR toStartOfMonth(first_2026_date) < toDate('2026-08-01'))
+                GROUP BY cohort_year, first_2026_month
+                ORDER BY cohort_year ASC, first_2026_month ASC
+            """).result_rows
             
             # Format the output data
             # Data structure: dict mapping cohort_year -> details
@@ -692,7 +708,7 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                 if c_year in cohort_data:
                     cohort_data[c_year]['initial_base'] += count
                     
-                    if month_val is not None:
+                    if month_val and month_val != date(1970, 1, 1):
                         # Format month: "Jan 2026", "Feb 2026"
                         month_str = month_val.strftime('%b %Y')
                         cohort_data[c_year]['reactivations'][month_str] = {

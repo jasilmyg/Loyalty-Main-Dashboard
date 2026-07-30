@@ -21,8 +21,11 @@ jas_end    = date(2026, 9, 30)
 days_done  = max(1, (min(today, jas_end) - jas_start).days + 1)
 days_rem   = max(0, (jas_end - today).days)
 days_total = 92
-jas_target = 410000
 
+base_customers = 5330462
+trend_rate_2026 = 8.95
+jas_target = round(base_customers * 0.10)
+jas_forecast_final = int(base_customers * trend_rate_2026 / 100)
 print("Computing JAS actuals (optimized single-pass query)...")
 
 # Single-pass query: much faster than two IN subqueries
@@ -47,23 +50,18 @@ print(f"  Repeat achieved: {jas_achieved:,}")
 # Daily cumulative (also optimized)
 print("Computing daily burn-up...")
 daily_rows = client.query("""
-    SELECT dt, count() AS daily_new
+    SELECT first_jas_date AS dt, count() AS daily_new
     FROM (
         SELECT
             customer_mobile,
-            min(parsedDate) AS dt
-        FROM (
-            SELECT customer_mobile,
-                   parsed_date AS parsedDate,
-                   maxIf(1, parsed_date < toDate('2026-07-01')) OVER (PARTITION BY customer_mobile) AS has_prior
-            FROM sales_data
-            WHERE parsed_date >= toDate('2026-07-01')
-              AND parsed_date <= today()
-              AND length(customer_mobile) = 10
-              AND customer_mobile != ''
-        )
-        WHERE has_prior = 1
+            minIf(parsed_date, parsed_date >= toDate('2026-07-01') AND parsed_date <= today()) AS first_jas_date,
+            maxIf(1, parsed_date < toDate('2026-07-01')) AS has_prior
+        FROM sales_data
+        WHERE length(customer_mobile) = 10
+          AND customer_mobile != ''
+          AND parsed_date != toDate('1970-01-01')
         GROUP BY customer_mobile
+        HAVING has_prior = 1 AND first_jas_date != toDate('1970-01-01')
     )
     GROUP BY dt ORDER BY dt
 """).result_rows
@@ -76,7 +74,7 @@ for r in daily_rows:
 
 # Compute metrics
 daily_rate     = jas_achieved / days_done if days_done > 0 else 0
-forecast_final = int(jas_achieved + daily_rate * days_rem)
+forecast_final = jas_forecast_final
 achieved_pct   = round(jas_achieved / jas_target * 100, 1) if jas_target else 0
 gap            = max(0, jas_target - jas_achieved)
 req_daily      = int(gap / days_rem) if days_rem > 0 else 0
@@ -106,6 +104,7 @@ cache = {
     "jas_risk_color":     risk_color,
     "jas_daily_json":     jas_daily_pts,
     "jas_target_json":    jas_target,
+    "avg_hist_rate":      trend_rate_2026,
     "computed_at":        str(today),
 }
 

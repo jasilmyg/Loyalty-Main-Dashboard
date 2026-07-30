@@ -1,154 +1,135 @@
 {
-  "base_customers": 5330462,
   "jas_target": 533046,
-  "jas_achieved": 87927,
-  "jas_achieved_pct": 16.5,
-  "jas_gap": 445119,
-  "jas_days_done": 29,
-  "jas_days_rem": 63,
+  "jas_achieved": 121209,
+  "jas_achieved_pct": 22.7,
+  "jas_gap": 411837,
+  "jas_days_done": 30,
+  "jas_days_rem": 62,
   "jas_days_total": 92,
-  "jas_daily_rate": 3032.0,
-  "jas_req_daily": 7065,
+  "jas_daily_rate": 4040.0,
+  "jas_req_daily": 6642,
   "jas_forecast_final": 477076,
   "jas_status_badge": "AT RISK",
   "jas_risk_color": "#F59E0B",
   "jas_daily_json": [
     {
       "date": "2026-07-01",
-      "cum": 3365
+      "cum": 4791
     },
     {
       "date": "2026-07-02",
-      "cum": 6328
+      "cum": 9206
     },
     {
       "date": "2026-07-03",
-      "cum": 9455
+      "cum": 13331
     },
     {
       "date": "2026-07-04",
-      "cum": 11746
+      "cum": 18816
     },
     {
       "date": "2026-07-05",
-      "cum": 14286
+      "cum": 23682
     },
     {
       "date": "2026-07-06",
-      "cum": 17676
+      "cum": 27961
     },
     {
       "date": "2026-07-07",
-      "cum": 21207
+      "cum": 32103
     },
     {
       "date": "2026-07-08",
-      "cum": 24211
+      "cum": 35850
     },
     {
       "date": "2026-07-09",
-      "cum": 27434
+      "cum": 40186
     },
     {
       "date": "2026-07-10",
-      "cum": 30400
+      "cum": 44202
     },
     {
       "date": "2026-07-11",
-      "cum": 32689
+      "cum": 50534
     },
     {
       "date": "2026-07-12",
-      "cum": 35117
+      "cum": 55196
     },
     {
       "date": "2026-07-13",
-      "cum": 38081
+      "cum": 59221
     },
     {
       "date": "2026-07-14",
-      "cum": 41158
+      "cum": 63048
     },
     {
       "date": "2026-07-15",
-      "cum": 44530
+      "cum": 66955
     },
     {
       "date": "2026-07-16",
-      "cum": 47833
+      "cum": 70812
     },
     {
       "date": "2026-07-17",
-      "cum": 50924
+      "cum": 74757
     },
     {
       "date": "2026-07-18",
-      "cum": 53392
+      "cum": 79680
     },
     {
       "date": "2026-07-19",
-      "cum": 55967
+      "cum": 83925
     },
     {
       "date": "2026-07-20",
-      "cum": 58918
+      "cum": 87743
     },
     {
       "date": "2026-07-21",
-      "cum": 62392
+      "cum": 91282
     },
     {
       "date": "2026-07-22",
-      "cum": 65796
+      "cum": 94520
     },
     {
       "date": "2026-07-23",
-      "cum": 68965
+      "cum": 98441
     },
     {
       "date": "2026-07-24",
-      "cum": 72013
+      "cum": 102095
     },
     {
       "date": "2026-07-25",
-      "cum": 74660
+      "cum": 106494
     },
     {
       "date": "2026-07-26",
-      "cum": 77006
+      "cum": 110156
     },
     {
       "date": "2026-07-27",
-      "cum": 80013
+      "cum": 113643
     },
     {
       "date": "2026-07-28",
-      "cum": 83023
+      "cum": 117264
     },
     {
       "date": "2026-07-29",
-      "cum": 87927
+      "cum": 121209
     }
   ],
   "jas_target_json": 533046,
-  "jas_days_rem_pct": 68,
-  "historical_rates": {
-    "2023": {
-      "repeats": 163865,
-      "base": 2263142,
-      "rate_pct": 7.24
-    },
-    "2024": {
-      "repeats": 245628,
-      "base": 3137251,
-      "rate_pct": 7.83
-    },
-    "2025": {
-      "repeats": 347957,
-      "base": 4152549,
-      "rate_pct": 8.38
-    }
-  },
   "avg_hist_rate": 8.95,
-  "computed_at": "2026-07-29"
+  "computed_at": "2026-07-30"
 }
