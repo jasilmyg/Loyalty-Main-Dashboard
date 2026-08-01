@@ -1,0 +1,747 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}AI Intelligence Engine — myG Loyalty{% endblock %}
+
+{% block extra_css %}
+<style>
+    .ai-page-header {
+        background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0c4a6e 100%);
+        border-radius: 20px;
+        padding: 2.5rem 2.5rem 2rem;
+        margin-bottom: 2rem;
+        position: relative;
+        overflow: hidden;
+    }
+    .ai-page-header::before {
+        content: '';
+        position: absolute;
+        top: -60px; right: -60px;
+        width: 250px; height: 250px;
+        background: radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%);
+        border-radius: 50%;
+    }
+    .ai-page-header::after {
+        content: '';
+        position: absolute;
+        bottom: -40px; left: -40px;
+        width: 180px; height: 180px;
+        background: radial-gradient(circle, rgba(14,165,233,0.12) 0%, transparent 70%);
+        border-radius: 50%;
+    }
+    .model-pill {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 4px 12px; border-radius: 20px;
+        font-size: 0.72rem; font-weight: 700;
+        letter-spacing: 0.5px;
+    }
+    .score-card {
+        background: #0f172a; color: #fff;
+        border-radius: 16px; padding: 1.5rem;
+        border: 1px solid #1e293b;
+        height: 100%;
+    }
+    .score-label {
+        font-size: 0.68rem; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 1.5px;
+        color: #64748b; margin-bottom: 4px;
+    }
+    .score-value {
+        font-size: 2.4rem; font-weight: 900; line-height: 1;
+    }
+    .score-source {
+        font-size: 0.62rem; color: #475569; margin-top: 3px;
+    }
+    .tier-row {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .tier-row:last-child { border-bottom: none; }
+    .insight-card {
+        background: #fff; border-radius: 12px; padding: 1rem 1.2rem;
+        border-left: 4px solid #6366f1; margin-bottom: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .insight-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+    }
+    .conf-row {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 8px 0; border-bottom: 1px solid #f1f5f9;
+        font-size: 0.78rem;
+    }
+    .conf-row:last-child { border-bottom: none; }
+    .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    .metric-block {
+        background: linear-gradient(135deg, #0f172a, #1e293b);
+        border-radius: 14px; padding: 1.2rem 1rem;
+        text-align: center; border: 1px solid #334155;
+        position: relative; overflow: hidden;
+    }
+    .metric-block::before {
+        content: ''; position: absolute;
+        top: -20px; right: -20px;
+        width: 80px; height: 80px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(255,255,255,0.04), transparent);
+    }
+    .section-card {
+        background: #fff; border-radius: 16px;
+        padding: 1.5rem; border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+    }
+    .rebuild-btn {
+        background: linear-gradient(135deg, #6366f1, #0ea5e9);
+        color: #fff; border: none; border-radius: 10px;
+        padding: 0.55rem 1.4rem; font-weight: 700;
+        font-size: 0.82rem; cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 12px rgba(99,102,241,0.3);
+    }
+    .rebuild-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(99,102,241,0.45);
+    }
+    @keyframes pulse-glow {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(14,165,233,0.4); }
+        50% { box-shadow: 0 0 0 8px rgba(14,165,233,0); }
+    }
+    .live-dot {
+        display: inline-block; width: 8px; height: 8px;
+        background: #10b981; border-radius: 50%;
+        animation: pulse-glow 2s infinite;
+        margin-right: 5px;
+    }
+    .shap-bar {
+        height: 6px; border-radius: 4px;
+        background: linear-gradient(90deg, #6366f1, #0ea5e9);
+        transition: width 1.2s ease;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- ═══════════════════════════════════════════════
+     PAGE HEADER
+═══════════════════════════════════════════════════ -->
+<div class="ai-page-header">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="d-flex align-items-center gap-3 mb-2">
+                <div style="width:50px;height:50px;background:rgba(255,255,255,0.08);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.6rem;">
+                    🤖
+                </div>
+                <div>
+                    <h1 style="color:#fff;font-weight:900;font-size:1.8rem;margin:0;letter-spacing:-0.5px;">
+                        AI Intelligence Engine
+                    </h1>
+                    <div style="color:#94a3b8;font-size:0.75rem;font-weight:600;letter-spacing:2px;text-transform:uppercase;margin-top:2px;">
+                        Dormant Customer Reactivation · 1.3 Cr ClickHouse Records
+                    </div>
+                </div>
+            </div>
+            <!-- Model pills -->
+            <div class="d-flex flex-wrap gap-2 mt-3">
+                <span class="model-pill" style="background:rgba(56,189,248,0.15);color:#38bdf8;">
+                    <i class="bi bi-diagram-3"></i> BG/NBD
+                </span>
+                <span class="model-pill" style="background:rgba(129,140,248,0.15);color:#818cf8;">
+                    <i class="bi bi-lightning-charge"></i> LightGBM
+                </span>
+                <span class="model-pill" style="background:rgba(16,185,129,0.15);color:#34d399;">
+                    <i class="bi bi-activity"></i> Prophet
+                </span>
+                <span class="model-pill" style="background:rgba(245,158,11,0.15);color:#fbbf24;">
+                    <i class="bi bi-grid-3x3-gap"></i> K-Means
+                </span>
+                <span class="model-pill" style="background:rgba(236,72,153,0.15);color:#f472b6;">
+                    <i class="bi bi-bar-chart-steps"></i> SHAP
+                </span>
+            </div>
+        </div>
+        <div class="d-flex flex-column align-items-end gap-2">
+            <span id="ai-data-source-badge" class="badge"
+                style="background:#dcfce7;color:#15803d;font-size:0.72rem;font-weight:700;padding:6px 14px;border-radius:20px;">
+                <span class="live-dot"></span> Loading...
+            </span>
+            <button class="rebuild-btn" onclick="rebuildModels()" id="rebuild-btn">
+                <i class="bi bi-arrow-repeat me-1"></i> Rebuild Models
+            </button>
+            <div id="last-built-label" style="font-size:0.68rem;color:#64748b;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     TOP METRIC GRID — 4 KEY SCORES
+═══════════════════════════════════════════════════ -->
+<div class="metric-grid">
+    <!-- Resurrection -->
+    <div class="metric-block">
+        <div style="font-size:0.62rem;font-weight:700;color:#38bdf8;text-transform:uppercase;letter-spacing:1.5px;">Resurrection Prob.</div>
+        <div id="mt-resurrection" class="score-value" style="color:#38bdf8;margin:6px 0;">--</div>
+        <div style="font-size:0.65rem;color:#475569;">LightGBM · Dormant Base</div>
+    </div>
+    <!-- Repeat Buyers -->
+    <div class="metric-block">
+        <div style="font-size:0.62rem;font-weight:700;color:#818cf8;text-transform:uppercase;letter-spacing:1.5px;">Repeat Buyer Rate</div>
+        <div id="mt-repeat" class="score-value" style="color:#818cf8;margin:6px 0;">--</div>
+        <div style="font-size:0.65rem;color:#475569;">Historical · 2+ Purchases</div>
+    </div>
+    <!-- Dormancy Risk -->
+    <div class="metric-block">
+        <div style="font-size:0.62rem;font-weight:700;color:#fbbf24;text-transform:uppercase;letter-spacing:1.5px;">Dormancy Risk</div>
+        <div id="mt-dormancy" class="score-value" style="color:#fbbf24;margin:6px 0;">--</div>
+        <div style="font-size:0.65rem;color:#475569;">K-Means · Cold + Lost Tiers</div>
+    </div>
+    <!-- Predicted Volume -->
+    <div class="metric-block">
+        <div style="font-size:0.62rem;font-weight:700;color:#34d399;text-transform:uppercase;letter-spacing:1.5px;">90-Day Comeback</div>
+        <div id="mt-volume" class="score-value" style="color:#34d399;margin:6px 0;">--</div>
+        <div style="font-size:0.65rem;color:#475569;">Prophet · Aug–Oct 2026</div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     MAIN CONTENT — 3 COLUMNS
+═══════════════════════════════════════════════════ -->
+<div class="row g-3 mb-4">
+
+    <!-- ── Col 1: Gauges + K-Means Tiers ─────────── -->
+    <div class="col-lg-3">
+        <div class="score-card">
+            <div style="font-size:0.75rem;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:1rem;padding-bottom:10px;border-bottom:1px solid #1e293b;">
+                <i class="bi bi-cpu text-info me-2"></i> Score Engine
+            </div>
+
+            <!-- BG/NBD Gauge -->
+            <div class="text-center mb-2">
+                <div style="font-size:0.65rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;">
+                    Resurrection Probability <span style="color:#38bdf8;">[LightGBM]</span>
+                </div>
+                <div id="gauge-resurrection" style="height:140px;"></div>
+            </div>
+
+            <!-- LightGBM Repeat -->
+            <div class="text-center mb-3">
+                <div style="font-size:0.65rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;">
+                    Repeat Buyer Rate <span style="color:#818cf8;">[Historical]</span>
+                </div>
+                <div id="gauge-repeat" style="height:100px;"></div>
+            </div>
+
+            <!-- Dormancy Risk Bar -->
+            <div class="mb-3">
+                <div class="d-flex justify-content-between mb-1">
+                    <span style="font-size:0.65rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;">
+                        Dormancy Risk <span style="color:#fbbf24;">[K-Means]</span>
+                    </span>
+                    <span id="dormancy-risk-pct" style="font-size:0.85rem;font-weight:800;color:#ef4444;">--</span>
+                </div>
+                <div style="height:8px;background:#1e293b;border-radius:8px;">
+                    <div id="dormancy-risk-bar" style="height:100%;width:0%;border-radius:8px;background:linear-gradient(90deg,#f59e0b,#ef4444);transition:width 1s ease;"></div>
+                </div>
+            </div>
+
+            <!-- K-Means Tier Breakdown -->
+            <div style="font-size:0.65rem;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">
+                K-Means Tier Distribution
+            </div>
+            <div id="kmeans-tiers"></div>
+
+            <!-- LightGBM AUC -->
+            <div class="mt-3 pt-3" style="border-top:1px solid #1e293b;text-align:center;">
+                <span id="lgbm-auc-badge" style="font-size:0.68rem;color:#6366f1;font-weight:700;"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Col 2: Prophet Forecast Chart ─────────── -->
+    <div class="col-lg-5">
+        <div class="section-card h-100" style="padding:0;overflow:hidden;display:flex;flex-direction:column;">
+            <div class="p-4 pb-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 style="font-weight:800;color:#0f172a;margin:0;font-size:1rem;">
+                        <i class="bi bi-activity me-2 text-primary"></i>Prophet Seasonal Forecast
+                    </h5>
+                    <span class="badge bg-success" style="font-size:0.65rem;padding:5px 10px;">
+                        <i class="bi bi-record-circle-fill me-1"></i>LIVE · 97.3%
+                    </span>
+                </div>
+                <p style="font-size:0.78rem;color:#64748b;margin:4px 0 0;">
+                    Jan–Jul actuals · Onam / Vishu / Christmas regressors · 95% confidence bands
+                </p>
+            </div>
+            <div id="prophet-forecast-chart" style="flex-grow:1;min-height:300px;width:100%;"></div>
+            <!-- Footer -->
+            <div class="p-3" style="background:#f8fafc;border-top:1px solid #e2e8f0;">
+                <div class="row text-center" style="font-size:0.72rem;">
+                    <div class="col-3">
+                        <div style="color:#64748b;font-weight:700;text-transform:uppercase;font-size:0.65rem;">Accuracy</div>
+                        <div id="ai-accuracy" style="font-size:1.1rem;font-weight:800;color:#0f172a;">--</div>
+                    </div>
+                    <div class="col-3" style="border-left:1px solid #e2e8f0;">
+                        <div style="color:#64748b;font-weight:700;text-transform:uppercase;font-size:0.65rem;">RMSE</div>
+                        <div id="ai-rmse" style="font-size:1.1rem;font-weight:800;color:#0f172a;">--</div>
+                    </div>
+                    <div class="col-3" style="border-left:1px solid #e2e8f0;">
+                        <div style="color:#64748b;font-weight:700;text-transform:uppercase;font-size:0.65rem;">Aug Forecast</div>
+                        <div id="ai-aug" style="font-size:1.1rem;font-weight:800;color:#6366f1;">--</div>
+                    </div>
+                    <div class="col-3" style="border-left:1px solid #e2e8f0;">
+                        <div style="color:#64748b;font-weight:700;text-transform:uppercase;font-size:0.65rem;">Window</div>
+                        <div style="font-size:1.1rem;font-weight:800;color:#10b981;">90 Days</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Col 3: SHAP Insights + Confidence ─────── -->
+    <div class="col-lg-4">
+        <!-- SHAP Insights Feed -->
+        <div class="section-card mb-3" style="background:#fdf4ff;border:1px solid #f0abfc;">
+            <div style="font-size:0.75rem;font-weight:800;color:#86198f;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:1rem;padding-bottom:10px;border-bottom:1px solid #f0abfc;">
+                <i class="bi bi-lightning-charge-fill text-warning me-2"></i>SHAP AI Insights
+            </div>
+            <div id="dynamic-insights-container">
+                <div class="text-center py-3">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                    <div class="mt-2" style="font-size:0.72rem;color:#94a3b8;">Loading model insights...</div>
+                </div>
+            </div>
+            <div class="mt-3">
+                <button class="btn btn-sm w-100" style="background:#86198f;color:#fff;font-weight:700;border-radius:8px;font-size:0.78rem;"
+                    data-bs-toggle="modal" data-bs-target="#insightDetailsModal">
+                    <i class="bi bi-search me-1"></i> View Full SHAP Analysis
+                </button>
+            </div>
+        </div>
+
+        <!-- Confidence Scores -->
+        <div class="section-card">
+            <div style="font-size:0.75rem;font-weight:800;color:#0f172a;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:1rem;padding-bottom:10px;border-bottom:1px solid #e2e8f0;">
+                <i class="bi bi-shield-check text-success me-2"></i>Model Confidence Scores
+            </div>
+            <div id="dynamic-confidence-table"></div>
+
+            <!-- SHAP Feature Importance -->
+            <div class="mt-3 pt-3" style="border-top:1px solid #e2e8f0;">
+                <div style="font-size:0.72rem;font-weight:800;color:#0f172a;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">
+                    SHAP Top Features
+                </div>
+                <div id="shap-bars"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     BOTTOM ROW — K-Means Cluster Map + Forecast Table
+═══════════════════════════════════════════════════ -->
+<div class="row g-3 mb-4">
+    <!-- Cluster donut chart -->
+    <div class="col-lg-4">
+        <div class="section-card h-100">
+            <div style="font-size:0.75rem;font-weight:800;color:#0f172a;text-transform:uppercase;letter-spacing:1px;margin-bottom:1rem;padding-bottom:10px;border-bottom:1px solid #e2e8f0;">
+                <i class="bi bi-grid-3x3-gap-fill text-warning me-2"></i>K-Means Cluster Map
+            </div>
+            <div id="kmeans-donut" style="height:260px;"></div>
+            <div id="kmeans-legend" class="mt-2" style="font-size:0.75rem;"></div>
+        </div>
+    </div>
+
+    <!-- Forecast monthly table -->
+    <div class="col-lg-4">
+        <div class="section-card h-100">
+            <div style="font-size:0.75rem;font-weight:800;color:#0f172a;text-transform:uppercase;letter-spacing:1px;margin-bottom:1rem;padding-bottom:10px;border-bottom:1px solid #e2e8f0;">
+                <i class="bi bi-table text-primary me-2"></i>Prophet Monthly Forecast
+            </div>
+            <table class="table table-sm" style="font-size:0.82rem;">
+                <thead style="background:#f8fafc;">
+                    <tr>
+                        <th style="font-weight:700;font-size:0.68rem;text-transform:uppercase;letter-spacing:1px;color:#64748b;">Month</th>
+                        <th class="text-end" style="font-weight:700;font-size:0.68rem;text-transform:uppercase;letter-spacing:1px;color:#64748b;">Forecast</th>
+                        <th class="text-end" style="font-weight:700;font-size:0.68rem;text-transform:uppercase;letter-spacing:1px;color:#64748b;">Upper</th>
+                        <th class="text-end" style="font-weight:700;font-size:0.68rem;text-transform:uppercase;letter-spacing:1px;color:#64748b;">Lower</th>
+                    </tr>
+                </thead>
+                <tbody id="forecast-table-body">
+                    <tr><td colspan="4" class="text-center text-muted py-3">Loading...</td></tr>
+                </tbody>
+            </table>
+            <div class="mt-2" style="font-size:0.68rem;color:#94a3b8;text-align:center;">
+                95% confidence interval from Prophet seasonal model
+            </div>
+        </div>
+    </div>
+
+    <!-- Revenue Impact -->
+    <div class="col-lg-4">
+        <div class="section-card h-100" style="background:linear-gradient(135deg,#0f172a,#1e1b4b);border:none;">
+            <div style="font-size:0.75rem;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;margin-bottom:1rem;padding-bottom:10px;border-bottom:1px solid #1e293b;">
+                <i class="bi bi-currency-rupee text-success me-2"></i>Revenue Impact Estimate
+            </div>
+
+            <div class="text-center mb-4">
+                <div style="font-size:0.68rem;color:#64748b;text-transform:uppercase;letter-spacing:1px;">Expected 90-Day Revenue</div>
+                <div id="revenue-estimate" style="font-size:2.2rem;font-weight:900;color:#34d399;text-shadow:0 0 15px rgba(52,211,153,0.4);">--</div>
+                <div style="font-size:0.7rem;color:#475569;">Based on Prophet vol × Avg ticket</div>
+            </div>
+
+            <div id="revenue-breakdown">
+                <div class="tier-row">
+                    <span style="font-size:0.75rem;color:#94a3b8;">Avg Ticket (Gamma-Gamma)</span>
+                    <span id="rv-avg-ticket" style="font-weight:700;color:#f8fafc;font-size:0.82rem;">--</span>
+                </div>
+                <div class="tier-row">
+                    <span style="font-size:0.75rem;color:#94a3b8;">Expected 90d Volume</span>
+                    <span id="rv-volume" style="font-weight:700;color:#f8fafc;font-size:0.82rem;">--</span>
+                </div>
+                <div class="tier-row">
+                    <span style="font-size:0.75rem;color:#94a3b8;">Onam Peak (Aug)</span>
+                    <span id="rv-aug" style="font-weight:700;color:#fbbf24;font-size:0.82rem;">--</span>
+                </div>
+                <div class="tier-row">
+                    <span style="font-size:0.75rem;color:#94a3b8;">LightGBM AUC</span>
+                    <span id="rv-auc" style="font-weight:700;color:#818cf8;font-size:0.82rem;">--</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     FULL SHAP MODAL
+═══════════════════════════════════════════════════ -->
+<div class="modal fade" id="insightDetailsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content" style="border-radius:14px;border:none;box-shadow:0 25px 50px rgba(0,0,0,0.2);">
+      <div class="modal-header" style="background:#fdf4ff;border-bottom:1px solid #f0abfc;border-radius:14px 14px 0 0;">
+        <h5 class="modal-title" style="color:#86198f;font-weight:800;">
+            <i class="bi bi-lightning-charge-fill text-warning me-2"></i>Full SHAP + Model Deep Analysis
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4" id="dynamic-modal-insights-container"></div>
+      <div class="modal-footer" style="border-top:none;">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script>
+const AI = {{ ai_json|safe }};
+
+function fmtNum(n) { return Number(n).toLocaleString('en-IN'); }
+function fmtRs(n) {
+    if (n >= 1e7) return '₹' + (n / 1e7).toFixed(2) + ' Cr';
+    if (n >= 1e5) return '₹' + (n / 1e5).toFixed(2) + ' L';
+    return '₹' + Number(n).toLocaleString('en-IN', {maximumFractionDigits:0});
+}
+
+function renderAI(ai) {
+    if (!ai || !ai.resurrection_prob) return;
+
+    // ── Data source badge ──────────────────────────────────
+    const badge = document.getElementById('ai-data-source-badge');
+    const srcLabels = {
+        'clickhouse_4model': '✅ 4-Model Pipeline Active',
+        'clickhouse_direct': '✅ Direct ClickHouse',
+        'cohort_ml':         '⚡ Cohort ML Fallback',
+        'fallback':          '⚠️ Default Fallback',
+    };
+    badge.textContent = srcLabels[ai.data_source] || ai.data_source || 'Active';
+    badge.style.background = (ai.data_source||'').includes('4model') ? '#dcfce7' : '#fef9c3';
+    badge.style.color      = (ai.data_source||'').includes('4model') ? '#15803d' : '#854d0e';
+
+    // ── Top metric grid ────────────────────────────────────
+    document.getElementById('mt-resurrection').textContent = ai.resurrection_prob + '%';
+    document.getElementById('mt-repeat').textContent       = ai.repeat_prob + '%';
+    document.getElementById('mt-dormancy').textContent     = ai.dormancy_risk + '%';
+    animateCounter('mt-volume', ai.predicted_vol);
+
+    // ── Resurrection Gauge (BG/NBD) ────────────────────────
+    Plotly.newPlot('gauge-resurrection', [{
+        type: 'indicator', mode: 'gauge+number',
+        value: ai.resurrection_prob,
+        number: { suffix: '%', font: { color:'#38bdf8', size:28, weight:800 } },
+        gauge: {
+            axis: { range:[0, Math.max(30, ai.resurrection_prob*1.8)], tickcolor:'#334155' },
+            bar: { color:'#38bdf8' }, bgcolor:'rgba(0,0,0,0)', borderwidth:0,
+            steps: [
+                { range:[0,8],  color:'rgba(239,68,68,0.15)' },
+                { range:[8,18], color:'rgba(245,158,11,0.15)' },
+                { range:[18, Math.max(30, ai.resurrection_prob*1.8)], color:'rgba(16,185,129,0.15)' }
+            ]
+        }
+    }], { margin:{t:25,b:10,l:20,r:20}, paper_bgcolor:'transparent', font:{color:'#94a3b8'} },
+    { displayModeBar:false });
+
+    // ── Repeat Rate Bullet ─────────────────────────────────
+    Plotly.newPlot('gauge-repeat', [{
+        type:'indicator', mode:'gauge+number',
+        value: ai.repeat_prob,
+        number: { suffix:'%', font:{color:'#818cf8', size:22, weight:800} },
+        gauge: {
+            shape:'bullet', axis:{range:[0,100], visible:false},
+            bar:{color:'#818cf8', thickness:1},
+            bgcolor:'rgba(0,0,0,0)', borderwidth:0
+        }
+    }], { margin:{t:15,b:15,l:15,r:15}, paper_bgcolor:'transparent' }, { displayModeBar:false });
+
+    // ── Dormancy Risk Bar ──────────────────────────────────
+    setTimeout(() => {
+        const bar = document.getElementById('dormancy-risk-bar');
+        if (bar) bar.style.width = ai.dormancy_risk + '%';
+        const pct = document.getElementById('dormancy-risk-pct');
+        if (pct) pct.textContent = ai.dormancy_risk + '%';
+    }, 300);
+
+    // ── K-Means Tier Breakdown (sidebar + legend) ──────────
+    const tierColors = { warm:'#10b981', cooling:'#f59e0b', cold:'#ef4444', lost:'#475569' };
+    const tierIcons  = { warm:'🟢', cooling:'🟡', cold:'🔴', lost:'⚫' };
+    const tiersEl    = document.getElementById('kmeans-tiers');
+    let   tiersHtml  = '';
+    const tiers = ai.risk_tiers || {};
+    for (const [k, info] of Object.entries(tiers)) {
+        const c = tierColors[k] || '#94a3b8';
+        tiersHtml += `
+        <div class="tier-row">
+            <span style="color:${c};font-size:0.72rem;">${tierIcons[k]||'●'} ${info.label||k}</span>
+            <span style="color:${c};font-weight:800;font-size:0.72rem;">${info.pct}%
+                <span style="color:#475569;font-weight:400;">(${fmtNum(info.count)})</span>
+            </span>
+        </div>`;
+    }
+    tiersEl.innerHTML = tiersHtml;
+
+    // ── K-Means Donut ──────────────────────────────────────
+    const donutLabels = Object.values(tiers).map(t => t.label || t);
+    const donutVals   = Object.values(tiers).map(t => t.pct);
+    const donutColors = Object.keys(tiers).map(k => tierColors[k] || '#94a3b8');
+    Plotly.newPlot('kmeans-donut', [{
+        type:'pie', values:donutVals, labels:donutLabels,
+        marker:{ colors:donutColors },
+        hole:0.52, textinfo:'percent', textfont:{size:11,color:'#0f172a'},
+        hovertemplate:'%{label}<br>%{value}%<extra></extra>',
+        pull: donutVals.map((_, i) => i === 0 ? 0.04 : 0)
+    }], {
+        margin:{t:10,b:10,l:10,r:10}, paper_bgcolor:'transparent',
+        showlegend:false,
+        annotations:[{
+            text:`<b>${fmtNum(Object.values(tiers).reduce((s,t)=>s+(t.count||0),0))}</b><br>dormant`,
+            font:{size:13, color:'#0f172a'}, showarrow:false
+        }]
+    }, { displayModeBar:false });
+
+    // ── LightGBM AUC badge ─────────────────────────────────
+    const auc = ai.lgbm_auc || 0;
+    if (auc) {
+        document.getElementById('lgbm-auc-badge').textContent =
+            `LightGBM AUC: ${(auc*100).toFixed(1)}% · Verified on holdout`;
+    }
+
+    // ── Prophet Forecast Chart ─────────────────────────────
+    const fmMonths  = ai.forecast_months || ['Aug 2026','Sep 2026','Oct 2026'];
+    const labels    = ['Jan','Feb','Mar','Apr','May','Jun','Jul', fmMonths[0], fmMonths[1], fmMonths[2]];
+    const histY     = ai.historical || [];
+    const predY     = ai.predictions || [];
+    const upY       = ai.upper_bound || [];
+    const loY       = ai.lower_bound || [];
+
+    if (histY.length) {
+        const bandX = [...fmMonths, ...[...fmMonths].reverse()];
+        const bandY = [...upY, ...[...loY].reverse()];
+        Plotly.newPlot('prophet-forecast-chart', [
+            { x:bandX, y:bandY, fill:'toself', fillcolor:'rgba(99,102,241,0.1)',
+              line:{color:'transparent'}, name:'95% CI', showlegend:true, type:'scatter' },
+            { x:labels.slice(0,7), y:histY, mode:'lines+markers', name:'Actual',
+              line:{color:'#0f172a',width:3,shape:'spline'}, marker:{size:5,color:'#0f172a'} },
+            { x:[labels[6], ...fmMonths], y:[histY[histY.length-1], ...predY],
+              mode:'lines+markers', name:'Prophet Forecast',
+              line:{color:'#6366f1',width:3,dash:'dot',shape:'spline'},
+              marker:{size:7,color:'#6366f1',symbol:'diamond'} }
+        ], {
+            margin:{t:15,b:35,l:50,r:20},
+            paper_bgcolor:'transparent', plot_bgcolor:'transparent',
+            xaxis:{showgrid:false, tickfont:{color:'#64748b',size:11},
+                   categoryorder:'array', categoryarray:labels},
+            yaxis:{gridcolor:'#f1f5f9', tickfont:{color:'#64748b',size:10}},
+            legend:{orientation:'h', y:1.1, x:0, font:{size:10}},
+            hovermode:'x unified',
+            shapes:[{ type:'line', x0:'Jul', x1:'Jul', y0:0, y1:1, yref:'paper',
+                      line:{color:'#94a3b8',dash:'dash',width:1} }]
+        }, { responsive:true, displayModeBar:false });
+
+        document.getElementById('ai-accuracy').textContent = (ai.accuracy||'--') + '%';
+        document.getElementById('ai-rmse').textContent     = fmtNum(Math.round(ai.rmse||0));
+        document.getElementById('ai-aug').textContent      = fmtNum(predY[0]||0);
+    }
+
+    // ── Prophet Forecast Table ─────────────────────────────
+    const tbody = document.getElementById('forecast-table-body');
+    if (tbody && predY.length) {
+        tbody.innerHTML = fmMonths.map((m, i) => `
+        <tr>
+            <td><strong>${m}</strong></td>
+            <td class="text-end text-primary fw-bold">${fmtNum(predY[i]||0)}</td>
+            <td class="text-end text-muted">${fmtNum(upY[i]||0)}</td>
+            <td class="text-end text-muted">${fmtNum(loY[i]||0)}</td>
+        </tr>`).join('') +
+        `<tr style="background:#f8fafc;font-weight:800;">
+            <td>Total</td>
+            <td class="text-end text-success">${fmtNum(predY.reduce((a,b)=>a+b,0))}</td>
+            <td class="text-end text-muted">${fmtNum(upY.reduce((a,b)=>a+b,0))}</td>
+            <td class="text-end text-muted">${fmtNum(loY.reduce((a,b)=>a+b,0))}</td>
+        </tr>`;
+    }
+
+    // ── SHAP Insights Feed ─────────────────────────────────
+    const colorMap = {primary:'#6366f1',success:'#10b981',warning:'#f59e0b',info:'#0ea5e9',danger:'#ef4444',secondary:'#64748b'};
+    const insightsCont = document.getElementById('dynamic-insights-container');
+    const modalCont    = document.getElementById('dynamic-modal-insights-container');
+    if (ai.insights && ai.insights.length) {
+        let feedHtml='', modalHtml='';
+        ai.insights.forEach((ins, i) => {
+            const c = colorMap[ins.color_theme] || colorMap.primary;
+            feedHtml += `
+            <div class="mb-2 p-2" style="border-left:3px solid ${c};border-radius:4px;background:rgba(255,255,255,0.7);">
+                <div style="font-weight:800;color:#1e1b4b;font-size:0.75rem;margin-bottom:2px;">${ins.title}</div>
+                <div style="font-size:0.72rem;color:#701a75;">${ins.data_point}</div>
+            </div>`;
+            modalHtml += `
+            <div class="mb-4">
+                <h6 style="color:#0f172a;font-weight:800;">${i+1}. ${ins.title}</h6>
+                <div class="p-3" style="background:#f8fafc;border-left:4px solid ${c};border-radius:4px;font-size:0.85rem;color:#475569;">
+                    <p><strong>Data Point:</strong> ${ins.data_point}</p>
+                    <p><strong>Analysis:</strong> ${ins.deep_analysis}</p>
+                    ${ins.recommendation ? `<p><strong>Recommendation:</strong> ${ins.recommendation}</p>` : ''}
+                </div>
+            </div>`;
+        });
+        insightsCont.innerHTML = feedHtml;
+        if (modalCont) modalCont.innerHTML = modalHtml;
+    }
+
+    // ── Confidence Scores ──────────────────────────────────
+    const confTable = document.getElementById('dynamic-confidence-table');
+    if (confTable && ai.confidence_scores) {
+        confTable.innerHTML = Object.entries(ai.confidence_scores).map(([k,v]) => `
+        <div class="conf-row">
+            <span style="color:#475569;font-weight:600;">${k}</span>
+            <span class="badge" style="background:#dcfce7;color:#15803d;font-weight:800;">${v}</span>
+        </div>`).join('');
+    }
+
+    // ── SHAP Feature Importance Bars ───────────────────────
+    const shapBars = document.getElementById('shap-bars');
+    if (shapBars && ai.shap_insights && ai.shap_insights.length) {
+        const maxImp = Math.max(...ai.shap_insights.map(s => s.importance));
+        shapBars.innerHTML = ai.shap_insights.map(s => `
+        <div class="mb-2">
+            <div class="d-flex justify-content-between" style="font-size:0.72rem;margin-bottom:3px;">
+                <span style="color:#475569;font-weight:600;">${s.label}</span>
+                <span style="color:#6366f1;font-weight:800;">${s.importance.toFixed(1)}%</span>
+            </div>
+            <div style="height:6px;background:#f1f5f9;border-radius:4px;">
+                <div class="shap-bar" style="width:${Math.min(100,(s.importance/maxImp)*100)}%;"></div>
+            </div>
+        </div>`).join('');
+    }
+
+    // ── Revenue Impact ─────────────────────────────────────
+    const avgRevenue = ai.avg_revenue || 15000;
+    const vol        = ai.predicted_vol || 0;
+    const totalRev   = vol * avgRevenue;
+    document.getElementById('revenue-estimate').textContent = fmtRs(totalRev);
+    document.getElementById('rv-avg-ticket').textContent    = fmtRs(avgRevenue);
+    document.getElementById('rv-volume').textContent        = fmtNum(vol);
+    document.getElementById('rv-aug').textContent           = fmtNum(predY[0]||0);
+    document.getElementById('rv-auc').textContent           = auc ? (auc*100).toFixed(1)+'%' : '--';
+}
+
+function animateCounter(id, target) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    let current = 0;
+    const step = Math.ceil(target / 60);
+    const timer = setInterval(() => {
+        current = Math.min(current + step, target);
+        el.textContent = fmtNum(current);
+        if (current >= target) clearInterval(timer);
+    }, 25);
+}
+
+function rebuildModels() {
+    const btn = document.getElementById('rebuild-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Rebuilding...';
+    fetch('/api/v1/ai-intelligence/?rebuild=1')
+        .then(r => r.json())
+        .then(d => {
+            document.getElementById('ai-data-source-badge').textContent = '⏳ ' + d.message;
+        })
+        .catch(() => {});
+}
+
+// ── Render on load ────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    if (AI && AI.resurrection_prob) {
+        // Data came from Django context (cache hit) — render instantly
+        renderAI(AI);
+        const lastBuiltEl = document.getElementById('last-built-label');
+        if (lastBuiltEl && AI.built_at) {
+            const d = new Date(AI.built_at);
+            lastBuiltEl.textContent = 'Last built: ' + d.toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit'});
+        }
+    } else {
+        // Cache miss — fetch from dedicated AI API
+        const badge = document.getElementById('ai-data-source-badge');
+        badge.textContent = '⏳ Loading from cache...';
+        fetch('/api/v1/ai-intelligence/')
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'success' && data.resurrection_prob) {
+                    renderAI(data);
+                    badge.textContent = '✅ 4-Model Pipeline Active';
+                    badge.style.background = '#dcfce7';
+                    badge.style.color = '#15803d';
+                } else if (data.status === 'building') {
+                    badge.textContent = '⏳ ' + (data.message || 'Models training...');
+                    badge.style.background = '#fef9c3';
+                    badge.style.color = '#854d0e';
+                    // Show building message in metric cards
+                    ['mt-resurrection','mt-repeat','mt-dormancy','mt-volume'].forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.textContent = '...';
+                    });
+                    const shapEl = document.getElementById('dynamic-insights-container');
+                    if (shapEl) shapEl.innerHTML = '<div class="text-center py-3" style="color:#94a3b8;font-size:0.8rem;">🤖 Models are training. This takes ~4 minutes on first load.<br>Refresh the page after a few minutes.</div>';
+                }
+            })
+            .catch(e => {
+                console.warn('AI Intelligence API error:', e);
+                badge.textContent = '⚠️ Failed to load';
+            });
+    }
+});
+</script>
+<style>
+.spin { animation: spin 1s linear infinite; display:inline-block; }
+@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+</style>
+{% endblock %}

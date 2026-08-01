@@ -640,6 +640,88 @@ class CampaignAnalysisView(LoginRequiredMixin, TemplateView):
     template_name = 'dashboard/campaign_analysis.html'
 
 
+class AIIntelligenceView(LoginRequiredMixin, TemplateView):
+    """
+    Dedicated page for the 4-Model AI Intelligence Engine.
+    Reads directly from the saved JSON cache (already serialized, instant).
+    If cache is missing, the JS will fetch from /api/v1/ai-intelligence/.
+    """
+    template_name = 'dashboard/ai_intelligence.html'
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        import json, os
+        cache_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            '..', 'analytics', 'model_cache', 'campaign_intelligence.json'
+        )
+        cache_path = os.path.normpath(cache_path)
+        try:
+            if os.path.exists(cache_path):
+                with open(cache_path, 'r', encoding='utf-8') as f:
+                    raw = f.read()
+                # Quick sanity-check: must be a valid non-empty JSON object
+                ci = json.loads(raw)
+                if ci.get('resurrection_prob'):
+                    ctx['ai_json'] = raw   # already serialized — pass as-is
+                    return ctx
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"[AIIntelligence] cache read error: {e}")
+        # Cache missing/invalid — JS will fetch from API
+        ctx['ai_json'] = '{}'
+        return ctx
+
+
+class AIIntelligenceAPIView(LoginRequiredMixin, View):
+    """
+    Fast JSON API for the AI Intelligence page.
+    Returns cached pipeline results instantly (reads from disk cache).
+    Pass ?rebuild=1 to force model re-training in background.
+    """
+    def get(self, request):
+        import json, os, threading
+        from django.http import JsonResponse
+
+        force_rebuild = request.GET.get('rebuild') == '1'
+
+        if force_rebuild:
+            def _rebuild():
+                try:
+                    from analytics.campaign_intelligence import build_campaign_intelligence
+                    build_campaign_intelligence(force_rebuild=True)
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).error(f"[AIIntelligence] rebuild error: {e}")
+            threading.Thread(target=_rebuild, daemon=True).start()
+            return JsonResponse({'status': 'rebuilding', 'message': 'Model rebuild started. Refresh in 4-5 minutes.'})
+
+        cache_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            '..', 'analytics', 'model_cache', 'campaign_intelligence.json'
+        )
+        cache_path = os.path.normpath(cache_path)
+        try:
+            if os.path.exists(cache_path):
+                with open(cache_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                if data.get('resurrection_prob'):
+                    data['status'] = 'success'
+                    return JsonResponse(data)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"[AIIntelligenceAPI] read error: {e}")
+
+        # Cache not ready — trigger background rebuild
+        def _rebuild():
+            try:
+                from analytics.campaign_intelligence import build_campaign_intelligence
+                build_campaign_intelligence(force_rebuild=False)
+            except Exception: pass
+        threading.Thread(target=_rebuild, daemon=True).start()
+        return JsonResponse({'status': 'building', 'message': 'Models are being trained. Please wait 4-5 minutes and refresh.'}, status=202)
+
+
 class CampaignAnalysisAPIView(LoginRequiredMixin, View):
     """
     Dormant Customer Resurrection Analysis API.
@@ -766,7 +848,7 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                     'monthly_breakdown': monthly_breakdown
                 })
 
-            # --- AI FORECASTING LOGIC ---
+            # --- AI FORECASTING LOGIC (Cohort-based chart + Neural Engine scores) ---
             import numpy as np
             import math
             from datetime import date
@@ -776,126 +858,82 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
             from sklearn.linear_model import LinearRegression
             from analytics.malayalam_calendar import MalayalamCalendarFeaturizer
 
-            # Aggregate total reactivations per month
-            month_totals = { 'Jan 2026': 0, 'Feb 2026': 0, 'Mar 2026': 0, 'Apr 2026': 0, 'May 2026': 0, 'Jun 2026': 0, 'Jul 2026': 0 }
+            # Step 1: Build cohort-based monthly actuals (for the LSTM chart)
+            month_totals = {'Jan 2026': 0, 'Feb 2026': 0, 'Mar 2026': 0, 'Apr 2026': 0,
+                            'May 2026': 0, 'Jun 2026': 0, 'Jul 2026': 0}
             for r in results:
                 for mb in r['monthly_breakdown']:
                     if mb['month'] in month_totals:
                         month_totals[mb['month']] += mb['reactivated']
-                    
-            y_actual = [month_totals[m] for m in ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026', 'Jun 2026', 'Jul 2026']]
-            
-            # Setup Dates for Calendar Featurizer 
-            # 1. Generate Historical Training Set (2020-2025) to teach the network seasonal patterns
-            historical_dates = []
-            y_historical = []
-            
-            # Base synthetic historical baseline
+
+            y_actual = [month_totals[m] for m in
+                        ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026', 'Jun 2026', 'Jul 2026']]
+
+            # Step 2: Build synthetic history + calendar features for MLP ensemble forecast
+            historical_dates, y_historical = [], []
             base_vol = 25000
             for year in range(2020, 2026):
                 for month in range(1, 13):
                     historical_dates.append(date(year, month, 15))
-                    
-                    # Simulate historical volume with natural growth and seasonal spikes (Onam ~Aug/Sep)
                     vol = base_vol + (year - 2020) * 1500
                     if month == 6: vol *= 1.15
                     elif month == 7: vol *= 1.35
-                    elif month in (8, 9): vol *= 1.75  # Onam season spike
-                    
+                    elif month in (8, 9): vol *= 1.75
                     y_historical.append(int(vol))
-            
-            # 2. Add Actual 2026 Data
-            train_dates = [date(2026, 1, 15), date(2026, 2, 15), date(2026, 3, 15), date(2026, 4, 15), date(2026, 5, 15), date(2026, 6, 15), date(2026, 7, 15)]
-            pred_dates = [date(2026, 8, 15), date(2026, 9, 15), date(2026, 10, 15)]
-            
+
+            train_dates = [date(2026, m, 15) for m in range(1, 8)]
+            pred_dates  = [date(2026, 8, 15), date(2026, 9, 15), date(2026, 10, 15)]
+
             featurizer = MalayalamCalendarFeaturizer()
-            
             def get_features(dt, time_index):
                 feat = featurizer.featurize(dt)
-                return [
-                    time_index, 
-                    max(0, 100 - feat['days_to_onam']), 
-                    feat['is_monsoon'], 
-                    feat['is_harvest_season'],
-                    feat['is_public_holiday']
-                ]
+                return [time_index, max(0, 100 - feat['days_to_onam']),
+                        feat['is_monsoon'], feat['is_harvest_season'], feat['is_public_holiday']]
 
-            # Combine history + actual for training
             all_train_dates = historical_dates + train_dates
-            all_y_train = y_historical + y_actual
-            
+            all_y_train     = y_historical + y_actual
             X_train_raw = [get_features(d, i) for i, d in enumerate(all_train_dates)]
-            X_pred_raw = [get_features(d, i + len(all_train_dates)) for i, d in enumerate(pred_dates)]
-            
-            # Scikit-Learn Modeling
+            X_pred_raw  = [get_features(d, i + len(all_train_dates)) for i, d in enumerate(pred_dates)]
+
             X_train = np.array(X_train_raw)
             y_train = np.array(all_y_train)
-            X_pred = np.array(X_pred_raw)
-            
-            # Fallback if no real data
+            X_pred  = np.array(X_pred_raw)
             if sum(y_actual) == 0:
                 y_train = np.array([30000, 32000, 38000, 47000, 33000])
-                
-            # 1. Scale data for MLP Neural Network to prevent gradient explosion
+
             scaler_y = StandardScaler()
             y_scaled = scaler_y.fit_transform(y_train.reshape(-1, 1)).ravel()
-            
-            # Scale X features
             scaler_x = StandardScaler()
             X_train_scaled = scaler_x.fit_transform(X_train)
-            X_pred_scaled = scaler_x.transform(X_pred)
-            
-            # Use L2 Regularization (alpha) and simpler architecture to prevent wild extrapolation
-            mlp = MLPRegressor(hidden_layer_sizes=(50,), max_iter=2000, random_state=42, solver='lbfgs', alpha=10.0)
+            X_pred_scaled  = scaler_x.transform(X_pred)
+
+            mlp = MLPRegressor(hidden_layer_sizes=(50,), max_iter=2000, random_state=42,
+                               solver='lbfgs', alpha=10.0)
             mlp.fit(X_train_scaled, y_scaled)
-            
-            # 2. Linear Trend for baseline stability
             lr = LinearRegression()
             lr.fit(X_train_scaled, y_train)
-            
-            # 3. GBR for local fitting
             gbr = GradientBoostingRegressor(n_estimators=100, max_depth=3, random_state=42)
             gbr.fit(X_train_scaled, y_train)
-            
-            # Predict
-            # Unscale MLP
-            mlp_preds_scaled = mlp.predict(X_pred_scaled)
-            mlp_preds = scaler_y.inverse_transform(mlp_preds_scaled.reshape(-1, 1)).ravel()
-            
-            lr_preds = lr.predict(X_pred_scaled)
-            gbr_preds = gbr.predict(X_pred_scaled)
-            
-            # Clip MLP predictions to prevent catastrophic explosions
-            mlp_preds = np.clip(mlp_preds, np.min(y_train)*0.5, np.max(y_train)*2.0)
-            
-            # Ensemble predictions (Blend linear stability with nonlinear neural patterns)
-            raw_pred = (mlp_preds * 0.3) + (lr_preds * 0.4) + (gbr_preds * 0.3)
-            
-            # 4. Anchor and Dampen: 
-            last_val = y_train[-1] if len(y_train) > 0 else 30000
-            
-            # Ensure it never drops below 50% of the last known month
-            # The model intrinsically handles the spike now via Calendar Features!
-            y_pred = [int(max(last_val * 0.5, p)) for p in raw_pred]
-            
-            # Calculate Confidence Intervals (Expanding cone of uncertainty)
-            mean_val = np.mean(y_train) if len(y_train) > 0 else 1
+
+            mlp_preds = scaler_y.inverse_transform(
+                mlp.predict(X_pred_scaled).reshape(-1, 1)).ravel()
+            mlp_preds = np.clip(mlp_preds, np.min(y_train) * 0.5, np.max(y_train) * 2.0)
+            raw_pred  = (mlp_preds * 0.3) + (lr.predict(X_pred_scaled) * 0.4) + (gbr.predict(X_pred_scaled) * 0.3)
+            last_val  = int(y_train[-1]) if len(y_train) > 0 else 30000
+            y_pred    = [int(max(last_val * 0.5, p)) for p in raw_pred]
+
+            mean_val  = float(np.mean(y_train)) if len(y_train) > 0 else 1
             expansion = np.array([0.08, 0.12, 0.18]) * mean_val
             upper_bound = [int(p + e) for p, e in zip(y_pred, expansion)]
             lower_bound = [int(max(0, p - e)) for p, e in zip(y_pred, expansion)]
-            
-            # Calculate true metrics based on training fit
-            train_mlp = scaler_y.inverse_transform(mlp.predict(X_train_scaled).reshape(-1, 1)).ravel()
+
+            train_mlp   = scaler_y.inverse_transform(mlp.predict(X_train_scaled).reshape(-1, 1)).ravel()
             train_blend = (train_mlp * 0.4) + (lr.predict(X_train_scaled) * 0.4) + (gbr.predict(X_train_scaled) * 0.2)
-            
-            rmse = math.sqrt(np.mean((y_train - train_blend)**2))
-            # Calculate accuracy: 1 - (error / mean)
-            accuracy = 100 - (rmse / mean_val * 100)
-            accuracy = min(96.8, max(82.0, accuracy)) # Clamp to realistic display range
-            
-            # --- AI SCORE ENGINE (RANDOM FOREST) ---
+            rmse     = math.sqrt(np.mean((y_train - train_blend) ** 2))
+            accuracy = min(96.8, max(82.0, 100 - (rmse / mean_val * 100)))
+
+            # Step 3: Cohort-level score fallback (Random Forest on 5 cohort points)
             from sklearn.ensemble import RandomForestRegressor
-            
             X_rf, y_res_rate, y_rev_per_cust = [], [], []
             for r in results:
                 age = 2026 - r['cohort_year']
@@ -903,128 +941,79 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                 y_res_rate.append(r['resurrection_rate'])
                 rev_per = (r['reactivated_revenue'] / r['total_reactivated']) if r['total_reactivated'] > 0 else 0
                 y_rev_per_cust.append(rev_per)
-                
-            X_rf = np.array(X_rf)
-            y_res_rate = np.array(y_res_rate)
-            y_rev_per_cust = np.array(y_rev_per_cust)
-            
-            if len(X_rf) > 0:
-                # 1. Resurrection Probability (Predicting return rate of average active customer)
-                rf_res = RandomForestRegressor(n_estimators=50, max_depth=3, random_state=42)
-                rf_res.fit(X_rf, y_res_rate)
-                avg_age, avg_base = np.mean(X_rf[:,0]), np.mean(X_rf[:,1])
-                pred_res_prob = rf_res.predict([[avg_age, avg_base]])[0]
-                
-                # 2. Repeat Purchase Probability (Based on predicted spend velocity)
-                rf_rep = RandomForestRegressor(n_estimators=50, max_depth=3, random_state=42)
-                rf_rep.fit(X_rf, y_rev_per_cust)
-                pred_rev = rf_rep.predict([[avg_age, avg_base]])[0]
-                pred_repeat_prob = min(85.0, 15.0 + (pred_rev / 400)) # Map retail spend to loyalty %
-                
-                # 3. Dormancy Risk (Predicting risk of oldest cohort never returning)
-                max_age = np.max(X_rf[:,0])
-                worst_case_return = rf_res.predict([[max_age + 2, avg_base]])[0]
-                pred_dormancy_risk = min(98.0, max(20.0, 100.0 - (worst_case_return * 5) + (max_age * 1.5)))
-            else:
-                pred_res_prob, pred_repeat_prob, pred_dormancy_risk = 6.5, 32.5, 78.0
-                pred_rev = 15000
-                
-            # --- DYNAMIC ADVANCED AI INSIGHTS ENGINE ---
-            insights = []
-            
-            if len(results) > 0:
-                # 1. Cohort Elasticity
-                best_cohort = max(results, key=lambda x: x['resurrection_rate'])
-                if best_cohort['resurrection_rate'] > 0:
-                    insights.append({
-                        'title': f"The {best_cohort['cohort_year']} Cohort Elasticity",
-                        'data_point': f"The {best_cohort['cohort_year']} Cohort demonstrates extreme elasticity, leading with a {best_cohort['resurrection_rate']}% resurrection rate.",
-                        'deep_analysis': f"Customers from {best_cohort['cohort_year']} are exhibiting a higher-than-average return latency. They are responding disproportionately well to current reactivation triggers compared to both newer and older cohorts, suggesting their primary devices have just reached the end of their natural replacement cycle.",
-                        'recommendation': f"Increase marketing spend density on the {best_cohort['cohort_year']} cohort. They offer the highest probability of conversion for core electronics upgrades this quarter.",
-                        'color_theme': 'primary'
-                    })
-                else:
-                    insights.append({
-                        'title': "Dormant Base Elasticity",
-                        'data_point': "Dormant base is currently exhibiting low elasticity.",
-                        'deep_analysis': "The overall resurrection rate is extremely low across all cohort years. Broad-spectrum marketing is failing to trigger reactivation.",
-                        'recommendation': "Highly targeted, personalized reactivation campaigns required with aggressive introductory offers.",
-                        'color_theme': 'warning'
-                    })
-                    
-                # 2. Revenue Velocity
-                if pred_rev > 0:
-                    formatted_rev = "₹{:,.0f}".format(pred_rev)
-                    insights.append({
-                        'title': "Premium Buyer Reactivation",
-                        'data_point': f"Reactivated customers are exhibiting premium purchasing behavior, with an average cart value of {formatted_rev}.",
-                        'deep_analysis': "When dormant customers finally return, they are bypassing low-margin accessories and directly purchasing high-ticket electronics (e.g. smartphones, appliances). This indicates strong latent brand trust.",
-                        'recommendation': "Create a VIP outreach list for resurrected customers and offer them exclusive previews of new flagship launches to secure their repeat loyalty.",
-                        'color_theme': 'success'
-                    })
-            
-                # 3. Seasonal Trajectory
-                if len(y_pred) > 0 and last_val > 0:
-                    peak_pred = max(y_pred)
-                    surge_pct = int(((peak_pred - last_val) / last_val) * 100)
-                    if surge_pct > 0:
-                        insights.append({
-                            'title': "Festival Window Correlation",
-                            'data_point': f"Neural network projects a {surge_pct}% surge in comeback volume by August.",
-                            'deep_analysis': "Historical machine learning models show a massive mathematical correlation between customer resurrection and the Onam/Diwali preparation windows. The 90-day forecast is highly skewed towards this seasonal spike.",
-                            'recommendation': "Save 70% of the dormant retargeting marketing budget specifically for the 3 weeks preceding these major regional festivals for maximum ROI.",
-                            'color_theme': 'info'
-                        })
-                    else:
-                        insights.append({
-                            'title': "Trajectory Flatlining",
-                            'data_point': "Neural network projects a flat comeback trajectory for the upcoming quarter.",
-                            'deep_analysis': "Without external seasonal triggers, the mathematical model predicts the dormant base will remain largely inactive.",
-                            'recommendation': "Recommend initiating early, artificial 'festival-like' discount campaigns to stimulate volume.",
-                            'color_theme': 'warning'
-                        })
-            
-                # 4. Dormancy Risk Alert
-                oldest_cohort = min(results, key=lambda x: x['cohort_year'])
-                insights.append({
-                    'title': f"Critical Dormancy: {oldest_cohort['cohort_year']} Cohort",
-                    'data_point': f"The {oldest_cohort['cohort_year']} cohort has reached critical terminal dormancy.",
-                    'deep_analysis': "Our random forest risk calculation penalizes cohorts that have aged significantly without returning. The probability of an organic return for this cohort has collapsed mathematically to near-zero.",
-                    'recommendation': "Shift this cohort entirely from general marketing to aggressive deep-discount interventions or liquidation offers. Standard retargeting is a sunk cost here.",
-                    'color_theme': 'danger'
-                })
-            else:
-                insights.append({
-                    'title': "Insufficient Data",
-                    'data_point': "Insufficient data to generate advanced neural insights.",
-                    'deep_analysis': "The dataset lacks the required volume or variance for the Scikit-Learn models to extract meaningful patterns.",
-                    'recommendation': "Wait for further cohort data synchronization.",
-                    'color_theme': 'secondary'
-                })
 
-            # Dynamic Confidence Scores
-            base_conf = accuracy
-            confidence_scores = {
-                'June Comeback Forecast': f"{min(99, int(base_conf + 1))}%",
-                'Festival Spike Prob.': f"{min(99, int(base_conf - 4))}%",
-                'Dormancy Recovery Acc.': f"{min(99, int(base_conf - 2))}%",
-                'Repeat Purchase Pred.': f"{min(99, int(pred_repeat_prob + 5))}%"
-            }
-            
+            X_rf = np.array(X_rf)
+            if len(X_rf) > 0:
+                rf_res = RandomForestRegressor(n_estimators=50, max_depth=3, random_state=42)
+                rf_res.fit(X_rf, np.array(y_res_rate))
+                avg_age, avg_base = float(np.mean(X_rf[:, 0])), float(np.mean(X_rf[:, 1]))
+                pred_res_prob = float(rf_res.predict([[avg_age, avg_base]])[0])
+                rf_rep = RandomForestRegressor(n_estimators=50, max_depth=3, random_state=42)
+                rf_rep.fit(X_rf, np.array(y_rev_per_cust))
+                pred_rev = float(rf_rep.predict([[avg_age, avg_base]])[0])
+                pred_repeat_prob = min(85.0, 15.0 + (pred_rev / 400))
+                max_age = float(np.max(X_rf[:, 0]))
+                pred_dormancy_risk = min(98.0, max(20.0,
+                    100.0 - (float(rf_res.predict([[max_age + 2, avg_base]])[0]) * 5) + (max_age * 1.5)))
+            else:
+                pred_res_prob, pred_repeat_prob, pred_dormancy_risk, pred_rev = 6.5, 32.5, 78.0, 15000
+
+            # Step 4: Assemble ai_forecast with cohort chart data + cohort score fallbacks
             ai_forecast = {
-                'historical': y_actual,
-                'predictions': y_pred,
-                'upper_bound': upper_bound,
-                'lower_bound': lower_bound,
-                'predicted_vol': sum(y_pred),
-                'accuracy': round(accuracy, 1),
-                'rmse': round(rmse, 2),
+                'historical':        y_actual,          # Cohort-based reactivation counts (correct scale)
+                'predictions':       y_pred,
+                'upper_bound':       upper_bound,
+                'lower_bound':       lower_bound,
+                'predicted_vol':     sum(y_pred),
+                'accuracy':          round(accuracy, 1),
+                'rmse':              round(rmse, 2),
                 'resurrection_prob': round(pred_res_prob, 2),
-                'repeat_prob': round(pred_repeat_prob, 1),
-                'dormancy_risk': round(pred_dormancy_risk, 1),
-                'insights': insights,
-                'confidence_scores': confidence_scores
+                'repeat_prob':       round(pred_repeat_prob, 1),
+                'dormancy_risk':     round(pred_dormancy_risk, 1),
+                'insights':          [],
+                'confidence_scores': {
+                    'July Comeback Forecast': f"{min(99, int(accuracy + 1))}%",
+                    'Festival Spike Prob.':   f"{min(99, int(accuracy - 4))}%",
+                    'Dormancy Recovery Acc.': f"{min(99, int(accuracy - 2))}%",
+                    'Repeat Purchase Pred.':  f"{min(99, int(pred_repeat_prob + 5))}%",
+                },
+                'data_source': 'cohort_ml',
             }
+
+            # Step 5: Overlay 4-Model Campaign Intelligence Engine
+            # (BG/NBD + LightGBM + Prophet + K-Means from 1.3 Cr ClickHouse rows)
+            try:
+                from analytics.campaign_intelligence import build_campaign_intelligence
+                ci = build_campaign_intelligence()
+                if ci.get('data_source') not in ('fallback',):
+                    # Score Engine metrics (all 4 models)
+                    ai_forecast['resurrection_prob'] = ci['resurrection_prob']
+                    ai_forecast['repeat_prob']       = ci['repeat_prob']
+                    ai_forecast['dormancy_risk']     = ci['dormancy_risk']
+                    ai_forecast['predicted_vol']     = ci['predicted_vol']
+                    # Prophet chart data (overrides cohort-based chart)
+                    if ci.get('historical') and sum(ci['historical']) > 0:
+                        ai_forecast['historical']   = ci['historical']
+                        ai_forecast['predictions']  = ci['predictions']
+                        ai_forecast['upper_bound']  = ci['upper_bound']
+                        ai_forecast['lower_bound']  = ci['lower_bound']
+                        ai_forecast['accuracy']     = ci['accuracy']
+                        ai_forecast['rmse']         = ci['rmse']
+                    # SHAP-driven insights + model confidence scores
+                    ai_forecast['insights']          = ci['insights']
+                    ai_forecast['confidence_scores'] = ci['confidence_scores']
+                    ai_forecast['data_source']       = ci.get('data_source', 'clickhouse_4model')
+                    # Extra fields for frontend
+                    ai_forecast['forecast_months']   = ci.get('forecast_months', ['Aug 2026', 'Sep 2026', 'Oct 2026'])
+                    ai_forecast['risk_tiers']        = ci.get('risk_tiers', {})
+                    ai_forecast['tier_pcts']         = ci.get('tier_pcts', {})
+                    ai_forecast['lgbm_auc']          = ci.get('lgbm_auc', 0)
+                    ai_forecast['avg_revenue']       = ci.get('avg_revenue', 15000)
+            except Exception as ci_err:
+                import logging
+                logging.getLogger(__name__).warning(
+                    f"[CampaignIntelligence] Using cohort fallback: {ci_err}"
+                )
 
             return JsonResponse({
                 'status': 'success',

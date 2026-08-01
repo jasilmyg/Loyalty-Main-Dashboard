@@ -1,13 +1,13 @@
 {
   "jas_target": 533046,
-  "jas_achieved": 121209,
-  "jas_achieved_pct": 22.7,
-  "jas_gap": 411837,
-  "jas_days_done": 30,
-  "jas_days_rem": 62,
+  "jas_achieved": 128741,
+  "jas_achieved_pct": 24.2,
+  "jas_gap": 404305,
+  "jas_days_done": 32,
+  "jas_days_rem": 60,
   "jas_days_total": 92,
-  "jas_daily_rate": 4040.0,
-  "jas_req_daily": 6642,
+  "jas_daily_rate": 4023.0,
+  "jas_req_daily": 6738,
   "jas_forecast_final": 477076,
   "jas_status_badge": "AT RISK",
   "jas_risk_color": "#F59E0B",
@@ -127,9 +127,17 @@
     {
       "date": "2026-07-29",
       "cum": 121209
+    },
+    {
+      "date": "2026-07-30",
+      "cum": 124866
+    },
+    {
+      "date": "2026-07-31",
+      "cum": 128741
     }
   ],
   "jas_target_json": 533046,
   "avg_hist_rate": 8.95,
-  "computed_at": "2026-07-30"
+  "computed_at": "2026-08-01"
 }

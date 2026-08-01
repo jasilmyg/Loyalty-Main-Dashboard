@@ -142,122 +142,27 @@
     </div>
 </div>
 
-<!-- FUTURISTIC AI CONSOLE SECTION -->
-<div class="row mt-5 mb-5">
-    <div class="col-12 mb-4 text-center">
-        <h2 style="font-weight: 900; color: #0f172a; font-size: 2rem; letter-spacing: -1px; text-transform: uppercase;">
-            <i class="bi bi-robot text-primary me-2"></i> Neural Intelligence System
-        </h2>
-        <p class="text-muted" style="letter-spacing: 2px; text-transform: uppercase; font-size: 0.8rem; font-weight: 700;">Live Predictive Analytics Console</p>
-    </div>
-    
-    <!-- Left: AI Score Engine -->
-    <div class="col-lg-3 mb-4">
-        <div class="section-card h-100" style="background: #0f172a; color: #fff; border: 1px solid #1e293b;">
-            <div class="section-header" style="color: #fff; border-bottom: 1px solid #334155; padding-bottom: 15px;"><i class="bi bi-cpu text-info me-2"></i> AI Score Engine</div>
-            
-            <div class="mt-4 text-center">
-                <div style="font-size: 0.75rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">Resurrection Probability</div>
-                <div id="gauge-resurrection" style="height: 140px; margin-top: -10px;"></div>
-            </div>
-            
-            <div class="mt-2 text-center">
-                <div style="font-size: 0.75rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">Repeat Purchase Probability</div>
-                <div id="gauge-repeat" style="height: 120px; margin-top: -10px;"></div>
-            </div>
 
-            <div class="mt-2">
-                <div style="font-size: 0.75rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Dormancy Risk</div>
-                <div class="progress" style="height: 10px; background-color: #334155; border-radius: 10px;">
-                    <div class="progress-bar bg-danger" role="progressbar" style="width: 78%; border-radius: 10px; background: linear-gradient(90deg, #f59e0b, #ef4444);" aria-valuenow="78" aria-valuemin="0" aria-valuemax="100"></div>
-                </div>
-            </div>
-            
-            <div class="mt-4 text-center p-3" style="background: rgba(255,255,255,0.05); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
-                <div style="font-size: 0.7rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">Predicted Comeback Vol</div>
-                <div style="font-size: 2.2rem; font-weight: 900; color: #38bdf8; text-shadow: 0 0 10px rgba(56, 189, 248, 0.5);" id="ai-vol-counter">--</div>
-            </div>
+<!-- AI Intelligence callout banner -->
+<div class="d-flex align-items-center justify-content-between p-3 mt-4 mb-2"
+     style="background:linear-gradient(135deg,#0f172a,#1e1b4b);border-radius:14px;">
+    <div class="d-flex align-items-center gap-3">
+        <span style="font-size:1.5rem;">🤖</span>
+        <div>
+            <div style="color:#fff;font-weight:800;font-size:0.9rem;">AI Intelligence Engine</div>
+            <div style="color:#94a3b8;font-size:0.75rem;">BG/NBD · LightGBM · Prophet · K-Means · SHAP — now on its own dedicated page</div>
         </div>
     </div>
-
-    <!-- Center: LSTM Hero -->
-    <div class="col-lg-6 mb-4">
-        <div class="section-card h-100" style="padding: 0; overflow: hidden; display: flex; flex-direction: column; border: 2px solid #e2e8f0; box-shadow: 0 15px 35px -5px rgba(0,0,0,0.1);">
-            <div class="p-4 pb-0">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h4 style="font-weight: 800; color: #0f172a; margin: 0;"><i class="bi bi-activity text-indigo-600 me-2"></i> Deep Learning Forecast Engine (LSTM)</h4>
-                    <span class="badge bg-primary" style="font-size: 0.7rem; letter-spacing: 1px; padding: 6px 12px;"><i class="bi bi-record-circle-fill text-white me-1"></i> MODEL ACTIVE</span>
-                </div>
-                <p style="font-size: 0.85rem; color: #64748b;">Projecting 90-day seasonal comeback trajectory with confidence intervals.</p>
-            </div>
-            
-            <div id="lstm-forecast-chart" style="flex-grow: 1; min-height: 280px; width: 100%;"></div>
-            
-            <div class="p-3" style="background: #f8fafc; border-top: 1px solid #e2e8f0;">
-                <div class="row text-center" style="font-size: 0.75rem;">
-                    <div class="col-4">
-                        <div style="color: #64748b; font-weight: 700; text-transform: uppercase;">Model Accuracy</div>
-                        <div style="font-size: 1.1rem; font-weight: 800; color: #0f172a;">92.4%</div>
-                    </div>
-                    <div class="col-4" style="border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0;">
-                        <div style="color: #64748b; font-weight: 700; text-transform: uppercase;">RMSE Error</div>
-                        <div style="font-size: 1.1rem; font-weight: 800; color: #0f172a;">0.084</div>
-                    </div>
-                    <div class="col-4">
-                        <div style="color: #64748b; font-weight: 700; text-transform: uppercase;">Forecast Window</div>
-                        <div style="font-size: 1.1rem; font-weight: 800; color: #10b981;">90 Days</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Right: Hidden Pattern Intelligence -->
-    <div class="col-lg-3 mb-4">
-        <div class="section-card h-100" style="background: #fdf4ff; border: 1px solid #f5d0fe;">
-            <div class="section-header" style="color: #86198f; border-bottom: 1px solid #f0abfc; padding-bottom: 15px;"><i class="bi bi-lightning-charge-fill text-warning me-2"></i> AI Insights Feed</div>
-            
-            <div class="mt-3" style="font-size: 0.8rem; color: #701a75;" id="dynamic-insights-container">
-                <!-- Insights injected here by JS -->
-            </div>
-            
-            <div class="mt-4 pt-3" style="border-top: 1px solid #f0abfc;">
-                <div style="font-size: 0.75rem; font-weight: 800; color: #86198f; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px;">AI Confidence Engine</div>
-                <table style="width: 100%; font-size: 0.75rem;">
-                    <tbody id="dynamic-confidence-table">
-                        <!-- Confidence scores injected here by JS -->
-                    </tbody>
-                </table>
-                
-                <div class="mt-3 text-center">
-                    <button type="button" class="btn btn-sm w-100 shadow-sm" style="background-color: #86198f; color: white; font-weight: 700; border-radius: 6px; transition: all 0.3s;" data-bs-toggle="modal" data-bs-target="#insightDetailsModal" onmouseover="this.style.backgroundColor='#701a75'" onmouseout="this.style.backgroundColor='#86198f'">
-                        <i class="bi bi-search me-1"></i> View Detailed Analysis
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Detailed Insights Modal -->
-<div class="modal fade" id="insightDetailsModal" tabindex="-1" aria-labelledby="insightDetailsModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content" style="border-radius: 12px; border: none; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);">
-      <div class="modal-header" style="background: #fdf4ff; border-bottom: 1px solid #f0abfc; border-radius: 12px 12px 0 0;">
-        <h5 class="modal-title" id="insightDetailsModalLabel" style="color: #86198f; font-weight: 800;"><i class="bi bi-lightning-charge-fill text-warning me-2"></i> In-Depth AI Insights Analysis</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body p-4" id="dynamic-modal-insights-container">
-        <!-- Detailed modal insights injected here by JS -->
-      </div>
-      <div class="modal-footer" style="border-top: none; padding: 1rem 1.5rem;">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close Analysis</button>
-      </div>
-    </div>
-  </div>
+    <a href="{% url 'ai_intelligence' %}"
+       style="background:linear-gradient(135deg,#6366f1,#0ea5e9);color:#fff;text-decoration:none;
+              padding:8px 20px;border-radius:10px;font-weight:700;font-size:0.82rem;
+              white-space:nowrap;box-shadow:0 4px 12px rgba(99,102,241,0.35);">
+        Open AI Intelligence &rarr;
+    </a>
 </div>
 
 {% endblock %}
+
 
 {% block extra_js %}
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
@@ -516,178 +421,12 @@
                 Deep learning models indicate seasonal peaks aligning with holiday events.
             `;
 
-            // FUTURISTIC AI CONSOLE LOGIC
-            const aiData = json.ai_forecast;
-            
-            // 1. Resurrection Probability Gauge
-            const gaugeRes = [{
-                type: "indicator", mode: "gauge+number", value: aiData.resurrection_prob,
-                number: { suffix: "%", font: { color: '#38bdf8', size: 30, weight: 800 } },
-                gauge: {
-                    axis: { range: [null, 15], tickwidth: 1, tickcolor: "#334155" },
-                    bar: { color: "#38bdf8" },
-                    bgcolor: "rgba(255,255,255,0.05)", borderwidth: 0,
-                    steps: [
-                        { range: [0, 5], color: "rgba(239, 68, 68, 0.2)" },
-                        { range: [5, 10], color: "rgba(245, 158, 11, 0.2)" },
-                        { range: [10, 15], color: "rgba(16, 185, 129, 0.2)" }
-                    ]
-                }
-            }];
-            Plotly.newPlot('gauge-resurrection', gaugeRes, { margin: { t: 25, b: 15, l: 25, r: 25 }, paper_bgcolor: 'transparent', font: { color: '#94a3b8' } }, {displayModeBar: false});
-
-            // 2. Repeat Purchase Semi-Donut
-            const gaugeRep = [{
-                type: "indicator", mode: "gauge+number", value: aiData.repeat_prob,
-                number: { suffix: "%", font: { color: '#818cf8', size: 26, weight: 800 } },
-                gauge: {
-                    shape: "bullet",
-                    axis: { range: [null, 100], visible: false },
-                    bar: { color: "#818cf8", thickness: 1 },
-                    bgcolor: "rgba(255,255,255,0.05)", borderwidth: 0
-                }
-            }];
-            Plotly.newPlot('gauge-repeat', gaugeRep, { margin: { t: 15, b: 15, l: 15, r: 15 }, paper_bgcolor: 'transparent' }, {displayModeBar: false});
-
-            // 3. Dormancy Risk Progress Bar
-            const dormancyRiskBar = document.querySelector('.progress-bar.bg-danger');
-            if (dormancyRiskBar) {
-                dormancyRiskBar.style.width = aiData.dormancy_risk + '%';
-                dormancyRiskBar.setAttribute('aria-valuenow', aiData.dormancy_risk);
-            }
-
-            // 4. Predicted Volume Counter
-            document.getElementById('ai-vol-counter').innerText = fmtNum(aiData.predicted_vol);
-
-            // 5. Dynamic AI Insights Feed & Detailed Modal
-            const insightsContainer = document.getElementById('dynamic-insights-container');
-            const modalInsightsContainer = document.getElementById('dynamic-modal-insights-container');
-            if (insightsContainer && aiData.insights) {
-                let insightsHtml = '';
-                let modalHtml = '';
-                
-                aiData.insights.forEach((insight, index) => {
-                    // Update side panel (short summary)
-                    insightsHtml += `
-                    <div class="mb-3 d-flex gap-2">
-                        <span style="font-size: 1.2rem;">⚡</span>
-                        <div>${insight.data_point}</div>
-                    </div>`;
-                    
-                    // Update Modal (detailed analysis)
-                    let borderColors = {
-                        'primary': '#8b5cf6',
-                        'success': '#10b981',
-                        'info': '#0ea5e9',
-                        'warning': '#f59e0b',
-                        'danger': '#ef4444',
-                        'secondary': '#64748b'
-                    };
-                    let borderColor = borderColors[insight.color_theme] || borderColors['primary'];
-                    
-                    modalHtml += `
-                    <div class="mb-4">
-                        <h6 style="color: #0f172a; font-weight: 800; font-size: 1.1rem;">${index + 1}. ${insight.title}</h6>
-                        <div class="p-3" style="background: #f8fafc; border-left: 4px solid ${borderColor}; border-radius: 4px;">
-                            <p style="margin: 0; font-size: 0.9rem; color: #475569;">
-                                <strong>Data Point:</strong> ${insight.data_point}<br><br>
-                                <strong>Deep Analysis:</strong> ${insight.deep_analysis}
-                                ${insight.recommendation ? ` <br><br><strong>Recommendation:</strong> ${insight.recommendation}` : ''}
-                            </p>
-                        </div>
-                    </div>`;
-                });
-                
-                insightsContainer.innerHTML = insightsHtml;
-                if (modalInsightsContainer) {
-                    modalInsightsContainer.innerHTML = modalHtml;
-                }
-            }
-
-            // 6. Dynamic Confidence Engine
-            const confidenceTable = document.getElementById('dynamic-confidence-table');
-            if (confidenceTable && aiData.confidence_scores) {
-                let confHtml = '';
-                for (const [key, val] of Object.entries(aiData.confidence_scores)) {
-                    confHtml += `
-                    <tr>
-                        <td style="padding: 4px 0; color: #701a75; font-weight: 600;">${key}</td>
-                        <td class="text-end" style="font-weight: 800; color: #10b981;">${val}</td>
-                    </tr>`;
-                }
-                confidenceTable.innerHTML = confHtml;
-            }
-
-            // 4. LSTM FORECAST CHART (Real Sklearn Predictions)
-            const lstmX = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul (Pred)', 'Aug (Pred)', 'Sep (Pred)'];
-            const histY = aiData.historical;
-            const predY = aiData.predictions;
-            
-            const traceHist = {
-                x: lstmX.slice(0, 6), y: histY,
-                mode: 'lines+markers', name: 'Actual',
-                line: { color: '#0f172a', width: 3, shape: 'spline' },
-                marker: { size: 6, color: '#0f172a' }
-            };
-            
-            const tracePred = {
-                x: lstmX.slice(5), y: [histY[5]].concat(predY),
-                mode: 'lines', name: 'Forecast',
-                line: { color: '#6366f1', width: 3, dash: 'dot', shape: 'spline' }
-            };
-
-            const traceBand = {
-                x: lstmX.slice(5).concat(lstmX.slice(5).reverse()),
-                y: [histY[5]].concat(aiData.upper_bound).concat([histY[5]].concat(aiData.lower_bound).reverse()),
-                fill: 'toself', fillcolor: 'rgba(99, 102, 241, 0.15)',
-                line: { color: 'transparent' },
-                name: '95% Confidence Interval', showlegend: true, type: 'scatter'
-            };
-
-            const lstmLayout = {
-                margin: { t: 20, b: 30, l: 40, r: 20 },
-                paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
-                xaxis: { 
-                    showgrid: false, 
-                    tickfont: { color: '#64748b' },
-                    categoryorder: 'array',
-                    categoryarray: lstmX
-                },
-                yaxis: { showgrid: true, gridcolor: '#f1f5f9', tickfont: { color: '#64748b' } },
-                legend: { orientation: 'h', y: 1.1, x: 0.1, font: {size: 10} },
-                hovermode: 'x unified'
-            };
-
-            Plotly.newPlot('lstm-forecast-chart', [traceBand, traceHist, tracePred], lstmLayout, { responsive: true, displayModeBar: false });
-            
-            // Update AI KPIs
-            document.getElementById('lstm-forecast-chart').insertAdjacentHTML('afterend', `
-            <div class="p-3" style="background: #f8fafc; border-top: 1px solid #e2e8f0;">
-                <div class="row text-center" style="font-size: 0.75rem;">
-                    <div class="col-4">
-                        <div style="color: #64748b; font-weight: 700; text-transform: uppercase;">Model Accuracy</div>
-                        <div style="font-size: 1.1rem; font-weight: 800; color: #0f172a;">${aiData.accuracy}%</div>
-                    </div>
-                    <div class="col-4" style="border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0;">
-                        <div style="color: #64748b; font-weight: 700; text-transform: uppercase;">RMSE Error</div>
-                        <div style="font-size: 1.1rem; font-weight: 800; color: #0f172a;">${aiData.rmse}</div>
-                    </div>
-                    <div class="col-4">
-                        <div style="color: #64748b; font-weight: 700; text-transform: uppercase;">Forecast Window</div>
-                        <div style="font-size: 1.1rem; font-weight: 800; color: #10b981;">90 Days</div>
-                    </div>
-                </div>
-            </div>
-            `);
-            // Removed extra line
-            document.querySelector('.col-lg-6 .section-card .p-3:last-child').remove(); // remove old static kpi block
 
         })
         .catch(err => {
             console.error("Fetch Error:", err);
-            // Hide spinners and show error
             document.querySelectorAll('.spinner-border').forEach(s => s.style.display = 'none');
-            document.querySelector('#cohort-table tbody').innerHTML = `<tr><td colspan="6" class="text-danger text-center"><strong>Critical Error Loading AI Data:</strong> ${err.message}. (If you are on a free Render tier, the AI machine learning models may have exceeded the 512MB RAM limit and crashed).</td></tr>`;
+            document.querySelector('#cohort-table tbody').innerHTML = `<tr><td colspan="6" class="text-danger text-center"><strong>Error Loading Data:</strong> ${err.message}</td></tr>`;
         });
 </script>
 {% endblock %}
