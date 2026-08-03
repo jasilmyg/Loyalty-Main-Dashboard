@@ -275,9 +275,16 @@ def execute_custom_query(sql: str) -> List[Dict[str, Any]]:
 if __name__ == "__main__":
     import uvicorn
     from starlette.middleware.cors import CORSMiddleware
+    from starlette.responses import JSONResponse
+    from starlette.routing import Route
 
     # Gemini custom connected apps require streamable-http transport (NOT SSE)
     app = mcp.streamable_http_app()
+
+    async def health_check(request):
+        return JSONResponse({"status": "ok", "mcp": "myg-portal"})
+    
+    app.routes.insert(0, Route("/", health_check, methods=["GET"]))
 
     # Add CORS middleware so Gemini UI can connect from gemini.google.com
     app.add_middleware(
