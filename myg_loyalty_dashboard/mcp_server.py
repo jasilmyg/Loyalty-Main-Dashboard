@@ -1,5 +1,17 @@
 import os
 import sys
+
+# --- RENDER DEPLOYMENT FIX ---
+# Auto-install missing packages if they are not in the Render environment
+try:
+    import mcp
+    import clickhouse_connect
+except ImportError:
+    print("Missing packages detected! Auto-installing mcp and clickhouse-connect...")
+    import subprocess
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "mcp[cli]>=1.0.0", "clickhouse-connect>=0.7.0"])
+    print("Auto-install complete.")
+
 import django
 from mcp.server.fastmcp import FastMCP
 from typing import List, Dict, Any, Optional
