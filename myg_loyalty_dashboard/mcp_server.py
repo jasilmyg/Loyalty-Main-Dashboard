@@ -11,8 +11,6 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'myg_loyalty_dashboard.settings'
 os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
 django.setup()
 
-from django.db import connection
-
 # Determine port from Render environment variables
 port = int(os.environ.get("PORT", 8001))
 
@@ -22,19 +20,16 @@ mcp = FastMCP(
     host="0.0.0.0",
     port=port,
     instructions="""
-    You are connected to the myG Loyalty Portal database — a retail loyalty program platform for myG stores in Kerala, India.
+    You are connected to the myG Loyalty Portal database (ClickHouse) — a retail loyalty program platform for myG stores in Kerala, India.
     
     When the user asks any question about sales, revenue, customers, stores, branches, bills, or loyalty data,
     you MUST use the tools from this portal to answer from the live database.
     Do NOT search Google Drive, Gmail, or any other source for these answers.
     
     Key database tables:
-    - sales_data: All transaction records with Total Value, parsed_date, Branch, Staff, Customer Name etc.
-    - analytics_productsale: Product-level sales with date, branch, product, category, brand, qty, sold_price
-    - analytics_shestartcandidatescore: SHE Start program candidate scoring data
-    - mv_customer_lifetime_summary: (Materialized View) Use this for ALL customer lifetime, retention, or churn queries.
-      Columns: customer_mobile, total_spend, first_visit_date, last_visit_date, total_visits.
-      This table is pre-aggregated and lightning fast!
+    - sales_data: All transaction records with total_value, parsed_date, branch, staff, customer_name, customer_mobile etc.
+    - item_wise_sales_data: Product-level sales with date, invoice_no, branch, item_code, imei_batch, qty, sold_price
+    - invoice_wise_sales_data: Invoice level details
     
     Always use the appropriate tool based on what the user is asking.
     """
@@ -42,31 +37,36 @@ mcp = FastMCP(
 
 
 def _run_query(sql: str) -> List[Dict[str, Any]]:
-    """Internal helper to run a SQL query safely."""
+    """Internal helper to run a SQL query safely on ClickHouse."""
     import re
     sql_upper = sql.strip().upper()
-    if not (sql_upper.startswith("SELECT") or sql_upper.startswith("WITH")):
-        return [{"error": "Only SELECT queries allowed."}]
+    if not (sql_upper.startswith("SELECT") or sql_upper.startswith("WITH") or sql_upper.startswith("DESCRIBE") or sql_upper.startswith("SHOW")):
+        return [{"error": "Only SELECT/DESCRIBE/SHOW queries allowed."}]
     forbidden = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE", "GRANT", "REVOKE"]
     for kw in forbidden:
         if re.search(r'\b' + kw + r'\b', sql_upper):
             return [{"error": f"Forbidden keyword: {kw}"}]
     try:
-        with connection.cursor() as cursor:
-            cursor.execute(sql)
-            columns = [col[0] for col in cursor.description] if cursor.description else []
-            rows = cursor.fetchall()
-            results = []
-            for row in rows:
-                row_dict = {}
-                for idx, col in enumerate(columns):
-                    val = row[idx]
-                    row_dict[col] = str(val) if val is not None else None
-                results.append(row_dict)
-            if len(results) > 1000:
-                results = results[:1000]
-                results.append({"_warning": "Results truncated to 1000 rows."})
-            return results
+        from analytics.clickhouse_service import get_ch_client
+        client = get_ch_client()
+        if not client:
+             return [{"error": "ClickHouse connection failed"}]
+             
+        result = client.query(sql)
+        columns = result.column_names
+        rows = result.result_rows
+        
+        results = []
+        for row in rows:
+            row_dict = {}
+            for idx, col in enumerate(columns):
+                val = row[idx]
+                row_dict[col] = str(val) if val is not None else None
+            results.append(row_dict)
+        if len(results) > 1000:
+            results = results[:1000]
+            results.append({"_warning": "Results truncated to 1000 rows."})
+        return results
     except Exception as e:
         return [{"error": str(e)}]
 
@@ -74,7 +74,7 @@ def _run_query(sql: str) -> List[Dict[str, Any]]:
 @mcp.tool()
 def get_total_sales(start_date: str, end_date: str) -> Dict[str, Any]:
     """
-    Get the total sales revenue (sum of Total Value) for a given date range from the myG portal database.
+    Get the total sales revenue (sum of total_value) for a given date range from the myG portal database.
     Use this tool when the user asks about total sales, total revenue, total billing amount for any period.
     
     Parameters:
@@ -89,7 +89,7 @@ def get_total_sales(start_date: str, end_date: str) -> Dict[str, Any]:
     sql = f"""
         SELECT 
             COUNT(*) as total_bills,
-            SUM("Total Value") as total_revenue,
+            SUM(total_value) as total_revenue,
             MIN(parsed_date) as from_date,
             MAX(parsed_date) as to_date
         FROM sales_data
@@ -105,7 +105,7 @@ def get_total_sales(start_date: str, end_date: str) -> Dict[str, Any]:
             "to_date": row.get("to_date"),
             "note": "Total revenue in Indian Rupees from myG loyalty portal database."
         }
-    return results[0]
+    return results[0] if results else {"error": "No results"}
 
 
 @mcp.tool()
@@ -125,13 +125,13 @@ def get_sales_by_branch(start_date: str, end_date: str) -> List[Dict[str, Any]]:
     """
     sql = f"""
         SELECT 
-            "Branch",
+            branch,
             COUNT(*) as total_bills,
-            SUM("Total Value") as total_revenue
+            SUM(total_value) as total_revenue
         FROM sales_data
         WHERE parsed_date >= '{start_date}' AND parsed_date <= '{end_date}'
-        GROUP BY "Branch"
-        ORDER BY SUM("Total Value") DESC
+        GROUP BY branch
+        ORDER BY SUM(total_value) DESC
     """
     return _run_query(sql)
 
@@ -155,7 +155,7 @@ def get_daily_sales(start_date: str, end_date: str) -> List[Dict[str, Any]]:
         SELECT 
             parsed_date as date,
             COUNT(*) as total_bills,
-            SUM("Total Value") as total_revenue
+            SUM(total_value) as total_revenue
         FROM sales_data
         WHERE parsed_date >= '{start_date}' AND parsed_date <= '{end_date}'
         GROUP BY parsed_date
@@ -182,14 +182,12 @@ def get_top_products(start_date: str, end_date: str, limit: int = 10) -> List[Di
     """
     sql = f"""
         SELECT 
-            product,
-            category,
-            brand,
+            item_code,
             SUM(qty) as total_qty,
             SUM(sold_price) as total_revenue
-        FROM analytics_productsale
+        FROM item_wise_sales_data
         WHERE date >= '{start_date}' AND date <= '{end_date}'
-        GROUP BY product, category, brand
+        GROUP BY item_code
         ORDER BY SUM(sold_price) DESC
         LIMIT {limit}
     """
@@ -214,15 +212,15 @@ def get_customer_count(start_date: str, end_date: str) -> Dict[str, Any]:
     sql = f"""
         SELECT 
             COUNT(*) as total_transactions,
-            COUNT(DISTINCT "Customer Mobile") as unique_customers
+            COUNT(DISTINCT customer_mobile) as unique_customers
         FROM sales_data
         WHERE parsed_date >= '{start_date}' AND parsed_date <= '{end_date}'
-        AND "Customer Mobile" IS NOT NULL AND "Customer Mobile" != ''
+        AND customer_mobile IS NOT NULL AND customer_mobile != ''
     """
     results = _run_query(sql)
     if results and "error" not in results[0]:
         return results[0]
-    return results[0]
+    return results[0] if results else {"error": "No results"}
 
 
 @mcp.tool()
@@ -243,15 +241,15 @@ def get_sales_by_staff(start_date: str, end_date: str, limit: int = 10) -> List[
     """
     sql = f"""
         SELECT 
-            "Staff",
-            "Branch",
+            staff,
+            branch,
             COUNT(*) as total_bills,
-            SUM("Total Value") as total_revenue
+            SUM(total_value) as total_revenue
         FROM sales_data
         WHERE parsed_date >= '{start_date}' AND parsed_date <= '{end_date}'
-        AND "Staff" IS NOT NULL AND "Staff" != ''
-        GROUP BY "Staff", "Branch"
-        ORDER BY SUM("Total Value") DESC
+        AND staff IS NOT NULL AND staff != ''
+        GROUP BY staff, branch
+        ORDER BY SUM(total_value) DESC
         LIMIT {limit}
     """
     return _run_query(sql)
@@ -260,16 +258,16 @@ def get_sales_by_staff(start_date: str, end_date: str, limit: int = 10) -> List[
 @mcp.tool()
 def execute_custom_query(sql: str) -> List[Dict[str, Any]]:
     """
-    Execute a custom read-only SQL SELECT query on the myG portal database.
+    Execute a custom read-only SQL SELECT query on the myG portal ClickHouse database.
     Only use this tool when the user explicitly provides a SQL query, or when none of the 
     other specific tools cover the user's requirement.
-    Only SELECT and WITH queries are allowed for security.
+    Only SELECT, WITH, DESCRIBE and SHOW queries are allowed for security.
     
-    Main tables available:
-    - mv_customer_lifetime_summary: (Materialized View) customer_mobile, total_spend, first_visit_date, last_visit_date, total_visits
-    - sales_data: Slno, Date, Time, Invoice Number, Branch, Staff, Customer Name, 
-      Customer Mobile, Total Value (numeric), parsed_date (date)
-    - analytics_productsale: id, date, invoice_number, branch, product, category, brand, qty, sold_price
+    Main tables available in ClickHouse:
+    - sales_data: slno, parsed_date, sale_time, invoice_number, branch, staff, 
+      customer_name, customer_mobile, total_value, etc.
+    - item_wise_sales_data: date, invoice_no, branch, item_code, imei_batch, qty, mop, discount, sold_price, taxable
+    - invoice_wise_sales_data: date, time, invoice_no, branch, rbm, bdm, customer_bill_to_no, invoice_total...
     """
     return _run_query(sql)
 
@@ -291,3 +289,4 @@ if __name__ == "__main__":
 
     # Run the server — Render injects PORT automatically
     uvicorn.run(app, host="0.0.0.0", port=port)
+
