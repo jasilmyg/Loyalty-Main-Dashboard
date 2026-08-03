@@ -272,28 +272,28 @@ def execute_custom_query(sql: str) -> List[Dict[str, Any]]:
     return _run_query(sql)
 
 
+from starlette.middleware.cors import CORSMiddleware
+from starlette.responses import JSONResponse
+from starlette.routing import Route
+
+# Gemini custom connected apps require streamable-http transport (NOT SSE)
+app = mcp.streamable_http_app()
+
+async def health_check(request):
+    return JSONResponse({"status": "ok", "mcp": "myg-portal"})
+    
+app.routes.insert(0, Route("/", health_check, methods=["GET"]))
+
+# Add CORS middleware so Gemini UI can connect from gemini.google.com
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 if __name__ == "__main__":
     import uvicorn
-    from starlette.middleware.cors import CORSMiddleware
-    from starlette.responses import JSONResponse
-    from starlette.routing import Route
-
-    # Gemini custom connected apps require streamable-http transport (NOT SSE)
-    app = mcp.streamable_http_app()
-
-    async def health_check(request):
-        return JSONResponse({"status": "ok", "mcp": "myg-portal"})
-    
-    app.routes.insert(0, Route("/", health_check, methods=["GET"]))
-
-    # Add CORS middleware so Gemini UI can connect from gemini.google.com
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
     # Run the server — Render injects PORT automatically
     uvicorn.run(app, host="0.0.0.0", port=port)
 
