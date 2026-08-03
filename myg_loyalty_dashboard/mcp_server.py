@@ -7,7 +7,7 @@ import sys
 if not os.environ.get("AUTO_INSTALL_DONE"):
     print("Ensuring dependencies are installed...")
     import subprocess
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "mcp[cli]>=1.0.0", "clickhouse-connect>=0.7.0"])
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "mcp[cli]==1.28.1", "clickhouse-connect>=0.7.0"])
     print("Auto-install complete. Restarting process...")
     env = os.environ.copy()
     env["AUTO_INSTALL_DONE"] = "1"
