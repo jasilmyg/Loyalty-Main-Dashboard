@@ -40,7 +40,7 @@ services:
     plan: free
     rootDir: myg_loyalty_dashboard
     buildCommand: grep -v "torch" requirements.txt > req_mcp.txt && pip install -r req_mcp.txt
-    startCommand: mcp run mcp_server:mcp --transport sse --port $PORT --host 0.0.0.0
+    startCommand: python mcp_server.py
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: myg_loyalty_dashboard.settings
