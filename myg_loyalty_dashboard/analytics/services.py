@@ -1281,7 +1281,7 @@ class AnalyticsService:
 
             rows_sql = _ch_q(f"""
                 WITH base AS (
-                    SELECT customer_mobile AS mob, parsed_date AS sale_d, invoice_number AS inv
+                    SELECT customer_mobile AS mob, parsed_date AS sale_d, invoice_number AS inv, total_value AS val
                     FROM sales_data
                     WHERE {ch_where}
                       AND length(customer_mobile) = 10 AND customer_mobile != ''
@@ -1295,11 +1295,13 @@ class AnalyticsService:
                     SELECT {trunc_fn}(b.sale_d) AS period_start,
                            COUNT(DISTINCT b.mob) AS total_members,
                            countDistinctIf(b.mob, {trunc_fn}(b.sale_d) = f.first_bucket) AS new_members,
-                           COUNT(DISTINCT b.inv) AS total_visits
+                           COUNT(DISTINCT b.inv) AS total_visits,
+                           SUM(b.val) AS total_sale,
+                           sumIf(b.val, {trunc_fn}(b.sale_d) = f.first_bucket) AS new_sale
                     FROM base b JOIN cust_first f ON b.mob = f.mob
                     GROUP BY period_start
                 )
-                SELECT {label_fn} AS period_id, period_start, total_members, new_members, total_visits
+                SELECT {label_fn} AS period_id, period_start, total_members, new_members, total_visits, total_sale, new_sale
                 FROM agg ORDER BY period_start ASC
             """, ch_params)
 
@@ -1328,9 +1330,14 @@ class AnalyticsService:
                     total_m      = int(row[2] or 0)
                     new_m        = int(row[3] or 0)
                     total_visits = int(row[4] or 0)
+                    total_sale   = float(row[5] or 0)
+                    new_sale     = float(row[6] or 0)
                     repeat_m  = max(0, total_m - new_m)
+                    repeat_sale = max(0.0, total_sale - new_sale)
                     eng_rate  = total_visits / total_m if total_m else 0
                     rep_pct   = repeat_m / total_m * 100 if total_m else 0
+                    new_avg_spend = new_sale / new_m if new_m else 0
+                    repeat_avg_spend = repeat_sale / repeat_m if repeat_m else 0
 
                     mom_tm = mom_v = mom_nm = mom_rm = 0.0
                     if i > 0:
@@ -1353,6 +1360,8 @@ class AnalyticsService:
                         'mom_new_members': round(mom_nm, 2),
                         'mom_repeat_members': round(mom_rm, 2),
                         'db_size': cumulative,
+                        'new_avg_spend': round(new_avg_spend, 2),
+                        'repeat_avg_spend': round(repeat_avg_spend, 2),
                     })
 
                 cache.set(cache_key, (data, db_start), 86400)
@@ -1394,7 +1403,7 @@ class AnalyticsService:
 
         main_sql = f"""
             WITH base AS (
-                SELECT s."Customer Mobile" AS mob, s."Invoice Number" AS inv, s."Date" AS sale_d
+                SELECT s."Customer Mobile" AS mob, s."Invoice Number" AS inv, s."Date" AS sale_d, s."Total Value"::numeric AS val
                 FROM {TABLE} s
                 WHERE s."Customer Mobile" IS NOT NULL
                   AND s."Customer Mobile" ~ '^[0-9]{{10}}$'
@@ -1406,10 +1415,12 @@ class AnalyticsService:
                 SELECT {trunc_act} AS period_start, {period_label} AS period_id,
                        COUNT(DISTINCT b.mob)::bigint AS total_members,
                        COUNT(DISTINCT b.mob) FILTER (WHERE cf.first_bucket = {trunc_act})::bigint AS new_members,
-                       COUNT(DISTINCT b.inv)::bigint AS total_visits
+                       COUNT(DISTINCT b.inv)::bigint AS total_visits,
+                       COALESCE(SUM(b.val), 0)::numeric AS total_sale,
+                       COALESCE(SUM(b.val) FILTER (WHERE cf.first_bucket = {trunc_act}), 0)::numeric AS new_sale
                 FROM base b JOIN cust_first cf ON cf.mob = b.mob GROUP BY 1, 2
             )
-            SELECT a.period_id, a.period_start, a.total_members, a.new_members, a.total_visits
+            SELECT a.period_id, a.period_start, a.total_members, a.new_members, a.total_visits, a.total_sale, a.new_sale
             FROM agg a WHERE 1=1{pf} ORDER BY a.period_start ASC
         """
         rows_sql = _q(main_sql, list(dim_params) + list(period_params))
@@ -1433,7 +1444,11 @@ class AnalyticsService:
         data, cumulative = [], db_start
         for i, row in enumerate(rows_sql):
             pid = row[0]; total_m = int(row[2] or 0); new_m = int(row[3] or 0); total_visits = int(row[4] or 0)
+            total_sale = float(row[5] or 0); new_sale = float(row[6] or 0)
             repeat_m = max(0, total_m - new_m)
+            repeat_sale = max(0.0, total_sale - new_sale)
+            new_avg_spend = new_sale / new_m if new_m else 0
+            repeat_avg_spend = repeat_sale / repeat_m if repeat_m else 0
             mom_tm = mom_v = mom_nm = mom_rm = 0.0
             if i > 0:
                 prev = data[i - 1]
@@ -1450,6 +1465,8 @@ class AnalyticsService:
                 'mom_total_members': round(mom_tm, 2), 'mom_visits': round(mom_v, 2),
                 'mom_new_members': round(mom_nm, 2), 'mom_repeat_members': round(mom_rm, 2),
                 'db_size': cumulative,
+                'new_avg_spend': round(new_avg_spend, 2),
+                'repeat_avg_spend': round(repeat_avg_spend, 2),
             })
 
         cache.set(cache_key, (data, db_start), 86400)

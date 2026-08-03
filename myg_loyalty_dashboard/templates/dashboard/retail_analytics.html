@@ -157,6 +157,7 @@
             <th class="text-end py-3" style="background-color: #f8fafc;">Repeat %</th>
             <th class="text-end py-3" style="background-color: #f8fafc;">Retention % (DB)</th>
             <th class="text-end pe-4 py-3" style="background-color: #f8fafc;">Cumulative DB</th>
+            <th class="text-center py-3" style="background-color: #f8fafc; width: 40px;"></th>
           </tr>
         </thead>
         <tbody id="dynamic-matrix-body">
@@ -249,11 +250,46 @@
   </div>
 </div>
 
+<!-- ═══════════════════ AVERAGE SPEND MODAL ═══════════════════ -->
+<div class="modal fade" id="avgSpendModal" tabindex="-1" aria-labelledby="avgSpendModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow" style="border-radius: 12px;">
+      <div class="modal-header border-0" style="background: linear-gradient(to right, #f8fafc, #f1f5f9); border-radius: 12px 12px 0 0; padding: 1.25rem 1.5rem;">
+        <h5 class="modal-title fw-bold text-dark d-flex align-items-center m-0" id="avgSpendModalLabel">
+          <i class="bi bi-cash-coin text-primary me-2 fs-4"></i> Average Spend Analysis
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-4 text-center">
+        <h6 class="text-muted fw-bold mb-4" id="avgSpendPeriodLabel" style="letter-spacing: 1px; text-transform: uppercase;"></h6>
+        <div class="d-flex justify-content-around">
+          <div class="p-3" style="background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.2); border-radius: 8px; width: 45%;">
+            <div class="text-success small fw-bold mb-1 text-uppercase">New Members</div>
+            <div class="fs-4 fw-bold text-dark" id="avgSpendNew">₹0</div>
+          </div>
+          <div class="p-3" style="background: rgba(59,130,246,0.06); border: 1px solid rgba(59,130,246,0.2); border-radius: 8px; width: 45%;">
+            <div class="text-primary small fw-bold mb-1 text-uppercase">Repeat Members</div>
+            <div class="fs-4 fw-bold text-dark" id="avgSpendRepeat">₹0</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════ JAVASCRIPT ═══════════════════ -->
 <script>
 const NUM = v => new Intl.NumberFormat('en-IN').format(v);
 
 let currentMatrixGranularity = 'monthly';
+
+function showAvgSpendModal(period, newAvg, repeatAvg) {
+    document.getElementById('avgSpendPeriodLabel').innerText = 'Period: ' + period;
+    document.getElementById('avgSpendNew').innerText = '₹' + NUM(Math.round(newAvg));
+    document.getElementById('avgSpendRepeat').innerText = '₹' + NUM(Math.round(repeatAvg));
+    const modal = new bootstrap.Modal(document.getElementById('avgSpendModal'));
+    modal.show();
+}
 
 function setGranularity(period) {
     currentMatrixGranularity = period;
@@ -490,6 +526,11 @@ async function loadMatrixData() {
                         <td class="text-end"><span class="badge ${(r.repeat_pct || 0) >= 50 ? 'bg-success bg-opacity-25 text-success border border-success' : 'bg-secondary bg-opacity-25 text-secondary border border-secondary'}">${(r.repeat_pct || 0).toFixed(2)}%</span></td>
                         <td class="text-end"><span class="badge" style="color: #4f46e5; background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.3);">${retentionPct.toFixed(2)}%</span></td>
                         <td class="pe-4 text-end text-dark" style="font-family: monospace;">${NUM(finalDb)}</td>
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-link text-primary p-0" onclick="showAvgSpendModal('${FORMAT_PERIOD(r.month)}', ${r.new_avg_spend || 0}, ${r.repeat_avg_spend || 0})" title="View Average Spend">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </td>
                     </tr>
                     `;
                 } catch(rowErr) {
