@@ -43,6 +43,25 @@ def get_ch_client() -> Optional[clickhouse_connect.driver.Client]:
         _local.client = client
         return client
     except Exception as e:
+        if "Authentication failed" in str(e):
+            print(f"[ClickHouse] Auth failed with env password. Retrying with default.")
+            try:
+                client = clickhouse_connect.get_client(
+                    host=CH_HOST,
+                    port=CH_PORT,
+                    username=CH_USER,
+                    password="ZFlujj9SA_Iei",
+                    database=CH_DATABASE,
+                    secure=True,
+                    connect_timeout=30,
+                    send_receive_timeout=120,
+                )
+                _local.client = client
+                return client
+            except Exception as e2:
+                print(f"[ClickHouse] Connection failed even with default password: {e2}")
+                _local.client = None
+                return None
         print(f"[ClickHouse] Connection failed: {e}")
         _local.client = None
         return None
