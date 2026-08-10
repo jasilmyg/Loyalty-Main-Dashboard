@@ -216,7 +216,7 @@ class AnalyticsService:
     def get_sales_overview(self, filters):
         import json, hashlib
         from django.core.cache import cache
-        cache_key = 'sales_overview_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
+        cache_key = 'v2_sales_overview_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
         cached = cache.get(cache_key)
         if cached is not None:
             return cached
@@ -260,7 +260,7 @@ class AnalyticsService:
     def get_customer_analytics(self, filters):
         import json, hashlib
         from django.core.cache import cache
-        cache_key = 'cust_analytics_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
+        cache_key = 'v2_cust_analytics_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
         cached = cache.get(cache_key)
         if cached is not None:
             return cached
@@ -296,7 +296,7 @@ class AnalyticsService:
     def get_frequency_distribution(self, filters):
         import json, hashlib
         from django.core.cache import cache
-        cache_key = 'freq_dist_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
+        cache_key = 'v2_freq_dist_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
         cached = cache.get(cache_key)
         if cached is not None:
             return cached
@@ -900,7 +900,7 @@ class AnalyticsService:
         import json, hashlib
         from django.core.cache import cache
 
-        cache_key = 'gap_segments_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
+        cache_key = 'v2_gap_segments_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
         cached = cache.get(cache_key)
         if cached is not None:
             return cached
@@ -1047,7 +1047,7 @@ class AnalyticsService:
         import json, hashlib
         from django.core.cache import cache
 
-        cache_key = 'action_engine_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
+        cache_key = 'v2_action_engine_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
         cached = cache.get(cache_key)
         if cached is not None:
             return cached
@@ -1117,7 +1117,7 @@ class AnalyticsService:
         import json, hashlib
         from django.core.cache import cache
 
-        cache_key = 'loyalty_kpis_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
+        cache_key = 'v2_loyalty_kpis_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
         cached = cache.get(cache_key)
         if cached is not None:
             return cached
@@ -1558,7 +1558,7 @@ class AnalyticsService:
         import json, hashlib
         from django.core.cache import cache
 
-        cache_key = 'fy_sales_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
+        cache_key = 'v2_fy_sales_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
         cached = cache.get(cache_key)
         if cached is not None:
             return cached
