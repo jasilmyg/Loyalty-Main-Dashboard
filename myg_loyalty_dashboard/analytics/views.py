@@ -70,17 +70,24 @@ class ClickHouseHealthAPI(APIView):
 
         t0 = time.time()
         try:
-            from analytics.clickhouse_service import get_ch_client, reset_client
-            reset_client()           # force fresh connection
-            client = get_ch_client()
-            if client is None:
-                result['status'] = 'FAILED'
-                result['error']  = 'get_ch_client() returned None'
-            else:
-                rows = client.query('SELECT COUNT(*) FROM sales_data').result_rows
+            try:
+                import clickhouse_connect
+                test_client = clickhouse_connect.get_client(
+                    host=CH_HOST,
+                    port=CH_PORT,
+                    username=CH_USER,
+                    password=os.environ.get('CH_PASSWORD', 'ZFlujj9SA_Iei'),
+                    database=CH_DATABASE,
+                    secure=True,
+                    connect_timeout=5,
+                )
+                rows = test_client.query('SELECT COUNT(*) FROM sales_data').result_rows
                 result['status']     = 'OK'
                 result['row_count']  = rows[0][0] if rows else 0
                 result['elapsed_ms'] = round((time.time() - t0) * 1000)
+            except Exception as inner_e:
+                result['status'] = 'FAILED'
+                result['error'] = str(inner_e)
         except Exception as e:
             result['status']     = 'ERROR'
             result['error']      = str(e)
