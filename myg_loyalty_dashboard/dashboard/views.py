@@ -599,16 +599,57 @@ class MonthlyRetentionAPIView(LoginRequiredMixin, View):
     Each customer counted ONLY in their first 2026 month.
 
     Performance:
-      - Uses pre-computed mv_monthly_retention_2026 materialized view.
-      - Query time: <10ms (was ~3 mins causing frontend timeout).
+      - Queries ClickHouse directly — always up-to-date (includes Aug+).
+      - Falls back to PostgreSQL mv_monthly_retention_2026 if CH unavailable.
     """
 
     def get(self, request):
-        from analytics.services import _q
         import traceback
 
         try:
-            # Query the pre-aggregated materialized view
+            # ── Primary: ClickHouse (always current, includes Aug+) ──────────
+            from analytics.clickhouse_service import is_ch_available, ch_query
+            if is_ch_available():
+                rows = ch_query("""
+                    SELECT
+                        month_start,
+                        formatDateTime(month_start, '%b %Y') AS month_label,
+                        unique_customers,
+                        total_sales
+                    FROM (
+                        SELECT
+                            toStartOfMonth(parsed_date)     AS month_start,
+                            count(DISTINCT customer_mobile) AS unique_customers,
+                            round(sum(total_value), 2)      AS total_sales
+                        FROM sales_data
+                        WHERE parsed_date >= '2026-01-01'
+                          AND LENGTH(customer_mobile) = 10
+                          AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                          AND customer_mobile != ''
+                          AND customer_mobile IN (
+                              SELECT DISTINCT customer_mobile
+                              FROM sales_data
+                              WHERE parsed_date < '2026-01-01'
+                                AND LENGTH(customer_mobile) = 10
+                                AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                                AND customer_mobile != ''
+                          )
+                        GROUP BY month_start
+                    )
+                    ORDER BY month_start ASC
+                """)
+                data = [
+                    {
+                        'month':            r[1],
+                        'unique_customers': int(r[2]),
+                        'total_sales':      float(r[3] or 0),
+                    }
+                    for r in rows
+                ]
+                return JsonResponse({'status': 'success', 'data': data, 'source': 'clickhouse'})
+
+            # ── Fallback: PostgreSQL materialized view ───────────────────────
+            from analytics.services import _q
             rows = _q("""
                 SELECT
                     month_label,
@@ -617,7 +658,6 @@ class MonthlyRetentionAPIView(LoginRequiredMixin, View):
                 FROM mv_monthly_retention_2026
                 ORDER BY month_start ASC
             """)
-
             data = [
                 {
                     'month':            r[0],
@@ -626,7 +666,7 @@ class MonthlyRetentionAPIView(LoginRequiredMixin, View):
                 }
                 for r in rows
             ]
-            return JsonResponse({'status': 'success', 'data': data})
+            return JsonResponse({'status': 'success', 'data': data, 'source': 'postgresql'})
 
         except Exception as e:
             return JsonResponse({
@@ -761,7 +801,7 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                     GROUP BY customer_mobile
                 )
                 WHERE cohort_year BETWEEN 2020 AND 2024
-                    AND (first_2026_date = toDate('1970-01-01') OR toStartOfMonth(first_2026_date) < toDate('2026-08-01'))
+                    AND (first_2026_date = toDate('1970-01-01') OR toStartOfMonth(first_2026_date) < toDate('2026-09-01'))
                 GROUP BY cohort_year, first_2026_month
                 ORDER BY cohort_year ASC, first_2026_month ASC
             """).result_rows
@@ -812,7 +852,7 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                 if base == 0:
                     continue
                     
-                months = ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026', 'Jun 2026', 'Jul 2026']
+                months = ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026', 'Jun 2026', 'Jul 2026', 'Aug 2026']
                 
                 monthly_breakdown = []
                 running_balance = base
@@ -860,14 +900,14 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
 
             # Step 1: Build cohort-based monthly actuals (for the LSTM chart)
             month_totals = {'Jan 2026': 0, 'Feb 2026': 0, 'Mar 2026': 0, 'Apr 2026': 0,
-                            'May 2026': 0, 'Jun 2026': 0, 'Jul 2026': 0}
+                            'May 2026': 0, 'Jun 2026': 0, 'Jul 2026': 0, 'Aug 2026': 0}
             for r in results:
                 for mb in r['monthly_breakdown']:
                     if mb['month'] in month_totals:
                         month_totals[mb['month']] += mb['reactivated']
 
             y_actual = [month_totals[m] for m in
-                        ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026', 'Jun 2026', 'Jul 2026']]
+                        ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026', 'Jun 2026', 'Jul 2026', 'Aug 2026']]
 
             # Step 2: Build synthetic history + calendar features for MLP ensemble forecast
             historical_dates, y_historical = [], []
@@ -881,8 +921,8 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                     elif month in (8, 9): vol *= 1.75
                     y_historical.append(int(vol))
 
-            train_dates = [date(2026, m, 15) for m in range(1, 8)]
-            pred_dates  = [date(2026, 8, 15), date(2026, 9, 15), date(2026, 10, 15)]
+            train_dates = [date(2026, m, 15) for m in range(1, 9)]   # Jan–Aug 2026 (actual)
+            pred_dates  = [date(2026, 9, 15), date(2026, 10, 15), date(2026, 11, 15)]  # Sep–Nov forecast
 
             featurizer = MalayalamCalendarFeaturizer()
             def get_features(dt, time_index):
@@ -972,7 +1012,7 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                 'dormancy_risk':     round(pred_dormancy_risk, 1),
                 'insights':          [],
                 'confidence_scores': {
-                    'July Comeback Forecast': f"{min(99, int(accuracy + 1))}%",
+                    'August Comeback Forecast': f"{min(99, int(accuracy + 1))}%",
                     'Festival Spike Prob.':   f"{min(99, int(accuracy - 4))}%",
                     'Dormancy Recovery Acc.': f"{min(99, int(accuracy - 2))}%",
                     'Repeat Purchase Pred.':  f"{min(99, int(pred_repeat_prob + 5))}%",
@@ -1004,7 +1044,7 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                     ai_forecast['confidence_scores'] = ci['confidence_scores']
                     ai_forecast['data_source']       = ci.get('data_source', 'clickhouse_4model')
                     # Extra fields for frontend
-                    ai_forecast['forecast_months']   = ci.get('forecast_months', ['Aug 2026', 'Sep 2026', 'Oct 2026'])
+                    ai_forecast['forecast_months']   = ci.get('forecast_months', ['Sep 2026', 'Oct 2026', 'Nov 2026'])
                     ai_forecast['risk_tiers']        = ci.get('risk_tiers', {})
                     ai_forecast['tier_pcts']         = ci.get('tier_pcts', {})
                     ai_forecast['lgbm_auc']          = ci.get('lgbm_auc', 0)
@@ -1081,9 +1121,61 @@ class RedemptionAnalysisView(LoginRequiredMixin, TemplateView):
 
 class RedemptionAnalysisAPIView(LoginRequiredMixin, View):
     def get(self, request):
-        from analytics.services import _q
         import traceback
         try:
+            # ── Primary: ClickHouse (always current, includes Aug+) ──────────
+            from analytics.clickhouse_service import is_ch_available, ch_query
+            if is_ch_available():
+                rows = ch_query("""
+                    SELECT
+                        formatDateTime(toStartOfMonth(parsed_date), '%b-%y')  AS month_label,
+                        toStartOfMonth(parsed_date)                            AS month_start,
+                        count(DISTINCT customer_mobile)                        AS redeemed_customer_count,
+                        round(sumIf(
+                            toFloat64OrZero(replaceRegexpAll(point_redemption,'[^0-9.]','')),
+                            toFloat64OrNull(replaceRegexpAll(point_redemption,'[^0-9.]','')) > 0
+                        ), 2)                                                  AS redeemed_point_value,
+                        round(sumIf(
+                            total_value,
+                            toFloat64OrNull(replaceRegexpAll(point_redemption,'[^0-9.]','')) > 0
+                        ), 2)                                                  AS redeemed_sale_value,
+                        round(
+                            100.0 * sumIf(
+                                toFloat64OrZero(replaceRegexpAll(point_redemption,'[^0-9.]','')),
+                                toFloat64OrNull(replaceRegexpAll(point_redemption,'[^0-9.]','')) > 0
+                            ) / nullIf(sum(total_value), 0)
+                        , 2)                                                   AS pct_loyalty_discount,
+                        round(
+                            sumIf(
+                                total_value,
+                                toFloat64OrNull(replaceRegexpAll(point_redemption,'[^0-9.]','')) > 0
+                            ) / nullIf(countIf(
+                                toFloat64OrNull(replaceRegexpAll(point_redemption,'[^0-9.]','')) > 0
+                            ), 0)
+                        , 2)                                                   AS asp
+                    FROM sales_data
+                    WHERE parsed_date >= '2020-01-01'
+                      AND LENGTH(customer_mobile) = 10
+                      AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                      AND customer_mobile != ''
+                    GROUP BY month_start
+                    ORDER BY month_start ASC
+                """)
+                data = [
+                    {
+                        'month':          r[0],
+                        'customer_count': int(r[2] or 0),
+                        'point_value':    float(r[3] or 0),
+                        'sale_value':     float(r[4] or 0),
+                        'pct_discount':   float(r[5] or 0),
+                        'asp':            float(r[6] or 0),
+                    }
+                    for r in rows
+                ]
+                return JsonResponse({'status': 'success', 'data': data, 'source': 'clickhouse'})
+
+            # ── Fallback: PostgreSQL materialized view ───────────────────────
+            from analytics.services import _q
             rows = _q("""
                 SELECT
                     month_label,
@@ -1095,19 +1187,19 @@ class RedemptionAnalysisAPIView(LoginRequiredMixin, View):
                 FROM mv_redemption_analysis
                 ORDER BY month_start ASC
             """)
-            
             data = [
                 {
-                    'month': r[0],
+                    'month':          r[0],
                     'customer_count': r[1],
-                    'point_value': float(r[2] or 0),
-                    'sale_value': float(r[3] or 0),
-                    'pct_discount': float(r[4] or 0),
-                    'asp': float(r[5] or 0),
+                    'point_value':    float(r[2] or 0),
+                    'sale_value':     float(r[3] or 0),
+                    'pct_discount':   float(r[4] or 0),
+                    'asp':            float(r[5] or 0),
                 }
                 for r in rows
             ]
-            return JsonResponse({'status': 'success', 'data': data})
+            return JsonResponse({'status': 'success', 'data': data, 'source': 'postgresql'})
+
         except Exception as e:
             return JsonResponse({
                 'status': 'error',
@@ -1138,7 +1230,10 @@ class CampaignLoyaltyDownloadAPIView(UserPassesTestMixin, View):
             'Feb 2026': '2026-02-01',
             'Mar 2026': '2026-03-01',
             'Apr 2026': '2026-04-01',
-            'May 2026': '2026-05-01'
+            'May 2026': '2026-05-01',
+            'Jun 2026': '2026-06-01',
+            'Jul 2026': '2026-07-01',
+            'Aug 2026': '2026-08-01',
         }
         
         target_date = month_map.get(month_str)

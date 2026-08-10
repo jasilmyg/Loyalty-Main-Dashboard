@@ -14,10 +14,10 @@ import clickhouse_connect
 from typing import Optional
 
 # ─── Credentials (from environment — set in Render Dashboard) ───────────────
-CH_HOST     = os.environ.get("CH_HOST",     "ytoyqewr56.ap-south-1.aws.clickhouse.cloud")
+CH_HOST     = os.environ.get("CH_HOST",     "pdhsuv47ec.ap-south-1.aws.clickhouse.cloud")
 CH_PORT     = int(os.environ.get("CH_PORT", "8443"))
 CH_USER     = os.environ.get("CH_USER",     "default")
-CH_PASSWORD = os.environ.get("CH_PASSWORD", "QyB2XKWS44Qt~")
+CH_PASSWORD = os.environ.get("CH_PASSWORD", "ZFlujj9SA_Iei")
 CH_DATABASE = os.environ.get("CH_DATABASE", "default")
 
 # Thread-local storage — each thread has its own client instance
