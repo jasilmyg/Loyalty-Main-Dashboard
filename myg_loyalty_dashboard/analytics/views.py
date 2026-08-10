@@ -91,7 +91,6 @@ class ClickHouseHealthAPI(APIView):
 
 class SalesOverviewAPI(APIView):
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 15)) # Cache for 15 minutes
     def get(self, request):
         data = get_analytics().get_sales_overview(get_filters(request))
         return Response(data)
@@ -102,7 +101,6 @@ class CategoryAnalysisAPI(APIView):
     Returns category-wise revenue and quantity from Azure Blob data via ClickHouse.
     """
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 15))
     def get(self, request):
         filters = get_filters(request)
         data = get_analytics().get_category_analysis(filters)
@@ -110,98 +108,84 @@ class CategoryAnalysisAPI(APIView):
 
 class CustomerAnalyticsAPI(APIView):
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 15))
     def get(self, request):
         data = get_analytics().get_customer_analytics(get_filters(request))
         return Response(data)
 
 class RFMAnalysisAPI(APIView):
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 15))
     def get(self, request):
         data = get_analytics().perform_rfm_analysis(get_filters(request))
         return Response(data)
 
 class MonetaryQuintilesAPI(APIView):
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 15))
     def get(self, request):
         data = get_analytics().get_monetary_quintiles(get_filters(request))
         return Response(data)
 
 class CohortRetentionAPI(APIView):
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 60 * 24)) # Cache for 24 hours
     def get(self, request):
         data = get_analytics().get_cohort_retention()
         return Response(data)
 
 class YearlyCohortAPI(APIView):
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 60 * 24)) # Cache for 24 hours
     def get(self, request):
         data = get_analytics().get_yearly_cohort_analysis()
         return Response(data)
 
 class PaymentAnalyticsAPI(APIView):
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 15))
     def get(self, request):
         data = get_analytics().get_payment_analytics(get_filters(request))
         return Response(data)
 
 class DiscountAnalysisAPI(APIView):
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 15))
     def get(self, request):
         data = get_analytics().get_discount_analysis(get_filters(request))
         return Response(data)
 
 class StaffPerformanceAPI(APIView):
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 15))
     def get(self, request):
         data = get_analytics().get_staff_performance(get_filters(request))
         return Response(data)
 
 class BranchPerformanceAPI(APIView):
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 15))
     def get(self, request):
         data = get_analytics().get_branch_performance(get_filters(request))
         return Response(data)
 
 class FrequencyDistributionAPI(APIView):
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 15))
     def get(self, request):
         data = get_analytics().get_frequency_distribution(get_filters(request))
         return Response(data)
 
 class LoyaltyOverviewAPI(APIView):
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 60))  # Cache for 1 hour
     def get(self, request):
         data = get_analytics().get_loyalty_overview_kpis(get_filters(request))
         return Response(data)
 
 class GapAnalysisAPI(APIView):
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 60))  # Cache for 1 hour
     def get(self, request):
         data = get_analytics().get_gap_segmentation(get_filters(request))
         return Response(data)
 
 class LoyaltySegmentationAPI(APIView):
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 15))
     def get(self, request):
         data = get_analytics().get_customer_segmentation_matrix(get_filters(request))
         return Response(data)
 
 class ActionEngineAPI(APIView):
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 60))  # Cache for 1 hour
     def get(self, request):
         data = get_analytics().get_action_engine_data(get_filters(request))
         return Response(data)
@@ -209,7 +193,6 @@ class ActionEngineAPI(APIView):
 
 class BusinessInsightsAPI(APIView):
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 60)) # Cache for 1 hour
     def get(self, request):
         svc = get_analytics()
         insight_type = request.GET.get('type')
@@ -221,27 +204,23 @@ class BusinessInsightsAPI(APIView):
 
 class RetailLoyaltyReportAPI(APIView):
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 15))
     def get(self, request):
         data = get_analytics().get_retail_loyalty_report(get_filters(request))
         return Response(data)
 
 class RetailLoyaltyAdvancedReportAPI(APIView):
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 30))  # 30-minute cache
     def get(self, request):
         return Response(get_analytics().get_retail_loyalty_advanced_report(get_filters(request)))
 
 class FYLoyaltyReportAPI(APIView):
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 30))  # Cache for 30 minutes
     def get(self, request):
         data = get_analytics().get_fy_loyalty_report(get_filters(request))
         return Response(data)
 
 class FYSalesReportAPI(APIView):
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 30))  # Cache for 30 minutes
     def get(self, request):
         data = get_analytics().get_fy_sales_report(get_filters(request))
         return Response(data)
@@ -254,7 +233,6 @@ class InvalidMobilesAPI(APIView):
 
 class BranchesAPI(APIView):
     permission_classes = [IsAuthenticated]
-    @method_decorator(cache_page(60 * 60 * 24)) # Cache branches list for 24 hours
     def get(self, request):
         data = get_analytics().get_unique_branches()
         return Response(data)
