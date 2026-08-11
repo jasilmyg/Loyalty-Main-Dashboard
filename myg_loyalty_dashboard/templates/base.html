@@ -496,6 +496,9 @@
                 <a class="nav-link {% if request.resolver_match.url_name == 'campaign_analysis' %}active{% endif %}" href="{% url 'campaign_analysis' %}"><i class="bi bi-megaphone"></i> Campaign Analysis</a>
             </li>
             <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'daily_new_repeat' %}active{% endif %}" href="{% url 'daily_new_repeat' %}"><i class="bi bi-bar-chart-steps"></i> Daily New vs Repeat</a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'redemption_analysis' %}active{% endif %}" href="{% url 'redemption_analysis' %}"><i class="bi bi-gift"></i> Redemption Analysis</a>
             </li>
             <li class="nav-item">
@@ -528,6 +531,12 @@
             <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'enterprise_dashboard' %}active{% endif %}" href="{% url 'enterprise_dashboard' %}">
                     <i class="bi bi-graph-up-arrow"></i> Executive Dashboard
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'azure_analytics' %}active{% endif %}" href="{% url 'azure_analytics' %}" style="border-left: 4px solid #10b981; color: #10b981; background: rgba(16, 185, 129, 0.05); font-weight: 600;">
+                    <i class="bi bi-cloud-check-fill" style="color: #10b981; font-size: 1.25rem; margin-right: 12px !important;"></i> Ultimate Azure Analytics
+                    <span class="badge ms-1" style="background:linear-gradient(135deg,#10b981,#34d399);font-size:8px;font-weight:800;vertical-align:middle;">NEW</span>
                 </a>
             </li>
         </ul>

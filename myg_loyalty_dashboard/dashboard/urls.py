@@ -5,6 +5,7 @@ from .ai_chat_views import AIChatView, AIChatAPIView
 
 urlpatterns = [
     path('', views.DashboardView.as_view(), name='dashboard'),
+    path('azure-analytics/', views.AzureAnalyticsDashboardView.as_view(), name='azure_analytics'),
     path('customers/', views.CustomerAnalyticsView.as_view(), name='customers'),
     path('rfm/', views.RFMView.as_view(), name='rfm'),
     path('cohorts/', views.CohortView.as_view(), name='cohorts'),
@@ -58,4 +59,8 @@ urlpatterns = [
     # AI Chat
     path('ai-chat/', AIChatView.as_view(), name='ai_chat'),
     path('ai-chat/api/', AIChatAPIView.as_view(), name='ai_chat_api'),
+
+    # Daily New vs Repeat
+    path('daily-new-repeat/', views.DailyNewRepeatView.as_view(), name='daily_new_repeat'),
+    path('api/v1/daily-new-repeat/', views.DailyNewRepeatAPIView.as_view(), name='daily_new_repeat_api'),
 ]

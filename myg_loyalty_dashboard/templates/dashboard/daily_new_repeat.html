@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Daily New vs Repeat — myG Loyalty Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+.dnr-hero{background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 60%,#0e4d6e 100%);border-radius:18px;padding:28px 32px;color:#fff;margin-bottom:28px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;box-shadow:0 8px 32px rgba(15,23,42,.18);}
+.dnr-hero h1{font-size:1.55rem;font-weight:800;letter-spacing:-.5px;margin:0 0 4px;}
+.dnr-hero p{font-size:.82rem;color:#93c5fd;margin:0;}
+.dnr-badge{background:rgba(99,179,237,.15);border:1px solid rgba(99,179,237,.35);border-radius:20px;padding:5px 14px;font-size:.72rem;font-weight:700;color:#7dd3fc;letter-spacing:.05em;text-transform:uppercase;}
+.filter-bar{background:#fff;border:1px solid #e8ecf0;border-radius:14px;padding:16px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:24px;box-shadow:0 1px 6px rgba(0,0,0,.05);}
+.filter-bar label{font-size:.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;}
+.filter-bar input,.filter-bar select{border:1px solid #e2e8f0;border-radius:8px;padding:7px 12px;font-size:.83rem;color:#1e293b;outline:none;background:#f8fafc;}
+.btn-apply{background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;border:none;border-radius:8px;padding:8px 20px;font-size:.83rem;font-weight:700;cursor:pointer;}
+.btn-reset{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:8px;padding:8px 16px;font-size:.83rem;font-weight:600;cursor:pointer;}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:26px;}
+.kpi-card{background:#fff;border:1px solid #e8ecf0;border-radius:14px;padding:18px 20px;box-shadow:0 1px 6px rgba(0,0,0,.05);position:relative;overflow:hidden;transition:box-shadow .2s,transform .2s;}
+.kpi-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.1);transform:translateY(-2px);}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:14px 14px 0 0;}
+.kpi-card.new::before{background:linear-gradient(90deg,#22c55e,#16a34a);}
+.kpi-card.rep::before{background:linear-gradient(90deg,#3b82f6,#1d4ed8);}
+.kpi-card.tot::before{background:linear-gradient(90deg,#a855f7,#7c3aed);}
+.kpi-card.rev::before{background:linear-gradient(90deg,#f59e0b,#d97706);}
+.kpi-card.avg::before{background:linear-gradient(90deg,#ec4899,#db2777);}
+.kpi-card.pct::before{background:linear-gradient(90deg,#06b6d4,#0891b2);}
+.kpi-label{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#94a3b8;margin-bottom:6px;}
+.kpi-value{font-size:1.65rem;font-weight:800;color:#111827;letter-spacing:-.5px;}
+.kpi-sub{font-size:.74rem;color:#64748b;margin-top:4px;}
+.kpi-icon{position:absolute;top:14px;right:14px;font-size:1.5rem;opacity:.12;}
+.charts-grid{display:grid;grid-template-columns:2fr 1fr;gap:20px;margin-bottom:20px;}
+.chart-card{background:#fff;border:1px solid #e8ecf0;border-radius:16px;padding:22px 24px;box-shadow:0 1px 6px rgba(0,0,0,.05);}
+.chart-card-full{background:#fff;border:1px solid #e8ecf0;border-radius:16px;padding:22px 24px;box-shadow:0 1px 6px rgba(0,0,0,.05);margin-bottom:20px;}
+.chart-title{font-size:.88rem;font-weight:700;color:#1e293b;margin-bottom:4px;}
+.chart-sub{font-size:.73rem;color:#94a3b8;margin-bottom:14px;}
+.chart-legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px;}
+.legend-dot{display:flex;align-items:center;gap:6px;font-size:.75rem;font-weight:600;color:#475569;}
+.legend-dot span{width:10px;height:10px;border-radius:50%;display:inline-block;}
+.table-card{background:#fff;border:1px solid #e8ecf0;border-radius:16px;padding:22px 24px;box-shadow:0 1px 6px rgba(0,0,0,.05);margin-bottom:20px;}
+.dnr-table{width:100%;border-collapse:collapse;font-size:.82rem;}
+.dnr-table thead th{background:#f8fafc;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#64748b;padding:10px 14px;text-align:right;border-bottom:1px solid #e8ecf0;white-space:nowrap;}
+.dnr-table thead th:first-child{text-align:left;}
+.dnr-table tbody td{padding:9px 14px;text-align:right;border-bottom:1px solid #f1f5f9;color:#334155;}
+.dnr-table tbody td:first-child{text-align:left;font-weight:600;color:#1e293b;}
+.dnr-table tbody tr:hover{background:#f8fafc;}
+.badge-new{background:#dcfce7;color:#15803d;border-radius:6px;padding:2px 8px;font-size:.7rem;font-weight:700;}
+.badge-rep{background:#dbeafe;color:#1d4ed8;border-radius:6px;padding:2px 8px;font-size:.7rem;font-weight:700;}
+.mini-bar{display:inline-flex;width:100%;height:6px;border-radius:4px;overflow:hidden;}
+.mini-bar-new{background:#22c55e;}
+.mini-bar-rep{background:#3b82f6;}
+#loadingOverlay{display:none;position:fixed;inset:0;background:rgba(255,255,255,.75);z-index:9999;align-items:center;justify-content:center;flex-direction:column;gap:16px;}
+.spinner{width:44px;height:44px;border:4px solid #e2e8f0;border-top-color:#3b82f6;border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:900px){.charts-grid{grid-template-columns:1fr}.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dnr-hero">
+  <div>
+    <h1>&#128202; Daily New vs Repeat Customers</h1>
+    <p>Day-by-day breakdown &mdash; <b style="color:#4ade80;">NEW</b> = first purchase from Jul 2026 onwards &nbsp;|&nbsp; <b style="color:#60a5fa;">REPEAT</b> = had any purchase before Jul 2026 (JAS base)</p>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+    <span class="dnr-badge" id="dateRangeBadge">Loading&hellip;</span>
+    <span class="dnr-badge" style="background:rgba(34,197,94,.15);border-color:rgba(34,197,94,.35);color:#4ade80;">&#x1F7E2; Live</span>
+    <span class="dnr-badge" id="baseDateBadge" style="background:rgba(251,191,36,.15);border-color:rgba(251,191,36,.35);color:#fbbf24;">&#128197; Base: end of Jun 2026</span>
+  </div>
+</div>
+
+<div class="filter-bar">
+  <div><label>From</label><br><input type="date" id="startDate"></div>
+  <div><label>To</label><br><input type="date" id="endDate"></div>
+  <div><label>Branch</label><br>
+    <select id="branchSelect" style="min-width:200px;">
+      <option value="">All Branches</option>
+    </select>
+  </div>
+  <div style="margin-top:18px;"><button class="btn-apply" id="applyBtn">Apply Filters</button></div>
+  <div style="margin-top:18px;"><button class="btn-reset" id="resetBtn">Reset</button></div>
+  <div style="margin-left:auto;margin-top:18px;"><button class="btn-reset" id="exportBtn">&#11015; Export CSV</button></div>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi-card tot"><div class="kpi-icon">&#128101;</div><div class="kpi-label">Total Customers</div><div class="kpi-value" id="kTotal">&#8212;</div><div class="kpi-sub" id="kDays">&#8212; days</div></div>
+  <div class="kpi-card new"><div class="kpi-icon">&#127381;</div><div class="kpi-label">New Customers</div><div class="kpi-value" id="kNew">&#8212;</div><div class="kpi-sub" id="kNewPct">&#8212;% of total</div></div>
+  <div class="kpi-card rep"><div class="kpi-icon">&#128260;</div><div class="kpi-label">Repeat Customers</div><div class="kpi-value" id="kRepeat">&#8212;</div><div class="kpi-sub" id="kRepPct">&#8212;% of total</div></div>
+  <div class="kpi-card rev"><div class="kpi-icon">&#128176;</div><div class="kpi-label">Total Revenue</div><div class="kpi-value" id="kRevenue">&#8212;</div><div class="kpi-sub" id="kRevSub">New + Repeat</div></div>
+  <div class="kpi-card avg"><div class="kpi-icon">&#128197;</div><div class="kpi-label">Avg Daily New</div><div class="kpi-value" id="kAvgNew">&#8212;</div><div class="kpi-sub">customers/day</div></div>
+  <div class="kpi-card pct"><div class="kpi-icon">&#128197;</div><div class="kpi-label">Avg Daily Repeat</div><div class="kpi-value" id="kAvgRep">&#8212;</div><div class="kpi-sub">customers/day</div></div>
+</div>
+<div style="background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:10px;padding:10px 16px;margin-bottom:20px;font-size:.78rem;color:#92400e;"><b>&#9432; Classification Logic (same as JAS 2026):</b> A customer is classified as <b>REPEAT</b> if they made any purchase before <b>July 1, 2026</b> (based on the complete historical database). Otherwise they are <b>NEW</b> &mdash; a first-time buyer in the JAS quarter or later.</div>
+
+<div class="charts-grid">
+  <div class="chart-card">
+    <div class="chart-title">&#128202; Daily Customer Volume</div>
+    <div class="chart-sub">New vs Repeat &mdash; stacked bar per day</div>
+    <div class="chart-legend">
+      <div class="legend-dot"><span style="background:#22c55e"></span>New</div>
+      <div class="legend-dot"><span style="background:#3b82f6"></span>Repeat</div>
+    </div>
+    <canvas id="stackedBarChart" style="max-height:300px;"></canvas>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">&#127833; Period Split</div>
+    <div class="chart-sub">New vs Repeat proportion</div>
+    <canvas id="donutChart" style="max-height:280px;margin-top:8px;"></canvas>
+    <div id="donutSummary" style="text-align:center;margin-top:12px;font-size:.8rem;color:#64748b;"></div>
+  </div>
+</div>
+
+<div class="chart-card-full">
+  <div class="chart-title">&#128176; Daily Revenue Trend</div>
+  <div class="chart-sub">New revenue vs Repeat revenue (&#8377;)</div>
+  <div class="chart-legend">
+    <div class="legend-dot"><span style="background:#22c55e"></span>New Revenue</div>
+    <div class="legend-dot"><span style="background:#3b82f6"></span>Repeat Revenue</div>
+    <div class="legend-dot"><span style="background:#a855f7;border-radius:2px;"></span>Total Revenue</div>
+  </div>
+  <canvas id="revenueChart" style="max-height:280px;"></canvas>
+</div>
+
+<div class="chart-card-full">
+  <div class="chart-title">&#128200; New Customer % &mdash; Daily Trend</div>
+  <div class="chart-sub">Percentage of each day's customers who are first-time buyers</div>
+  <canvas id="pctChart" style="max-height:220px;"></canvas>
+</div>
+
+<div class="table-card">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+    <div>
+      <div class="chart-title">&#128203; Day-by-Day Breakdown</div>
+      <div class="chart-sub" style="margin-bottom:0">All transactions in selected period</div>
+    </div>
+    <input type="text" id="tableSearch" placeholder="Search date&hellip;"
+           style="border:1px solid #e2e8f0;border-radius:8px;padding:7px 12px;font-size:.82rem;width:180px;">
+  </div>
+  <div style="overflow-x:auto;">
+    <table class="dnr-table">
+      <thead>
+        <tr>
+          <th>Date</th><th>New</th><th>Repeat</th><th>Total</th>
+          <th>New%</th><th>Repeat%</th>
+          <th>New Revenue (&#8377;)</th><th>Repeat Revenue (&#8377;)</th><th>Total Revenue (&#8377;)</th>
+          <th>Split</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <tr><td colspan="10" style="text-align:center;padding:40px;color:#94a3b8;">Loading&hellip;</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div id="loadingOverlay">
+  <div class="spinner"></div>
+  <div style="font-size:.82rem;color:#64748b;font-weight:500;">Querying ClickHouse&hellip;</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+var allData=[], stackedChart, donutChart, revenueChart, pctChart;
+
+function fmt(n){ return (n==null)?'—':Number(n).toLocaleString('en-IN'); }
+function fmtRev(n){
+  if(!n) return '₹0';
+  if(n>=1e7) return '₹'+(n/1e7).toFixed(2)+'Cr';
+  if(n>=1e5) return '₹'+(n/1e5).toFixed(1)+'L';
+  return '₹'+Number(n).toLocaleString('en-IN');
+}
+function fmtDate(d){ return new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
+function fmtShort(d){ return new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short'}); }
+function getDefaults(){
+  var n=new Date(), y=n.getFullYear(), m=String(n.getMonth()+1).padStart(2,'0'), dy=String(n.getDate()).padStart(2,'0');
+  return {start:y+'-'+m+'-01', end:y+'-'+m+'-'+dy};
+}
+
+function loadData(){
+  var start=document.getElementById('startDate').value;
+  var end=document.getElementById('endDate').value;
+  var branch=document.getElementById('branchSelect').value;
+  document.getElementById('loadingOverlay').style.display='flex';
+  fetch('/api/v1/daily-new-repeat/?start_date='+start+'&end_date='+end+'&branch='+encodeURIComponent(branch))
+    .then(function(r){return r.json();})
+    .then(function(json){
+      if(json.status!=='success') throw new Error(json.message);
+      var daily=json.data.daily, summary=json.data.summary, branches=json.data.branches;
+      allData=daily;
+      var sel=document.getElementById('branchSelect');
+      var cur=sel.value;
+      sel.innerHTML='<option value="">All Branches</option>';
+      branches.forEach(function(b){ var o=document.createElement('option'); o.value=b; o.textContent=b; if(b===cur) o.selected=true; sel.appendChild(o); });
+      document.getElementById('dateRangeBadge').textContent=fmtDate(summary.start_date)+' → '+fmtDate(summary.end_date);
+      updateKPIs(summary);
+      renderStackedBar(daily);
+      renderDonut(summary);
+      renderRevenue(daily);
+      renderPct(daily);
+      renderTable(daily);
+    })
+    .catch(function(e){ alert('Error: '+e.message); })
+    .finally(function(){ document.getElementById('loadingOverlay').style.display='none'; });
+}
+
+function updateKPIs(s){
+  document.getElementById('kTotal').textContent=fmt(s.total_customers);
+  document.getElementById('kDays').textContent=s.days_counted+' days';
+  document.getElementById('kNew').textContent=fmt(s.total_new);
+  document.getElementById('kNewPct').textContent=s.new_pct+'% of total';
+  document.getElementById('kRepeat').textContent=fmt(s.total_repeat);
+  document.getElementById('kRepPct').textContent=s.repeat_pct+'% of total';
+  document.getElementById('kRevenue').textContent=fmtRev(s.total_revenue);
+  document.getElementById('kRevSub').textContent='New: '+fmtRev(s.total_new_revenue)+' | Repeat: '+fmtRev(s.total_rep_revenue);
+  document.getElementById('kAvgNew').textContent=fmt(s.avg_daily_new);
+  document.getElementById('kAvgRep').textContent=fmt(s.avg_daily_repeat);
+}
+
+function renderStackedBar(daily){
+  if(stackedChart) stackedChart.destroy();
+  stackedChart=new Chart(document.getElementById('stackedBarChart'),{
+    type:'bar',
+    data:{
+      labels:daily.map(function(d){return fmtShort(d.date);}),
+      datasets:[
+        {label:'New',data:daily.map(function(d){return d.new_customers;}),backgroundColor:'rgba(34,197,94,.85)',borderRadius:3,stack:'c'},
+        {label:'Repeat',data:daily.map(function(d){return d.repeat_customers;}),backgroundColor:'rgba(59,130,246,.85)',borderRadius:3,stack:'c'}
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:true,
+      plugins:{legend:{display:false},tooltip:{callbacks:{
+        label:function(ctx){return ctx.dataset.label+': '+fmt(ctx.raw);},
+        afterBody:function(items){var d=daily[items[0].dataIndex];return['Total: '+fmt(d.total_customers),'New%: '+d.new_pct+'%  |  Repeat%: '+d.repeat_pct+'%'];}
+      }}},
+      scales:{x:{stacked:true,grid:{display:false},ticks:{font:{size:10},maxRotation:45}},y:{stacked:true,grid:{color:'#f1f5f9'},ticks:{font:{size:10},callback:function(v){return fmt(v);}}}}}
+  });
+}
+
+function renderDonut(s){
+  if(donutChart) donutChart.destroy();
+  donutChart=new Chart(document.getElementById('donutChart'),{
+    type:'doughnut',
+    data:{labels:['New','Repeat'],datasets:[{data:[s.total_new,s.total_repeat],backgroundColor:['rgba(34,197,94,.85)','rgba(59,130,246,.85)'],borderWidth:2,borderColor:'#fff',hoverOffset:6}]},
+    options:{responsive:true,maintainAspectRatio:true,cutout:'65%',
+      plugins:{legend:{position:'bottom',labels:{font:{size:11},boxWidth:12}},
+        tooltip:{callbacks:{label:function(ctx){return ' '+fmt(ctx.raw)+' ('+(ctx.raw===s.total_new?s.new_pct:s.repeat_pct)+'%)';}}}}}
+  });
+  document.getElementById('donutSummary').innerHTML='<b style="color:#22c55e">'+s.new_pct+'%</b> New &nbsp;|&nbsp; <b style="color:#3b82f6">'+s.repeat_pct+'%</b> Repeat';
+}
+
+function renderRevenue(daily){
+  if(revenueChart) revenueChart.destroy();
+  revenueChart=new Chart(document.getElementById('revenueChart'),{
+    type:'line',
+    data:{
+      labels:daily.map(function(d){return fmtShort(d.date);}),
+      datasets:[
+        {label:'Total Revenue',data:daily.map(function(d){return d.total_revenue;}),borderColor:'#a855f7',backgroundColor:'rgba(168,85,247,.08)',borderWidth:2.5,fill:true,tension:.35,pointRadius:3,pointHoverRadius:6},
+        {label:'Repeat Revenue',data:daily.map(function(d){return d.repeat_revenue;}),borderColor:'#3b82f6',backgroundColor:'transparent',borderWidth:2,tension:.35,pointRadius:2,borderDash:[4,3]},
+        {label:'New Revenue',data:daily.map(function(d){return d.new_revenue;}),borderColor:'#22c55e',backgroundColor:'transparent',borderWidth:2,tension:.35,pointRadius:2,borderDash:[4,3]}
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:true,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return ' '+ctx.dataset.label+': '+fmtRev(ctx.raw);}}}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:10},maxRotation:45}},y:{grid:{color:'#f1f5f9'},ticks:{font:{size:10},callback:function(v){return fmtRev(v);}}}}}
+  });
+}
+
+function renderPct(daily){
+  if(pctChart) pctChart.destroy();
+  pctChart=new Chart(document.getElementById('pctChart'),{
+    type:'line',
+    data:{
+      labels:daily.map(function(d){return fmtShort(d.date);}),
+      datasets:[{label:'New%',data:daily.map(function(d){return d.new_pct;}),borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,.1)',borderWidth:2.5,fill:true,tension:.3,pointRadius:3,pointHoverRadius:6,pointBackgroundColor:'#22c55e'}]
+    },
+    options:{responsive:true,maintainAspectRatio:true,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return ' New%: '+ctx.raw+'%';}}}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:10},maxRotation:45}},y:{min:0,max:100,grid:{color:'#f1f5f9'},ticks:{font:{size:10},callback:function(v){return v+'%';}}}}}
+  });
+}
+
+function renderTable(daily){
+  var tb=document.getElementById('tableBody');
+  if(!daily.length){tb.innerHTML='<tr><td colspan="10" style="text-align:center;padding:40px;color:#94a3b8;">No data for selected period</td></tr>';return;}
+  tb.innerHTML=daily.map(function(d){
+    return '<tr>'+
+      '<td>'+fmtDate(d.date)+'</td>'+
+      '<td><span class="badge-new">'+fmt(d.new_customers)+'</span></td>'+
+      '<td><span class="badge-rep">'+fmt(d.repeat_customers)+'</span></td>'+
+      '<td style="font-weight:700">'+fmt(d.total_customers)+'</td>'+
+      '<td>'+d.new_pct+'%</td>'+
+      '<td>'+d.repeat_pct+'%</td>'+
+      '<td>'+fmtRev(d.new_revenue)+'</td>'+
+      '<td>'+fmtRev(d.repeat_revenue)+'</td>'+
+      '<td style="font-weight:700">'+fmtRev(d.total_revenue)+'</td>'+
+      '<td><div class="mini-bar"><div class="mini-bar-new" style="width:'+d.new_pct+'%"></div><div class="mini-bar-rep" style="width:'+d.repeat_pct+'%"></div></div></td>'+
+      '</tr>';
+  }).join('');
+}
+
+document.getElementById('tableSearch').addEventListener('input',function(){
+  var q=this.value.toLowerCase();
+  renderTable(allData.filter(function(d){return d.date.includes(q)||fmtDate(d.date).toLowerCase().includes(q);}));
+});
+
+document.getElementById('applyBtn').addEventListener('click',loadData);
+document.getElementById('resetBtn').addEventListener('click',function(){
+  var d=getDefaults();
+  document.getElementById('startDate').value=d.start;
+  document.getElementById('endDate').value=d.end;
+  document.getElementById('branchSelect').value='';
+  loadData();
+});
+document.getElementById('exportBtn').addEventListener('click',function(){
+  if(!allData.length){alert('No data');return;}
+  var h='Date,New,Repeat,Total,New%,Repeat%,New Revenue,Repeat Revenue,Total Revenue';
+  var rows=allData.map(function(d){return[d.date,d.new_customers,d.repeat_customers,d.total_customers,d.new_pct,d.repeat_pct,d.new_revenue,d.repeat_revenue,d.total_revenue].join(',');});
+  var csv=[h].concat(rows).join('\n');
+  var a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='daily_new_repeat_'+document.getElementById('startDate').value+'_'+document.getElementById('endDate').value+'.csv';
+  a.click();
+});
+
+document.addEventListener('DOMContentLoaded',function(){
+  var d=getDefaults();
+  document.getElementById('startDate').value=d.start;
+  document.getElementById('endDate').value=d.end;
+  loadData();
+});
+</script>
+{% endblock %}

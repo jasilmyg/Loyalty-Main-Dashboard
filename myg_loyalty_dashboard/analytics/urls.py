@@ -1,7 +1,15 @@
 from django.urls import path
 from . import views
+from . import azure_views
 
 urlpatterns = [
+    # Azure Analytics APIs
+    path('azure/category-performance/', azure_views.AzureCategoryPerformanceAPI.as_view(), name='api-azure-category-performance'),
+    path('azure/customer-cohorts/', azure_views.AzureCustomerCohortsAPI.as_view(), name='api-azure-customer-cohorts'),
+    path('azure/branch-performance/', azure_views.AzureBranchPerformanceAPI.as_view(), name='api-azure-branch-performance'),
+    path('azure/financier-trends/', azure_views.AzureFinancierTrendsAPI.as_view(), name='api-azure-financier-trends'),
+    path('azure/inventory-velocity/', azure_views.AzureInventoryVelocityAPI.as_view(), name='api-azure-inventory-velocity'),
+
     path('sales-overview/', views.SalesOverviewAPI.as_view(), name='api-sales-overview'),
     path('customer-analytics/', views.CustomerAnalyticsAPI.as_view(), name='api-customer-analytics'),
     path('customer-frequency/', views.FrequencyDistributionAPI.as_view(), name='api-customer-frequency'),

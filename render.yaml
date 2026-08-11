@@ -32,6 +32,8 @@ services:
         sync: false   # Set CH password in Render Dashboard → Environment tab
       - key: CH_DATABASE
         value: default
+      - key: AZURE_BLOB_SAS_URL
+        sync: false   # Set Azure SAS token in Render Dashboard
 
   - type: web
     name: loyalty-mcp-server
@@ -66,3 +68,32 @@ services:
         sync: false
       - key: CH_DATABASE
         value: default
+      - key: AZURE_BLOB_SAS_URL
+        sync: false   # Set Azure SAS token in Render Dashboard
+
+  - type: cron
+    name: sync-azure-sales
+    env: python
+    region: singapore
+    plan: free
+    schedule: "0 1 * * *"
+    rootDir: myg_loyalty_dashboard
+    buildCommand: pip install -r requirements.txt
+    startCommand: python manage.py sync_daily_azure_blob
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: myg_loyalty_dashboard.settings
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: CH_HOST
+        value: ytoyqewr56.ap-south-1.aws.clickhouse.cloud
+      - key: CH_PORT
+        value: "8443"
+      - key: CH_USER
+        value: default
+      - key: CH_PASSWORD
+        sync: false
+      - key: CH_DATABASE
+        value: default
+      - key: AZURE_BLOB_SAS_URL
+        sync: false

@@ -5,6 +5,9 @@ from django.shortcuts import render, redirect
 from django.utils.decorators import method_decorator
 from analytics.report_generator import generate_monthly_report_zip
 
+class AzureAnalyticsDashboardView(LoginRequiredMixin, TemplateView):
+    template_name = 'dashboard/azure_analytics.html'
+
 class DashboardView(LoginRequiredMixin, TemplateView):
     template_name = 'dashboard/index.html'
     
@@ -2208,3 +2211,184 @@ class StoreAnalysisProcessAPIView(LoginRequiredMixin, View):
             import traceback
             traceback.print_exc()
             return JsonResponse({'status': 'error', 'message': str(e)})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Daily New vs Repeat Analysis
+# ─────────────────────────────────────────────────────────────────────────────
+
+class DailyNewRepeatView(LoginRequiredMixin, TemplateView):
+    template_name = 'dashboard/daily_new_repeat.html'
+
+
+class DailyNewRepeatAPIView(LoginRequiredMixin, View):
+    """
+    Returns daily breakdown of new vs repeat customers from ClickHouse.
+
+    New/Repeat definition (same logic as JAS 2026):
+      - REPEAT  →  customer had ANY purchase before 2026-07-01 (base = end of Jun 2026)
+      - NEW     →  customer had NO purchase before 2026-07-01
+
+    Query params:
+      - start_date  (YYYY-MM-DD, default: 2026-07-01)
+      - end_date    (YYYY-MM-DD, default: today)
+      - branch      (optional branch filter)
+    """
+    # Fixed base date — same as JAS 2026 uses
+    BASE_DATE = '2026-07-01'
+
+    def get(self, request):
+        from datetime import date
+        from analytics.clickhouse_service import get_ch_client
+
+        today = date.today()
+        default_start = self.BASE_DATE          # default view: Jul 2026 onwards
+        default_end   = today.isoformat()
+
+        start_date = request.GET.get('start_date', default_start)
+        end_date   = request.GET.get('end_date',   default_end)
+        branch     = request.GET.get('branch',     '').strip()
+
+        branch_clause_where = ""
+        if branch and branch.lower() != 'all':
+            safe = branch.replace("'", "''")
+            branch_clause_where = f"AND upper(branch) = upper('{safe}')"
+
+        try:
+            client = get_ch_client()
+
+            # ── JAS-style new vs repeat query — UNIQUE CUSTOMERS per day ──────
+            # NEW    = customer had NO purchase before {self.BASE_DATE} (same as JAS has_prior=0)
+            # REPEAT = customer had ANY purchase before {self.BASE_DATE} (same as JAS has_prior=1)
+            # Each customer counted ONCE per day (GROUP BY customer_mobile, parsed_date only).
+            # Revenue = sum of all their transactions that day (across all branches).
+            rows = client.query(f"""
+                SELECT
+                    sale_date,
+                    countIf(is_new = 1)          AS new_customers,
+                    countIf(is_new = 0)          AS repeat_customers,
+                    count()                      AS total_unique_customers,
+                    sumIf(rev, is_new = 1)       AS new_revenue,
+                    sumIf(rev, is_new = 0)       AS repeat_revenue,
+                    sum(rev)                     AS total_revenue
+                FROM (
+                    -- One row per (customer, day) → unique customer count
+                    SELECT
+                        customer_mobile,
+                        parsed_date              AS sale_date,
+                        sum(total_value)         AS rev,
+                        -- NEW = first purchase ever is >= {self.BASE_DATE}
+                        if(customer_mobile NOT IN (
+                            SELECT DISTINCT customer_mobile
+                            FROM sales_data
+                            WHERE length(customer_mobile) = 10
+                              AND customer_mobile != ''
+                              AND parsed_date < toDate('{self.BASE_DATE}')
+                              AND parsed_date != toDate('1970-01-01')
+                        ), 1, 0)                 AS is_new
+                    FROM sales_data
+                    WHERE length(customer_mobile) = 10
+                      AND customer_mobile != ''
+                      AND parsed_date BETWEEN toDate('{start_date}') AND toDate('{end_date}')
+                      AND parsed_date != toDate('1970-01-01')
+                      {branch_clause_where}
+                    GROUP BY customer_mobile, parsed_date
+                )
+                GROUP BY sale_date
+                ORDER BY sale_date ASC
+            """).result_rows
+
+            # ── Period-level UNIQUE customers (same as JAS) ───────────────────
+            # A customer who visits on 3 days = counted ONCE here, 3× in daily bars.
+            # This matches exactly what the JAS Forecast page shows.
+            uniq = client.query(f"""
+                SELECT
+                    countIf(is_new = 1) AS uniq_new,
+                    countIf(is_new = 0) AS uniq_repeat,
+                    count()             AS uniq_total
+                FROM (
+                    SELECT DISTINCT customer_mobile,
+                        if(customer_mobile NOT IN (
+                            SELECT DISTINCT customer_mobile FROM sales_data
+                            WHERE length(customer_mobile) = 10
+                              AND customer_mobile != ''
+                              AND parsed_date < toDate('{self.BASE_DATE}')
+                              AND parsed_date != toDate('1970-01-01')
+                        ), 1, 0) AS is_new
+                    FROM sales_data
+                    WHERE length(customer_mobile) = 10
+                      AND customer_mobile != ''
+                      AND parsed_date BETWEEN toDate('{start_date}') AND toDate('{end_date}')
+                      AND parsed_date != toDate('1970-01-01')
+                      {branch_clause_where}
+                )
+            """).result_rows[0]
+
+            total_new       = int(uniq[0])
+            total_repeat    = int(uniq[1])
+            total_customers = int(uniq[2])
+
+            # Revenue totals summed from daily rows (correct across all days)
+            total_new_rev   = sum(float(r[4] or 0) for r in rows)
+            total_rep_rev   = sum(float(r[5] or 0) for r in rows)
+            total_revenue   = sum(float(r[6] or 0) for r in rows)
+
+            new_pct         = round(total_new    / total_customers * 100, 1) if total_customers else 0
+            repeat_pct      = round(total_repeat / total_customers * 100, 1) if total_customers else 0
+            avg_daily_new   = round(sum(r[1] for r in rows) / len(rows), 0) if rows else 0
+            avg_daily_repeat= round(sum(r[2] for r in rows) / len(rows), 0) if rows else 0
+
+            # ── Branch list for filter dropdown ───────────────────────────────
+            branch_rows = client.query("""
+                SELECT DISTINCT branch FROM sales_data
+                WHERE branch != '' AND parsed_date != toDate('1970-01-01')
+                ORDER BY branch ASC
+            """).result_rows
+            branches = [r[0] for r in branch_rows]
+
+            daily = []
+            for r in rows:
+                total_d = int(r[3])
+                new_d   = int(r[1])
+                rep_d   = int(r[2])
+                daily.append({
+                    'date':             str(r[0]),
+                    'new_customers':    new_d,
+                    'repeat_customers': rep_d,
+                    'total_customers':  total_d,
+                    'new_revenue':      round(float(r[4] or 0), 2),
+                    'repeat_revenue':   round(float(r[5] or 0), 2),
+                    'total_revenue':    round(float(r[6] or 0), 2),
+                    'new_pct':          round(new_d / total_d * 100, 1) if total_d else 0,
+                    'repeat_pct':       round(rep_d / total_d * 100, 1) if total_d else 0,
+                })
+
+            return JsonResponse({
+                'status': 'success',
+                'data': {
+                    'daily':    daily,
+                    'branches': branches,
+                    'summary': {
+                        'total_new':         total_new,
+                        'total_repeat':      total_repeat,
+                        'total_customers':   total_customers,
+                        'new_pct':           new_pct,
+                        'repeat_pct':        repeat_pct,
+                        'total_new_revenue': round(total_new_rev, 2),
+                        'total_rep_revenue': round(total_rep_rev, 2),
+                        'total_revenue':     round(total_revenue, 2),
+                        'avg_daily_new':     int(avg_daily_new),
+                        'avg_daily_repeat':  int(avg_daily_repeat),
+                        'days_counted':      len(rows),
+                        'start_date':        start_date,
+                        'end_date':          end_date,
+                        'base_date':         self.BASE_DATE,
+                    }
+                }
+            })
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+

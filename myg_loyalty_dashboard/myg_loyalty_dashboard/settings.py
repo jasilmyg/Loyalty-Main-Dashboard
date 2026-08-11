@@ -182,3 +182,4 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 # Hot reload trigger
+AZURE_BLOB_SAS_URL = _os.environ.get('AZURE_BLOB_SAS_URL', None)
