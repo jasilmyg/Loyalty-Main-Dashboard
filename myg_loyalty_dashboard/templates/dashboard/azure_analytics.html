@@ -1,0 +1,216 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold m-0 text-primary">Ultimate Azure Analytics Dashboard</h2>
+    <span class="badge bg-primary fs-6">Live ClickHouse Engine</span>
+</div>
+
+<div class="row g-4 mb-4">
+    <!-- Category Performance -->
+    <div class="col-md-6">
+        <div class="card h-100 shadow-sm border-0 rounded-4">
+            <div class="card-header bg-white border-0 pt-4 pb-0">
+                <h5 class="fw-bold"><i class="bi bi-diagram-3-fill text-primary me-2"></i> Category Performance</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="categoryChart" style="height: 300px;"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Financier Trends -->
+    <div class="col-md-6">
+        <div class="card h-100 shadow-sm border-0 rounded-4">
+            <div class="card-header bg-white border-0 pt-4 pb-0">
+                <h5 class="fw-bold"><i class="bi bi-credit-card-fill text-success me-2"></i> Financier Trends</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="financierChart" style="height: 300px;"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <!-- Branch Performance -->
+    <div class="col-12">
+        <div class="card shadow-sm border-0 rounded-4">
+            <div class="card-header bg-white border-0 pt-4 pb-0">
+                <h5 class="fw-bold"><i class="bi bi-shop text-warning me-2"></i> Top 10 Branches by Revenue</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4">Branch Name</th>
+                                <th>Invoices</th>
+                                <th>Revenue (₹)</th>
+                                <th>Discounts (₹)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="branchTableBody">
+                            <tr><td colspan="4" class="text-center py-4 text-muted">Loading Branch Data...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <!-- Customer Cohorts -->
+    <div class="col-md-6">
+        <div class="card h-100 shadow-sm border-0 rounded-4">
+            <div class="card-header bg-white border-0 pt-4 pb-0">
+                <h5 class="fw-bold"><i class="bi bi-people-fill text-info me-2"></i> Repeat Purchase Frequency</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="cohortChart" style="height: 300px;"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inventory Velocity -->
+    <div class="col-md-6">
+        <div class="card h-100 shadow-sm border-0 rounded-4">
+            <div class="card-header bg-white border-0 pt-4 pb-0">
+                <h5 class="fw-bold"><i class="bi bi-lightning-fill text-danger me-2"></i> Top 10 Fast-Moving Items</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="inventoryChart" style="height: 300px;"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Standard Chart Colors
+    const primaryColors = ['#0d6efd', '#6610f2', '#6f42c1', '#d63384', '#dc3545', '#fd7e14', '#ffc107', '#198754', '#20c997', '#0dcaf0'];
+
+    // 1. Load Category Performance
+    fetch('/api/v1/azure/category-performance/')
+        .then(res => res.json())
+        .then(data => {
+            if(data.status === 'success') {
+                const ctx = document.getElementById('categoryChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.categories.map(c => c.category),
+                        datasets: [{
+                            label: 'Total Revenue (₹)',
+                            data: data.categories.map(c => c.sales),
+                            backgroundColor: '#0d6efd',
+                            borderRadius: 4
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+            }
+        });
+
+    // 2. Load Financier Trends
+    fetch('/api/v1/azure/financier-trends/')
+        .then(res => res.json())
+        .then(data => {
+            if(data.status === 'success') {
+                const ctx = document.getElementById('financierChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: data.financiers.map(f => f.financier),
+                        datasets: [{
+                            data: data.financiers.map(f => f.txns),
+                            backgroundColor: primaryColors,
+                            borderWidth: 0
+                        }]
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: 'right' } }
+                    }
+                });
+            }
+        });
+
+    // 3. Load Branch Table
+    fetch('/api/v1/azure/branch-performance/')
+        .then(res => res.json())
+        .then(data => {
+            if(data.status === 'success') {
+                const tbody = document.getElementById('branchTableBody');
+                tbody.innerHTML = '';
+                // Show top 10
+                data.branches.slice(0, 10).forEach(b => {
+                    const row = `
+                        <tr>
+                            <td class="ps-4 fw-medium">${b.branch}</td>
+                            <td>${b.invoices.toLocaleString()}</td>
+                            <td class="text-success fw-bold">₹${b.revenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                            <td class="text-danger">₹${b.discount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+            }
+        });
+
+    // 4. Load Customer Cohorts
+    fetch('/api/v1/azure/customer-cohorts/')
+        .then(res => res.json())
+        .then(data => {
+            if(data.status === 'success') {
+                const ctx = document.getElementById('cohortChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.frequency.map(f => f.purchase_count + ' Purchases'),
+                        datasets: [{
+                            label: 'Number of Customers',
+                            data: data.frequency.map(f => f.customers),
+                            borderColor: '#0dcaf0',
+                            backgroundColor: 'rgba(13, 202, 240, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+            }
+        });
+
+    // 5. Load Inventory Velocity
+    fetch('/api/v1/azure/inventory-velocity/')
+        .then(res => res.json())
+        .then(data => {
+            if(data.status === 'success') {
+                const ctx = document.getElementById('inventoryChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.velocity.map(v => v.item.substring(0, 20) + '...'),
+                        datasets: [{
+                            label: 'Quantity Sold',
+                            data: data.velocity.map(v => v.qty),
+                            backgroundColor: '#dc3545',
+                            borderRadius: 4
+                        }]
+                    },
+                    options: { 
+                        indexAxis: 'y',
+                        responsive: true, 
+                        maintainAspectRatio: false 
+                    }
+                });
+            }
+        });
+});
+</script>
+{% endblock %}
