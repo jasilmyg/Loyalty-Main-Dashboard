@@ -489,9 +489,7 @@
             <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'cohorts' %}active{% endif %}" href="{% url 'cohorts' %}"><i class="bi bi-calendar3"></i> Cohort Retention</a>
             </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.resolver_match.url_name == 'monthly_retention' %}active{% endif %}" href="{% url 'monthly_retention' %}"><i class="bi bi-calendar-month"></i> Monthly Retention</a>
-            </li>
+
             <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'campaign_analysis' %}active{% endif %}" href="{% url 'campaign_analysis' %}"><i class="bi bi-megaphone"></i> Campaign Analysis</a>
             </li>

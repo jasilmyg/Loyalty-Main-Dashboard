@@ -216,63 +216,95 @@ class AnalyticsService:
     def get_sales_overview(self, filters):
         import json, hashlib
         from django.core.cache import cache
-        cache_key = 'v2_sales_overview_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
+        cache_key = 'v6_azure_soldprice_' + hashlib.md5(
+            json.dumps(filters, sort_keys=True).encode()
+        ).hexdigest()
         cached = cache.get(cache_key)
         if cached is not None:
             return cached
 
+        # azure_sales_report column mapping:
+        #   mop        = catalogue/list price (BEFORE discount) — DO NOT USE for revenue
+        #   sold_price = actual amount customer paid (AFTER discount) — correct revenue
+        #   discount   = mop - sold_price
+        #   date       = DateTime column → use toDate(date)
         ch_where, ch_params = self._build_ch_where_clause(filters)
+        ch_where = ch_where.replace('parsed_date', 'toDate(date)')
+
         try:
-            # ClickHouse: SUM/COUNT over 1.3Cr rows in <0.5s
+            # ── KPI Totals ─────────────────────────────────────────────────────
             row = _ch_q1(f"""
                 SELECT
-                    SUM(total_value)              AS total_revenue,
-                    COUNT(DISTINCT invoice_number) AS total_invoices
-                FROM sales_data
+                    SUM(sold_price)            AS total_revenue,
+                    COUNT(DISTINCT invoice_no) AS total_invoices
+                FROM azure_sales_report
                 WHERE {ch_where}
+                  AND toDate(date) != toDate('1970-01-01')
+                  AND sold_price > 0
             """, ch_params)
-            tr = float(row[0] or 0) if row else 0
-            ti = int(row[1] or 0)   if row else 0
+
+            tr  = float(row[0] or 0) if row else 0
+            ti  = int(row[1]   or 0) if row else 0
             atv = tr / ti if ti > 0 else 0
 
+            # ── Monthly Revenue Trend ──────────────────────────────────────────
             monthly = _ch_q(f"""
                 SELECT
-                    formatDateTime(toStartOfMonth(parsed_date), '%b %y') AS m_label,
-                    SUM(total_value) AS revenue
-                FROM sales_data
+                    formatDateTime(toStartOfMonth(toDate(date)), '%b %y') AS m_label,
+                    SUM(sold_price)                                        AS revenue
+                FROM azure_sales_report
                 WHERE {ch_where}
-                GROUP BY toStartOfMonth(parsed_date), m_label
-                ORDER BY toStartOfMonth(parsed_date) ASC
+                  AND toDate(date) != toDate('1970-01-01')
+                  AND sold_price > 0
+                GROUP BY toStartOfMonth(toDate(date)), m_label
+                ORDER BY toStartOfMonth(toDate(date)) ASC
             """, ch_params)
+
             result = {
                 'total_revenue':  tr,
                 'total_invoices': ti,
                 'atv':            atv,
-                'monthly_trend':  [{'month': r[0], 'revenue': float(r[1] or 0)} for r in monthly],
+                'monthly_trend':  [
+                    {'month': r[0], 'revenue': float(r[1] or 0)} for r in monthly
+                ],
             }
             cache.set(cache_key, result, 3600)
             return result
+
         except Exception as e:
-            print(f"[CH] sales_overview ClickHouse error: {e}")
+            print(f"[CH] sales_overview (azure_sales_report) error: {e}")
+            import traceback; traceback.print_exc()
             return {'total_revenue': 0, 'total_invoices': 0, 'atv': 0, 'monthly_trend': []}
+
 
     # ── Customer Analytics ─────────────────────────────────────────────────────────
     def get_customer_analytics(self, filters):
         import json, hashlib
         from django.core.cache import cache
-        cache_key = 'v2_cust_analytics_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
+        cache_key = 'v3_azure_cust_analytics_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
         cached = cache.get(cache_key)
         if cached is not None:
             return cached
 
+        # azure_invoice_report: one row per invoice, has customer_mobile + invoice_total
+        # date = DateTime column -> toDate(date)
+        # customer_mobile: valid = length 10, not empty
+        # visit_count = distinct days the customer purchased
+        # repeat = visited on more than 1 distinct day
         ch_where, ch_params = self._build_ch_where_clause(filters)
+        ch_where_az = ch_where.replace('parsed_date', 'toDate(date)')
         try:
             row = _ch_q1(f"""
                 WITH customer_agg AS (
                     SELECT customer_mobile,
-                           COUNT(DISTINCT parsed_date) AS visit_count,
-                           SUM(total_value) AS spend
-                    FROM sales_data WHERE {ch_where} AND {CH_VALID_MOBILE}
+                           COUNT(DISTINCT toDate(date)) AS visit_count,
+                           SUM(invoice_total)           AS spend
+                    FROM azure_invoice_report
+                    WHERE {ch_where_az}
+                      AND toDate(date) != toDate('1970-01-01')
+                      AND invoice_total > 0
+                      AND length(customer_mobile) = 10
+                      AND customer_mobile != ''
                     GROUP BY customer_mobile
                 )
                 SELECT SUM(spend), COUNT(DISTINCT customer_mobile), COUNTIf(visit_count > 1)
@@ -282,7 +314,8 @@ class AnalyticsService:
             total_customers  = int(row[1] or 0)   if row else 0
             repeat_customers = int(row[2] or 0)   if row else 0
         except Exception as e:
-            print(f"[CH] customer_analytics ClickHouse error: {e}")
+            print(f"[CH] customer_analytics (azure_invoice_report) error: {e}")
+            import traceback; traceback.print_exc()
             total_ltv, total_customers, repeat_customers = 0, 0, 0
         repeat_rate = (repeat_customers / total_customers * 100) if total_customers > 0 else 0
         result = {
@@ -296,19 +329,26 @@ class AnalyticsService:
     def get_frequency_distribution(self, filters):
         import json, hashlib
         from django.core.cache import cache
-        cache_key = 'v2_freq_dist_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
+        cache_key = 'v3_azure_freq_dist_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
         cached = cache.get(cache_key)
         if cached is not None:
             return cached
 
+        # azure_invoice_report: one row per invoice, has customer_mobile + invoice_total
         ch_where, ch_params = self._build_ch_where_clause(filters)
+        ch_where_az = ch_where.replace('parsed_date', 'toDate(date)')
         try:
             rows = _ch_q(f"""
                 WITH customer_stats AS (
                     SELECT customer_mobile,
-                           COUNT(DISTINCT parsed_date) AS visits,
-                           SUM(total_value) AS revenue
-                    FROM sales_data WHERE {ch_where} AND {CH_VALID_MOBILE}
+                           COUNT(DISTINCT toDate(date)) AS visits,
+                           SUM(invoice_total)           AS revenue
+                    FROM azure_invoice_report
+                    WHERE {ch_where_az}
+                      AND toDate(date) != toDate('1970-01-01')
+                      AND invoice_total > 0
+                      AND length(customer_mobile) = 10
+                      AND customer_mobile != ''
                     GROUP BY customer_mobile
                 ),
                 bucketed AS (
@@ -368,15 +408,23 @@ class AnalyticsService:
         # ClickHouse primary for all queries (global + filtered)
         ch_where, ch_params = self._build_ch_where_clause(filters)
         ch_seg = self._CH_SEGMENT_FILTER.get(segment, '1=0')
+        # azure_invoice_report uses DateTime 'date' column — remap parsed_date filter
+        ch_where_az = ch_where.replace('parsed_date', 'toDate(date)')
         try:
             rows = _ch_q(f"""
                 WITH cs AS (
-                    SELECT customer_mobile, any(customer_name) AS cname,
-                           COUNT() AS visit_count,
-                           SUM(total_value) AS net_revenue,
-                           toString(max(parsed_date)) AS last_visit
-                    FROM sales_data
-                    WHERE {ch_where} AND {CH_VALID_MOBILE}
+                    SELECT customer_mobile,
+                           any(customer_name) AS cname,
+                           COUNT(DISTINCT toDate(date)) AS visit_count,
+                           SUM(invoice_total) AS net_revenue,
+                           toString(max(toDate(date))) AS last_visit
+                    FROM azure_invoice_report
+                    WHERE {ch_where_az}
+                      AND toDate(date) != toDate('1970-01-01')
+                      AND invoice_total > 0
+                      AND length(customer_mobile) = 10
+                      AND customer_mobile != ''
+                      AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
                     GROUP BY customer_mobile
                 )
                 SELECT customer_mobile, cname, visit_count, net_revenue, last_visit
@@ -386,7 +434,7 @@ class AnalyticsService:
             """, ch_params)
             return hdrs, rows
         except Exception as e:
-            print(f"[CH] customers_for_segment fallback: {e}")
+            print(f"[CH] customers_for_segment (azure_invoice_report) error: {e}")
             with connection.cursor() as cur:
                 cur.execute(f"""
                     WITH customer_stats AS (
@@ -409,18 +457,27 @@ class AnalyticsService:
         seg_pred = self._SEGMENT_FILTER.get(segment, '1=0')
         ch_where, ch_params = self._build_ch_where_clause(filters)
         ch_seg = self._CH_SEGMENT_FILTER.get(segment, '1=0')
+        # azure_invoice_report uses DateTime 'date' column — remap parsed_date filter
+        ch_where_az = ch_where.replace('parsed_date', 'toDate(date)')
         try:
             r = _ch_q1(f"""
                 WITH cs AS (
-                    SELECT customer_mobile, COUNT() AS visit_count
-                    FROM sales_data WHERE {ch_where} AND {CH_VALID_MOBILE}
+                    SELECT customer_mobile,
+                           COUNT(DISTINCT toDate(date)) AS visit_count
+                    FROM azure_invoice_report
+                    WHERE {ch_where_az}
+                      AND toDate(date) != toDate('1970-01-01')
+                      AND invoice_total > 0
+                      AND length(customer_mobile) = 10
+                      AND customer_mobile != ''
+                      AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
                     GROUP BY customer_mobile
                 )
                 SELECT COUNT() FROM cs WHERE {ch_seg}
             """, ch_params)
             return int(r[0] or 0) if r else 0
         except Exception as e:
-            print(f"[CH] count_customers_for_segment fallback: {e}")
+            print(f"[CH] count_customers_for_segment (azure_invoice_report) error: {e}")
             r = _q1(f"""
                 WITH cs AS (
                     SELECT "Customer Mobile", COUNT(DISTINCT "Date") AS visits
@@ -435,21 +492,29 @@ class AnalyticsService:
         where_sql, params = self._build_where_clause(filters)
         hdrs = ['Customer Mobile', 'customer_name', 'visits', 'net_revenue', 'last_visit']
         ch_where, ch_params = self._build_ch_where_clause(filters)
+        # azure_invoice_report uses DateTime 'date' column — remap parsed_date filter
+        ch_where_az = ch_where.replace('parsed_date', 'toDate(date)')
         try:
             rows = _ch_q(f"""
-                SELECT customer_mobile, any(customer_name) AS cname,
-                       COUNT() AS visits,
-                       SUM(total_value) AS net_revenue,
-                       toString(max(parsed_date)) AS last_visit
-                FROM sales_data
-                WHERE {ch_where} AND {CH_VALID_MOBILE}
+                SELECT customer_mobile,
+                       any(customer_name) AS cname,
+                       COUNT(DISTINCT toDate(date)) AS visits,
+                       SUM(invoice_total) AS net_revenue,
+                       toString(max(toDate(date))) AS last_visit
+                FROM azure_invoice_report
+                WHERE {ch_where_az}
+                  AND toDate(date) != toDate('1970-01-01')
+                  AND invoice_total > 0
+                  AND length(customer_mobile) = 10
+                  AND customer_mobile != ''
+                  AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
                 GROUP BY customer_mobile
                 ORDER BY net_revenue DESC, customer_mobile ASC
                 LIMIT {self.SEGMENT_CHUNK_SIZE} OFFSET {offset}
             """, ch_params)
             return hdrs, rows
         except Exception as e:
-            print(f"[CH] get_all_customers fallback: {e}")
+            print(f"[CH] get_all_customers (azure_invoice_report) error: {e}")
             with connection.cursor() as cur:
                 cur.execute(f"""
                     WITH customer_stats AS (
@@ -470,14 +535,22 @@ class AnalyticsService:
     def count_all_customers(self, filters):
         where_sql, params = self._build_where_clause(filters)
         ch_where, ch_params = self._build_ch_where_clause(filters)
+        # azure_invoice_report uses DateTime 'date' column — remap parsed_date filter
+        ch_where_az = ch_where.replace('parsed_date', 'toDate(date)')
         try:
             r = _ch_q1(f"""
                 SELECT COUNT(DISTINCT customer_mobile)
-                FROM sales_data WHERE {ch_where} AND {CH_VALID_MOBILE}
+                FROM azure_invoice_report
+                WHERE {ch_where_az}
+                  AND toDate(date) != toDate('1970-01-01')
+                  AND invoice_total > 0
+                  AND length(customer_mobile) = 10
+                  AND customer_mobile != ''
+                  AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
             """, ch_params)
             return int(r[0] or 0) if r else 0
         except Exception as e:
-            print(f"[CH] count_all_customers fallback: {e}")
+            print(f"[CH] count_all_customers (azure_invoice_report) error: {e}")
             r = _q1(f"""
                 SELECT COUNT(DISTINCT "Customer Mobile")
                 FROM {TABLE} WHERE {where_sql} AND {VALID_MOBILE}
@@ -525,21 +598,35 @@ class AnalyticsService:
         """
 
     def get_rfm_segments(self, filters):
+        import json, hashlib
+        from django.core.cache import cache
+        cache_key = 'v3_azure_rfm_segments_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         ch_where, ch_params = self._build_ch_where_clause(filters)
+        # azure_invoice_report uses DateTime 'date' column — remap parsed_date filter
+        ch_where_az = ch_where.replace('parsed_date', 'toDate(date)')
         try:
             rows = _ch_q(f"""
                 WITH rfm_base AS (
                     SELECT customer_mobile AS mobile,
-                           COUNT()            AS frequency,
-                           SUM(total_value)   AS monetary,
-                           dateDiff('day', max(parsed_date), today()) AS recency
-                    FROM sales_data
-                    WHERE {ch_where} AND {CH_VALID_MOBILE}
+                           COUNT(DISTINCT toDate(date)) AS frequency,
+                           SUM(invoice_total)            AS monetary,
+                           dateDiff('day', max(toDate(date)), today()) AS recency
+                    FROM azure_invoice_report
+                    WHERE {ch_where_az}
+                      AND toDate(date) != toDate('1970-01-01')
+                      AND invoice_total > 0
+                      AND length(customer_mobile) = 10
+                      AND customer_mobile != ''
+                      AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
                     GROUP BY customer_mobile
                 ),
                 scored AS (
                     SELECT mobile, monetary,
-                        multiIf(recency<=90,5, recency<=180,4, recency<=365,3, recency<=730,2, 1) AS r_score,
+                        multiIf(recency<=180,5, recency<=365,4, recency<=730,3, recency<=1095,2, 1) AS r_score,
                         multiIf(frequency>=5,5, frequency=4,4, frequency=3,3, frequency=2,2, 1) AS f_score,
                         ntile(5) OVER (ORDER BY monetary ASC) AS m_score
                     FROM rfm_base
@@ -550,7 +637,7 @@ class AnalyticsService:
                             r_score>=4 AND f_score>=4 AND m_score>=4, 'Champions',
                             r_score>=3 AND f_score>=3 AND m_score>=3, 'Loyal',
                             r_score>=4 AND f_score<=2,               'New',
-                            r_score=2  AND f_score>=3 AND m_score>=3, 'At Risk',
+                            r_score<=2 AND f_score>=3 AND m_score>=3, 'At Risk',
                             r_score=1,                               'Lost',
                             'Others'
                         ) AS segment
@@ -560,10 +647,12 @@ class AnalyticsService:
                        SUM(monetary) AS total_revenue, avg(monetary) AS avg_revenue
                 FROM segmented GROUP BY segment ORDER BY count DESC
             """, ch_params)
-            return [{'segment': r[0], 'count': r[1],
+            result = [{'segment': r[0], 'count': r[1],
                      'total_revenue': float(r[2] or 0), 'avg_revenue': float(r[3] or 0)} for r in rows]
+            cache.set(cache_key, result, 86400)
+            return result
         except Exception as e:
-            print(f"[CH] rfm_segments ClickHouse error: {e}")
+            print(f"[CH] rfm_segments (azure_invoice_report) error: {e}")
             return []
 
     def perform_rfm_analysis(self, filters):
@@ -572,11 +661,19 @@ class AnalyticsService:
     def get_monetary_quintiles(self, filters):
         labels = {1:'Top 20%', 2:'Next 20%', 3:'Middle 20%', 4:'Next 20%', 5:'Bottom 20%'}
         ch_where, ch_params = self._build_ch_where_clause(filters)
+        # azure_invoice_report uses DateTime 'date' column — remap parsed_date filter
+        ch_where_az = ch_where.replace('parsed_date', 'toDate(date)')
         try:
             rows = _ch_q(f"""
                 WITH cs AS (
-                    SELECT customer_mobile, SUM(total_value) AS total_spend
-                    FROM sales_data WHERE {ch_where} AND {CH_VALID_MOBILE}
+                    SELECT customer_mobile, SUM(invoice_total) AS total_spend
+                    FROM azure_invoice_report
+                    WHERE {ch_where_az}
+                      AND toDate(date) != toDate('1970-01-01')
+                      AND invoice_total > 0
+                      AND length(customer_mobile) = 10
+                      AND customer_mobile != ''
+                      AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
                     GROUP BY customer_mobile
                 ),
                 sc AS (
@@ -588,7 +685,7 @@ class AnalyticsService:
             """, ch_params)
             return [{'label': labels.get(r[0], f'Group {r[0]}'), 'avg_spend': float(r[1] or 0), 'count': r[2]} for r in rows]
         except Exception as e:
-            print(f"[CH] monetary_quintiles ClickHouse error: {e}")
+            print(f"[CH] monetary_quintiles (azure_invoice_report) error: {e}")
             return []
 
     def get_rfm_details_query(self, filters, segment=None):
@@ -619,22 +716,30 @@ class AnalyticsService:
         if _cached is not None:
             return _cached
 
-        # ClickHouse primary path
+        # ── ClickHouse primary path — uses azure_invoice_report (Azure Blob) ──
         try:
             rows = _ch_q("""
-                WITH cohort_items AS (
-                    SELECT customer_mobile,
-                           formatDateTime(min(parsed_date), '%Y-%m') AS cohort_month
-                    FROM sales_data
-                    WHERE length(customer_mobile) = 10 AND customer_mobile != ''
-                    GROUP BY customer_mobile
+                WITH base AS (
+                    SELECT customer_mobile AS mobile,
+                           toDate(date)    AS sale_d
+                    FROM azure_invoice_report
+                    WHERE toDate(date) != toDate('1970-01-01')
+                      AND invoice_total > 0
+                      AND length(customer_mobile) = 10
+                      AND customer_mobile != ''
+                      AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                ),
+                cohort_items AS (
+                    SELECT mobile AS customer_mobile,
+                           formatDateTime(min(sale_d), '%Y-%m') AS cohort_month
+                    FROM base
+                    GROUP BY mobile
                 ),
                 user_activities AS (
-                    SELECT s.customer_mobile, ci.cohort_month,
-                           dateDiff('month', toDate(concat(ci.cohort_month, '-01')), s.parsed_date) AS month_number
-                    FROM sales_data s
-                    JOIN cohort_items ci ON s.customer_mobile = ci.customer_mobile
-                    WHERE length(s.customer_mobile) = 10 AND s.customer_mobile != ''
+                    SELECT b.mobile AS customer_mobile, ci.cohort_month,
+                           dateDiff('month', toDate(concat(ci.cohort_month, '-01')), b.sale_d) AS month_number
+                    FROM base b
+                    JOIN cohort_items ci ON b.mobile = ci.customer_mobile
                 )
                 SELECT cohort_month, month_number, COUNT(DISTINCT customer_mobile) AS num_users
                 FROM user_activities
@@ -656,30 +761,39 @@ class AnalyticsService:
 
     def get_yearly_cohort_analysis(self):
         from django.core.cache import cache
-        _ck = 'yearly_cohort_global'
+        _ck = 'v3_azure_yearly_cohort_global'
         _cached = cache.get(_ck)
         if _cached is not None:
             return _cached
 
-        # ── ClickHouse primary path ──────────────────────────────────────────
+        # ── ClickHouse primary path — uses azure_invoice_report (Azure Blob) ──
         try:
             rows = _ch_q("""
-                WITH customer_first_visit AS (
+                WITH base AS (
                     SELECT customer_mobile AS mobile,
-                           toString(toYear(min(parsed_date))) AS cohort_year,
-                           min(parsed_date) AS first_date
-                    FROM sales_data
-                    WHERE length(customer_mobile) = 10 AND customer_mobile != ''
-                    GROUP BY customer_mobile
+                           toDate(date)    AS sale_d,
+                           invoice_total   AS revenue
+                    FROM azure_invoice_report
+                    WHERE toDate(date) != toDate('1970-01-01')
+                      AND invoice_total > 0
+                      AND length(customer_mobile) = 10
+                      AND customer_mobile != ''
+                      AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                ),
+                customer_first_visit AS (
+                    SELECT mobile,
+                           toString(toYear(min(sale_d))) AS cohort_year,
+                           min(sale_d) AS first_date
+                    FROM base
+                    GROUP BY mobile
                 ),
                 customer_activities AS (
-                    SELECT s.customer_mobile AS mobile, s.parsed_date AS activity_date,
-                           s.total_value AS revenue, f.first_date,
+                    SELECT b.mobile, b.sale_d AS activity_date,
+                           b.revenue, f.first_date,
                            f.cohort_year,
-                           toYear(s.parsed_date) - toYear(f.first_date) AS year_index
-                    FROM sales_data s
-                    JOIN customer_first_visit f ON s.customer_mobile = f.mobile
-                    WHERE length(s.customer_mobile) = 10 AND s.customer_mobile != ''
+                           toYear(b.sale_d) - toYear(f.first_date) AS year_index
+                    FROM base b
+                    JOIN customer_first_visit f ON b.mobile = f.mobile
                 ),
                 cohort_yearly_stats AS (
                     SELECT cohort_year, year_index,
@@ -737,7 +851,7 @@ class AnalyticsService:
                 return cohort_data
         except Exception as _ch_err:
             import logging
-            logging.getLogger(__name__).warning(f"[CH] yearly_cohort CH path failed: {_ch_err}")
+            logging.getLogger(__name__).warning(f"[CH] yearly_cohort (azure_invoice_report) error: {_ch_err}")
 
         # ── Raw PG fallback (no MV) ────────────────────────────────────────────
         rows = _q(f"""
@@ -843,13 +957,18 @@ class AnalyticsService:
         where_sql, params = self._build_where_clause(filters)
         ch_where, ch_params = self._build_ch_where_clause(filters)
         try:
+            # azure_invoice_report: date→toDate(date), total_value→invoice_total, invoice_number→invoice_no
+            ch_where_az = ch_where.replace('parsed_date', 'toDate(date)')
             rows = _ch_q(f"""
                 SELECT staff, staff_code,
-                    SUM(total_value) AS sales_value,
-                    COUNT(DISTINCT invoice_number) AS invoice_count,
-                    SUM(total_value) / nullIf(COUNT(DISTINCT invoice_number), 0) AS atv
-                FROM sales_data
-                WHERE {ch_where} AND staff != '' AND length(staff) > 0
+                    SUM(invoice_total) AS sales_value,
+                    COUNT(DISTINCT invoice_no) AS invoice_count,
+                    SUM(invoice_total) / nullIf(COUNT(DISTINCT invoice_no), 0) AS atv
+                FROM azure_invoice_report
+                WHERE {ch_where_az}
+                  AND toDate(date) != toDate('1970-01-01')
+                  AND invoice_total > 0
+                  AND staff != '' AND length(staff) > 0
                 GROUP BY staff, staff_code
                 ORDER BY sales_value DESC LIMIT 50
             """, ch_params)
@@ -871,14 +990,19 @@ class AnalyticsService:
         where_sql, params = self._build_where_clause(filters)
         ch_where, ch_params = self._build_ch_where_clause(filters)
         try:
+            # azure_invoice_report: date→toDate(date), total_value→invoice_total, invoice_number→invoice_no
+            ch_where_az = ch_where.replace('parsed_date', 'toDate(date)')
             rows = _ch_q(f"""
                 SELECT branch,
-                    SUM(total_value) AS revenue,
-                    COUNT(DISTINCT invoice_number) AS transactions,
+                    SUM(invoice_total) AS revenue,
+                    COUNT(DISTINCT invoice_no) AS transactions,
                     COUNT(DISTINCT customer_mobile) AS customer_count,
-                    SUM(total_value) / nullIf(COUNT(DISTINCT invoice_number), 0) AS atv
-                FROM sales_data
-                WHERE {ch_where} AND branch != '' AND length(branch) > 0
+                    SUM(invoice_total) / nullIf(COUNT(DISTINCT invoice_no), 0) AS atv
+                FROM azure_invoice_report
+                WHERE {ch_where_az}
+                  AND toDate(date) != toDate('1970-01-01')
+                  AND invoice_total > 0
+                  AND branch != '' AND length(branch) > 0
                 GROUP BY branch ORDER BY revenue DESC
             """, ch_params)
         except Exception as e:
@@ -900,7 +1024,7 @@ class AnalyticsService:
         import json, hashlib
         from django.core.cache import cache
 
-        cache_key = 'v2_gap_segments_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
+        cache_key = 'v3_azure_gap_segments_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
         cached = cache.get(cache_key)
         if cached is not None:
             return cached
@@ -920,15 +1044,22 @@ class AnalyticsService:
             10: ('Very Low','Ignore','Ignore / Archive. Customer likely churned.'),
         }
 
-        # ── ClickHouse primary path for all gap analysis (global + filtered) ──
+        # ── ClickHouse primary path — uses azure_invoice_report (Azure Blob) ────────────
         ch_where, ch_params = self._build_ch_where_clause(filters)
+        # azure_invoice_report uses DateTime 'date' column — remap parsed_date filter
+        ch_where_az = ch_where.replace('parsed_date', 'toDate(date)')
         try:
             rows = _ch_q(f"""
                 WITH daily_visits AS (
-                    SELECT customer_mobile AS mobile, parsed_date AS purchase_date
-                    FROM sales_data
-                    WHERE {ch_where} AND {CH_VALID_MOBILE}
-                    GROUP BY customer_mobile, parsed_date
+                    SELECT customer_mobile AS mobile, toDate(date) AS purchase_date
+                    FROM azure_invoice_report
+                    WHERE {ch_where_az}
+                      AND toDate(date) != toDate('1970-01-01')
+                      AND invoice_total > 0
+                      AND length(customer_mobile) = 10
+                      AND customer_mobile != ''
+                      AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                    GROUP BY customer_mobile, toDate(date)
                 ),
                 ranked AS (
                     SELECT mobile, purchase_date,
@@ -967,7 +1098,7 @@ class AnalyticsService:
                 FROM bucketed GROUP BY gap_range, sort_order ORDER BY sort_order ASC
             """, ch_params)
         except Exception as e:
-            print(f"[CH] gap_segmentation fallback: {e}")
+            print(f"[CH] gap_segmentation (azure_invoice_report) error: {e}")
             rows = _q(f"""
                 WITH daily_visits AS (
                     SELECT "Customer Mobile" AS mobile, "Date" AS purchase_date
@@ -1021,15 +1152,22 @@ class AnalyticsService:
 
     def get_customer_segmentation_matrix(self, filters):
         ch_where, ch_params = self._build_ch_where_clause(filters)
+        # azure_invoice_report uses DateTime 'date' column — remap parsed_date filter
+        ch_where_az = ch_where.replace('parsed_date', 'toDate(date)')
         try:
             rows = _ch_q(f"""
                 WITH cs AS (
                     SELECT customer_mobile,
-                           COUNT() AS visits,
-                           SUM(total_value) AS total_spend,
-                           dateDiff('day', max(parsed_date), today()) AS recency_days
-                    FROM sales_data
-                    WHERE {ch_where} AND {CH_VALID_MOBILE}
+                           COUNT(DISTINCT toDate(date)) AS visits,
+                           SUM(invoice_total) AS total_spend,
+                           dateDiff('day', max(toDate(date)), today()) AS recency_days
+                    FROM azure_invoice_report
+                    WHERE {ch_where_az}
+                      AND toDate(date) != toDate('1970-01-01')
+                      AND invoice_total > 0
+                      AND length(customer_mobile) = 10
+                      AND customer_mobile != ''
+                      AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
                     GROUP BY customer_mobile
                 )
                 SELECT
@@ -1040,32 +1178,38 @@ class AnalyticsService:
             """, ch_params)
             return [{'freq':r[0],'recency':r[1],'customers':r[2],'avg_spend':round(float(r[3] or 0),2)} for r in rows]
         except Exception as e:
-            print(f"[CH] segmentation_matrix ClickHouse error: {e}")
+            print(f"[CH] segmentation_matrix (azure_invoice_report) error: {e}")
             return []
 
     def get_action_engine_data(self, filters):
         import json, hashlib
         from django.core.cache import cache
 
-        cache_key = 'v2_action_engine_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
+        cache_key = 'v3_azure_action_engine_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
         cached = cache.get(cache_key)
         if cached is not None:
             return cached
 
         where_sql, params = self._build_where_clause(filters)
 
-        # ── ClickHouse primary path for all queries ──────────────────────────
-        # ── ClickHouse fast path for action engine filtered queries ──────────
+        # ── ClickHouse primary path — uses azure_invoice_report (Azure Blob) ──
         ch_where, ch_params = self._build_ch_where_clause(filters)
+        # azure_invoice_report uses DateTime 'date' column — remap parsed_date filter
+        ch_where_az = ch_where.replace('parsed_date', 'toDate(date)')
         try:
             rows = _ch_q(f"""
                 WITH cs AS (
                     SELECT customer_mobile,
                            COUNT() AS visits,
-                           SUM(total_value) AS total_spend,
-                           dateDiff('day', max(parsed_date), today()) AS recency_days
-                    FROM sales_data
-                    WHERE {ch_where} AND {CH_VALID_MOBILE}
+                           SUM(invoice_total) AS total_spend,
+                           dateDiff('day', max(toDate(date)), today()) AS recency_days
+                    FROM azure_invoice_report
+                    WHERE {ch_where_az}
+                      AND toDate(date) != toDate('1970-01-01')
+                      AND invoice_total > 0
+                      AND length(customer_mobile) = 10
+                      AND customer_mobile != ''
+                      AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
                     GROUP BY customer_mobile
                 )
                 SELECT 'Lapsing High Value',   countIf(recency_days BETWEEN 90 AND 180 AND total_spend >= 10000),
@@ -1085,7 +1229,7 @@ class AnalyticsService:
             """, ch_params)
             result = [{'segment':r[0],'customers':r[1],'revenue_at_risk':round(float(r[2] or 0),2),'action':r[3]} for r in rows if r[1]>0]
         except Exception as e:
-            print(f"[CH] action_engine fallback: {e}")
+            print(f"[CH] action_engine (azure_invoice_report) error: {e}")
             rows = _q(f"""
                 WITH cs AS (
                     SELECT "Customer Mobile",
@@ -1117,20 +1261,27 @@ class AnalyticsService:
         import json, hashlib
         from django.core.cache import cache
 
-        cache_key = 'v2_loyalty_kpis_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
+        cache_key = 'v3_azure_loyalty_kpis_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
         cached = cache.get(cache_key)
         if cached is not None:
             return cached
 
-        # Always use ClickHouse (full 2020-2026 data available)
+        # ── ClickHouse primary path — uses azure_invoice_report (Azure Blob) ─
         ch_where, ch_params = self._build_ch_where_clause(filters)
+        # azure_invoice_report uses DateTime 'date' column — remap parsed_date filter
+        ch_where_az = ch_where.replace('parsed_date', 'toDate(date)')
         try:
             row = _ch_q1(f"""
                 WITH daily_visits AS (
-                    SELECT customer_mobile AS mobile, parsed_date AS purchase_date
-                    FROM sales_data
-                    WHERE {ch_where} AND {CH_VALID_MOBILE}
-                    GROUP BY customer_mobile, parsed_date
+                    SELECT customer_mobile AS mobile, toDate(date) AS purchase_date
+                    FROM azure_invoice_report
+                    WHERE {ch_where_az}
+                      AND toDate(date) != toDate('1970-01-01')
+                      AND invoice_total > 0
+                      AND length(customer_mobile) = 10
+                      AND customer_mobile != ''
+                      AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                    GROUP BY customer_mobile, toDate(date)
                 ),
                 ranked AS (
                     SELECT mobile, purchase_date,
@@ -1154,10 +1305,6 @@ class AnalyticsService:
                 SELECT
                     COUNT(DISTINCT v.mobile),
                     countIf(v.visits > 1),
-                    -- FIX: ClickHouse LEFT JOIN returns 0.0 (not NULL) for unmatched
-                    -- Float64 columns, so single-visit customers would be included
-                    -- with avg_gap=0 and drag the average down incorrectly.
-                    -- Use avgIf to only average repeat customers (visits > 1).
                     avgIf(g.avg_gap_days, v.visits > 1)
                 FROM visit_counts v
                 LEFT JOIN customer_avg_gaps g ON v.mobile = g.mobile
@@ -1249,7 +1396,7 @@ class AnalyticsService:
         import hashlib
         from django.core.cache import cache
 
-        cache_key = "retail_matrix2_" + hashlib.md5(json.dumps(filters, sort_keys=True).encode('utf-8')).hexdigest()
+        cache_key = "retail_matrix3_azure_" + hashlib.md5(json.dumps(filters, sort_keys=True).encode('utf-8')).hexdigest()
         cached_result = cache.get(cache_key)
         if cached_result:
             return cached_result
@@ -1266,6 +1413,8 @@ class AnalyticsService:
         has_dim_filter = has_branch or staff or rbm or bdm
 
         ch_where, ch_params = self._build_ch_where_clause(filters)
+        # azure_invoice_report uses DateTime column 'date' — remap parsed_date filter
+        ch_where_az = ch_where.replace('parsed_date', 'toDate(date)')
 
         # ── ClickHouse primary path ──────────────────────────────────────────
         try:
@@ -1281,11 +1430,16 @@ class AnalyticsService:
 
             rows_sql = _ch_q(f"""
                 WITH base AS (
-                    SELECT customer_mobile AS mob, parsed_date AS sale_d, invoice_number AS inv, total_value AS val
-                    FROM sales_data
-                    WHERE {ch_where}
-                      AND length(customer_mobile) = 10 AND customer_mobile != ''
-                      AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                    SELECT customer_mobile      AS mob,
+                           toDate(date)         AS sale_d,
+                           invoice_no           AS inv,
+                           invoice_total        AS val
+                    FROM azure_invoice_report
+                    WHERE {ch_where_az}
+                      AND toDate(date) != toDate('1970-01-01')
+                      AND invoice_total > 0
+                      AND length(customer_mobile) = 10
+                      AND customer_mobile != ''
                 ),
                 cust_first AS (
                     SELECT mob, {trunc_fn}(min(sale_d)) AS first_bucket
@@ -1309,11 +1463,15 @@ class AnalyticsService:
                 db_start = 0
                 if start_date:
                     first_start = rows_sql[0][1]
+                    # azure_invoice_report: remap parsed_date → toDate(date)
+                    ch_where_az_dnr = ch_where.replace('parsed_date', 'toDate(date)')
                     r0 = _ch_q1(f"""
                         WITH base AS (
-                            SELECT customer_mobile AS mob, parsed_date AS sale_d
-                            FROM sales_data
-                            WHERE {ch_where}
+                            SELECT customer_mobile AS mob, toDate(date) AS sale_d
+                            FROM azure_invoice_report
+                            WHERE {ch_where_az_dnr}
+                              AND toDate(date) != toDate('1970-01-01')
+                              AND invoice_total > 0
                               AND length(customer_mobile) = 10 AND customer_mobile != ''
                               AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
                         ),
@@ -1491,7 +1649,7 @@ class AnalyticsService:
         import hashlib
         from django.core.cache import cache
 
-        cache_key = "fy_loyalty2_" + hashlib.md5(json.dumps(filters, sort_keys=True).encode('utf-8')).hexdigest()
+        cache_key = "fy_loyalty3_azure_" + hashlib.md5(json.dumps(filters, sort_keys=True).encode('utf-8')).hexdigest()
         cached_result = cache.get(cache_key)
         if cached_result:
             return cached_result
@@ -1499,6 +1657,7 @@ class AnalyticsService:
         branch = filters.get('branch')
         has_branch = branch and str(branch).strip().lower() not in ('all branches', 'all', '')
         ch_where, ch_params = self._build_ch_where_clause(filters)
+        ch_where_az = ch_where.replace('parsed_date', 'toDate(date)')
 
         def _build_fy_result(rows):
             result, cumulative_db, prev_cumulative_db = [], 0, 0
@@ -1522,11 +1681,13 @@ class AnalyticsService:
         try:
             rows = _ch_q(f"""
                 WITH base AS (
-                    SELECT customer_mobile AS mob, parsed_date AS sale_d
-                    FROM sales_data
-                    WHERE {ch_where}
-                      AND length(customer_mobile) = 10 AND customer_mobile != ''
-                      AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                    SELECT customer_mobile AS mob, toDate(date) AS sale_d
+                    FROM azure_invoice_report
+                    WHERE {ch_where_az}
+                      AND toDate(date) != toDate('1970-01-01')
+                      AND invoice_total > 0
+                      AND length(customer_mobile) = 10
+                      AND customer_mobile != ''
                 ),
                 cust_first AS (SELECT mob, min(sale_d) AS first_d FROM base GROUP BY mob),
                 cust_fy AS (
@@ -1558,7 +1719,7 @@ class AnalyticsService:
         import json, hashlib
         from django.core.cache import cache
 
-        cache_key = 'v2_fy_sales_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
+        cache_key = 'v3_azure_fy_sales_' + hashlib.md5(json.dumps(filters, sort_keys=True).encode()).hexdigest()
         cached = cache.get(cache_key)
         if cached is not None:
             return cached
@@ -1596,15 +1757,20 @@ class AnalyticsService:
                 prev_total = total_sale
             return final_data
 
-        # ── ClickHouse primary path (all filter combinations) ───────────────
+        # ── ClickHouse primary path — uses azure_invoice_report (Azure Blob) ─
         ch_where, ch_params = self._build_ch_where_clause(filters)
+        # azure_invoice_report uses DateTime 'date' column — remap parsed_date filter
+        ch_where_az = ch_where.replace('parsed_date', 'toDate(date)')
         try:
             rows = _ch_q(f"""
                 WITH base AS (
-                    SELECT customer_mobile AS mob, parsed_date AS sale_d, total_value AS val
-                    FROM sales_data
-                    WHERE {ch_where}
-                      AND length(customer_mobile) = 10 AND customer_mobile != ''
+                    SELECT customer_mobile AS mob, toDate(date) AS sale_d, invoice_total AS val
+                    FROM azure_invoice_report
+                    WHERE {ch_where_az}
+                      AND toDate(date) != toDate('1970-01-01')
+                      AND invoice_total > 0
+                      AND length(customer_mobile) = 10
+                      AND customer_mobile != ''
                       AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
                 ),
                 cust_first AS (SELECT mob, min(sale_d) AS first_d FROM base GROUP BY mob),
@@ -1626,7 +1792,7 @@ class AnalyticsService:
                 cache.set(cache_key, result, 86400)
                 return result
         except Exception as e:
-            print(f"[CH] fy_sales_report ClickHouse error: {e}")
+            print(f"[CH] fy_sales_report (azure_invoice_report) error: {e}")
             rows = []
     # ── Gap Analysis Base CTE (kept for backward compat) ─────────────────────
     def _get_gap_analysis_base_cte(self, where_sql):

@@ -613,6 +613,7 @@ class MonthlyRetentionAPIView(LoginRequiredMixin, View):
             # ── Primary: ClickHouse (always current, includes Aug+) ──────────
             from analytics.clickhouse_service import is_ch_available, ch_query
             if is_ch_available():
+                # azure_invoice_report: toDate(date) instead of parsed_date, invoice_total instead of total_value
                 rows = ch_query("""
                     SELECT
                         month_start,
@@ -621,19 +622,23 @@ class MonthlyRetentionAPIView(LoginRequiredMixin, View):
                         total_sales
                     FROM (
                         SELECT
-                            toStartOfMonth(parsed_date)     AS month_start,
+                            toStartOfMonth(toDate(date))    AS month_start,
                             count(DISTINCT customer_mobile) AS unique_customers,
-                            round(sum(total_value), 2)      AS total_sales
-                        FROM sales_data
-                        WHERE parsed_date >= '2026-01-01'
-                          AND LENGTH(customer_mobile) = 10
+                            round(sum(invoice_total), 2)    AS total_sales
+                        FROM azure_invoice_report
+                        WHERE toDate(date) >= '2026-01-01'
+                          AND toDate(date) != toDate('1970-01-01')
+                          AND invoice_total > 0
+                          AND length(customer_mobile) = 10
                           AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
                           AND customer_mobile != ''
                           AND customer_mobile IN (
                               SELECT DISTINCT customer_mobile
-                              FROM sales_data
-                              WHERE parsed_date < '2026-01-01'
-                                AND LENGTH(customer_mobile) = 10
+                              FROM azure_invoice_report
+                              WHERE toDate(date) < toDate('2026-01-01')
+                                AND toDate(date) != toDate('1970-01-01')
+                                AND invoice_total > 0
+                                AND length(customer_mobile) = 10
                                 AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
                                 AND customer_mobile != ''
                           )
@@ -779,32 +784,39 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
             from analytics.clickhouse_service import get_ch_client
             from datetime import date
             client = get_ch_client()
+            # ── azure_invoice_report (Azure Blob) — replaces legacy sales_data ──
+            # date      = DateTime column  → toDate(date)
+            # invoice_total               → replaces total_value
+            # point_redemption not in azure_invoice_report → zeroed out safely
             rows = client.query("""
-                SELECT 
+                SELECT
                     cohort_year,
                     toStartOfMonth(first_2026_date) AS first_2026_month,
                     COUNT(*) AS unique_customers,
-                    SUM(reactivated_revenue) AS total_revenue,
-                    SUM(reactivated_redeemed_points) AS total_redeemed_points,
-                    SUM(reactivated_redeemed_sales) AS total_redeemed_sales,
-                    SUM(reactivated_redeemed_customers) AS total_redeemed_customers
+                    SUM(reactivated_revenue)        AS total_revenue,
+                    toFloat64(0)                    AS total_redeemed_points,
+                    toFloat64(0)                    AS total_redeemed_sales,
+                    toInt64(0)                      AS total_redeemed_customers
                 FROM (
                     SELECT
                         customer_mobile,
-                        maxIf(toYear(parsed_date), parsed_date < toDate('2026-01-01')) AS cohort_year,
-                        minIf(parsed_date, parsed_date >= toDate('2026-01-01')) AS first_2026_date,
-                        sumIf(total_value, parsed_date >= toDate('2026-01-01')) AS reactivated_revenue,
-                        sumIf(toFloat64OrZero(replaceRegexpAll(point_redemption, '[^0-9.]', '')), parsed_date >= toDate('2026-01-01')) AS reactivated_redeemed_points,
-                        sumIf(total_value, parsed_date >= toDate('2026-01-01') AND toFloat64OrZero(replaceRegexpAll(point_redemption, '[^0-9.]', '')) > 0) AS reactivated_redeemed_sales,
-                        countIf(parsed_date >= toDate('2026-01-01') AND toFloat64OrZero(replaceRegexpAll(point_redemption, '[^0-9.]', '')) > 0) AS reactivated_redeemed_customers
-                    FROM sales_data
+                        maxIf(toYear(toDate(date)), toDate(date) < toDate('2026-01-01'))
+                            AS cohort_year,
+                        minIf(toDate(date), toDate(date) >= toDate('2026-01-01'))
+                            AS first_2026_date,
+                        sumIf(invoice_total, toDate(date) >= toDate('2026-01-01'))
+                            AS reactivated_revenue
+                    FROM azure_invoice_report
                     WHERE length(customer_mobile) = 10
-                        AND customer_mobile != ''
-                        AND parsed_date != toDate('1970-01-01')
+                      AND customer_mobile != ''
+                      AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                      AND toDate(date) != toDate('1970-01-01')
+                      AND invoice_total > 0
                     GROUP BY customer_mobile
                 )
                 WHERE cohort_year BETWEEN 2020 AND 2024
-                    AND (first_2026_date = toDate('1970-01-01') OR toStartOfMonth(first_2026_date) < toDate('2026-09-01'))
+                  AND (first_2026_date = toDate('1970-01-01')
+                       OR toStartOfMonth(first_2026_date) < toDate('2026-09-01'))
                 GROUP BY cohort_year, first_2026_month
                 ORDER BY cohort_year ASC, first_2026_month ASC
             """).result_rows
@@ -892,6 +904,8 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                 })
 
             # --- AI FORECASTING LOGIC (Cohort-based chart + Neural Engine scores) ---
+            # Wrapped in a thread with 8-second timeout so a hung ML model
+            # (e.g. BG/NBD divide-by-zero loop) never blocks the HTTP response.
             import numpy as np
             import math
             from datetime import date
@@ -1023,40 +1037,43 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                 'data_source': 'cohort_ml',
             }
 
-            # Step 5: Overlay 4-Model Campaign Intelligence Engine
-            # (BG/NBD + LightGBM + Prophet + K-Means from 1.3 Cr ClickHouse rows)
-            try:
-                from analytics.campaign_intelligence import build_campaign_intelligence
-                ci = build_campaign_intelligence()
-                if ci.get('data_source') not in ('fallback',):
-                    # Score Engine metrics (all 4 models)
-                    ai_forecast['resurrection_prob'] = ci['resurrection_prob']
-                    ai_forecast['repeat_prob']       = ci['repeat_prob']
-                    ai_forecast['dormancy_risk']     = ci['dormancy_risk']
-                    ai_forecast['predicted_vol']     = ci['predicted_vol']
-                    # Prophet chart data (overrides cohort-based chart)
-                    if ci.get('historical') and sum(ci['historical']) > 0:
-                        ai_forecast['historical']   = ci['historical']
-                        ai_forecast['predictions']  = ci['predictions']
-                        ai_forecast['upper_bound']  = ci['upper_bound']
-                        ai_forecast['lower_bound']  = ci['lower_bound']
-                        ai_forecast['accuracy']     = ci['accuracy']
-                        ai_forecast['rmse']         = ci['rmse']
-                    # SHAP-driven insights + model confidence scores
-                    ai_forecast['insights']          = ci['insights']
-                    ai_forecast['confidence_scores'] = ci['confidence_scores']
-                    ai_forecast['data_source']       = ci.get('data_source', 'clickhouse_4model')
-                    # Extra fields for frontend
-                    ai_forecast['forecast_months']   = ci.get('forecast_months', ['Sep 2026', 'Oct 2026', 'Nov 2026'])
-                    ai_forecast['risk_tiers']        = ci.get('risk_tiers', {})
-                    ai_forecast['tier_pcts']         = ci.get('tier_pcts', {})
-                    ai_forecast['lgbm_auc']          = ci.get('lgbm_auc', 0)
-                    ai_forecast['avg_revenue']       = ci.get('avg_revenue', 15000)
-            except Exception as ci_err:
-                import logging
-                logging.getLogger(__name__).warning(
-                    f"[CampaignIntelligence] Using cohort fallback: {ci_err}"
-                )
+            # Step 5: Overlay 4-Model Campaign Intelligence Engine — with hard timeout
+            # BG/NBD can loop indefinitely; run in a daemon thread and skip if too slow.
+            import threading
+            ci_result = {}
+            def _run_ci():
+                try:
+                    from analytics.campaign_intelligence import build_campaign_intelligence
+                    ci_result['data'] = build_campaign_intelligence()
+                except Exception as _e:
+                    import logging
+                    logging.getLogger(__name__).warning(f'[CampaignIntelligence] thread error: {_e}')
+
+            ci_thread = threading.Thread(target=_run_ci, daemon=True)
+            ci_thread.start()
+            ci_thread.join(timeout=8)   # wait max 8 s — then proceed without it
+
+            ci = ci_result.get('data', {})
+            if ci and ci.get('data_source') not in ('fallback', None):
+                ai_forecast['resurrection_prob'] = ci.get('resurrection_prob', ai_forecast['resurrection_prob'])
+                ai_forecast['repeat_prob']       = ci.get('repeat_prob',       ai_forecast['repeat_prob'])
+                ai_forecast['dormancy_risk']     = ci.get('dormancy_risk',     ai_forecast['dormancy_risk'])
+                ai_forecast['predicted_vol']     = ci.get('predicted_vol',     ai_forecast['predicted_vol'])
+                if ci.get('historical') and sum(ci['historical']) > 0:
+                    ai_forecast['historical']    = ci['historical']
+                    ai_forecast['predictions']   = ci['predictions']
+                    ai_forecast['upper_bound']   = ci['upper_bound']
+                    ai_forecast['lower_bound']   = ci['lower_bound']
+                    ai_forecast['accuracy']      = ci['accuracy']
+                    ai_forecast['rmse']          = ci['rmse']
+                ai_forecast['insights']          = ci.get('insights',          [])
+                ai_forecast['confidence_scores'] = ci.get('confidence_scores', ai_forecast['confidence_scores'])
+                ai_forecast['data_source']       = ci.get('data_source',       'clickhouse_4model')
+                ai_forecast['forecast_months']   = ci.get('forecast_months',   ['Sep 2026', 'Oct 2026', 'Nov 2026'])
+                ai_forecast['risk_tiers']        = ci.get('risk_tiers',        {})
+                ai_forecast['tier_pcts']         = ci.get('tier_pcts',         {})
+                ai_forecast['lgbm_auc']          = ci.get('lgbm_auc',          0)
+                ai_forecast['avg_revenue']       = ci.get('avg_revenue',       15000)
 
             return JsonResponse({
                 'status': 'success',
@@ -1126,7 +1143,9 @@ class RedemptionAnalysisAPIView(LoginRequiredMixin, View):
     def get(self, request):
         import traceback
         try:
-            # ── Primary: ClickHouse (always current, includes Aug+) ──────────
+            # ── ClickHouse: sales_data — point_redemption column ─────────────
+            # Azure tables (azure_invoice_report / azure_sales_report) do NOT have
+            # a point_redemption column, so this section stays on sales_data.
             from analytics.clickhouse_service import is_ch_available, ch_query
             if is_ch_available():
                 rows = ch_query("""
@@ -1134,30 +1153,31 @@ class RedemptionAnalysisAPIView(LoginRequiredMixin, View):
                         formatDateTime(toStartOfMonth(parsed_date), '%b-%y')  AS month_label,
                         toStartOfMonth(parsed_date)                            AS month_start,
                         count(DISTINCT customer_mobile)                        AS redeemed_customer_count,
-                        round(sumIf(
+                        ifNull(round(sumIf(
                             toFloat64OrZero(replaceRegexpAll(point_redemption,'[^0-9.]','')),
                             toFloat64OrNull(replaceRegexpAll(point_redemption,'[^0-9.]','')) > 0
-                        ), 2)                                                  AS redeemed_point_value,
-                        round(sumIf(
+                        ), 2), 0)                                              AS redeemed_point_value,
+                        ifNull(round(sumIf(
                             total_value,
                             toFloat64OrNull(replaceRegexpAll(point_redemption,'[^0-9.]','')) > 0
-                        ), 2)                                                  AS redeemed_sale_value,
-                        round(
+                        ), 2), 0)                                             AS redeemed_sale_value,
+                        ifNull(round(
                             100.0 * sumIf(
                                 toFloat64OrZero(replaceRegexpAll(point_redemption,'[^0-9.]','')),
                                 toFloat64OrNull(replaceRegexpAll(point_redemption,'[^0-9.]','')) > 0
                             ) / nullIf(sum(total_value), 0)
-                        , 2)                                                   AS pct_loyalty_discount,
-                        round(
+                        , 2), 0)                                              AS pct_loyalty_discount,
+                        ifNull(round(
                             sumIf(
                                 total_value,
                                 toFloat64OrNull(replaceRegexpAll(point_redemption,'[^0-9.]','')) > 0
                             ) / nullIf(countIf(
                                 toFloat64OrNull(replaceRegexpAll(point_redemption,'[^0-9.]','')) > 0
                             ), 0)
-                        , 2)                                                   AS asp
+                        , 2), 0)                                              AS asp
                     FROM sales_data
                     WHERE parsed_date >= '2020-01-01'
+                      AND parsed_date != toDate('1970-01-01')
                       AND LENGTH(customer_mobile) = 10
                       AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
                       AND customer_mobile != ''
@@ -1193,7 +1213,7 @@ class RedemptionAnalysisAPIView(LoginRequiredMixin, View):
             data = [
                 {
                     'month':          r[0],
-                    'customer_count': r[1],
+                    'customer_count': r[1] or 0,
                     'point_value':    float(r[2] or 0),
                     'sale_value':     float(r[3] or 0),
                     'pct_discount':   float(r[4] or 0),
@@ -1209,6 +1229,7 @@ class RedemptionAnalysisAPIView(LoginRequiredMixin, View):
                 'message': str(e),
                 'trace': traceback.format_exc()
             }, status=500)
+
 
 
 class CampaignLoyaltyDownloadAPIView(UserPassesTestMixin, View):
@@ -2260,8 +2281,8 @@ class DailyNewRepeatAPIView(LoginRequiredMixin, View):
             # ── JAS-style new vs repeat query — UNIQUE CUSTOMERS per day ──────
             # NEW    = customer had NO purchase before {self.BASE_DATE} (same as JAS has_prior=0)
             # REPEAT = customer had ANY purchase before {self.BASE_DATE} (same as JAS has_prior=1)
-            # Each customer counted ONCE per day (GROUP BY customer_mobile, parsed_date only).
-            # Revenue = sum of all their transactions that day (across all branches).
+            # Source: azure_sales_report (item-level) JOIN azure_invoice_report (customer mobile)
+            # Revenue = sum(azure_sales_report.sold_price) per customer per day
             rows = client.query(f"""
                 SELECT
                     sale_date,
@@ -2272,54 +2293,65 @@ class DailyNewRepeatAPIView(LoginRequiredMixin, View):
                     sumIf(rev, is_new = 0)       AS repeat_revenue,
                     sum(rev)                     AS total_revenue
                 FROM (
-                    -- One row per (customer, day) → unique customer count
+                    -- One row per (customer, day)
+                    -- azure_sales_report → sold_price / branch / date
+                    -- azure_invoice_report → customer_mobile (joined on invoice_no)
                     SELECT
-                        customer_mobile,
-                        parsed_date              AS sale_date,
-                        sum(total_value)         AS rev,
-                        -- NEW = first purchase ever is >= {self.BASE_DATE}
-                        if(customer_mobile NOT IN (
+                        i.customer_mobile        AS customer_mobile,
+                        toDate(s.date)           AS sale_date,
+                        sum(s.sold_price)        AS rev,
+                        -- NEW = customer had NO purchase before BASE_DATE
+                        if(i.customer_mobile NOT IN (
                             SELECT DISTINCT customer_mobile
-                            FROM sales_data
+                            FROM azure_invoice_report
                             WHERE length(customer_mobile) = 10
                               AND customer_mobile != ''
-                              AND parsed_date < toDate('{self.BASE_DATE}')
-                              AND parsed_date != toDate('1970-01-01')
+                              AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                              AND toDate(date) < toDate('{self.BASE_DATE}')
+                              AND toDate(date) != toDate('1970-01-01')
+                              AND invoice_total > 0
                         ), 1, 0)                 AS is_new
-                    FROM sales_data
-                    WHERE length(customer_mobile) = 10
-                      AND customer_mobile != ''
-                      AND parsed_date BETWEEN toDate('{start_date}') AND toDate('{end_date}')
-                      AND parsed_date != toDate('1970-01-01')
+                    FROM azure_sales_report s
+                    JOIN azure_invoice_report i ON s.invoice_no = i.invoice_no
+                    WHERE length(i.customer_mobile) = 10
+                      AND i.customer_mobile != ''
+                      AND i.customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                      AND toDate(s.date) BETWEEN toDate('{start_date}') AND toDate('{end_date}')
+                      AND toDate(s.date) != toDate('1970-01-01')
+                      AND s.sold_price > 0
                       {branch_clause_where}
-                    GROUP BY customer_mobile, parsed_date
+                    GROUP BY i.customer_mobile, toDate(s.date)
                 )
                 GROUP BY sale_date
                 ORDER BY sale_date ASC
             """).result_rows
 
-            # ── Period-level UNIQUE customers (same as JAS) ───────────────────
-            # A customer who visits on 3 days = counted ONCE here, 3× in daily bars.
-            # This matches exactly what the JAS Forecast page shows.
+            # ── Period-level UNIQUE customers ─────────────────────────────────
+            # Source: azure_sales_report JOIN azure_invoice_report
             uniq = client.query(f"""
                 SELECT
                     countIf(is_new = 1) AS uniq_new,
                     countIf(is_new = 0) AS uniq_repeat,
                     count()             AS uniq_total
                 FROM (
-                    SELECT DISTINCT customer_mobile,
-                        if(customer_mobile NOT IN (
-                            SELECT DISTINCT customer_mobile FROM sales_data
+                    SELECT DISTINCT i.customer_mobile AS customer_mobile,
+                        if(i.customer_mobile NOT IN (
+                            SELECT DISTINCT customer_mobile FROM azure_invoice_report
                             WHERE length(customer_mobile) = 10
                               AND customer_mobile != ''
-                              AND parsed_date < toDate('{self.BASE_DATE}')
-                              AND parsed_date != toDate('1970-01-01')
+                              AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                              AND toDate(date) < toDate('{self.BASE_DATE}')
+                              AND toDate(date) != toDate('1970-01-01')
+                              AND invoice_total > 0
                         ), 1, 0) AS is_new
-                    FROM sales_data
-                    WHERE length(customer_mobile) = 10
-                      AND customer_mobile != ''
-                      AND parsed_date BETWEEN toDate('{start_date}') AND toDate('{end_date}')
-                      AND parsed_date != toDate('1970-01-01')
+                    FROM azure_sales_report s
+                    JOIN azure_invoice_report i ON s.invoice_no = i.invoice_no
+                    WHERE length(i.customer_mobile) = 10
+                      AND i.customer_mobile != ''
+                      AND i.customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                      AND toDate(s.date) BETWEEN toDate('{start_date}') AND toDate('{end_date}')
+                      AND toDate(s.date) != toDate('1970-01-01')
+                      AND s.sold_price > 0
                       {branch_clause_where}
                 )
             """).result_rows[0]
@@ -2340,8 +2372,10 @@ class DailyNewRepeatAPIView(LoginRequiredMixin, View):
 
             # ── Branch list for filter dropdown ───────────────────────────────
             branch_rows = client.query("""
-                SELECT DISTINCT branch FROM sales_data
-                WHERE branch != '' AND parsed_date != toDate('1970-01-01')
+                SELECT DISTINCT branch FROM azure_invoice_report
+                WHERE branch != ''
+                  AND toDate(date) != toDate('1970-01-01')
+                  AND invoice_total > 0
                 ORDER BY branch ASC
             """).result_rows
             branches = [r[0] for r in branch_rows]

@@ -201,39 +201,36 @@
                 let totalCustomers = 0;
                 
                 result.data.forEach(row => {
-                    totalPoints += row.point_value;
-                    totalSales += row.sale_value;
-                    totalCustomers += row.customer_count;
-                    
+                    totalPoints += (row.point_value ?? 0);
+                    totalSales  += (row.sale_value  ?? 0);
+                    totalCustomers += (row.customer_count ?? 0);
+
                     html += `
                         <tr>
                             <td class="fw-semibold text-dark">${row.month}</td>
-                            <td class="text-end">${formatTableNumber(row.customer_count)}</td>
-                            <td class="text-end fw-medium text-warning">${formatTableNumber(row.point_value)}</td>
-                            <td class="text-end fw-medium text-success">${formatTableNumber(row.sale_value)}</td>
-                            <td class="text-end fw-bold text-primary">${formatTablePercent(row.pct_discount)}</td>
-                            <td class="text-end text-muted">${formatTableNumber(row.asp)}</td>
+                            <td class="text-end">${formatTableNumber(row.customer_count ?? 0)}</td>
+                            <td class="text-end fw-medium text-warning">${formatTableNumber(row.point_value ?? 0)}</td>
+                            <td class="text-end fw-medium text-success">${formatTableNumber(row.sale_value ?? 0)}</td>
+                            <td class="text-end fw-bold text-primary">${formatTablePercent(row.pct_discount ?? 0)}</td>
+                            <td class="text-end text-muted">${formatTableNumber(row.asp ?? 0)}</td>
                         </tr>
                     `;
                 });
                 
                 tbody.innerHTML = html;
-                
-                // Update KPIs
-                document.getElementById('kpi-points').textContent = formatTableNumber(totalPoints);
-                document.getElementById('kpi-sales').textContent = formatTableCurrency(totalSales);
-                
-                if (totalSales > 0) {
-                    const avgPct = (totalPoints / totalSales) * 100;
-                    document.getElementById('kpi-discount').textContent = formatTablePercent(avgPct);
-                }
-                if (totalCustomers > 0) {
-                    const avgAsp = totalSales / totalCustomers;
-                    document.getElementById('kpi-asp').textContent = formatTableCurrency(avgAsp);
-                }
+
+                // Update KPI cards — always show a value (0 if nothing)
+                document.getElementById('kpi-points').textContent = formatTableCurrency(totalPoints || 0);
+                document.getElementById('kpi-sales').textContent  = formatTableCurrency(totalSales  || 0);
+
+                const avgPct = totalSales > 0 ? (totalPoints / totalSales) * 100 : 0;
+                document.getElementById('kpi-discount').textContent = formatTablePercent(avgPct);
+
+                const avgAsp = totalCustomers > 0 ? totalSales / totalCustomers : 0;
+                document.getElementById('kpi-asp').textContent = formatTableCurrency(avgAsp);
                 
             } else {
-                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-5 text-muted">No redemption data found. Ensure Materialized View is built.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-5 text-muted">No discount data found for the selected period.</td></tr>`;
             }
         } catch (error) {
             console.error("Error loading redemption data:", error);

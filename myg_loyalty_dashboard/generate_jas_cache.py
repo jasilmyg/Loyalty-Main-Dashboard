@@ -1,6 +1,6 @@
 """
 generate_jas_cache.py
-Pre-computes JAS 2026 quarter data from ClickHouse and saves to jas_cache.json.
+Pre-computes JAS 2026 quarter data from ClickHouse (azure_invoice_report) and saves to jas_cache.json.
 Run this script once (and periodically) to refresh the cache.
 """
 import os, sys, json, django
@@ -22,44 +22,62 @@ days_done  = max(1, (min(today, jas_end) - jas_start).days + 1)
 days_rem   = max(0, (jas_end - today).days)
 days_total = 92
 
-base_customers = 5330462
+# -- Base customers: all unique customers with ANY purchase before JAS (from azure)
+print("Computing base customers from azure_invoice_report...")
+base_row = client.query("""
+    SELECT countDistinct(customer_mobile)
+    FROM azure_invoice_report
+    WHERE length(customer_mobile) = 10
+      AND customer_mobile != ''
+      AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+      AND toDate(date) < toDate('2026-07-01')
+      AND toDate(date) != toDate('1970-01-01')
+      AND invoice_total > 0
+""").result_rows
+base_customers = int(base_row[0][0]) if base_row else 5292679
+print(f"  Base customers: {base_customers:,}")
+
 trend_rate_2026 = 8.95
 jas_target = round(base_customers * 0.10)
 jas_forecast_final = int(base_customers * trend_rate_2026 / 100)
-print("Computing JAS actuals (optimized single-pass query)...")
 
-# Single-pass query: much faster than two IN subqueries
+print("Computing JAS actuals from azure_invoice_report (single-pass query)...")
+
+# Single-pass: count customers who visited in JAS AND had a prior purchase
 row = client.query("""
-    SELECT
-        countIf(in_jas = 1 AND has_prior = 1) AS repeat_jas
+    SELECT countIf(in_jas = 1 AND has_prior = 1) AS repeat_jas
     FROM (
         SELECT
             customer_mobile,
-            maxIf(1, parsed_date >= toDate('2026-07-01') AND parsed_date <= today()) AS in_jas,
-            maxIf(1, parsed_date < toDate('2026-07-01'))                             AS has_prior
-        FROM sales_data
+            maxIf(1, toDate(date) >= toDate('2026-07-01') AND toDate(date) <= today()) AS in_jas,
+            maxIf(1, toDate(date) <  toDate('2026-07-01'))                             AS has_prior
+        FROM azure_invoice_report
         WHERE length(customer_mobile) = 10
           AND customer_mobile != ''
-          AND parsed_date != toDate('1970-01-01')
+          AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+          AND toDate(date) != toDate('1970-01-01')
+          AND invoice_total > 0
         GROUP BY customer_mobile
     )
 """).result_rows
 jas_achieved = int(row[0][0]) if row else 0
 print(f"  Repeat achieved: {jas_achieved:,}")
 
-# Daily cumulative (also optimized)
-print("Computing daily burn-up...")
+# Daily cumulative burn-up
+print("Computing daily burn-up from azure_invoice_report...")
 daily_rows = client.query("""
     SELECT first_jas_date AS dt, count() AS daily_new
     FROM (
         SELECT
             customer_mobile,
-            minIf(parsed_date, parsed_date >= toDate('2026-07-01') AND parsed_date <= today()) AS first_jas_date,
-            maxIf(1, parsed_date < toDate('2026-07-01')) AS has_prior
-        FROM sales_data
+            minIf(toDate(date), toDate(date) >= toDate('2026-07-01') AND toDate(date) <= today()) AS first_jas_date,
+            maxIf(1, toDate(date) < toDate('2026-07-01')) AS has_prior
+        FROM azure_invoice_report
         WHERE length(customer_mobile) = 10
           AND customer_mobile != ''
-          AND parsed_date != toDate('1970-01-01')
+          AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+          AND toDate(date) != toDate('1970-01-01')
+          AND invoice_total > 0
         GROUP BY customer_mobile
         HAVING has_prior = 1 AND first_jas_date != toDate('1970-01-01')
     )
@@ -104,8 +122,10 @@ cache = {
     "jas_risk_color":     risk_color,
     "jas_daily_json":     jas_daily_pts,
     "jas_target_json":    jas_target,
+    "base_customers":     base_customers,
     "avg_hist_rate":      trend_rate_2026,
     "computed_at":        str(today),
+    "data_source":        "azure_invoice_report",
 }
 
 cache_path = os.path.join(settings.BASE_DIR, 'analytics', 'jas_cache.json')
@@ -113,7 +133,9 @@ with open(cache_path, 'w') as f:
     json.dump(cache, f, indent=2)
 
 print(f"\nJAS 2026 Cache saved to: {cache_path}")
-print(f"  Target          : {jas_target:,}")
+print(f"  Source          : azure_invoice_report")
+print(f"  Base customers  : {base_customers:,}")
+print(f"  Target (10%)    : {jas_target:,}")
 print(f"  Achieved        : {jas_achieved:,}  ({achieved_pct}%)")
 print(f"  Projected Final : {forecast_final:,}")
 print(f"  Status          : {status_badge}")
