@@ -466,8 +466,14 @@
         <!-- Logo Area -->
         <div class="mb-4 mt-4" style="padding-left: 2.5rem;">
             <img src="{% static 'logo.png' %}" alt="myG FUTURE Logo" style="height: 65px; object-fit: contain; margin-bottom: 0.5rem;">
-            <div class="fw-bold text-uppercase mt-2" style="color: #f97316; font-size: 0.8rem; letter-spacing: 0.5px;">myG Loyalty Dashboard</div>
         </div>
+
+
+        <!-- === LEGACY MODULES === -->
+        <div class="mb-2 mt-4" style="padding-left: 2.5rem;">
+            <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">Legacy Operations</small>
+        </div>
+
 
         {% if request.user.username != 'shestart' %}
         <ul class="nav flex-column mb-4">

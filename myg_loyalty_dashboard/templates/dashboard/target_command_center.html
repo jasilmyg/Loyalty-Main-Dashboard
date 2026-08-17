@@ -1,0 +1,645 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+:root {
+  --bg:#f4f6fb; --card:#ffffff; --border:#e2e8f0;
+  --accent:#4f46e5; --accent2:#7c3aed; --gold:#d97706;
+  --green:#16a34a; --red:#dc2626; --orange:#ea580c;
+  --text:#1e293b; --muted:#64748b; --subtle:#f8fafc;
+}
+body{background:var(--bg);}
+.tcc{background:var(--bg);min-height:100vh;padding-bottom:4rem;}
+/* Quarter bar */
+.qbar{background:#fff;border-bottom:1px solid var(--border);padding:.85rem 2rem;
+  position:sticky;top:0;z-index:200;display:flex;align-items:center;gap:1rem;
+  box-shadow:0 1px 8px rgba(0,0,0,.06);}
+.qbar-title{font-size:.65rem;font-weight:800;letter-spacing:2px;color:var(--muted);text-transform:uppercase;}
+.qbtn{padding:.4rem 1.1rem;border-radius:30px;border:1.5px solid #d1d5db;
+  background:#fff;color:var(--muted);font-size:.82rem;font-weight:700;
+  cursor:pointer;transition:all .2s;font-family:Inter,sans-serif;}
+.qbtn:hover{border-color:var(--accent);color:var(--accent);}
+.qbtn.active{background:linear-gradient(135deg,#4f46e5,#7c3aed);border-color:transparent;
+  color:#fff;box-shadow:0 4px 14px rgba(79,70,229,.35);}
+.qlast{margin-left:auto;font-size:.7rem;color:var(--muted);}
+/* Hero */
+.hero{background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 60%,#6d28d9 100%);
+  border-bottom:1px solid rgba(255,255,255,.15);padding:1.75rem 2rem 1.5rem;position:relative;overflow:hidden;}
+.hero::after{content:'';position:absolute;top:-40%;right:-5%;width:450px;height:450px;
+  border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.1),transparent 70%);pointer-events:none;}
+.hero-title{font-size:1.5rem;font-weight:900;color:#fff;letter-spacing:-.5px;}
+.hero-sub{font-size:.82rem;color:rgba(255,255,255,.78);margin-top:.2rem;}
+/* Loading */
+.tcc-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:5rem;color:var(--muted);}
+.spin{width:40px;height:40px;border:3px solid rgba(79,70,229,.15);
+  border-top-color:#4f46e5;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:1rem;}
+@keyframes spin{to{transform:rotate(360deg);}}
+/* Section */
+.tcc-sec{padding:1.75rem 2rem .5rem;}
+.tcc-sec-hd{display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem;}
+.sec-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;
+  justify-content:center;font-size:1rem;flex-shrink:0;}
+.sec-title{font-size:1.1rem;font-weight:800;color:var(--text);letter-spacing:-.3px;}
+.sec-sub{font-size:.73rem;color:var(--muted);margin-top:2px;}
+.tcc-divider{height:1px;background:var(--border);margin:1.5rem 2rem .5rem;}
+/* KPI Grid */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:1rem;padding:0 2rem;}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:16px;
+  padding:1.3rem 1.4rem;position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s;}
+.kpi:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,.1);}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--ka,#6366f1);}
+.kpi-lbl{font-size:.65rem;font-weight:700;letter-spacing:1.2px;color:var(--muted);
+  text-transform:uppercase;margin-bottom:.4rem;}
+.kpi-val{font-size:1.85rem;font-weight:900;color:var(--text);line-height:1;margin-bottom:.25rem;}
+.kpi-sub{font-size:.72rem;color:var(--muted);}
+/* Table */
+.tbl-wrap{padding:0 2rem;}
+.tbl{width:100%;border-collapse:separate;border-spacing:0 4px;font-size:.82rem;}
+.tbl th{font-size:.63rem;font-weight:800;text-transform:uppercase;letter-spacing:1px;
+  color:var(--muted);padding:.5rem 1rem;border-bottom:1px solid var(--border);}
+.tbl td{padding:.75rem 1rem;color:var(--text);background:var(--card);
+  border-top:1px solid var(--border);}
+.tbl tr td:first-child{border-radius:8px 0 0 8px;}
+.tbl tr td:last-child{border-radius:0 8px 8px 0;}
+.tbl tbody tr:hover td{background:#f1f4ff;}
+.risk{display:inline-block;padding:.2rem .6rem;border-radius:20px;
+  font-size:.63rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;}
+.rH{background:#fee2e2;color:#dc2626;}
+.rM{background:#ffedd5;color:#ea580c;}
+.rL{background:#dcfce7;color:#16a34a;}
+/* Card grids */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:1rem;padding:0 2rem;}
+.card-g{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1.3rem;
+  transition:transform .2s;}
+.card-g:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.08);}
+.cg-title{font-size:.88rem;font-weight:700;color:var(--text);margin-bottom:.6rem;}
+.cg-row{display:flex;justify-content:space-between;margin-bottom:.3rem;}
+.cg-lbl{font-size:.68rem;color:var(--muted);}
+.cg-val{font-size:.82rem;font-weight:700;color:var(--text);}
+.cbar{height:4px;background:#e2e8f0;border-radius:4px;margin-top:.6rem;overflow:hidden;}
+.cfill{height:100%;border-radius:4px;}
+/* Reco */
+.reco-list{padding:0 2rem;display:flex;flex-direction:column;gap:.7rem;}
+.reco{background:var(--card);border:1px solid var(--border);border-radius:12px;
+  padding:1.1rem 1.4rem;display:flex;align-items:center;gap:.9rem;transition:all .2s;}
+.reco:hover{border-color:#c7d2fe;transform:translateX(4px);box-shadow:0 4px 14px rgba(79,70,229,.1);}
+.rn{width:30px;height:30px;border-radius:9px;flex-shrink:0;
+  background:linear-gradient(135deg,#4f46e5,#7c3aed);display:flex;align-items:center;
+  justify-content:center;font-size:.82rem;font-weight:900;color:#fff;}
+.reco-txt{flex:1;font-size:.88rem;font-weight:600;color:var(--text);}
+.reco-meta{font-size:.7rem;color:var(--muted);margin-top:.15rem;}
+.gain-val{font-size:1.05rem;font-weight:900;color:#16a34a;}
+.gain-lbl{font-size:.62rem;color:var(--muted);text-transform:uppercase;}
+/* What-if */
+.sim-grid{padding:0 2rem;display:grid;grid-template-columns:1fr 320px;gap:1.5rem;}
+.sim-ctrl{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:1.5rem;}
+.sim-out{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:1.5rem;}
+.sl-wrap{margin-bottom:1.1rem;}
+.sl-lbl{display:flex;justify-content:space-between;font-size:.76rem;font-weight:600;
+  color:var(--text);margin-bottom:.35rem;}
+.sl-v{color:#4f46e5;font-weight:800;}
+input[type=range]{width:100%;-webkit-appearance:none;height:4px;background:#e2e8f0;
+  border-radius:4px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;
+  border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);cursor:pointer;
+  box-shadow:0 0 10px rgba(79,70,229,.35);}
+.sim-r-item{padding:.75rem 1rem;background:var(--subtle);border:1px solid var(--border);border-radius:10px;margin-bottom:.75rem;}
+.sim-r-lbl{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);}
+.sim-r-val{font-size:1.5rem;font-weight:900;color:var(--text);margin-top:.15rem;}
+/* Exec */
+.exec-panel{background:linear-gradient(135deg,#f8faff,#f1f4ff);
+  border:1px solid #c7d2fe;border-radius:20px;padding:2rem;
+  box-shadow:0 4px 24px rgba(79,70,229,.08);}
+.exec-summary{font-size:.88rem;line-height:1.8;color:#374151;padding:1rem;
+  background:#fff;border-radius:10px;margin-bottom:1.5rem;
+  border-left:3px solid var(--accent);box-shadow:0 1px 4px rgba(0,0,0,.04);}
+.exec-decisions{display:grid;grid-template-columns:1fr 1fr;gap:.7rem;}
+.exec-dec{background:#fff;border:1px solid #c7d2fe;
+  border-radius:10px;padding:.8rem 1rem;font-size:.8rem;color:var(--text);
+  display:flex;align-items:center;gap:.5rem;box-shadow:0 1px 4px rgba(0,0,0,.03);}
+.exec-dec::before{content:'▶';color:var(--accent);font-size:.62rem;flex-shrink:0;}
+/* Leader */
+.lead-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;padding:0 2rem;}
+.lead-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:1.5rem;}
+.lead-title{font-size:.75rem;font-weight:800;text-transform:uppercase;letter-spacing:1px;
+  color:var(--muted);margin-bottom:1rem;}
+.lead-item{display:flex;align-items:center;gap:.7rem;padding:.55rem 0;
+  border-bottom:1px solid var(--border);}
+.lead-item:last-child{border-bottom:none;}
+.lead-rank{font-size:.72rem;font-weight:800;width:20px;color:var(--muted);}
+.lead-name{flex:1;font-size:.83rem;font-weight:600;color:var(--text);}
+.lead-val{font-size:.83rem;font-weight:700;color:#4f46e5;}
+/* Gauge */
+.gauge-wrap{background:var(--card);border:1px solid var(--border);border-radius:16px;
+  padding:2rem;display:flex;flex-direction:column;align-items:center;}
+.gauge-lbl{text-align:center;margin-top:.5rem;font-size:.78rem;color:var(--muted);}
+/* Prob grid */
+.prob-grid{display:grid;grid-template-columns:280px 1fr;gap:1.5rem;padding:0 2rem;}
+.prob-cards{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;align-content:start;}
+.prob-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1.1rem 1.3rem;}
+.pc-lbl{font-size:.65rem;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:.35rem;}
+.pc-val{font-size:1.4rem;font-weight:900;color:var(--text);}
+/* Status */
+.spill{display:inline-flex;align-items:center;gap:.35rem;padding:.28rem .8rem;
+  border-radius:30px;font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;}
+.s-ok{background:#dcfce7;color:#15803d;}
+.s-rec{background:#ffedd5;color:#c2410c;}
+.s-risk{background:#fee2e2;color:#b91c1c;}
+/* Action cards */
+.act-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:.9rem;padding:0 2rem;}
+.act-card{background:var(--card);border:1px solid var(--border);border-radius:14px;
+  padding:1.1rem 1.3rem;text-align:center;transition:transform .2s;}
+.act-card:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.08);}
+.act-icon{font-size:1.5rem;margin-bottom:.4rem;}
+.act-num{font-size:1.85rem;font-weight:900;color:var(--text);line-height:1;}
+.act-lbl{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-top:.25rem;}
+/* Recovery */
+.recov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:.9rem;padding:0 2rem;}
+.recov-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1.1rem 1.3rem;}
+/* Hidden opps */
+.hopp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:1rem;padding:0 2rem;}
+.hopp{background:var(--card);border:1px solid var(--border);border-radius:14px;
+  padding:1.2rem 1.4rem;transition:all .2s;}
+.hopp:hover{border-color:#c7d2fe;transform:translateY(-2px);box-shadow:0 6px 18px rgba(79,70,229,.08);}
+/* Chart */
+.chart-box{background:var(--card);border:1px solid var(--border);border-radius:16px;
+  margin:0 2rem;padding:1.4rem;height:250px;}
+/* Fade-in */
+.fade{opacity:0;transform:translateY(14px);transition:opacity .5s,transform .5s;}
+.fade.vis{opacity:1;transform:none;}
+/* Exec kpi mini */
+.exec-kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:.9rem;margin-bottom:1.5rem;}
+.exec-kpi{background:#fff;border:1px solid var(--border);border-radius:10px;padding:.9rem 1rem;box-shadow:0 1px 4px rgba(0,0,0,.04);}
+.ek-lbl{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:.3rem;}
+.ek-val{font-size:1.15rem;font-weight:900;color:var(--text);}
+/* Responsive */
+@media(max-width:900px){
+  .prob-grid,.sim-grid,.lead-grid{grid-template-columns:1fr;}
+  .exec-decisions{grid-template-columns:1fr;}
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="tcc">
+
+  <div class="hero">
+    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+      <div>
+        <div class="hero-title">Target Achievement Command Center</div>
+        <div class="hero-sub" id="h-sub">AI-Powered Quarterly Repeat Customer Intelligence</div>
+      </div>
+      <div id="h-pill" style="margin-left:auto"></div>
+    </div>
+  </div>
+
+  <div class="qbar">
+    <span class="qbar-title">Quarter</span>
+    <button class="qbtn {% if active_quarter == 'AMJ' %}active{% endif %}" id="qbtn-AMJ" onclick="loadQ('AMJ')">AMJ</button>
+    <button class="qbtn {% if active_quarter == 'JAS' %}active{% endif %}" id="qbtn-JAS" onclick="loadQ('JAS')">JAS</button>
+    <button class="qbtn {% if active_quarter == 'OND' %}active{% endif %}" id="qbtn-OND" onclick="loadQ('OND')">OND</button>
+    <button class="qbtn {% if active_quarter == 'JFM' %}active{% endif %}" id="qbtn-JFM" onclick="loadQ('JFM')">JFM</button>
+    <div class="qlast" id="qlast">Loading...</div>
+  </div>
+
+  <div id="main">
+    <div class="tcc-loading"><div class="spin"></div><div>Loading Command Center...</div></div>
+  </div>
+
+</div>
+
+<script>
+var TCC = null;
+var AQ = '{{ active_quarter }}';
+var BC = null; // burn chart instance
+
+function n(v){ return Number(v||0).toLocaleString('en-IN'); }
+function nr(v){ return '&#8377;' + Number(v||0).toFixed(1) + 'L'; }
+function pct(v){ return (Number(v||0)).toFixed(1) + '%'; }
+
+function pill(status){
+  var cls = status === 'ON TRACK' ? 's-ok' : (status === 'RECOVERABLE' ? 's-rec' : 's-risk');
+  return '<span class="spill ' + cls + '">' + (status||'AT RISK') + '</span>';
+}
+function risk(r){
+  var cls = r === 'HIGH' ? 'rH' : r === 'MEDIUM' ? 'rM' : 'rL';
+  return '<span class="risk ' + cls + '">' + r + '</span>';
+}
+function stars(p){ var s=''; for(var i=0;i<5;i++) s+= i<p ? '&#9733;' : '&#9734;'; return s; }
+
+function buildGauge(prob){
+  var cx=100, cy=100, r=78;
+  var startA = -210, endA = 30;
+  var arc = (endA - startA) * (prob/100);
+  function polar(deg, rr){
+    var rad = (deg-90)*Math.PI/180;
+    return {x: cx+rr*Math.cos(rad), y: cy+rr*Math.sin(rad)};
+  }
+  function arcPath(from, to, ri, ro){
+    var s1=polar(from,ro), s2=polar(from,ri);
+    var e1=polar(to,ro), e2=polar(to,ri);
+    var lg = (to-from)>180?1:0;
+    return 'M '+s1.x+' '+s1.y+' A '+ro+' '+ro+' 0 '+lg+' 1 '+e1.x+' '+e1.y+' L '+e2.x+' '+e2.y+' A '+ri+' '+ri+' 0 '+lg+' 0 '+s2.x+' '+s2.y+' Z';
+  }
+  var track = arcPath(startA, endA, 62, 80);
+  var fill  = arcPath(startA, startA+arc, 62, 80);
+  var gc = prob>=75?'#16a34a':prob>=55?'#d97706':'#dc2626';
+  return '<svg width="200" height="200" viewBox="0 0 200 200">' +
+    '<path d="'+track+'" fill="rgba(255,255,255,0.05)"/>' +
+    '<path d="'+fill+'" fill="'+gc+'" opacity="0.9" style="filter:drop-shadow(0 0 8px '+gc+'50)"/>' +
+    '<text x="100" y="96" text-anchor="middle" fill="'+gc+'" font-size="30" font-weight="900" font-family="Inter,sans-serif">'+prob+'%</text>' +
+    '<text x="100" y="116" text-anchor="middle" fill="#7a8cb0" font-size="10" font-family="Inter,sans-serif">PROBABILITY</text>' +
+    '</svg>';
+}
+
+function renderPage(d){
+  TCC = d;
+  var k = d.target_kpis || {};
+  var pb = d.probability_engine || {};
+  var da = d.daily_action_plan || {};
+  var br = d.branch_opportunities || [];
+  var sg = d.opportunity_segments || [];
+  var cp = d.campaign_intelligence || [];
+  var rv = d.recovery_tracker || {};
+  var ho = d.hidden_opportunities || [];
+  var rc = d.risk_center || {};
+  var bm = d.branch_action_matrix || [];
+  var lb = d.leaderboard || {};
+  var re = d.ai_recommendations || [];
+  var wf = d.whatif_params || {};
+  var ex = d.executive_summary || {};
+  var hi = d.quarter_history || [];
+
+  document.getElementById('h-sub').textContent = d.quarter_label + ' | Live Data as of ' + d.today + ' | AI Intelligence';
+  document.getElementById('h-pill').innerHTML = pill(k.status);
+  document.getElementById('qlast').textContent = 'Updated: ' + new Date().toLocaleTimeString('en-IN');
+
+  var html = '';
+
+  /* S1 Target KPIs */
+  html += sec('S1','#4f46e5','Target Command Center','Quarter Achievement | Forecast | Probability | Status');
+  html += '<div class="kpi-grid">';
+  var kpis = [
+    {lbl:'Quarter Target', val:n(k.target), sub:'10% of base customers', c:'#6366f1'},
+    {lbl:'Achieved', val:n(k.achieved), sub:pct(k.ach_pct)+' of target', c:'#22c55e'},
+    {lbl:'Gap Remaining', val:n(k.gap), sub:k.days_rem+' days left', c:'#ef4444'},
+    {lbl:'Forecast Final', val:n(k.forecast), sub:'At current pace', c:'#f59e0b'},
+    {lbl:'Daily Rate', val:n(k.daily_rate), sub:'Need: '+n(k.req_daily)+'/day', c:'#0ea5e9'},
+    {lbl:'AI Probability', val:pct(k.probability), sub:'Success likelihood', c:'#4f46e5'},
+    {lbl:'Confidence', val:pct(k.confidence), sub:'Model confidence', c:'#ea580c'},
+    {lbl:'Status', val:pill(k.status), sub:k.days_done+'/'+k.days_total+' days done', c:k.risk_color||'#f59e0b', raw:true},
+  ];
+  kpis.forEach(function(ki){
+    html += '<div class="kpi" style="--ka:'+ki.c+'">';
+    html += '<div class="kpi-lbl">'+ki.lbl+'</div>';
+    html += '<div class="kpi-val">'+(ki.raw?ki.val:'<span>'+ki.val+'</span>')+'</div>';
+    html += '<div class="kpi-sub">'+ki.sub+'</div></div>';
+  });
+  html += '</div>';
+  html += '<div class="chart-box" style="margin-top:1.5rem"><canvas id="burnChart"></canvas></div>';
+  html += divider();
+
+  /* S2 Probability */
+  html += sec('S2','#7c3aed','AI Probability Engine','Machine learning prediction | Best/Worst case | Factor analysis');
+  html += '<div class="prob-grid">';
+  html += '<div class="gauge-wrap">' + buildGauge(pb.probability||0);
+  html += '<div class="gauge-lbl">' + (pb.interpretation||'') + '</div></div>';
+  html += '<div class="prob-cards">';
+  var pbc = [
+    {lbl:'Likely Final', val:n(pb.likely_final), c:'#e2e8f0'},
+    {lbl:'Best Case', val:n(pb.best_case), c:'#16a34a'},
+    {lbl:'Worst Case', val:n(pb.worst_case), c:'#dc2626'},
+    {lbl:'Confidence', val:pct(pb.confidence), c:'#4f46e5'},
+  ];
+  pbc.forEach(function(p){
+    html += '<div class="prob-card"><div class="pc-lbl">'+p.lbl+'</div><div class="pc-val" style="color:'+p.c+'">'+p.val+'</div></div>';
+  });
+  if(pb.factors) pb.factors.forEach(function(f){
+    html += '<div class="prob-card" style="grid-column:span 2"><div class="pc-lbl">'+f.name+'<span style="float:right;color:#4f46e5">'+f.score+'%</span></div>';
+    html += '<div class="cbar"><div class="cfill" style="width:'+Math.min(f.score,100)+'%;background:linear-gradient(90deg,#6366f1,#8b5cf6)"></div></div></div>';
+  });
+  html += '</div></div>';
+  html += divider();
+
+  /* S3 Daily Action */
+  html += sec('S3','#f59e0b',"Today's Action Plan",'Daily targets | Current pace | Per-hour breakdown');
+  html += '<div class="act-grid">';
+  var acts = [
+    {icon:'&#127919;', num:n(da.need_today), lbl:'Need Today'},
+    {icon:'&#9989;', num:n(da.current_today), lbl:'Current Pace'},
+    {icon:'&#9888;', num:n(da.gap_today), lbl:'Gap Remaining'},
+    {icon:'&#8987;', num:da.hours_remaining||0, lbl:'Hours Left'},
+    {icon:'&#128200;', num:n(da.need_per_hour), lbl:'Need / Hour'},
+    {icon:'&#9201;', num:(da.need_per_minute||0).toFixed(1), lbl:'Need / Minute'},
+  ];
+  acts.forEach(function(a){
+    html += '<div class="act-card"><div class="act-icon">'+a.icon+'</div><div class="act-num">'+a.num+'</div><div class="act-lbl">'+a.lbl+'</div></div>';
+  });
+  html += '</div>';
+  var pac = da.pace_status === 'ON TRACK';
+  html += '<div style="padding:1rem 2rem 0"><div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:.9rem 1.4rem;display:flex;align-items:center;gap:1rem">';
+  html += '<span style="font-size:1.3rem">'+(pac?'&#128994;':'&#128308;')+'</span>';
+  html += '<div><div style="font-size:.83rem;font-weight:700;color:var(--text)">Today: <span style="color:'+(pac?'#16a34a':'#dc2626')+'">'+(da.pace_status||'BEHIND')+'</span></div>';
+  html += '<div style="font-size:.72rem;color:var(--muted)">Achieved '+n(da.current_today)+' of '+n(da.need_today)+' target — '+da.hours_remaining+' business hours remaining</div></div></div></div>';
+  html += divider();
+
+  /* S4 Opportunity Segments */
+  html += sec('S4','#0ea5e9','Opportunity Intelligence','Category-wise potential | Predicted repeat | Priority ranking');
+  html += '<div class="card-grid">';
+  sg.forEach(function(s){
+    html += '<div class="card-g"><div class="cg-title">'+s.category+'</div>';
+    html += row('Total Invoices', n(s.invoices));
+    html += row('Potential Repeat', '<span style="color:#4f46e5;font-weight:700">'+n(s.potential_repeat)+'</span>');
+    html += row('Revenue', '&#8377;'+(s.revenue_lakh||0).toFixed(1)+'L');
+    html += '<div class="cbar"><div class="cfill" style="width:'+Math.min(s.confidence||70,100)+'%;background:linear-gradient(90deg,#22c55e,#4ade80)"></div></div>';
+    html += '<div style="display:flex;justify-content:space-between;margin-top:.4rem"><span style="font-size:.65rem;color:var(--muted)">Confidence: '+(s.confidence||0)+'%</span>';
+    html += '<span style="color:#f59e0b;font-size:.7rem">'+stars(s.priority||3)+'</span></div></div>';
+  });
+  html += '</div>' + divider();
+
+  /* S5 Branch Opportunities */
+  html += sec('S5','#059669','Branch Opportunity Center','Branches ranked by opportunity — NOT by sales');
+  html += '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>#</th><th>Branch</th><th>Invoices</th><th>Unique Customers</th><th>Potential Repeat</th><th>Risk</th><th>Priority</th></tr></thead><tbody>';
+  br.forEach(function(b,i){
+    html += '<tr><td style="color:var(--muted);font-weight:700">'+(i+1)+'</td><td style="font-weight:700">'+b.branch+'</td>';
+    html += '<td>'+n(b.invoices)+'</td><td>'+n(b.unique_customers)+'</td>';
+    html += '<td style="color:#4f46e5;font-weight:700">'+n(b.potential_repeat)+'</td>';
+    html += '<td>'+risk(b.risk)+'</td>';
+    html += '<td style="color:#f59e0b">'+stars(b.priority||1)+'</td></tr>';
+  });
+  html += '</tbody></table></div>' + divider();
+
+  /* S6 Campaign Intelligence */
+  html += sec('S6','#dc2626','Campaign Intelligence','Channel performance | Conversion rates | ROI (via payment mode proxy)');
+  html += '<div class="card-grid">';
+  cp.forEach(function(c,i){
+    html += '<div class="card-g"><div style="display:inline-flex;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);align-items:center;justify-content:center;font-size:.68rem;font-weight:900;color:#fff;margin-bottom:.5rem">'+(i+1)+'</div>';
+    html += '<div class="cg-title">'+(c.channel||'Direct')+'</div>';
+    html += row('Audience', n(c.audience));
+    html += row('Converted', '<span style="color:#16a34a">'+n(c.converted)+'</span>');
+    html += row('Conversion', '<span style="color:#4f46e5">'+pct(c.conversion_pct)+'</span>');
+    html += row('Revenue', '&#8377;'+(c.revenue_lakh||0).toFixed(1)+'L');
+    html += '<div class="cbar"><div class="cfill" style="width:'+Math.min(c.conversion_pct||0,100)+'%;background:linear-gradient(90deg,#6366f1,#a78bfa)"></div></div></div>';
+  });
+  html += '</div>' + divider();
+
+  /* S7 Recovery Tracker */
+  html += sec('S7','#0369a1','Daily Recovery Tracker','Yesterday performance | Today recovery requirement');
+  html += '<div class="recov-grid">';
+  var recs = [
+    {lbl:'Yesterday Need', val:n(rv.yesterday_target), c:'#7a8cb0'},
+    {lbl:'Yesterday Achieved', val:n(rv.yesterday_achieved), c:'#16a34a'},
+    {lbl:'Yesterday Loss', val:n(rv.yesterday_loss), c:'#dc2626'},
+    {lbl:"Today's Need", val:n(rv.today_recovery_need), c:'#4f46e5'},
+    {lbl:'Achievement %', val:pct(rv.recovery_pct), c:'#d97706'},
+    {lbl:'Trend', val:rv.trend||'N/A', c:rv.trend==='IMPROVING'?'#16a34a':'#dc2626'},
+  ];
+  recs.forEach(function(r){
+    html += '<div class="recov-card"><div style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:.3rem">'+r.lbl+'</div>';
+    html += '<div style="font-size:1.3rem;font-weight:900;color:'+r.c+'">'+r.val+'</div></div>';
+  });
+  html += '</div>' + divider();
+
+  /* S8 Hidden Opportunities */
+  html += sec('S8','#9333ea','Hidden Opportunity Finder','AI-discovered customer segments with high repeat potential');
+  html += '<div class="hopp-grid">';
+  ho.forEach(function(h){
+    html += '<div class="hopp"><div style="font-size:.88rem;font-weight:700;color:var(--text);margin-bottom:.4rem">'+h.segment+'</div>';
+    html += '<div style="font-size:.7rem;color:#64748b;line-height:1.4;margin-bottom:.6rem">'+h.description+'</div>';
+    html += '<div style="display:flex;gap:1.5rem">';
+    html += '<div><div style="font-size:1rem;font-weight:800;color:#4f46e5">'+n(h.potential)+'</div><div style="font-size:.6rem;color:var(--muted);text-transform:uppercase">Potential</div></div>';
+    html += '<div><div style="font-size:1rem;font-weight:800;color:#16a34a">&#8377;'+(h.expected_revenue_lakh||0).toFixed(1)+'L</div><div style="font-size:.6rem;color:var(--muted);text-transform:uppercase">Est. Revenue</div></div>';
+    html += '<div><div style="font-size:.7rem;color:#f59e0b">'+stars(h.priority||3)+'</div><div style="font-size:.6rem;color:var(--muted);text-transform:uppercase">Priority</div></div>';
+    html += '</div></div>';
+  });
+  html += '</div>' + divider();
+
+  /* S9 Risk Center */
+  html += sec('S9','#b91c1c','Risk Center','Branches and KPIs behind target | Expected impact');
+  html += '<div style="padding:0 2rem">';
+  html += '<div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:1.5rem;margin-bottom:1rem">';
+  html += '<div style="display:flex;gap:2rem;flex-wrap:wrap;margin-bottom:1rem">';
+  var riskColor = rc.overall_risk==='HIGH'?'#dc2626':rc.overall_risk==='MEDIUM'?'#fb923c':'#16a34a';
+  html += '<div><div style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:var(--muted)">Overall Risk</div><div style="font-size:1.4rem;font-weight:900;color:'+riskColor+'">'+(rc.overall_risk||'N/A')+'</div></div>';
+  html += '<div><div style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:var(--muted)">Expected Loss if No Action</div><div style="font-size:1.4rem;font-weight:900;color:#dc2626">'+n(rc.expected_loss)+'</div></div></div>';
+  if(rc.key_risks) rc.key_risks.forEach(function(r){
+    html += '<div style="margin-bottom:.7rem;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:.8rem 1rem">';
+    html += '<div style="display:flex;justify-content:space-between;margin-bottom:.25rem"><span style="font-size:.82rem;font-weight:700;color:var(--text)">'+r.area+'</span><span style="font-size:.72rem;font-weight:700;color:#dc2626">Impact: '+n(r.impact)+' customers</span></div>';
+    html += '<div style="font-size:.7rem;color:var(--muted)">'+r.reason+'</div></div>';
+  });
+  html += '</div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">';
+  html += '<div style="background:var(--card);border:1px solid rgba(239,68,68,.2);border-radius:12px;padding:1rem 1.2rem">';
+  html += '<div style="font-size:.65rem;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#dc2626;margin-bottom:.7rem">High Risk Branches</div>';
+  if(rc.high_risk_branches && rc.high_risk_branches.length){
+    rc.high_risk_branches.slice(0,5).forEach(function(b){
+      html += '<div style="display:flex;justify-content:space-between;padding:.35rem 0;border-bottom:1px solid var(--border);font-size:.8rem"><span style="color:var(--text)">'+b.branch+'</span><span style="color:#dc2626;font-weight:700">'+n(b.potential_repeat)+' potential</span></div>';
+    });
+  } else { html += '<div style="color:var(--muted);font-size:.78rem">All branches on track</div>'; }
+  html += '</div>';
+  html += '<div style="background:var(--card);border:1px solid rgba(249,115,22,.2);border-radius:12px;padding:1rem 1.2rem">';
+  html += '<div style="font-size:.65rem;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#ea580c;margin-bottom:.7rem">Medium Risk Branches</div>';
+  if(rc.medium_risk_branches && rc.medium_risk_branches.length){
+    rc.medium_risk_branches.slice(0,5).forEach(function(b){
+      html += '<div style="display:flex;justify-content:space-between;padding:.35rem 0;border-bottom:1px solid var(--border);font-size:.8rem"><span style="color:var(--text)">'+b.branch+'</span><span style="color:#ea580c;font-weight:700">'+n(b.potential_repeat)+' potential</span></div>';
+    });
+  } else { html += '<div style="color:var(--muted);font-size:.78rem">No medium risk branches</div>'; }
+  html += '</div></div></div>' + divider();
+
+  /* S10 Branch Action Matrix */
+  html += sec('S10','#0f766e','Branch Action Matrix',"Today's targets per branch | Status | Recommendations");
+  html += '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Branch</th><th>Need Today</th><th>Potential</th><th>Status</th><th>Recommendation</th></tr></thead><tbody>';
+  bm.forEach(function(b){
+    var sc = b.status==='CRITICAL'?'rH':b.status==='ATTENTION'?'rM':'rL';
+    html += '<tr><td style="font-weight:700">'+b.branch+'</td>';
+    html += '<td style="color:#4f46e5;font-weight:700">'+n(b.need_today)+'</td><td>'+n(b.potential)+'</td>';
+    html += '<td><span class="risk '+sc+'">'+b.status+'</span></td>';
+    html += '<td style="color:var(--muted);font-size:.76rem">'+b.recommendation+'</td></tr>';
+  });
+  html += '</tbody></table></div>' + divider();
+
+  /* S11 Leaderboard */
+  html += sec('S11','#b45309','Leaderboard','Top performing branches and BDMs this quarter');
+  html += '<div class="lead-grid">';
+  html += '<div class="lead-card"><div class="lead-title">Top Branches</div>';
+  (lb.top_branches||[]).forEach(function(b,i){
+    html += '<div class="lead-item"><span class="lead-rank">'+(i===0?'&#127947;':i===1?'&#129352;':i===2?'&#129353;':i+1)+'</span><span class="lead-name">'+b.branch+'</span><span class="lead-val">'+n(b.invoices)+' inv</span></div>';
+  });
+  html += '</div><div class="lead-card"><div class="lead-title">Top BDMs</div>';
+  (lb.top_bdm||[]).forEach(function(b,i){
+    html += '<div class="lead-item"><span class="lead-rank">'+(i===0?'&#127947;':i===1?'&#129352;':i===2?'&#129353;':i+1)+'</span><span class="lead-name">'+b.bdm+'</span><span class="lead-val">'+n(b.invoices)+' inv</span></div>';
+  });
+  html += '</div></div>' + divider();
+
+  /* S12 AI Recommendations */
+  html += sec('S12','#6d28d9','AI Recommendation Engine','Auto-generated action plan | Expected impact | Confidence');
+  html += '<div class="reco-list">';
+  re.forEach(function(r,i){
+    html += '<div class="reco"><div class="rn">'+(i+1)+'</div><div style="flex:1"><div class="reco-txt">'+r.action+'</div>';
+    html += '<div class="reco-meta">Confidence: '+r.confidence+'% | Effort: '+r.effort+' | Timeline: '+r.time_to_impact+'</div></div>';
+    html += '<div style="text-align:right"><div class="gain-val">+'+n(r.expected_gain)+'</div><div class="gain-lbl">Customers</div></div></div>';
+  });
+  html += '</div>';
+  var totalGain = re.reduce(function(a,r){return a+r.expected_gain;},0);
+  html += '<div style="padding:1rem 2rem 0"><div style="background:#eff1ff;border:1px solid #c7d2fe;border-radius:12px;padding:.9rem 1.4rem;display:flex;gap:2rem;flex-wrap:wrap;align-items:center">';
+  html += '<div><div style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:var(--muted)">Total Expected Gain</div><div style="font-size:1.4rem;font-weight:900;color:#16a34a">+'+n(totalGain)+'</div></div>';
+  html += '<div><div style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:var(--muted)">New Forecast</div><div style="font-size:1.4rem;font-weight:900;color:#4f46e5">'+n(ex.new_forecast)+'</div></div>';
+  html += '<div><div style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:var(--muted)">New Probability</div><div style="font-size:1.4rem;font-weight:900;color:#fbbf24">'+(ex.new_probability||0)+'%</div></div>';
+  html += '</div></div>' + divider();
+
+  /* S13 What-if Simulator */
+  html += sec('S13','#0284c7','What-if Simulator','Adjust parameters to see projected impact on achievement');
+  html += '<div class="sim-grid">';
+  html += '<div class="sim-ctrl">';
+  html += '<div style="font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:1.2rem">Simulation Controls</div>';
+  var sliders = [
+    {id:'sc-conv', lbl:'Conversion Rate Boost', unit:'%', min:0, max:15, step:.5, def:0},
+    {id:'sc-camp', lbl:'Campaign Response Lift', unit:'%', min:0, max:25, step:1, def:0},
+    {id:'sc-staff',lbl:'Staff Productivity Boost',unit:'%',min:0,max:20,step:1,def:0},
+    {id:'sc-days', lbl:'Extra Drive Days', unit:'d', min:0, max:10, step:1, def:0},
+  ];
+  sliders.forEach(function(s){
+    html += '<div class="sl-wrap"><div class="sl-lbl"><span>'+s.lbl+'</span><span class="sl-v" id="'+s.id+'-v">'+s.def+s.unit+'</span></div>';
+    html += '<input type="range" id="'+s.id+'" min="'+s.min+'" max="'+s.max+'" step="'+s.step+'" value="'+s.def+'" oninput="updSim()"></div>';
+  });
+  html += '<div style="font-size:.68rem;color:var(--muted);margin-top:1rem">Move sliders to simulate different strategies and see projected outcome.</div>';
+  html += '</div><div class="sim-out">';
+  html += '<div style="font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:1.2rem">Projected Outcome</div>';
+  html += '<div class="sim-r-item"><div class="sim-r-lbl">Projected Achievement</div><div class="sim-r-val" id="so-ach">'+n(k.forecast)+'</div></div>';
+  html += '<div class="sim-r-item"><div class="sim-r-lbl">Probability of Success</div><div class="sim-r-val" id="so-prob" style="color:#4f46e5">'+(k.probability||0)+'%</div></div>';
+  html += '<div class="sim-r-item"><div class="sim-r-lbl">Additional Customers</div><div class="sim-r-val" id="so-gain" style="color:#16a34a">+0</div></div>';
+  html += '<div class="sim-r-item"><div class="sim-r-lbl">Gap to Target</div><div class="sim-r-val" id="so-gap" style="color:#dc2626">'+n(k.gap)+'</div></div>';
+  html += '</div></div>' + divider();
+
+  /* S14 Executive Decision Panel */
+  html += sec('S14','#1e3a5f','Executive Decision Panel','5 key strategic questions answered for management');
+  html += '<div style="padding:0 2rem"><div class="exec-panel">';
+  var ekpis = [
+    {lbl:'Quarter Target', val:n(k.target), c:'var(--text)'},
+    {lbl:'Current Forecast', val:n(ex.new_forecast), c:'#4f46e5'},
+    {lbl:'Gap to Target', val:n(ex.gap_to_target), c:'#dc2626'},
+    {lbl:'Top Opportunity', val:ex.top_opportunity||'N/A', c:'#16a34a'},
+    {lbl:'Critical Branch', val:ex.critical_branch||'N/A', c:'#ea580c'},
+    {lbl:'New Probability', val:(ex.new_probability||0)+'%', c:'#d97706'},
+  ];
+  html += '<div class="exec-kpi-grid">';
+  ekpis.forEach(function(e){
+    html += '<div class="exec-kpi"><div class="ek-lbl">'+e.lbl+'</div><div class="ek-val" style="color:'+e.c+'">'+e.val+'</div></div>';
+  });
+  html += '</div>';
+  html += '<div class="exec-summary">'+(ex.summary_text||'')+'</div>';
+  html += '<div style="font-size:.67rem;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:.7rem">5 Key Decisions for Management</div>';
+  html += '<div class="exec-decisions">';
+  (ex.decisions||[]).forEach(function(d){ html += '<div class="exec-dec">'+d+'</div>'; });
+  html += '</div></div></div>' + divider();
+
+  /* S15 Quarter History */
+  html += sec('S15','#374151','Quarter History','Historical performance context for target setting');
+  html += '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Quarter</th><th>Year</th><th>Total Invoices</th><th>Unique Customers</th><th>Revenue</th></tr></thead><tbody>';
+  hi.forEach(function(h){
+    html += '<tr><td style="font-weight:700;color:#4f46e5">'+h.label+'</td><td>'+h.year+'</td>';
+    html += '<td>'+n(h.invoices)+'</td><td>'+n(h.customers)+'</td>';
+    html += '<td>&#8377;'+(h.revenue_cr||0).toFixed(2)+' Cr</td></tr>';
+  });
+  html += '</tbody></table></div>';
+
+  document.getElementById('main').innerHTML = html;
+  document.getElementById('main').style.paddingBottom = '3rem';
+
+  /* Draw burn chart */
+  setTimeout(function(){
+    var cv = document.getElementById('burnChart');
+    if(!cv) return;
+    var target = k.target||0, done=k.days_done||0, total=k.days_total||92;
+    var achieved=k.achieved||0, req=k.req_daily||0;
+    var lbls=[], req_line=[], proj_line=[], act_line=[];
+    for(var i=0;i<=total;i++){
+      lbls.push(i);
+      req_line.push(Math.round(target/total*i));
+      proj_line.push(i>=done?Math.round(achieved+req*(i-done)):null);
+      act_line.push(i<=done?Math.round(achieved/Math.max(done,1)*i):null);
+    }
+    if(BC) BC.destroy();
+    BC = new Chart(cv, {
+      type:'line', data:{labels:lbls, datasets:[
+        {label:'Target', data:req_line, borderColor:'rgba(99,102,241,.5)', borderDash:[5,3], borderWidth:2, pointRadius:0, fill:false},
+        {label:'Actual', data:act_line, borderColor:'#22c55e', borderWidth:2.5, pointRadius:0, fill:false, tension:.3},
+        {label:'Projected', data:proj_line, borderColor:'#f59e0b', borderDash:[4,4], borderWidth:2, pointRadius:0, fill:false},
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{labels:{color:'#64748b',font:{size:11}}}},
+        scales:{x:{grid:{color:'rgba(0,0,0,.05)'},ticks:{color:'#64748b',maxTicksLimit:10,font:{size:10}}},
+          y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{color:'#64748b',font:{size:10},callback:function(v){return v>=1000?(v/1000).toFixed(0)+'K':v;}}}}}
+    });
+  }, 150);
+
+  /* Fade-in */
+  var obs = new IntersectionObserver(function(es){
+    es.forEach(function(e){if(e.isIntersecting)e.target.classList.add('vis');});
+  },{threshold:.1});
+  document.querySelectorAll('.fade').forEach(function(el){obs.observe(el);});
+  setTimeout(function(){ var f=document.querySelector('.fade'); if(f)f.classList.add('vis'); }, 100);
+
+  /* Init simulator */
+  updSim();
+}
+
+function sec(id, c, title, sub){
+  return '<div id="tcc-'+id+'" class="fade"><div class="tcc-sec"><div class="tcc-sec-hd">' +
+    '<div class="sec-icon" style="background:'+c+'"></div>' +
+    '<div><div class="sec-title">'+title+'</div><div class="sec-sub">'+sub+'</div></div>' +
+    '</div></div>';
+}
+function divider(){ return '<div class="tcc-divider"></div></div>'; }
+function row(lbl,val){ return '<div class="cg-row"><span class="cg-lbl">'+lbl+'</span><span class="cg-val">'+val+'</span></div>'; }
+
+function updSim(){
+  if(!TCC) return;
+  var k = TCC.target_kpis||{};
+  var conv = parseFloat((document.getElementById('sc-conv')||{value:0}).value)/100;
+  var camp = parseFloat((document.getElementById('sc-camp')||{value:0}).value)/100;
+  var staf = parseFloat((document.getElementById('sc-staff')||{value:0}).value)/100;
+  var days = parseInt((document.getElementById('sc-days')||{value:0}).value);
+
+  var scv = document.getElementById('sc-conv-v'); if(scv) scv.textContent = (conv*100).toFixed(1)+'%';
+  var sca = document.getElementById('sc-camp-v'); if(sca) sca.textContent = (camp*100).toFixed(0)+'%';
+  var scs = document.getElementById('sc-staff-v'); if(scs) scs.textContent = (staf*100).toFixed(0)+'%';
+  var scd = document.getElementById('sc-days-v'); if(scd) scd.textContent = days+'d';
+
+  var base = k.daily_rate||0;
+  var nr2 = base*(1+conv+camp+staf);
+  var dr = (k.days_rem||0)+days;
+  var na = Math.min(Math.round((k.achieved||0)+nr2*dr), Math.round((k.target||529364)*1.08));
+  var gain = Math.max(0, na-(k.forecast||0));
+  var ng = Math.max(0,(k.target||529364)-na);
+  var dFrac = (k.days_done||0)/Math.max(k.days_total||92,1);
+  var rr = Math.min(nr2/Math.max(k.req_daily||1,1),1.4);
+  var np = Math.max(5,Math.min(99,(0.45*(na/(k.target||529364))*(1/Math.max(1-dFrac+0.05,0.05))+0.35*rr+0.2*0.88)*100));
+
+  var ea = document.getElementById('so-ach'); if(ea) ea.textContent = n(na);
+  var ep = document.getElementById('so-prob'); if(ep){ ep.textContent = np.toFixed(1)+'%'; ep.style.color=np>=75?'#16a34a':np>=55?'#d97706':'#dc2626'; }
+  var eg = document.getElementById('so-gain'); if(eg) eg.textContent = '+'+n(gain);
+  var gg = document.getElementById('so-gap');  if(gg) gg.textContent = n(ng);
+}
+
+function loadQ(q){
+  AQ = q;
+  document.querySelectorAll('.qbtn').forEach(function(b){ b.classList.toggle('active', b.id === 'qbtn-'+q); });
+  document.getElementById('main').innerHTML = '<div class="tcc-loading"><div class="spin"></div><div>Loading '+q+' data...</div></div>';
+  fetch('/api/v1/target-command-center/?quarter='+q)
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if(data.status === 'error') throw new Error(data.message);
+      renderPage(data);
+    })
+    .catch(function(err){
+      document.getElementById('main').innerHTML =
+        '<div class="tcc-loading" style="color:#dc2626"><div style="font-size:1.3rem;margin-bottom:.5rem">Error loading data</div><div style="font-size:.8rem;opacity:.8">'+err.message+'</div><button onclick="loadQ(\''+q+'\')" style="margin-top:1rem;padding:.5rem 1.5rem;background:#6366f1;color:#fff;border:none;border-radius:8px;cursor:pointer">Retry</button></div>';
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function(){ loadQ(AQ); });
+</script>
+{% endblock %}

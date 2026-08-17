@@ -1,0 +1,138 @@
+{% extends 'base.html' %}{% load static %}{% block title %}Recommendation Engine | AI Retail Engine{% endblock %}
+{% block content %}
+<style>
+.rh{background:linear-gradient(135deg,#78350f,#d97706 60%,#fbbf24);color:#fff;padding:2rem 2.5rem;margin:-2.5rem -2.5rem 2rem -2.5rem;position:relative;overflow:hidden;}
+.rh h1{font-size:1.6rem;font-weight:800;} .rh p{color:#fde68a;font-size:.88rem;}
+.ai-tag{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:.2rem .75rem;font-size:.68rem;font-weight:700;display:inline-block;margin-bottom:.75rem;}
+.kpi{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:1.3rem 1.4rem;transition:all .2s;}
+.kpi:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.06);}
+.kpi-label{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b;}
+.kpi-val{font-size:1.8rem;font-weight:800;color:#0f172a;line-height:1.1;margin:.2rem 0;}
+.kpi-sub{font-size:.75rem;color:#94a3b8;}
+.kpi-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;}
+.section-card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:1.5rem;}
+.section-title{font-size:.95rem;font-weight:700;color:#0f172a;}
+.pair-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:1rem 1.25rem;margin-bottom:.75rem;display:flex;align-items:center;justify-content:space-between;}
+.pair-badge{background:#fef3c7;color:#d97706;border-radius:20px;padding:.2rem .7rem;font-size:.72rem;font-weight:700;}
+.cat-row{display:flex;align-items:center;gap:.75rem;margin-bottom:.85rem;}
+.cat-label{font-size:.8rem;font-weight:600;color:#334155;min-width:150px;}
+.cat-track{flex:1;height:10px;background:#f1f5f9;border-radius:99px;overflow:hidden;}
+.cat-fill{height:100%;border-radius:99px;}
+.cat-val{font-size:.75rem;color:#64748b;min-width:80px;text-align:right;}
+</style>
+<div class="rh">
+    <div class="d-flex align-items-start gap-3">
+        <div style="background:rgba(255,255,255,.15);border-radius:14px;padding:.75rem 1rem;font-size:1.75rem;flex-shrink:0;"><i class="bi bi-stars"></i></div>
+        <div>
+            <div class="ai-tag">ASSOCIATION RULES ENGINE</div>
+            <h1 class="mb-1">Recommendation Engine</h1>
+            <p class="mb-0">Product pair affinity, cross-sell opportunities, and top category recommendations</p>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-4 col-xl-3"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Top Product Pair</span><div class="kpi-icon" style="background:#fef3c7;color:#d97706;"><i class="bi bi-link-45deg"></i></div></div>
+        <div class="kpi-val" style="color:#d97706;font-size:1rem;">{{ top_pair|default:'—' }}</div>
+        <div class="kpi-sub">most frequently bought together</div>
+    </div></div>
+    <div class="col-6 col-md-4 col-xl-3"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Co-Purchase Count</span><div class="kpi-icon" style="background:#dcfce7;color:#15803d;"><i class="bi bi-basket-fill"></i></div></div>
+        <div class="kpi-val" style="color:#15803d;">{{ top_pair_count|default:0 }}</div>
+        <div class="kpi-sub">co-purchases in last 90 days</div>
+    </div></div>
+    <div class="col-6 col-md-4 col-xl-3"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Association Rules</span><div class="kpi-icon" style="background:#ede9fe;color:#7c3aed;"><i class="bi bi-diagram-3-fill"></i></div></div>
+        <div class="kpi-val" style="color:#7c3aed;">{{ total_pairs|default:0 }}</div>
+        <div class="kpi-sub">product pair rules found</div>
+    </div></div>
+    <div class="col-6 col-md-4 col-xl-3"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Cross-sell Window</span><div class="kpi-icon" style="background:#cffafe;color:#0e7490;"><i class="bi bi-calendar-range"></i></div></div>
+        <div class="kpi-val" style="color:#0e7490;">90d</div>
+        <div class="kpi-sub">analysis lookback period</div>
+    </div></div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-12 col-md-6">
+        <div class="section-card h-100">
+            <div class="section-title mb-3"><i class="bi bi-link-45deg me-2" style="color:#d97706;"></i>Top Product Pair Affinities</div>
+            <div id="pair-list"></div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6">
+        <div class="section-card h-100">
+            <div class="section-title mb-3"><i class="bi bi-bar-chart-fill me-2" style="color:#7c3aed;"></i>Top Revenue Categories (Last 30d)</div>
+            <div id="cat-bars"></div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-12">
+        <div class="section-card">
+            <div class="section-title mb-1"><i class="bi bi-lightbulb-fill me-2 text-warning"></i>AI Cross-Sell Recommendations</div>
+            <div style="font-size:.78rem;color:#64748b;" class="mb-3">Based on association rule mining from last 90 days of transactions</div>
+            <div class="row g-3" id="reco-cards"></div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const PAIRS    = {{ pairs|safe|default:'[]' }};
+const TOP_CATS = {{ top_cats|safe|default:'[]' }};
+
+function fmt(n) {
+    if (n >= 1e7) return (n/1e7).toFixed(1)+'Cr';
+    if (n >= 1e5) return (n/1e5).toFixed(1)+'L';
+    return Math.round(n).toLocaleString('en-IN');
+}
+
+const maxPair = Math.max(...PAIRS.map(p => p.count), 1);
+const pairEl = document.getElementById('pair-list');
+const colors = ['#d97706','#f97316','#ef4444','#7c3aed','#1e40af','#15803d','#0e7490','#be123c','#6366f1','#f59e0b'];
+PAIRS.forEach((p, i) => {
+    const pct = (p.count / maxPair * 100).toFixed(0);
+    pairEl.innerHTML += `<div class="pair-card">
+        <div>
+            <div style="font-weight:700;font-size:.88rem;color:#1e293b;">${p.prod1} <span style="color:#94a3b8;">+</span> ${p.prod2}</div>
+            <div style="margin-top:.4rem;height:6px;width:200px;background:#f1f5f9;border-radius:99px;overflow:hidden;">
+                <div style="width:${pct}%;height:100%;background:${colors[i%colors.length]};border-radius:99px;"></div>
+            </div>
+        </div>
+        <span class="pair-badge">${p.count.toLocaleString('en-IN')} pairs</span>
+    </div>`;
+});
+
+const maxCat = Math.max(...TOP_CATS.map(c => c.rev), 1);
+const catEl = document.getElementById('cat-bars');
+TOP_CATS.forEach((c, i) => {
+    const pct = (c.rev / maxCat * 100).toFixed(0);
+    catEl.innerHTML += `<div class="cat-row">
+        <span class="cat-label">${c.product}</span>
+        <div class="cat-track"><div class="cat-fill" style="width:${pct}%;background:${colors[i%colors.length]};"></div></div>
+        <span class="cat-val">₹${fmt(c.rev)}</span>
+    </div>`;
+});
+
+const recoData = [
+    {icon:'📱',cat:'MOBILE',sugg:'TABLET',reason:'25% of mobile buyers also bought a Tablet within 60 days.'},
+    {icon:'🧊',cat:'REFRIGERATORS',sugg:'WASHING MACHINES',reason:'Top co-purchase pair — 1,872 joint transactions detected.'},
+    {icon:'❄️',cat:'AIR CONDITIONER',sugg:'REFRIGERATORS',reason:'694 co-purchases — seasonal bundle opportunity.'},
+    {icon:'📺',cat:'TV',sugg:'REFRIGERATORS',reason:'461 co-purchases — lifestyle upgrade package opportunity.'},
+];
+const recoEl = document.getElementById('reco-cards');
+recoData.forEach(r => {
+    recoEl.innerHTML += `<div class="col-12 col-md-6 col-xl-3">
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:1.25rem;">
+            <div style="font-size:1.75rem;margin-bottom:.5rem;">${r.icon}</div>
+            <div style="font-weight:700;font-size:.9rem;color:#0f172a;">${r.cat} → ${r.sugg}</div>
+            <div style="font-size:.78rem;color:#64748b;margin-top:.4rem;">${r.reason}</div>
+            <div style="margin-top:.75rem;"><span style="background:#fef3c7;color:#d97706;border-radius:20px;padding:.2rem .7rem;font-size:.7rem;font-weight:700;">CROSS-SELL</span></div>
+        </div>
+    </div>`;
+});
+</script>
+{% endblock %}

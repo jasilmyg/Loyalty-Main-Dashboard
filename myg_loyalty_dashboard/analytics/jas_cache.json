@@ -1,193 +1,256 @@
 {
-  "jas_target": 529268,
-  "jas_achieved": 181135,
-  "jas_achieved_pct": 34.2,
-  "jas_gap": 348133,
-  "jas_days_done": 44,
-  "jas_days_rem": 48,
+  "jas_target": 529364,
+  "jas_achieved": 207116,
+  "jas_achieved_pct": 39.1,
+  "jas_gap": 322248,
+  "jas_days_done": 48,
+  "jas_days_rem": 44,
   "jas_days_total": 92,
-  "jas_daily_rate": 4117.0,
-  "jas_req_daily": 7252,
-  "jas_forecast_final": 473694,
+  "jas_daily_rate": 4315.0,
+  "jas_req_daily": 7323,
+  "jas_forecast_final": 458875,
   "jas_status_badge": "AT RISK",
   "jas_risk_color": "#F59E0B",
   "jas_daily_json": [
     {
       "date": "2026-07-01",
-      "cum": 4739
+      "cum": 4773,
+      "daily_new": 4773
     },
     {
       "date": "2026-07-02",
-      "cum": 9119
+      "cum": 9180,
+      "daily_new": 4407
     },
     {
       "date": "2026-07-03",
-      "cum": 13206
+      "cum": 13283,
+      "daily_new": 4103
     },
     {
       "date": "2026-07-04",
-      "cum": 18634
+      "cum": 18721,
+      "daily_new": 5438
     },
     {
       "date": "2026-07-05",
-      "cum": 23465
+      "cum": 23561,
+      "daily_new": 4840
     },
     {
       "date": "2026-07-06",
-      "cum": 27707
+      "cum": 27811,
+      "daily_new": 4250
     },
     {
       "date": "2026-07-07",
-      "cum": 31807
+      "cum": 31920,
+      "daily_new": 4109
     },
     {
       "date": "2026-07-08",
-      "cum": 35527
+      "cum": 35645,
+      "daily_new": 3725
     },
     {
       "date": "2026-07-09",
-      "cum": 39847
+      "cum": 39970,
+      "daily_new": 4325
     },
     {
       "date": "2026-07-10",
-      "cum": 43826
+      "cum": 43965,
+      "daily_new": 3995
     },
     {
       "date": "2026-07-11",
-      "cum": 50116
+      "cum": 50266,
+      "daily_new": 6301
     },
     {
       "date": "2026-07-12",
-      "cum": 54754
+      "cum": 54905,
+      "daily_new": 4639
     },
     {
       "date": "2026-07-13",
-      "cum": 58758
+      "cum": 58918,
+      "daily_new": 4013
     },
     {
       "date": "2026-07-14",
-      "cum": 62556
+      "cum": 62722,
+      "daily_new": 3804
     },
     {
       "date": "2026-07-15",
-      "cum": 66436
+      "cum": 66607,
+      "daily_new": 3885
     },
     {
       "date": "2026-07-16",
-      "cum": 70270
+      "cum": 70451,
+      "daily_new": 3844
     },
     {
       "date": "2026-07-17",
-      "cum": 74184
+      "cum": 74372,
+      "daily_new": 3921
     },
     {
       "date": "2026-07-18",
-      "cum": 79076
+      "cum": 79266,
+      "daily_new": 4894
     },
     {
       "date": "2026-07-19",
-      "cum": 83292
+      "cum": 83483,
+      "daily_new": 4217
     },
     {
       "date": "2026-07-20",
-      "cum": 87089
+      "cum": 87285,
+      "daily_new": 3802
     },
     {
       "date": "2026-07-21",
-      "cum": 90592
+      "cum": 90791,
+      "daily_new": 3506
     },
     {
       "date": "2026-07-22",
-      "cum": 93804
+      "cum": 94004,
+      "daily_new": 3213
     },
     {
       "date": "2026-07-23",
-      "cum": 97699
+      "cum": 97902,
+      "daily_new": 3898
     },
     {
       "date": "2026-07-24",
-      "cum": 101324
+      "cum": 101526,
+      "daily_new": 3624
     },
     {
       "date": "2026-07-25",
-      "cum": 105701
+      "cum": 105904,
+      "daily_new": 4378
     },
     {
       "date": "2026-07-26",
-      "cum": 109334
+      "cum": 109540,
+      "daily_new": 3636
     },
     {
       "date": "2026-07-27",
-      "cum": 112790
+      "cum": 113002,
+      "daily_new": 3462
     },
     {
       "date": "2026-07-28",
-      "cum": 116391
+      "cum": 116607,
+      "daily_new": 3605
     },
     {
       "date": "2026-07-29",
-      "cum": 120297
+      "cum": 120515,
+      "daily_new": 3908
     },
     {
       "date": "2026-07-30",
-      "cum": 123934
+      "cum": 124154,
+      "daily_new": 3639
     },
     {
       "date": "2026-07-31",
-      "cum": 127785
+      "cum": 128013,
+      "daily_new": 3859
     },
     {
       "date": "2026-08-01",
-      "cum": 131529
+      "cum": 131759,
+      "daily_new": 3746
     },
     {
       "date": "2026-08-02",
-      "cum": 135906
+      "cum": 136135,
+      "daily_new": 4376
     },
     {
       "date": "2026-08-03",
-      "cum": 139843
+      "cum": 140075,
+      "daily_new": 3940
     },
     {
       "date": "2026-08-04",
-      "cum": 143611
+      "cum": 143843,
+      "daily_new": 3768
     },
     {
       "date": "2026-08-05",
-      "cum": 147511
+      "cum": 147745,
+      "daily_new": 3902
     },
     {
       "date": "2026-08-06",
-      "cum": 151520
+      "cum": 151757,
+      "daily_new": 4012
     },
     {
       "date": "2026-08-07",
-      "cum": 155397
+      "cum": 155636,
+      "daily_new": 3879
     },
     {
       "date": "2026-08-08",
-      "cum": 161368
+      "cum": 161607,
+      "daily_new": 5971
     },
     {
       "date": "2026-08-09",
-      "cum": 166812
+      "cum": 167052,
+      "daily_new": 5445
     },
     {
       "date": "2026-08-10",
-      "cum": 171553
+      "cum": 171779,
+      "daily_new": 4727
     },
     {
       "date": "2026-08-11",
-      "cum": 176018
+      "cum": 176230,
+      "daily_new": 4451
     },
     {
       "date": "2026-08-12",
-      "cum": 181135
+      "cum": 181341,
+      "daily_new": 5111
+    },
+    {
+      "date": "2026-08-13",
+      "cum": 186870,
+      "daily_new": 5529
+    },
+    {
+      "date": "2026-08-14",
+      "cum": 192240,
+      "daily_new": 5370
+    },
+    {
+      "date": "2026-08-15",
+      "cum": 200224,
+      "daily_new": 7984
+    },
+    {
+      "date": "2026-08-16",
+      "cum": 207116,
+      "daily_new": 6892
     }
   ],
-  "jas_target_json": 529268,
-  "base_customers": 5292679,
-  "avg_hist_rate": 8.95,
-  "computed_at": "2026-08-13",
+  "jas_target_json": 529364,
+  "base_customers": 5293645,
+  "avg_hist_rate": "Deep Learning BiLSTM",
+  "computed_at": "2026-08-17",
   "data_source": "azure_invoice_report"
 }

@@ -1,0 +1,81 @@
+{% extends 'base.html' %}{% load static %}{% block title %}Reports & Exports | AI Retail Engine{% endblock %}
+{% block content %}
+<style>
+.rph{background:linear-gradient(135deg,#1e293b,#334155 60%,#475569);color:#fff;padding:2rem 2.5rem;margin:-2.5rem -2.5rem 2rem -2.5rem;position:relative;overflow:hidden;}
+.rph h1{font-size:1.6rem;font-weight:800;} .rph p{color:#cbd5e1;font-size:.88rem;}
+.ai-tag{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:.2rem .75rem;font-size:.68rem;font-weight:700;display:inline-block;margin-bottom:.75rem;}
+.kpi{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:1.3rem 1.4rem;transition:all .2s;}
+.kpi:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.06);}
+.kpi-label{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b;}
+.kpi-val{font-size:1.8rem;font-weight:800;color:#0f172a;line-height:1.1;margin:.2rem 0;}
+.kpi-sub{font-size:.75rem;color:#94a3b8;}
+.kpi-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;}
+.section-card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:1.5rem;}
+.section-title{font-size:.95rem;font-weight:700;color:#0f172a;}
+.report-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:1.25rem;transition:all .2s;cursor:pointer;}
+.report-card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.06);background:#fff;}
+.rpt-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;margin-bottom:.75rem;}
+.export-btn{display:inline-flex;align-items:center;gap:.4rem;padding:.45rem .9rem;border-radius:8px;font-size:.75rem;font-weight:700;text-decoration:none;border:1px solid;transition:all .15s;}
+</style>
+<div class="rph">
+    <div class="d-flex align-items-start gap-3">
+        <div style="background:rgba(255,255,255,.15);border-radius:14px;padding:.75rem 1rem;font-size:1.75rem;flex-shrink:0;"><i class="bi bi-file-earmark-bar-graph-fill"></i></div>
+        <div>
+            <div class="ai-tag">DATA EXPORTS</div>
+            <h1 class="mb-1">Reports & Exports</h1>
+            <p class="mb-0">Export structured intelligence reports from your entire retail data — {{ rpt_date_from }} to {{ rpt_date_to }}</p>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Total Revenue</span><div class="kpi-icon" style="background:#dcfce7;color:#15803d;"><i class="bi bi-currency-rupee"></i></div></div>
+        <div class="kpi-val" style="color:#15803d;font-size:1.3rem;">₹<span id="rpt-rev">—</span></div>
+        <div class="kpi-sub">all-time revenue</div>
+    </div></div>
+    <div class="col-6 col-md-3"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Total Customers</span><div class="kpi-icon" style="background:#dbeafe;color:#1e40af;"><i class="bi bi-people-fill"></i></div></div>
+        <div class="kpi-val" style="color:#1e40af;">{{ rpt_total_custs|default:0 }}</div>
+        <div class="kpi-sub">unique customers</div>
+    </div></div>
+    <div class="col-6 col-md-3"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Total Invoices</span><div class="kpi-icon" style="background:#ede9fe;color:#7c3aed;"><i class="bi bi-receipt"></i></div></div>
+        <div class="kpi-val" style="color:#7c3aed;">{{ rpt_total_inv|default:0 }}</div>
+        <div class="kpi-sub">total transactions</div>
+    </div></div>
+    <div class="col-6 col-md-3"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Branches</span><div class="kpi-icon" style="background:#fef3c7;color:#d97706;"><i class="bi bi-shop"></i></div></div>
+        <div class="kpi-val" style="color:#d97706;">{{ rpt_branches|default:0 }}</div>
+        <div class="kpi-sub">active branches</div>
+    </div></div>
+</div>
+
+<div class="section-card mb-3">
+    <div class="section-title mb-3"><i class="bi bi-file-earmark-arrow-down-fill me-2 text-primary"></i>Available Reports</div>
+    <div class="row g-3">
+        {% for rpt in reports_list %}
+        <div class="col-12 col-md-6 col-xl-4">
+            <div class="report-card">
+                <div class="rpt-icon" style="background:{{ rpt.color }}18;color:{{ rpt.color }};"><i class="bi {{ rpt.icon }}"></i></div>
+                <div style="font-weight:700;font-size:.92rem;color:#0f172a;margin-bottom:.25rem;">{{ rpt.title }}</div>
+                <div style="font-size:.78rem;color:#64748b;margin-bottom:.9rem;">{{ rpt.desc }}</div>
+                <div class="d-flex gap-2 flex-wrap">
+                    <a href="#" class="export-btn" style="background:#eff6ff;color:#1e40af;border-color:#bfdbfe;"><i class="bi bi-file-earmark-spreadsheet"></i> Excel</a>
+                    <a href="#" class="export-btn" style="background:#f0fdf4;color:#15803d;border-color:#bbf7d0;"><i class="bi bi-filetype-csv"></i> CSV</a>
+                    <a href="#" class="export-btn" style="background:#fef2f2;color:#b91c1c;border-color:#fecaca;"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+<script>
+function fmt(n) {
+    if (n >= 1e7) return (n/1e7).toFixed(1)+'Cr';
+    if (n >= 1e5) return (n/1e5).toFixed(1)+'L';
+    return Math.round(n).toLocaleString('en-IN');
+}
+document.getElementById('rpt-rev').textContent = fmt({{ rpt_total_rev|default:0 }});
+</script>
+{% endblock %}

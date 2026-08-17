@@ -1,0 +1,336 @@
+{
+  "generated_at": "2026-08-14",
+  "target": 529364,
+  "achieved": 186870,
+  "gap": 342494,
+  "days_left": 47,
+  "jas25_not_jas26": 685104,
+  "jas24_not_jas26": 545919,
+  "jas_loyalists": 69728,
+  "amj26_not_jas26": 529426,
+  "hottest_leads": 65910,
+  "spend_profile": {
+    "avg_spend": 13509.28
+  },
+  "branch_breakdown": [
+    {
+      "branch": "POT",
+      "missing_customers": 22748,
+      "avg_spend": 16753.0
+    },
+    {
+      "branch": "POLE",
+      "missing_customers": 18655,
+      "avg_spend": 15835.0
+    },
+    {
+      "branch": "APF",
+      "missing_customers": 14743,
+      "avg_spend": 12426.0
+    },
+    {
+      "branch": "EDY",
+      "missing_customers": 14536,
+      "avg_spend": 18378.0
+    },
+    {
+      "branch": "TLF",
+      "missing_customers": 13835,
+      "avg_spend": 13970.0
+    },
+    {
+      "branch": "KLF",
+      "missing_customers": 12778,
+      "avg_spend": 15222.0
+    },
+    {
+      "branch": "KNF",
+      "missing_customers": 12569,
+      "avg_spend": 13791.0
+    },
+    {
+      "branch": "KRF",
+      "missing_customers": 11974,
+      "avg_spend": 8794.0
+    },
+    {
+      "branch": "PKF",
+      "missing_customers": 11237,
+      "avg_spend": 13263.0
+    },
+    {
+      "branch": "KGF",
+      "missing_customers": 10779,
+      "avg_spend": 14067.0
+    },
+    {
+      "branch": "PMF",
+      "missing_customers": 10653,
+      "avg_spend": 15080.0
+    },
+    {
+      "branch": "PVF",
+      "missing_customers": 10557,
+      "avg_spend": 13050.0
+    },
+    {
+      "branch": "VDF",
+      "missing_customers": 10405,
+      "avg_spend": 13164.0
+    },
+    {
+      "branch": "KYF",
+      "missing_customers": 10361,
+      "avg_spend": 9749.0
+    },
+    {
+      "branch": "EDF",
+      "missing_customers": 10322,
+      "avg_spend": 13410.0
+    }
+  ],
+  "top_targets": [
+    {
+      "mobile": "998XXXXX235",
+      "mobile_full": "9988662235",
+      "branch": "3GH",
+      "last_spend": 24595162.0,
+      "purchases": 1,
+      "last_purchase": "2025-08-21",
+      "segment": "HOTTEST",
+      "priority": 1
+    },
+    {
+      "mobile": "909XXXXX367",
+      "mobile_full": "9094323367",
+      "branch": "SMC",
+      "last_spend": 14683100.0,
+      "purchases": 6,
+      "last_purchase": "2025-08-22",
+      "segment": "HOTTEST",
+      "priority": 2
+    },
+    {
+      "mobile": "989XXXXX222",
+      "mobile_full": "9898444222",
+      "branch": "3GH",
+      "last_spend": 2950000.0,
+      "purchases": 3,
+      "last_purchase": "2025-09-30",
+      "segment": "HOTTEST",
+      "priority": 3
+    },
+    {
+      "mobile": "495XXXXX040",
+      "mobile_full": "4952293040",
+      "branch": "CSB",
+      "last_spend": 1069530.625,
+      "purchases": 9,
+      "last_purchase": "2025-09-12",
+      "segment": "HOTTEST",
+      "priority": 4
+    },
+    {
+      "mobile": "974XXXXX934",
+      "mobile_full": "9747394934",
+      "branch": "KMF",
+      "last_spend": 432490.0,
+      "purchases": 1,
+      "last_purchase": "2025-09-01",
+      "segment": "HOTTEST",
+      "priority": 5
+    },
+    {
+      "mobile": "907XXXXX333",
+      "mobile_full": "9072302333",
+      "branch": "MKF",
+      "last_spend": 424200.0,
+      "purchases": 5,
+      "last_purchase": "2025-09-09",
+      "segment": "HOTTEST",
+      "priority": 6
+    },
+    {
+      "mobile": "953XXXXX090",
+      "mobile_full": "9539701090",
+      "branch": "CSB",
+      "last_spend": 416127.0,
+      "purchases": 1,
+      "last_purchase": "2025-08-28",
+      "segment": "HOTTEST",
+      "priority": 7
+    },
+    {
+      "mobile": "984XXXXX009",
+      "mobile_full": "9847661009",
+      "branch": "HIL",
+      "last_spend": 377800.0,
+      "purchases": 7,
+      "last_purchase": "2025-09-30",
+      "segment": "HOTTEST",
+      "priority": 8
+    },
+    {
+      "mobile": "956XXXXX408",
+      "mobile_full": "9562631408",
+      "branch": "KNF",
+      "last_spend": 370530.03125,
+      "purchases": 1,
+      "last_purchase": "2025-09-26",
+      "segment": "HOTTEST",
+      "priority": 9
+    },
+    {
+      "mobile": "807XXXXX180",
+      "mobile_full": "8075415180",
+      "branch": "POT",
+      "last_spend": 310088.0,
+      "purchases": 6,
+      "last_purchase": "2025-09-08",
+      "segment": "HOTTEST",
+      "priority": 10
+    },
+    {
+      "mobile": "948XXXXX648",
+      "mobile_full": "9487216648",
+      "branch": "TVF",
+      "last_spend": 306002.03125,
+      "purchases": 4,
+      "last_purchase": "2025-07-03",
+      "segment": "HOTTEST",
+      "priority": 11
+    },
+    {
+      "mobile": "988XXXXX371",
+      "mobile_full": "9881898371",
+      "branch": "BLF",
+      "last_spend": 301970.0625,
+      "purchases": 14,
+      "last_purchase": "2025-08-29",
+      "segment": "HOTTEST",
+      "priority": 12
+    },
+    {
+      "mobile": "703XXXXX035",
+      "mobile_full": "7034001035",
+      "branch": "TVF",
+      "last_spend": 288000.0,
+      "purchases": 2,
+      "last_purchase": "2025-07-25",
+      "segment": "HOTTEST",
+      "priority": 13
+    },
+    {
+      "mobile": "811XXXXX654",
+      "mobile_full": "8113033654",
+      "branch": "EDY",
+      "last_spend": 278900.0,
+      "purchases": 1,
+      "last_purchase": "2025-07-25",
+      "segment": "HOTTEST",
+      "priority": 14
+    },
+    {
+      "mobile": "974XXXXX888",
+      "mobile_full": "9747259888",
+      "branch": "TMF",
+      "last_spend": 277200.0,
+      "purchases": 2,
+      "last_purchase": "2025-09-29",
+      "segment": "HOTTEST",
+      "priority": 15
+    },
+    {
+      "mobile": "989XXXXX634",
+      "mobile_full": "9895860634",
+      "branch": "KOF",
+      "last_spend": 275960.0,
+      "purchases": 2,
+      "last_purchase": "2025-08-30",
+      "segment": "HOTTEST",
+      "priority": 16
+    },
+    {
+      "mobile": "904XXXXX616",
+      "mobile_full": "9048071616",
+      "branch": "HIL",
+      "last_spend": 274800.0,
+      "purchases": 1,
+      "last_purchase": "2025-09-19",
+      "segment": "HOTTEST",
+      "priority": 17
+    },
+    {
+      "mobile": "984XXXXX689",
+      "mobile_full": "9847199689",
+      "branch": "PVF",
+      "last_spend": 265000.0,
+      "purchases": 1,
+      "last_purchase": "2025-09-15",
+      "segment": "HOTTEST",
+      "priority": 18
+    },
+    {
+      "mobile": "759XXXXX250",
+      "mobile_full": "7593810250",
+      "branch": "EDY",
+      "last_spend": 256000.0,
+      "purchases": 3,
+      "last_purchase": "2025-09-25",
+      "segment": "HOTTEST",
+      "priority": 19
+    },
+    {
+      "mobile": "994XXXXX483",
+      "mobile_full": "9946043483",
+      "branch": "NBF",
+      "last_spend": 246750.015625,
+      "purchases": 5,
+      "last_purchase": "2025-09-21",
+      "segment": "HOTTEST",
+      "priority": 20
+    }
+  ],
+  "financier_breakdown": [
+    {
+      "type": "CASH",
+      "count": 856891
+    },
+    {
+      "type": "DPF_BAJAJ FINANCE",
+      "count": 119598
+    },
+    {
+      "type": "HDB FINANCE",
+      "count": 36257
+    },
+    {
+      "type": "IDFC FIRST BANK LTD",
+      "count": 24033
+    },
+    {
+      "type": "CD_BAJAJ FINANCE",
+      "count": 14591
+    },
+    {
+      "type": "TVS Credit",
+      "count": 7590
+    },
+    {
+      "type": "HDFC BANK LTD",
+      "count": 2921
+    },
+    {
+      "type": "DMI FINANCE",
+      "count": 1874
+    },
+    {
+      "type": "ECOMMERCE_FIN",
+      "count": 1058
+    },
+    {
+      "type": "BENOW FINANCE",
+      "count": 855
+    }
+  ]
+}

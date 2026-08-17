@@ -1000,7 +1000,13 @@ window.addEventListener('load', () => {
         <div class="kpi-icon" style="background:#f5f3ff; color:#7c3aed;"><i class="bi bi-cpu"></i></div>
         <div class="kpi-label">Projected Final</div>
         <div class="kpi-value" style="color:#7c3aed;">{{ jas_forecast_final|intcomma|default:"0" }}</div>
-        <div class="kpi-sub">Trend-adjusted YoY model ({{ avg_hist_rate|default:"8.95" }}%)</div>
+        <div class="kpi-sub">
+            {% if avg_hist_rate == 'Deep Learning BiLSTM' %}
+                Advanced {{ avg_hist_rate }} Model
+            {% else %}
+                Trend-adjusted YoY model ({{ avg_hist_rate|default:"8.95" }}%)
+            {% endif %}
+        </div>
     </div>
     <div class="kpi-card">
         <div class="kpi-icon" style="background:#eff6ff; color:#0ea5e9;"><i class="bi bi-speedometer2"></i></div>
@@ -1148,10 +1154,16 @@ function renderJasBurnup() {
     const actualDates = daily.map(r => r.date);
     const actualVals  = daily.map(r => r.cum);
 
-    // ── Projection: from last actual → historical model endpoint ─
-    // This makes the chart's projection line consistent with the KPI card
+    // ── Projection: pre-calculated BiLSTM curve ────────────────
+    const lstmDaily = {{ jas_lstm_json|safe|default:"[]" }};
     const projDates = [], projVals = [];
-    if (daily.length > 0) {
+    
+    if (lstmDaily && lstmDaily.length > 0) {
+        lstmDaily.forEach(pt => {
+            projDates.push(pt.date);
+            projVals.push(pt.cum);
+        });
+    } else if (daily.length > 0) {
         const lastVal      = daily[daily.length - 1].cum;
         const lastDate     = new Date(daily[daily.length - 1].date);
         const totalRemMs   = endDate - lastDate;
@@ -1188,7 +1200,7 @@ function renderJasBurnup() {
         },
         {
             x: projDates, y: projVals,
-            name: 'Historical Model Projection',
+            name: '{% if avg_hist_rate == "Deep Learning BiLSTM" %}BiLSTM Forecast{% else %}Historical Model Projection{% endif %}',
             mode: 'lines',
             line: { color: '#7c3aed', width: 2, dash: 'dot' }
         },

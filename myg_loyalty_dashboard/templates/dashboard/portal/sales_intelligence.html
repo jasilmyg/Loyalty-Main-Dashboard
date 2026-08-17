@@ -1,0 +1,150 @@
+{% extends 'base.html' %}{% load static %}{% block title %}Sales Intelligence | AI Retail Engine{% endblock %}
+{% block content %}
+<style>
+.si-header{background:linear-gradient(135deg,#14532d,#15803d 60%,#22c55e);color:#fff;padding:2rem 2.5rem;margin:-2.5rem -2.5rem 2rem -2.5rem;position:relative;overflow:hidden;}
+.si-header h1{font-size:1.6rem;font-weight:800;}
+.si-header p{color:#bbf7d0;font-size:.88rem;}
+.ai-tag{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:.2rem .75rem;font-size:.68rem;font-weight:700;display:inline-block;margin-bottom:.75rem;}
+.kpi{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:1.3rem 1.4rem;transition:all .2s;}
+.kpi:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.06);}
+.kpi-label{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b;}
+.kpi-val{font-size:1.8rem;font-weight:800;color:#0f172a;line-height:1.1;margin:.2rem 0;}
+.kpi-sub{font-size:.75rem;color:#94a3b8;}
+.kpi-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;}
+.section-card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:1.5rem;}
+.section-title{font-size:.95rem;font-weight:700;color:#0f172a;}
+.branch-row{display:flex;align-items:center;justify-content:space-between;padding:.7rem 0;border-bottom:1px solid #f1f5f9;}
+.branch-row:last-child{border-bottom:none;}
+</style>
+<div class="si-header">
+    <div class="d-flex align-items-start gap-3">
+        <div style="background:rgba(255,255,255,.15);border-radius:14px;padding:.75rem 1rem;font-size:1.75rem;flex-shrink:0;"><i class="bi bi-graph-up-arrow"></i></div>
+        <div>
+            <div class="ai-tag">SALES ANALYTICS</div>
+            <h1 class="mb-1">Sales Intelligence</h1>
+            <p class="mb-0">Revenue, transactions, AOV and daily trends — last 30 days from ClickHouse + Azure</p>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-4 col-xl-2"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Total Revenue</span><div class="kpi-icon" style="background:#dcfce7;color:#15803d;"><i class="bi bi-currency-rupee"></i></div></div>
+        <div class="kpi-val" style="color:#15803d;font-size:1.4rem;">₹{{ sales_30d|default:0|floatformat:0 }}</div>
+        <div class="kpi-sub">last 30 days</div>
+    </div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Growth Rate</span><div class="kpi-icon" style="background:#dbeafe;color:#1e40af;"><i class="bi bi-graph-up-arrow"></i></div></div>
+        <div class="kpi-val" style="color:{% if growth_pct >= 0 %}#15803d{% else %}#b91c1c{% endif %};">{{ growth_pct|default:0 }}%</div>
+        <div class="kpi-sub">vs previous 30 days</div>
+    </div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Invoices</span><div class="kpi-icon" style="background:#ede9fe;color:#7c3aed;"><i class="bi bi-receipt"></i></div></div>
+        <div class="kpi-val" style="color:#7c3aed;">{{ inv_30d|default:0 }}</div>
+        <div class="kpi-sub">transactions</div>
+    </div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Avg Order Value</span><div class="kpi-icon" style="background:#fff7ed;color:#c2410c;"><i class="bi bi-cart3"></i></div></div>
+        <div class="kpi-val" style="color:#c2410c;font-size:1.4rem;">₹{{ aov_30d|default:0|floatformat:0 }}</div>
+        <div class="kpi-sub">per transaction</div>
+    </div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Customers</span><div class="kpi-icon" style="background:#cffafe;color:#0e7490;"><i class="bi bi-people-fill"></i></div></div>
+        <div class="kpi-val" style="color:#0e7490;">{{ custs_30d|default:0 }}</div>
+        <div class="kpi-sub">unique buyers</div>
+    </div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Active Branches</span><div class="kpi-icon" style="background:#fce7f3;color:#be185d;"><i class="bi bi-shop"></i></div></div>
+        <div class="kpi-val" style="color:#be185d;">{{ branches_30d|default:0 }}</div>
+        <div class="kpi-sub">branches with sales</div>
+    </div></div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-12 col-xl-8">
+        <div class="section-card">
+            <div class="section-title mb-1"><i class="bi bi-bar-chart-line me-2 text-success"></i>Daily Revenue Trend — Last 30 Days</div>
+            <div style="font-size:.75rem;color:#64748b;" class="mb-3">Revenue in ₹ Lakhs per day</div>
+            <canvas id="dailyChart" height="200"></canvas>
+        </div>
+    </div>
+    <div class="col-12 col-xl-4">
+        <div class="section-card">
+            <div class="section-title mb-1"><i class="bi bi-bar-chart-fill me-2" style="color:#7c3aed;"></i>Revenue by Product Category</div>
+            <div style="font-size:.75rem;color:#64748b;" class="mb-3">Last 30 days — ₹ Lakhs</div>
+            <canvas id="catChart" height="250"></canvas>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-12">
+        <div class="section-card">
+            <div class="section-title mb-3"><i class="bi bi-building me-2 text-primary"></i>Top 10 Branches by Revenue — Last 30 Days</div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle" id="branch-table">
+                    <thead style="background:#f8fafc;"><tr>
+                        <th style="font-size:.72rem;font-weight:700;color:#64748b;">#</th>
+                        <th style="font-size:.72rem;font-weight:700;color:#64748b;">Branch</th>
+                        <th style="font-size:.72rem;font-weight:700;color:#64748b;">Revenue</th>
+                        <th style="font-size:.72rem;font-weight:700;color:#64748b;">Invoices</th>
+                        <th style="font-size:.72rem;font-weight:700;color:#64748b;">Customers</th>
+                        <th style="font-size:.72rem;font-weight:700;color:#64748b;">AOV</th>
+                        <th style="font-size:.72rem;font-weight:700;color:#64748b;">Revenue Bar</th>
+                    </tr></thead>
+                    <tbody id="branch-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const DAILY_LABELS = {{ daily_labels|safe|default:'[]' }};
+const DAILY_VALUES = {{ daily_values|safe|default:'[]' }};
+const CAT_LABELS   = {{ cat_labels|safe|default:'[]' }};
+const CAT_REVS     = {{ cat_revs|safe|default:'[]' }};
+const BRANCH_DATA  = {{ branch_data|safe|default:'[]' }};
+
+function fmt(n) {
+    if (n >= 1e7) return (n/1e7).toFixed(1)+'Cr';
+    if (n >= 1e5) return (n/1e5).toFixed(1)+'L';
+    if (n >= 1e3) return (n/1e3).toFixed(1)+'K';
+    return Math.round(n).toLocaleString('en-IN');
+}
+
+new Chart(document.getElementById('dailyChart').getContext('2d'), {
+    type: 'bar',
+    data: { labels: DAILY_LABELS, datasets: [{ label: 'Revenue (₹L)', data: DAILY_VALUES, backgroundColor: 'rgba(21,128,61,0.75)', borderRadius: 4 }] },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 9 } } },
+        y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 }, callback: v => '₹'+v+'L' } }
+    }}
+});
+
+new Chart(document.getElementById('catChart').getContext('2d'), {
+    type: 'bar',
+    data: { labels: CAT_LABELS, datasets: [{ label: 'Revenue (₹L)', data: CAT_REVS, backgroundColor: ['#1e40af','#f97316','#15803d','#7c3aed','#0e7490','#be123c','#f59e0b'], borderRadius: 6 }] },
+    options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false } }, scales: {
+        x: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 9 }, callback: v => '₹'+v+'L' } },
+        y: { grid: { display: false }, ticks: { font: { size: 10, weight: '600' } } }
+    }}
+});
+
+const maxRev = Math.max(...BRANCH_DATA.map(b => b.rev));
+const medals = ['🏆','🥈','🥉'];
+BRANCH_DATA.forEach((b, i) => {
+    const pct = maxRev > 0 ? (b.rev / maxRev * 100).toFixed(0) : 0;
+    document.getElementById('branch-tbody').innerHTML += `<tr>
+        <td style="font-size:.8rem;">${medals[i] || (i+1)}</td>
+        <td><strong style="font-size:.85rem;">${b.branch}</strong></td>
+        <td style="font-weight:800;color:#1e40af;font-size:.88rem;">₹${fmt(b.rev)}</td>
+        <td style="font-size:.82rem;">${b.inv.toLocaleString('en-IN')}</td>
+        <td style="font-size:.82rem;">${b.custs.toLocaleString('en-IN')}</td>
+        <td style="font-size:.82rem;">₹${fmt(b.aov)}</td>
+        <td style="min-width:120px;"><div style="height:8px;background:#f1f5f9;border-radius:99px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:linear-gradient(90deg,#1e40af,#3b82f6);border-radius:99px;"></div></div></td>
+    </tr>`;
+});
+</script>
+{% endblock %}

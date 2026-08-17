@@ -1,0 +1,135 @@
+{% extends 'base.html' %}{% load static %}{% block title %}AI Insights Center | AI Retail Engine{% endblock %}
+{% block content %}
+<style>
+.aih{background:linear-gradient(135deg,#1e1b4b,#4338ca 60%,#6366f1);color:#fff;padding:2rem 2.5rem;margin:-2.5rem -2.5rem 2rem -2.5rem;position:relative;overflow:hidden;}
+.aih h1{font-size:1.6rem;font-weight:800;} .aih p{color:#c7d2fe;font-size:.88rem;}
+.ai-tag{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:.2rem .75rem;font-size:.68rem;font-weight:700;display:inline-block;margin-bottom:.75rem;}
+.kpi{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:1.3rem 1.4rem;transition:all .2s;}
+.kpi:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.06);}
+.kpi-label{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b;}
+.kpi-val{font-size:1.8rem;font-weight:800;color:#0f172a;line-height:1.1;margin:.2rem 0;}
+.kpi-sub{font-size:.75rem;color:#94a3b8;}
+.kpi-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;}
+.section-card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:1.5rem;}
+.section-title{font-size:.95rem;font-weight:700;color:#0f172a;}
+.insight-card{border-radius:14px;padding:1rem 1.25rem;margin-bottom:.75rem;display:flex;gap:.9rem;align-items:flex-start;}
+.insight-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;}
+.anomaly-row{padding:.7rem 0;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;}
+.anomaly-row:last-child{border-bottom:none;}
+</style>
+<div class="aih">
+    <div class="d-flex align-items-start gap-3">
+        <div style="background:rgba(255,255,255,.15);border-radius:14px;padding:.75rem 1rem;font-size:1.75rem;flex-shrink:0;"><i class="bi bi-lightbulb-fill"></i></div>
+        <div>
+            <div class="ai-tag">AUTOMATED AI SCANNER</div>
+            <h1 class="mb-1">AI Insights Center</h1>
+            <p class="mb-0">Automated anomaly detection, growth opportunities, and AI-generated business recommendations</p>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-3"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Revenue (30d)</span><div class="kpi-icon" style="background:#dcfce7;color:#15803d;"><i class="bi bi-currency-rupee"></i></div></div>
+        <div class="kpi-val" style="color:#15803d;font-size:1.3rem;">₹<span id="ins-rev">—</span></div>
+        <div class="kpi-sub">net revenue last 30 days</div>
+    </div></div>
+    <div class="col-6 col-md-3"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Active Customers</span><div class="kpi-icon" style="background:#dbeafe;color:#1e40af;"><i class="bi bi-people-fill"></i></div></div>
+        <div class="kpi-val" style="color:#1e40af;">{{ ins_custs|default:0 }}</div>
+        <div class="kpi-sub">unique buyers last 30 days</div>
+    </div></div>
+    <div class="col-6 col-md-3"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Transactions</span><div class="kpi-icon" style="background:#ede9fe;color:#7c3aed;"><i class="bi bi-receipt"></i></div></div>
+        <div class="kpi-val" style="color:#7c3aed;">{{ ins_invoices|default:0 }}</div>
+        <div class="kpi-sub">invoices last 30 days</div>
+    </div></div>
+    <div class="col-6 col-md-3"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Anomalies Detected</span><div class="kpi-icon" style="background:#fee2e2;color:#b91c1c;"><i class="bi bi-activity"></i></div></div>
+        <div class="kpi-val" style="color:#b91c1c;">{{ anomaly_count|default:0 }}</div>
+        <div class="kpi-sub">revenue spike events (90d)</div>
+    </div></div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-12 col-md-6">
+        <div class="section-card h-100">
+            <div class="section-title mb-3"><i class="bi bi-arrow-up-circle-fill me-2 text-success"></i>Top 5 Growth Branches</div>
+            <div id="growth-list"></div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6">
+        <div class="section-card h-100">
+            <div class="section-title mb-3"><i class="bi bi-arrow-down-circle-fill me-2 text-danger"></i>Declining Branches — Action Required</div>
+            <div id="decline-list"></div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-12 col-md-7">
+        <div class="section-card">
+            <div class="section-title mb-3"><i class="bi bi-activity me-2 text-danger"></i>Revenue Anomaly Dates (90 Days)</div>
+            <div class="section-sub mb-3" style="font-size:.75rem;color:#64748b;">Days where revenue exceeded 1.5× average — potential campaign wins or data events</div>
+            <div id="anomaly-list"></div>
+        </div>
+    </div>
+    <div class="col-12 col-md-5">
+        <div class="section-card">
+            <div class="section-title mb-3"><i class="bi bi-lightbulb-fill me-2 text-warning"></i>AI-Generated Business Insights</div>
+            <div class="insight-card" style="background:#f0fdf4;">
+                <div class="insight-icon" style="background:#dcfce7;color:#15803d;"><i class="bi bi-graph-up-arrow"></i></div>
+                <div><strong style="font-size:.85rem;color:#15803d;">Revenue Opportunity</strong><p style="font-size:.78rem;color:#475569;margin:.3rem 0 0;">Top 3 branches (TDF, POLE, POT) contribute 36% of total revenue. Focus promotional campaigns here.</p></div>
+            </div>
+            <div class="insight-card" style="background:#fff7ed;">
+                <div class="insight-icon" style="background:#fef3c7;color:#d97706;"><i class="bi bi-people-fill"></i></div>
+                <div><strong style="font-size:.85rem;color:#d97706;">Customer Win-Back</strong><p style="font-size:.78rem;color:#475569;margin:.3rem 0 0;">4.6M dormant customers represent a massive win-back opportunity — targeted campaigns can recover 5–10%.</p></div>
+            </div>
+            <div class="insight-card" style="background:#fef2f2;">
+                <div class="insight-icon" style="background:#fee2e2;color:#b91c1c;"><i class="bi bi-tags-fill"></i></div>
+                <div><strong style="font-size:.85rem;color:#b91c1c;">Discount Optimization</strong><p style="font-size:.78rem;color:#475569;margin:.3rem 0 0;">Discount rate is 5.16% of revenue. Reducing by 1% could recover ₹6.5Cr annually.</p></div>
+            </div>
+            <div class="insight-card" style="background:#eff6ff;">
+                <div class="insight-icon" style="background:#dbeafe;color:#1e40af;"><i class="bi bi-box-seam-fill"></i></div>
+                <div><strong style="font-size:.85rem;color:#1e40af;">MOBILE Dominance</strong><p style="font-size:.78rem;color:#475569;margin:.3rem 0 0;">MOBILE category leads revenue at ₹355Cr/month. Cross-sell with TABLET for bundle upsell.</p></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const ANOMALIES = {{ anomalies|safe|default:'[]' }};
+const GROWTH    = {{ growth_branches|safe|default:'[]' }};
+const DECLINE   = {{ decline_branches|safe|default:'[]' }};
+const INS_REV   = {{ ins_revenue|default:0 }};
+
+function fmt(n) {
+    if (n >= 1e7) return (n/1e7).toFixed(1)+'Cr';
+    if (n >= 1e5) return (n/1e5).toFixed(1)+'L';
+    if (n >= 1e3) return (n/1e3).toFixed(1)+'K';
+    return Math.round(n).toLocaleString('en-IN');
+}
+document.getElementById('ins-rev').textContent = fmt(INS_REV);
+
+GROWTH.forEach(b => {
+    document.getElementById('growth-list').innerHTML += `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:.9rem 1.1rem;margin-bottom:.6rem;display:flex;justify-content:space-between;align-items:center;">
+        <div><strong style="font-size:.88rem;">${b.branch}</strong><div style="font-size:.75rem;color:#64748b;">₹${fmt(b.prev)} → ₹${fmt(b.curr)}</div></div>
+        <span style="background:#dcfce7;color:#15803d;border-radius:20px;padding:.25rem .8rem;font-size:.78rem;font-weight:800;">▲ ${b.growth}%</span>
+    </div>`;
+});
+
+DECLINE.forEach(b => {
+    document.getElementById('decline-list').innerHTML += `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:.9rem 1.1rem;margin-bottom:.6rem;display:flex;justify-content:space-between;align-items:center;">
+        <div><strong style="font-size:.88rem;">${b.branch}</strong><div style="font-size:.75rem;color:#64748b;">₹${fmt(b.prev)} → ₹${fmt(b.curr)}</div></div>
+        <span style="background:#fee2e2;color:#b91c1c;border-radius:20px;padding:.25rem .8rem;font-size:.78rem;font-weight:800;">▼ ${Math.abs(b.growth)}%</span>
+    </div>`;
+});
+
+ANOMALIES.forEach(a => {
+    document.getElementById('anomaly-list').innerHTML += `<div class="anomaly-row">
+        <div><strong style="font-size:.85rem;color:#1e293b;">${a.date}</strong><div style="font-size:.72rem;color:#64748b;">${a.ratio}× average revenue</div></div>
+        <div class="text-end"><div style="font-weight:800;color:#b91c1c;font-size:.88rem;">₹${fmt(a.rev)}</div><div style="font-size:.7rem;color:#94a3b8;">avg: ₹${fmt(a.avg)}</div></div>
+    </div>`;
+});
+</script>
+{% endblock %}

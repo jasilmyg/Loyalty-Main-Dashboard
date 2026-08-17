@@ -1,0 +1,124 @@
+{% extends 'base.html' %}{% load static %}{% block title %}Product Intelligence | AI Retail Engine{% endblock %}
+{% block content %}
+<style>
+.pi-header{background:linear-gradient(135deg,#78350f,#b45309 60%,#f59e0b);color:#fff;padding:2rem 2.5rem;margin:-2.5rem -2.5rem 2rem -2.5rem;position:relative;overflow:hidden;}
+.pi-header h1{font-size:1.6rem;font-weight:800;}
+.pi-header p{color:#fde68a;font-size:.88rem;}
+.ai-tag{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:.2rem .75rem;font-size:.68rem;font-weight:700;display:inline-block;margin-bottom:.75rem;}
+.kpi{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:1.3rem 1.4rem;transition:all .2s;}
+.kpi:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.06);}
+.kpi-label{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b;}
+.kpi-val{font-size:1.8rem;font-weight:800;color:#0f172a;line-height:1.1;margin:.2rem 0;}
+.kpi-sub{font-size:.75rem;color:#94a3b8;}
+.kpi-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;}
+.section-card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:1.5rem;}
+.section-title{font-size:.95rem;font-weight:700;color:#0f172a;}
+</style>
+<div class="pi-header">
+    <div class="d-flex align-items-start gap-3">
+        <div style="background:rgba(255,255,255,.15);border-radius:14px;padding:.75rem 1rem;font-size:1.75rem;flex-shrink:0;"><i class="bi bi-box-seam-fill"></i></div>
+        <div>
+            <div class="ai-tag">PRODUCT ANALYTICS</div>
+            <h1 class="mb-1">Product Intelligence</h1>
+            <p class="mb-0">Hero product performance, category revenue breakdown, and top brands — last 30 days</p>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-4 col-xl-4"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Total SKUs Sold</span><div class="kpi-icon" style="background:#fef3c7;color:#d97706;"><i class="bi bi-box-seam-fill"></i></div></div>
+        <div class="kpi-val" style="color:#d97706;">{{ total_skus|default:0 }}</div>
+        <div class="kpi-sub">unique product codes</div>
+    </div></div>
+    <div class="col-6 col-md-4 col-xl-4"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Total Units Sold</span><div class="kpi-icon" style="background:#dcfce7;color:#15803d;"><i class="bi bi-layers-fill"></i></div></div>
+        <div class="kpi-val" style="color:#15803d;">{{ total_qty|default:0 }}</div>
+        <div class="kpi-sub">units in last 30 days</div>
+    </div></div>
+    <div class="col-6 col-md-4 col-xl-4"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Hero Products Revenue</span><div class="kpi-icon" style="background:#dbeafe;color:#1e40af;"><i class="bi bi-currency-rupee"></i></div></div>
+        <div class="kpi-val" style="color:#1e40af;font-size:1.4rem;">₹<span id="hero-rev">—</span></div>
+        <div class="kpi-sub">across all hero categories</div>
+    </div></div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-12 col-xl-8">
+        <div class="section-card">
+            <div class="section-title mb-3"><i class="bi bi-trophy-fill me-2" style="color:#f59e0b;"></i>Top Products by Revenue — Last 30 Days</div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle">
+                    <thead style="background:#f8fafc;"><tr>
+                        <th style="font-size:.72rem;font-weight:700;color:#64748b;">#</th>
+                        <th style="font-size:.72rem;font-weight:700;color:#64748b;">Category</th>
+                        <th style="font-size:.72rem;font-weight:700;color:#64748b;">Brand</th>
+                        <th style="font-size:.72rem;font-weight:700;color:#64748b;">Revenue</th>
+                        <th style="font-size:.72rem;font-weight:700;color:#64748b;">Units</th>
+                        <th style="font-size:.72rem;font-weight:700;color:#64748b;">Invoices</th>
+                        <th style="font-size:.72rem;font-weight:700;color:#64748b;">Revenue Bar</th>
+                    </tr></thead>
+                    <tbody id="prod-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-xl-4">
+        <div class="section-card">
+            <div class="section-title mb-1"><i class="bi bi-pie-chart-fill me-2" style="color:#b45309;"></i>Product Mix</div>
+            <div style="font-size:.75rem;color:#64748b;" class="mb-3">Revenue share by category</div>
+            <canvas id="prodPieChart" height="250"></canvas>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const PRODUCTS = {{ products|safe|default:'[]' }};
+const COLORS = ['#1e40af','#f97316','#15803d','#7c3aed','#0e7490','#be123c','#f59e0b','#6366f1','#10b981','#ef4444'];
+
+function fmt(n) {
+    if (n >= 1e7) return (n/1e7).toFixed(1)+'Cr';
+    if (n >= 1e5) return (n/1e5).toFixed(1)+'L';
+    if (n >= 1e3) return (n/1e3).toFixed(1)+'K';
+    return Math.round(n).toLocaleString('en-IN');
+}
+
+const totalRev = PRODUCTS.reduce((a, p) => a + p.rev, 0);
+document.getElementById('hero-rev').textContent = fmt(totalRev);
+
+const maxRev = Math.max(...PRODUCTS.map(p => p.rev));
+const medals = ['🏆','🥈','🥉'];
+PRODUCTS.forEach((p, i) => {
+    const pct = maxRev > 0 ? (p.rev / maxRev * 100).toFixed(0) : 0;
+    document.getElementById('prod-tbody').innerHTML += `<tr>
+        <td style="font-size:.8rem;">${medals[i] || (i+1)}</td>
+        <td><strong style="font-size:.82rem;">${p.product}</strong></td>
+        <td style="font-size:.78rem;color:#64748b;">${p.brand || '—'}</td>
+        <td style="font-weight:800;color:#b45309;font-size:.85rem;">₹${fmt(p.rev)}</td>
+        <td style="font-size:.8rem;">${p.qty.toLocaleString('en-IN')}</td>
+        <td style="font-size:.8rem;">${p.inv_count.toLocaleString('en-IN')}</td>
+        <td style="min-width:80px;"><div style="height:8px;background:#f1f5f9;border-radius:99px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:${COLORS[i%COLORS.length]};border-radius:99px;"></div></div></td>
+    </tr>`;
+});
+
+// Group by product for pie
+const grouped = {};
+PRODUCTS.forEach(p => { grouped[p.product] = (grouped[p.product] || 0) + p.rev; });
+const pieLabels = Object.keys(grouped);
+const pieData   = Object.values(grouped);
+
+new Chart(document.getElementById('prodPieChart').getContext('2d'), {
+    type: 'doughnut',
+    data: {
+        labels: pieLabels,
+        datasets: [{ data: pieData, backgroundColor: COLORS, borderWidth: 2, hoverOffset: 6 }]
+    },
+    options: { responsive: true, cutout: '60%',
+        plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, padding: 8 } },
+            tooltip: { callbacks: { label: ctx => ctx.label + ': ₹' + fmt(ctx.raw) } }
+        }
+    }
+});
+</script>
+{% endblock %}

@@ -15,3 +15,6 @@ urlpatterns = [
 # Trigger reload
 
 # Reload for LSTM fix
+
+# Force reload 2
+# Force reload for Sales Forecasting

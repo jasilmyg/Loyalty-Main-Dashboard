@@ -1,0 +1,114 @@
+{% extends 'base.html' %}{% load static %}{% block title %}Inventory Intelligence | AI Retail Engine{% endblock %}
+{% block content %}
+<style>
+.ih{background:linear-gradient(135deg,#164e63,#0e7490 60%,#22d3ee);color:#fff;padding:2rem 2.5rem;margin:-2.5rem -2.5rem 2rem -2.5rem;position:relative;overflow:hidden;}
+.ih h1{font-size:1.6rem;font-weight:800;} .ih p{color:#a5f3fc;font-size:.88rem;}
+.ai-tag{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:.2rem .75rem;font-size:.68rem;font-weight:700;display:inline-block;margin-bottom:.75rem;}
+.kpi{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:1.3rem 1.4rem;transition:all .2s;}
+.kpi:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.06);}
+.kpi-label{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b;}
+.kpi-val{font-size:1.8rem;font-weight:800;color:#0f172a;line-height:1.1;margin:.2rem 0;}
+.kpi-sub{font-size:.75rem;color:#94a3b8;}
+.kpi-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;}
+.section-card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:1.5rem;}
+.section-title{font-size:.95rem;font-weight:700;color:#0f172a;}
+</style>
+<div class="ih">
+    <div class="d-flex align-items-start gap-3">
+        <div style="background:rgba(255,255,255,.15);border-radius:14px;padding:.75rem 1rem;font-size:1.75rem;flex-shrink:0;"><i class="bi bi-boxes"></i></div>
+        <div>
+            <div class="ai-tag">INVENTORY ANALYTICS</div>
+            <h1 class="mb-1">Inventory Intelligence</h1>
+            <p class="mb-0">Product velocity, stock movement, and brand-level inventory performance — last 30 days</p>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-4 col-xl-4"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Total Units Sold</span><div class="kpi-icon" style="background:#cffafe;color:#0e7490;"><i class="bi bi-layers-fill"></i></div></div>
+        <div class="kpi-val" style="color:#0e7490;">{{ total_units|default:0 }}</div>
+        <div class="kpi-sub">units sold in last 30 days</div>
+    </div></div>
+    <div class="col-6 col-md-4 col-xl-4"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Total Revenue</span><div class="kpi-icon" style="background:#dcfce7;color:#15803d;"><i class="bi bi-currency-rupee"></i></div></div>
+        <div class="kpi-val" style="color:#15803d;font-size:1.4rem;">₹<span id="total-rev-val">—</span></div>
+        <div class="kpi-sub">from all products sold</div>
+    </div></div>
+    <div class="col-6 col-md-4 col-xl-4"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Unique SKUs Sold</span><div class="kpi-icon" style="background:#ede9fe;color:#7c3aed;"><i class="bi bi-box-seam-fill"></i></div></div>
+        <div class="kpi-val" style="color:#7c3aed;">{{ total_skus|default:0 }}</div>
+        <div class="kpi-sub">unique product codes</div>
+    </div></div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-12 col-xl-7">
+        <div class="section-card">
+            <div class="section-title mb-3"><i class="bi bi-table me-2 text-primary"></i>Brand-Level Stock Velocity — Top 20</div>
+            <div class="table-responsive" style="max-height:380px;overflow-y:auto;">
+                <table class="table table-sm table-hover align-middle">
+                    <thead style="position:sticky;top:0;background:#f8fafc;"><tr>
+                        <th style="font-size:.7rem;font-weight:700;color:#64748b;">#</th>
+                        <th style="font-size:.7rem;font-weight:700;color:#64748b;">Category</th>
+                        <th style="font-size:.7rem;font-weight:700;color:#64748b;">Brand</th>
+                        <th style="font-size:.7rem;font-weight:700;color:#64748b;">Units Sold</th>
+                        <th style="font-size:.7rem;font-weight:700;color:#64748b;">Revenue</th>
+                        <th style="font-size:.7rem;font-weight:700;color:#64748b;">Velocity</th>
+                    </tr></thead>
+                    <tbody id="inv-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-xl-5">
+        <div class="section-card">
+            <div class="section-title mb-1"><i class="bi bi-speedometer2 me-2" style="color:#0e7490;"></i>Daily Velocity by Category</div>
+            <div style="font-size:.75rem;color:#64748b;" class="mb-3">Units sold per day — last 30 days</div>
+            <canvas id="velocityChart" height="250"></canvas>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const INVENTORY = {{ inventory|safe|default:'[]' }};
+const VEL_LABELS = {{ velocity_labels|safe|default:'[]' }};
+const VEL_VALUES = {{ velocity_values|safe|default:'[]' }};
+const TOTAL_REV  = {{ total_rev|default:0 }};
+
+function fmt(n) {
+    if (n >= 1e7) return (n/1e7).toFixed(1)+'Cr';
+    if (n >= 1e5) return (n/1e5).toFixed(1)+'L';
+    if (n >= 1e3) return (n/1e3).toFixed(1)+'K';
+    return Math.round(n).toLocaleString('en-IN');
+}
+document.getElementById('total-rev-val').textContent = fmt(TOTAL_REV);
+
+const COLORS=['#0e7490','#1e40af','#7c3aed','#15803d','#f97316','#ef4444','#d97706','#6366f1','#be123c','#10b981'];
+INVENTORY.forEach((r, i) => {
+    const vel = (r.sold_30d / 30).toFixed(1);
+    document.getElementById('inv-tbody').innerHTML += `<tr>
+        <td style="font-size:.78rem;">${i+1}</td>
+        <td style="font-size:.82rem;font-weight:700;">${r.product}</td>
+        <td style="font-size:.78rem;color:#64748b;">${r.brand}</td>
+        <td style="font-size:.82rem;font-weight:700;color:#0e7490;">${r.sold_30d.toLocaleString('en-IN')}</td>
+        <td style="font-size:.78rem;color:#15803d;">₹${fmt(r.rev_30d)}</td>
+        <td><span style="background:#cffafe;color:#0e7490;border-radius:20px;padding:.15rem .55rem;font-size:.7rem;font-weight:700;">${vel}/day</span></td>
+    </tr>`;
+});
+
+new Chart(document.getElementById('velocityChart').getContext('2d'), {
+    type: 'bar',
+    data: { labels: VEL_LABELS, datasets: [{ label: 'Units/day', data: VEL_VALUES,
+        backgroundColor: COLORS, borderRadius: 8 }] },
+    options: { responsive: true, indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 9 } } },
+            y: { grid: { display: false }, ticks: { font: { size: 10, weight: '600' } } }
+        }
+    }
+});
+</script>
+{% endblock %}

@@ -12,6 +12,7 @@ from analytics.clickhouse_service import get_ch_client
 from datetime import date
 import os
 from django.conf import settings
+from analytics.jas_lstm_forecaster import run_jas_bilstm_forecast
 
 client = get_ch_client()
 
@@ -37,9 +38,7 @@ base_row = client.query("""
 base_customers = int(base_row[0][0]) if base_row else 5292679
 print(f"  Base customers: {base_customers:,}")
 
-trend_rate_2026 = 8.95
 jas_target = round(base_customers * 0.10)
-jas_forecast_final = int(base_customers * trend_rate_2026 / 100)
 
 print("Computing JAS actuals from azure_invoice_report (single-pass query)...")
 
@@ -88,7 +87,16 @@ cumulative = 0
 jas_daily_pts = []
 for r in daily_rows:
     cumulative += int(r[1])
-    jas_daily_pts.append({"date": str(r[0]), "cum": cumulative})
+    jas_daily_pts.append({"date": str(r[0]), "cum": cumulative, "daily_new": int(r[1])})
+
+print("Computing deep learning BiLSTM forecast for the remaining JAS quarter...")
+jas_lstm_pts = []
+try:
+    remaining_forecast, jas_lstm_pts = run_jas_bilstm_forecast(jas_daily_pts, days_rem)
+    jas_forecast_final = jas_achieved + remaining_forecast
+except Exception as e:
+    print(f"  BiLSTM forecast failed: {e}. Falling back to statistical average.")
+    jas_forecast_final = jas_achieved + int((jas_achieved / days_done if days_done > 0 else 0) * days_rem)
 
 # Compute metrics
 daily_rate     = jas_achieved / days_done if days_done > 0 else 0
@@ -121,9 +129,10 @@ cache = {
     "jas_status_badge":   status_badge,
     "jas_risk_color":     risk_color,
     "jas_daily_json":     jas_daily_pts,
+    "jas_lstm_json":      jas_lstm_pts,
     "jas_target_json":    jas_target,
     "base_customers":     base_customers,
-    "avg_hist_rate":      trend_rate_2026,
+    "avg_hist_rate":      "Deep Learning BiLSTM",
     "computed_at":        str(today),
     "data_source":        "azure_invoice_report",
 }

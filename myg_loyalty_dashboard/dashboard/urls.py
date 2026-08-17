@@ -1,9 +1,28 @@
 from django.urls import path
 from django.views.generic import RedirectView
 from . import views
+from . import portal_views
 from .ai_chat_views import AIChatView, AIChatAPIView
 
 urlpatterns = [
+    # --- ENTERPRISE AI RETAIL INTELLIGENCE PORTAL ---
+    path('executive/', portal_views.ExecutiveDashboardView.as_view(), name='executive_dashboard'),
+    path('customer-intelligence-portal/', portal_views.CustomerIntelligenceView.as_view(), name='customer_intelligence'),
+    path('customer-segmentation/', portal_views.CustomerSegmentationView.as_view(), name='customer_segmentation'),
+    path('sales-intelligence/', portal_views.SalesIntelligenceView.as_view(), name='sales_intelligence'),
+    # Sales Forecasting is already defined at views.SalesForecastingView.as_view(), keeping legacy for now or mapping it
+    path('product-intelligence/', portal_views.ProductIntelligenceView.as_view(), name='product_intelligence'),
+    path('recommendation-engine/', portal_views.RecommendationEngineView.as_view(), name='recommendation_engine'),
+    path('inventory-intelligence/', portal_views.InventoryIntelligenceView.as_view(), name='inventory_intelligence'),
+    path('promotion-intelligence/', portal_views.PromotionIntelligenceView.as_view(), name='promotion_intelligence'),
+    path('branch-intelligence/', portal_views.BranchIntelligenceView.as_view(), name='branch_intelligence'),
+    path('ai-insights-center/', portal_views.AIInsightsCenterView.as_view(), name='ai_insights_center'),
+    path('reports-exports/', portal_views.ReportsExportsView.as_view(), name='reports_exports'),
+    path('data-management/', portal_views.DataManagementView.as_view(), name='data_management'),
+    path('model-management/', portal_views.ModelManagementView.as_view(), name='model_management'),
+    path('settings-portal/', portal_views.SettingsPortalView.as_view(), name='settings_portal'),
+    # ------------------------------------------------
+
     path('', views.DashboardView.as_view(), name='dashboard'),
     path('azure-analytics/', views.AzureAnalyticsDashboardView.as_view(), name='azure_analytics'),
     path('customers/', views.CustomerAnalyticsView.as_view(), name='customers'),
@@ -41,6 +60,7 @@ urlpatterns = [
     path('api/v1/campaign-analysis/download-loyalty/', views.CampaignLoyaltyDownloadAPIView.as_view(), name='campaign_loyalty_download'),
     path('ai-intelligence/', views.AIIntelligenceView.as_view(), name='ai_intelligence'),
     path('api/v1/ai-intelligence/', views.AIIntelligenceAPIView.as_view(), name='ai_intelligence_api'),
+    path('sales-forecasting/', views.SalesForecastingView.as_view(), name='sales_forecasting'),
     path('redemption-analysis/', views.RedemptionAnalysisView.as_view(), name='redemption_analysis'),
     path('api/v1/redemption-analysis/', views.RedemptionAnalysisAPIView.as_view(), name='redemption_analysis_api'),
     path('she-start/', views.SheStartView.as_view(), name='she_start'),
@@ -63,4 +83,19 @@ urlpatterns = [
     # Daily New vs Repeat
     path('daily-new-repeat/', views.DailyNewRepeatView.as_view(), name='daily_new_repeat'),
     path('api/v1/daily-new-repeat/', views.DailyNewRepeatAPIView.as_view(), name='daily_new_repeat_api'),
+
+    # Target Achievement Command Center
+    path('target-command-center/', views.TargetCommandCenterView.as_view(), name='target_command_center'),
+    path('api/v1/target-command-center/', views.TargetCommandCenterAPIView.as_view(), name='target_command_center_api'),
+
+    # AI Customer Targeting Engine
+    path('ai-targeting/', views.AITargetingView.as_view(), name='ai_targeting'),
+    path('api/v1/ai-targeting/', views.AITargetingAPIView.as_view(), name='ai_targeting_api'),
+
+    # MY PARF Perfume Data Download
+    path('my-parf/', views.MyParfDownloadView.as_view(), name='my_parf_download'),
+    path('download/my-parf/<str:data_type>/', views.MyParfDataAPIView.as_view(), name='my_parf_data_api'),
+    
+    # Dormant Customers Download
+    path('download/dormant-customers/', views.DormantCustomersDownloadView.as_view(), name='dormant_customers_download'),
 ]

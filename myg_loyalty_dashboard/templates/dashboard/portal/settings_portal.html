@@ -1,0 +1,193 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Settings | AI Retail Engine{% endblock %}
+
+{% block content %}
+<style>
+.portal-header {
+    background: linear-gradient(135deg, #64748bee 0%, #64748b99 100%);
+    color: white; padding: 2rem 2.5rem;
+    margin: -2.5rem -2.5rem 2rem -2.5rem;
+    position: relative; overflow: hidden;
+}
+.portal-header::before {
+    content: ''; position: absolute; top: -60px; right: -60px;
+    width: 200px; height: 200px; border-radius: 50%;
+    background: rgba(255,255,255,0.06);
+}
+.portal-header h1 { font-size: 1.6rem; font-weight: 800; }
+.portal-header p { color: rgba(255,255,255,0.82); font-size: 0.88rem; }
+
+.cs-card {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 14px;
+    padding: 1.25rem; transition: all 0.2s;
+}
+.cs-card:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(0,0,0,0.07); }
+.cs-card-icon {
+    width: 42px; height: 42px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.15rem; margin-bottom: 0.75rem;
+}
+.cs-card-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #64748b; }
+.cs-card-value { font-size: 1.6rem; font-weight: 800; margin: 0.2rem 0; color: #0f172a; }
+.cs-card-sub { font-size: 0.72rem; color: #94a3b8; }
+.module-info-card {
+    background: linear-gradient(135deg, #0f172a, #64748bcc);
+    border-radius: 16px; padding: 2rem; color: white;
+}
+.roadmap-item {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+    padding: 1rem 1.25rem; display: flex; align-items: center; gap: 1rem;
+    margin-bottom: 0.75rem;
+}
+.roadmap-icon {
+    width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 1rem;
+    background: #64748b18; color: #64748b;
+}
+.coming-badge {
+    background: #64748b18; color: #64748b; border-radius: 20px;
+    padding: 0.2rem 0.7rem; font-size: 0.7rem; font-weight: 700; display: inline-block;
+}
+</style>
+
+<div class="portal-header">
+    <div class="d-flex align-items-start gap-3">
+        <div style="background: rgba(255,255,255,0.18); border-radius: 14px; padding: 0.75rem 1rem; font-size: 1.75rem;">
+            <i class="bi bi-gear-fill"></i>
+        </div>
+        <div>
+            <span class="coming-badge mb-2">AI RETAIL ENGINE</span>
+            <h1 class="mb-1">Settings</h1>
+            <p class="mb-0">Configure portal preferences, roles, users, API keys, and system integrations.</p>
+        </div>
+    </div>
+</div>
+
+<div class="container-fluid px-0">
+    <!-- Metric Cards Row -->
+    <div class="row g-3 mb-4">
+        
+            <div class="col-6 col-md-4 col-xl-2">
+                <div class="cs-card">
+                    <div class="cs-card-icon" style="background: #1e40af18; color: #1e40af;">
+                        <i class="bi bi-person-badge-fill"></i>
+                    </div>
+                    <div class="cs-card-label">User Roles</div>
+                    <div class="cs-card-value coming-soon-val" style="color:#1e40af;">—</div>
+                    <div class="cs-card-sub">Populating from ClickHouse...</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-4 col-xl-2">
+                <div class="cs-card">
+                    <div class="cs-card-icon" style="background: #15803d18; color: #15803d;">
+                        <i class="bi bi-shield-lock-fill"></i>
+                    </div>
+                    <div class="cs-card-label">Security</div>
+                    <div class="cs-card-value coming-soon-val" style="color:#15803d;">—</div>
+                    <div class="cs-card-sub">Populating from ClickHouse...</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-4 col-xl-2">
+                <div class="cs-card">
+                    <div class="cs-card-icon" style="background: #7c3aed18; color: #7c3aed;">
+                        <i class="bi bi-plug-fill"></i>
+                    </div>
+                    <div class="cs-card-label">Integrations</div>
+                    <div class="cs-card-value coming-soon-val" style="color:#7c3aed;">—</div>
+                    <div class="cs-card-sub">Populating from ClickHouse...</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-4 col-xl-2">
+                <div class="cs-card">
+                    <div class="cs-card-icon" style="background: #f9731618; color: #f97316;">
+                        <i class="bi bi-bell-fill"></i>
+                    </div>
+                    <div class="cs-card-label">Notifications</div>
+                    <div class="cs-card-value coming-soon-val" style="color:#f97316;">—</div>
+                    <div class="cs-card-sub">Populating from ClickHouse...</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-4 col-xl-2">
+                <div class="cs-card">
+                    <div class="cs-card-icon" style="background: #64748b18; color: #64748b;">
+                        <i class="bi bi-journal-text"></i>
+                    </div>
+                    <div class="cs-card-label">Audit Logs</div>
+                    <div class="cs-card-value coming-soon-val" style="color:#64748b;">—</div>
+                    <div class="cs-card-sub">Populating from ClickHouse...</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-4 col-xl-2">
+                <div class="cs-card">
+                    <div class="cs-card-icon" style="background: #0e749018; color: #0e7490;">
+                        <i class="bi bi-info-circle-fill"></i>
+                    </div>
+                    <div class="cs-card-label">System Info</div>
+                    <div class="cs-card-value coming-soon-val" style="color:#0e7490;">—</div>
+                    <div class="cs-card-sub">Populating from ClickHouse...</div>
+                </div>
+            </div>
+    </div>
+
+    <!-- Module Info -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-7">
+            <div class="module-info-card">
+                <div class="mb-1" style="font-size:0.7rem; font-weight:700; color:#64748baa; text-transform:uppercase; letter-spacing:1px;">MODULE STATUS</div>
+                <h4 class="fw-bold mb-2">Settings is being wired up</h4>
+                <p style="color: rgba(255,255,255,0.75); font-size:0.9rem; line-height:1.7;">
+                    This module will connect directly to your ClickHouse + Azure databases to provide
+                    <strong style="color:white;">configure portal preferences, roles, users, api keys, and system integrations.</strong>
+                    All KPI cards above will display live data once the backend queries are complete.
+                </p>
+                <div class="mt-3 d-flex gap-2 flex-wrap">
+                    <span style="background: rgba(255,255,255,0.1); border-radius: 20px; padding: 0.3rem 0.9rem; font-size: 0.78rem; color: rgba(255,255,255,0.85);">
+                        <i class="bi bi-database me-1"></i> ClickHouse Ready
+                    </span>
+                    <span style="background: rgba(255,255,255,0.1); border-radius: 20px; padding: 0.3rem 0.9rem; font-size: 0.78rem; color: rgba(255,255,255,0.85);">
+                        <i class="bi bi-cloud me-1"></i> Azure Connected
+                    </span>
+                    <span style="background: rgba(255,255,255,0.1); border-radius: 20px; padding: 0.3rem 0.9rem; font-size: 0.78rem; color: rgba(255,255,255,0.85);">
+                        <i class="bi bi-cpu me-1"></i> AI Engine Active
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-5">
+            <div style="background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:1.5rem; height:100%;">
+                <div class="fw-bold mb-3" style="color:#0f172a;">What this module will deliver:</div>
+                <div class="roadmap-item">
+                    <div class="roadmap-icon"><i class="bi bi-graph-up-arrow"></i></div>
+                    <div>
+                        <div style="font-weight:600; font-size:0.85rem;">Live KPI Metrics</div>
+                        <div style="font-size:0.75rem; color:#64748b;">Real-time data from ClickHouse</div>
+                    </div>
+                </div>
+                <div class="roadmap-item">
+                    <div class="roadmap-icon"><i class="bi bi-bar-chart-fill"></i></div>
+                    <div>
+                        <div style="font-weight:600; font-size:0.85rem;">Interactive Visualizations</div>
+                        <div style="font-size:0.75rem; color:#64748b;">Charts, tables, and drill-downs</div>
+                    </div>
+                </div>
+                <div class="roadmap-item">
+                    <div class="roadmap-icon"><i class="bi bi-lightbulb-fill"></i></div>
+                    <div>
+                        <div style="font-weight:600; font-size:0.85rem;">AI-Generated Insights</div>
+                        <div style="font-size:0.75rem; color:#64748b;">Automated recommendations and alerts</div>
+                    </div>
+                </div>
+                <div class="roadmap-item">
+                    <div class="roadmap-icon"><i class="bi bi-file-earmark-arrow-down-fill"></i></div>
+                    <div>
+                        <div style="font-weight:600; font-size:0.85rem;">Export Reports</div>
+                        <div style="font-size:0.75rem; color:#64748b;">Excel, CSV, and PDF exports</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

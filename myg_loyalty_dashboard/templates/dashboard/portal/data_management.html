@@ -1,0 +1,109 @@
+{% extends 'base.html' %}{% load static %}{% block title %}Data Management | AI Retail Engine{% endblock %}
+{% block content %}
+<style>
+.dmh{background:linear-gradient(135deg,#0c1a35,#1e3a5f 60%,#2563eb);color:#fff;padding:2rem 2.5rem;margin:-2.5rem -2.5rem 2rem -2.5rem;position:relative;overflow:hidden;}
+.dmh h1{font-size:1.6rem;font-weight:800;} .dmh p{color:#bfdbfe;font-size:.88rem;}
+.ai-tag{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:.2rem .75rem;font-size:.68rem;font-weight:700;display:inline-block;margin-bottom:.75rem;}
+.kpi{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:1.3rem 1.4rem;transition:all .2s;}
+.kpi:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.06);}
+.kpi-label{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b;}
+.kpi-val{font-size:1.8rem;font-weight:800;color:#0f172a;line-height:1.1;margin:.2rem 0;}
+.kpi-sub{font-size:.75rem;color:#94a3b8;}
+.kpi-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;}
+.section-card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:1.5rem;}
+.section-title{font-size:.95rem;font-weight:700;color:#0f172a;}
+.db-row{display:flex;align-items:center;justify-content:space-between;padding:.9rem 0;border-bottom:1px solid #f1f5f9;}
+.db-row:last-child{border-bottom:none;}
+.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:.4rem;}
+</style>
+<div class="dmh">
+    <div class="d-flex align-items-start gap-3">
+        <div style="background:rgba(255,255,255,.15);border-radius:14px;padding:.75rem 1rem;font-size:1.75rem;flex-shrink:0;"><i class="bi bi-database-fill"></i></div>
+        <div>
+            <div class="ai-tag">DATA QUALITY</div>
+            <h1 class="mb-1">Data Management</h1>
+            <p class="mb-0">ClickHouse database health, record counts, and data quality scoring — live status</p>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-4 col-xl-2"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Data Quality Score</span><div class="kpi-icon" style="background:#dcfce7;color:#15803d;"><i class="bi bi-patch-check-fill"></i></div></div>
+        <div class="kpi-val" style="color:#15803d;">{{ quality_score|default:0 }}%</div>
+        <div class="kpi-sub">overall data health</div>
+    </div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Invoice Records</span><div class="kpi-icon" style="background:#dbeafe;color:#1e40af;"><i class="bi bi-table"></i></div></div>
+        <div class="kpi-val" style="color:#1e40af;">{{ total_records|default:0 }}</div>
+        <div class="kpi-sub">azure_invoice_report</div>
+    </div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Sales Records</span><div class="kpi-icon" style="background:#ede9fe;color:#7c3aed;"><i class="bi bi-grid-fill"></i></div></div>
+        <div class="kpi-val" style="color:#7c3aed;">{{ sales_records|default:0 }}</div>
+        <div class="kpi-sub">azure_sales_report</div>
+    </div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Item Master</span><div class="kpi-icon" style="background:#fef3c7;color:#d97706;"><i class="bi bi-box-seam-fill"></i></div></div>
+        <div class="kpi-val" style="color:#d97706;">{{ item_records|default:0 }}</div>
+        <div class="kpi-sub">item_master records</div>
+    </div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Missing Mobile</span><div class="kpi-icon" style="background:#fee2e2;color:#b91c1c;"><i class="bi bi-exclamation-circle-fill"></i></div></div>
+        <div class="kpi-val" style="color:#b91c1c;">{{ missing_mobile|default:0 }}</div>
+        <div class="kpi-sub">records with no mobile</div>
+    </div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="kpi">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Zero Invoices</span><div class="kpi-icon" style="background:#fff7ed;color:#f97316;"><i class="bi bi-exclamation-triangle-fill"></i></div></div>
+        <div class="kpi-val" style="color:#f97316;">{{ zero_invoices|default:0 }}</div>
+        <div class="kpi-sub">zero or negative amount</div>
+    </div></div>
+</div>
+
+<div class="row g-3">
+    <div class="col-12 col-md-6">
+        <div class="section-card">
+            <div class="section-title mb-3"><i class="bi bi-database-fill me-2 text-primary"></i>ClickHouse Database Status</div>
+            <div class="db-row">
+                <div><span class="status-dot" style="background:#22c55e;"></span><strong style="font-size:.85rem;">azure_invoice_report</strong></div>
+                <div class="text-end"><div style="font-weight:700;color:#1e40af;font-size:.85rem;">{{ total_records|default:0 }} rows</div><div style="font-size:.72rem;color:#64748b;">{{ date_from }} → {{ date_to }}</div></div>
+            </div>
+            <div class="db-row">
+                <div><span class="status-dot" style="background:#22c55e;"></span><strong style="font-size:.85rem;">azure_sales_report</strong></div>
+                <div class="text-end"><div style="font-weight:700;color:#1e40af;font-size:.85rem;">{{ sales_records|default:0 }} rows</div><div style="font-size:.72rem;color:#64748b;">Line-item level data</div></div>
+            </div>
+            <div class="db-row">
+                <div><span class="status-dot" style="background:#22c55e;"></span><strong style="font-size:.85rem;">item_master</strong></div>
+                <div class="text-end"><div style="font-weight:700;color:#1e40af;font-size:.85rem;">{{ item_records|default:0 }} rows</div><div style="font-size:.72rem;color:#64748b;">Product reference table</div></div>
+            </div>
+            <div class="db-row">
+                <div><span class="status-dot" style="background:#22c55e;"></span><strong style="font-size:.85rem;">Active Branches</strong></div>
+                <div class="text-end"><div style="font-weight:700;color:#1e40af;font-size:.85rem;">{{ total_branches|default:0 }} branches</div><div style="font-size:.72rem;color:#64748b;">Distinct branch codes</div></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6">
+        <div class="section-card">
+            <div class="section-title mb-3"><i class="bi bi-shield-check me-2 text-success"></i>Data Quality Report</div>
+            <div class="mb-3">
+                <div class="d-flex justify-content-between mb-1"><span style="font-size:.8rem;font-weight:600;">Overall Quality Score</span><strong style="color:#15803d;">{{ quality_score|default:0 }}%</strong></div>
+                <div style="height:10px;background:#f1f5f9;border-radius:99px;overflow:hidden;"><div style="width:{{ quality_score|default:0 }}%;height:100%;background:linear-gradient(90deg,#15803d,#22c55e);border-radius:99px;transition:width 1s;"></div></div>
+            </div>
+            <table class="table table-sm">
+                <tbody>
+                    <tr><td style="font-size:.82rem;">Date Range</td><td style="font-weight:600;text-align:right;font-size:.82rem;">{{ date_from }} → {{ date_to }}</td></tr>
+                    <tr><td style="font-size:.82rem;">Total Invoice Records</td><td style="font-weight:600;text-align:right;font-size:.82rem;">{{ total_records|default:0 }}</td></tr>
+                    <tr><td style="font-size:.82rem;">Missing Mobile Numbers</td><td style="font-weight:600;color:#b91c1c;text-align:right;font-size:.82rem;">{{ missing_mobile|default:0 }}</td></tr>
+                    <tr><td style="font-size:.82rem;">Zero/Negative Invoices</td><td style="font-weight:600;color:#f97316;text-align:right;font-size:.82rem;">{{ zero_invoices|default:0 }}</td></tr>
+                    <tr><td style="font-size:.82rem;">Clean Records</td><td style="font-weight:600;color:#15803d;text-align:right;font-size:.82rem;" id="clean-count">—</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<script>
+const total = {{ total_records|default:0 }};
+const bad = {{ missing_mobile|default:0 }} + {{ zero_invoices|default:0 }};
+document.getElementById('clean-count').textContent = (total - bad).toLocaleString('en-IN');
+</script>
+{% endblock %}

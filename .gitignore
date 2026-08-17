@@ -141,3 +141,8 @@ clean_db.py
 fix_db.py
 purge_dirty.py
 refresh_rem.py
+
+*.csv
+*.pkl
+.cache/
+*.djcache

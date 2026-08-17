@@ -1,0 +1,456 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Executive Dashboard | AI Retail Engine{% endblock %}
+
+{% block content %}
+<style>
+:root {
+    --primary: #1e40af;
+    --primary-light: #dbeafe;
+    --success: #15803d;
+    --success-light: #dcfce7;
+    --danger: #b91c1c;
+    --danger-light: #fee2e2;
+    --warning: #d97706;
+    --warning-light: #fef3c7;
+    --info: #0e7490;
+    --info-light: #cffafe;
+    --purple: #7c3aed;
+    --purple-light: #ede9fe;
+    --text-primary: #0f172a;
+    --text-muted: #64748b;
+    --border: #e2e8f0;
+    --bg: #f8fafc;
+    --card-bg: #ffffff;
+}
+
+.exec-header {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #1e40af 100%);
+    color: white;
+    padding: 2rem 2.5rem;
+    margin: -2.5rem -2.5rem 2rem -2.5rem;
+    position: relative;
+    overflow: hidden;
+}
+.exec-header::before {
+    content: '';
+    position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+    background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+.exec-header h1 { font-size: 1.75rem; font-weight: 800; letter-spacing: -0.5px; }
+.exec-header .sub { color: #93c5fd; font-size: 0.88rem; }
+.period-badge {
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: white;
+    border-radius: 20px;
+    padding: 0.35rem 1rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.kpi-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.4rem 1.5rem;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+}
+.kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: 16px 16px 0 0;
+}
+.kpi-card.blue::before { background: linear-gradient(90deg, #1e40af, #3b82f6); }
+.kpi-card.green::before { background: linear-gradient(90deg, #15803d, #22c55e); }
+.kpi-card.orange::before { background: linear-gradient(90deg, #c2410c, #f97316); }
+.kpi-card.purple::before { background: linear-gradient(90deg, #7c3aed, #a78bfa); }
+.kpi-card.teal::before { background: linear-gradient(90deg, #0e7490, #22d3ee); }
+.kpi-card.rose::before { background: linear-gradient(90deg, #be123c, #f43f5e); }
+.kpi-card:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,0.07); }
+.kpi-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); }
+.kpi-value { font-size: 1.9rem; font-weight: 800; color: var(--text-primary); line-height: 1.1; margin: 0.25rem 0; }
+.kpi-sub { font-size: 0.8rem; color: var(--text-muted); }
+.kpi-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+.badge-up { background: var(--success-light); color: var(--success); border-radius: 20px; padding: 0.2rem 0.6rem; font-size: 0.72rem; font-weight: 700; }
+.badge-down { background: var(--danger-light); color: var(--danger); border-radius: 20px; padding: 0.2rem 0.6rem; font-size: 0.72rem; font-weight: 700; }
+
+.section-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+}
+.section-title { font-size: 1rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem; }
+.section-sub { font-size: 0.78rem; color: var(--text-muted); }
+
+.bar-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.85rem; }
+.bar-label { font-size: 0.78rem; font-weight: 600; color: #334155; min-width: 120px; }
+.bar-track { flex: 1; height: 8px; background: #f1f5f9; border-radius: 99px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 99px; transition: width 0.6s ease; }
+.bar-val { font-size: 0.75rem; color: var(--text-muted); min-width: 70px; text-align: right; }
+
+.branch-row { display: flex; align-items: center; justify-content: space-between; padding: 0.8rem 0; border-bottom: 1px solid #f1f5f9; }
+.branch-row:last-child { border-bottom: none; }
+.branch-name { font-weight: 700; font-size: 0.88rem; color: #1e293b; }
+.branch-meta { font-size: 0.75rem; color: var(--text-muted); }
+.branch-rev { font-weight: 800; font-size: 0.95rem; color: #1e40af; }
+
+.ai-summary-card {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+    border-radius: 16px;
+    padding: 2rem;
+    color: white;
+    position: relative;
+    overflow: hidden;
+}
+.ai-summary-card::before {
+    content: '';
+    position: absolute; top: -40px; right: -40px;
+    width: 180px; height: 180px;
+    background: radial-gradient(circle, rgba(99,102,241,0.3) 0%, transparent 70%);
+    border-radius: 50%;
+}
+.ai-chip { background: rgba(99,102,241,0.25); border: 1px solid rgba(99,102,241,0.4); border-radius: 20px; padding: 0.25rem 0.75rem; font-size: 0.72rem; font-weight: 700; color: #a5b4fc; display: inline-block; margin-bottom: 1rem; }
+.ai-summary-text { font-size: 1rem; line-height: 1.75; color: #e2e8f0; }
+.ai-highlight { color: #93c5fd; font-weight: 700; }
+.insight-pill { background: rgba(255,255,255,0.08); border-radius: 10px; padding: 0.6rem 1rem; font-size: 0.78rem; color: #cbd5e1; margin-top: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+</style>
+
+<div class="exec-header">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="ai-chip mb-2" style="background: rgba(99,102,241,0.2); border-color: rgba(99,102,241,0.3); color: #a5b4fc; font-size: 0.68rem; padding: 0.2rem 0.7rem; border-radius: 20px; display: inline-block;">AI RETAIL DECISION ENGINE</div>
+            <h1 class="mb-1">Executive Dashboard</h1>
+            <p class="sub mb-0">Real-time business intelligence &mdash; ClickHouse + Azure</p>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="period-badge"><i class="bi bi-calendar3 me-1"></i>Last 30 Days</span>
+            <span class="period-badge" id="last-updated-badge"><i class="bi bi-clock me-1"></i>Live</span>
+        </div>
+    </div>
+</div>
+
+<div class="container-fluid px-0">
+
+    <!-- KPI ROW 1 -->
+    <div class="row g-3 mb-3">
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="kpi-card blue">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="kpi-label">Total Sales</span>
+                    <div class="kpi-icon" style="background: var(--primary-light); color: var(--primary);"><i class="bi bi-currency-rupee"></i></div>
+                </div>
+                <div class="kpi-value">₹<span id="kpi-total-sales">—</span></div>
+                <div class="d-flex align-items-center gap-2 mt-1">
+                    <span class="badge-up" id="kpi-sales-growth">—</span>
+                    <span class="kpi-sub">vs prev 30d</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="kpi-card green">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="kpi-label">Customers</span>
+                    <div class="kpi-icon" style="background: var(--success-light); color: var(--success);"><i class="bi bi-people-fill"></i></div>
+                </div>
+                <div class="kpi-value"><span id="kpi-customers">—</span></div>
+                <div class="d-flex align-items-center gap-2 mt-1">
+                    <span class="badge-up" id="kpi-cust-growth">—</span>
+                    <span class="kpi-sub">vs prev 30d</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="kpi-card orange">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="kpi-label">New Customers</span>
+                    <div class="kpi-icon" style="background: #fff7ed; color: #c2410c;"><i class="bi bi-person-plus-fill"></i></div>
+                </div>
+                <div class="kpi-value"><span id="kpi-new-custs">—</span></div>
+                <div class="kpi-sub mt-1" id="kpi-new-custs-pct">of total customers</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="kpi-card purple">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="kpi-label">Total Invoices</span>
+                    <div class="kpi-icon" style="background: var(--purple-light); color: var(--purple);"><i class="bi bi-receipt"></i></div>
+                </div>
+                <div class="kpi-value"><span id="kpi-invoices">—</span></div>
+                <div class="d-flex align-items-center gap-2 mt-1">
+                    <span class="badge-up" id="kpi-inv-growth">—</span>
+                    <span class="kpi-sub">vs prev 30d</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="kpi-card teal">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="kpi-label">Avg Order Value</span>
+                    <div class="kpi-icon" style="background: var(--info-light); color: var(--info);"><i class="bi bi-cart3"></i></div>
+                </div>
+                <div class="kpi-value">₹<span id="kpi-aov">—</span></div>
+                <div class="kpi-sub mt-1">per transaction</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="kpi-card rose">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="kpi-label">Active Branches</span>
+                    <div class="kpi-icon" style="background: #fff1f2; color: #be123c;"><i class="bi bi-shop"></i></div>
+                </div>
+                <div class="kpi-value"><span id="kpi-branches">—</span></div>
+                <div class="kpi-sub mt-1">branches with sales</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CHARTS ROW -->
+    <div class="row g-3 mb-3">
+        <!-- Sales Trend -->
+        <div class="col-12 col-xl-8">
+            <div class="section-card h-100">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <div class="section-title"><i class="bi bi-graph-up text-primary me-2"></i>Monthly Sales Trend</div>
+                        <div class="section-sub">Last 12 months revenue &amp; invoice count</div>
+                    </div>
+                </div>
+                <canvas id="salesTrendChart" height="200"></canvas>
+            </div>
+        </div>
+        <!-- Category Split -->
+        <div class="col-12 col-xl-4">
+            <div class="section-card h-100">
+                <div class="section-title mb-1"><i class="bi bi-pie-chart text-purple me-2" style="color: var(--purple);"></i>Product Category Revenue</div>
+                <div class="section-sub mb-3">Hero products — last 30 days</div>
+                <div id="cat-bars"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- BRANCH + TREND ROW -->
+    <div class="row g-3 mb-3">
+        <!-- Top Branches -->
+        <div class="col-12 col-md-6">
+            <div class="section-card h-100">
+                <div class="section-title mb-1"><i class="bi bi-building text-success me-2"></i>Top Branches by Revenue</div>
+                <div class="section-sub mb-3">Last 30 days performance</div>
+                <div id="branch-list"></div>
+            </div>
+        </div>
+        <!-- Quick Metrics -->
+        <div class="col-12 col-md-6">
+            <div class="section-card h-100">
+                <div class="section-title mb-3"><i class="bi bi-activity text-danger me-2"></i>Revenue vs Transactions</div>
+                <canvas id="revenueTransChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Executive Summary -->
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <div class="ai-summary-card">
+                <div class="ai-chip">✦ AI EXECUTIVE SUMMARY</div>
+                <p class="ai-summary-text" id="ai-summary-text">
+                    Generating intelligence from your live data...
+                </p>
+                <div class="row g-2" id="insight-pills"></div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// ---- LIVE DATA INJECTED BY DJANGO ---
+const EXEC_DATA = {
+    sales_curr: {{ sales_curr|default:0 }},
+    sales_prev: {{ sales_prev|default:0 }},
+    custs_curr: {{ custs_curr|default:0 }},
+    custs_prev: {{ custs_prev|default:0 }},
+    inv_curr: {{ inv_curr|default:0 }},
+    inv_prev: {{ inv_prev|default:0 }},
+    new_custs: {{ new_custs|default:0 }},
+    aov: {{ aov|default:0 }},
+    branches: {{ branches_count|default:0 }},
+    trend_labels: {{ trend_labels|safe }},
+    trend_values: {{ trend_values|safe }},
+    trend_invoices: {{ trend_invoices|safe }},
+    cat_labels: {{ cat_labels|safe }},
+    cat_values: {{ cat_values|safe }},
+    branch_names: {{ branch_names|safe }},
+    branch_revs: {{ branch_revs|safe }},
+    branch_invs: {{ branch_invs|safe }},
+};
+
+function fmt(n) {
+    if (n >= 10000000) return (n / 10000000).toFixed(1) + 'Cr';
+    if (n >= 100000) return (n / 100000).toFixed(1) + 'L';
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+    return Math.round(n).toLocaleString('en-IN');
+}
+function pct(curr, prev) {
+    if (!prev) return '+0.0%';
+    const p = ((curr - prev) / prev) * 100;
+    return (p >= 0 ? '+' : '') + p.toFixed(1) + '%';
+}
+function setBadge(elId, curr, prev) {
+    const el = document.getElementById(elId);
+    const p = prev ? ((curr - prev) / prev) * 100 : 0;
+    el.textContent = (p >= 0 ? '▲ ' : '▼ ') + Math.abs(p).toFixed(1) + '%';
+    el.className = p >= 0 ? 'badge-up' : 'badge-down';
+}
+
+// KPIs
+document.getElementById('kpi-total-sales').textContent = fmt(EXEC_DATA.sales_curr);
+setBadge('kpi-sales-growth', EXEC_DATA.sales_curr, EXEC_DATA.sales_prev);
+document.getElementById('kpi-customers').textContent = fmt(EXEC_DATA.custs_curr);
+setBadge('kpi-cust-growth', EXEC_DATA.custs_curr, EXEC_DATA.custs_prev);
+document.getElementById('kpi-new-custs').textContent = fmt(EXEC_DATA.new_custs);
+document.getElementById('kpi-new-custs-pct').textContent = EXEC_DATA.custs_curr ? Math.round(EXEC_DATA.new_custs / EXEC_DATA.custs_curr * 100) + '% of total customers' : '';
+document.getElementById('kpi-invoices').textContent = fmt(EXEC_DATA.inv_curr);
+setBadge('kpi-inv-growth', EXEC_DATA.inv_curr, EXEC_DATA.inv_prev);
+document.getElementById('kpi-aov').textContent = fmt(EXEC_DATA.aov);
+document.getElementById('kpi-branches').textContent = EXEC_DATA.branches;
+
+// Sales Trend Chart
+const trendCtx = document.getElementById('salesTrendChart').getContext('2d');
+new Chart(trendCtx, {
+    type: 'line',
+    data: {
+        labels: EXEC_DATA.trend_labels,
+        datasets: [{
+            label: 'Revenue',
+            data: EXEC_DATA.trend_values.map(v => Math.round(v / 100000)),
+            borderColor: '#1e40af',
+            backgroundColor: 'rgba(30,64,175,0.07)',
+            fill: true,
+            tension: 0.4,
+            pointBackgroundColor: '#1e40af',
+            pointRadius: 4,
+            yAxisID: 'y1',
+        }, {
+            label: 'Invoices',
+            data: EXEC_DATA.trend_invoices,
+            borderColor: '#f97316',
+            backgroundColor: 'transparent',
+            borderDash: [5,3],
+            tension: 0.4,
+            pointBackgroundColor: '#f97316',
+            pointRadius: 3,
+            yAxisID: 'y2',
+        }]
+    },
+    options: {
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { position: 'top', labels: { font: { size: 11, weight: '600' } } } },
+        scales: {
+            x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+            y1: { position: 'left', grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 }, callback: v => '₹' + v + 'L' } },
+            y2: { position: 'right', grid: { display: false }, ticks: { font: { size: 10 }, callback: v => v + ' inv' } },
+        }
+    }
+});
+
+// Category Bars
+const catEl = document.getElementById('cat-bars');
+const maxRev = Math.max(...EXEC_DATA.cat_values);
+const catColors = ['#1e40af','#f97316','#15803d','#7c3aed','#0e7490','#be123c'];
+EXEC_DATA.cat_labels.forEach((label, i) => {
+    const w = maxRev > 0 ? (EXEC_DATA.cat_values[i] / maxRev * 100).toFixed(1) : 0;
+    catEl.innerHTML += `<div class="bar-row">
+        <span class="bar-label">${label}</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${w}%;background:${catColors[i%catColors.length]};"></div></div>
+        <span class="bar-val">₹${fmt(EXEC_DATA.cat_values[i])}</span>
+    </div>`;
+});
+
+// Branch List
+const brEl = document.getElementById('branch-list');
+const maxBrRev = Math.max(...EXEC_DATA.branch_revs);
+const brColors = ['🏆','🥈','🥉','4️⃣','5️⃣'];
+EXEC_DATA.branch_names.forEach((name, i) => {
+    const pctRev = maxBrRev > 0 ? (EXEC_DATA.branch_revs[i] / maxBrRev * 100).toFixed(0) : 0;
+    brEl.innerHTML += `<div class="branch-row">
+        <div>
+            <div class="branch-name">${brColors[i]} ${name}</div>
+            <div class="branch-meta">${EXEC_DATA.branch_invs[i].toLocaleString('en-IN')} invoices &bull;
+                <div class="bar-track d-inline-block" style="width:80px; vertical-align:middle;">
+                    <div class="bar-fill" style="width:${pctRev}%;background:#1e40af;"></div>
+                </div>
+            </div>
+        </div>
+        <div class="branch-rev">₹${fmt(EXEC_DATA.branch_revs[i])}</div>
+    </div>`;
+});
+
+// Revenue vs Transactions Chart
+const rtCtx = document.getElementById('revenueTransChart').getContext('2d');
+new Chart(rtCtx, {
+    type: 'bar',
+    data: {
+        labels: EXEC_DATA.trend_labels.slice(-6),
+        datasets: [{
+            label: 'Revenue (₹L)',
+            data: EXEC_DATA.trend_values.slice(-6).map(v => Math.round(v / 100000)),
+            backgroundColor: 'rgba(30,64,175,0.8)',
+            borderRadius: 8,
+            yAxisID: 'y1',
+        }, {
+            label: 'Invoices',
+            data: EXEC_DATA.trend_invoices.slice(-6),
+            backgroundColor: 'rgba(249,115,22,0.7)',
+            borderRadius: 8,
+            yAxisID: 'y2',
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { position: 'top', labels: { font: { size: 11, weight: '600' } } } },
+        scales: {
+            x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+            y1: { position: 'left', grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 }, callback: v => '₹' + v + 'L' } },
+            y2: { position: 'right', grid: { display: false }, ticks: { font: { size: 10 } } },
+        }
+    }
+});
+
+// AI Executive Summary
+const salesGrowth = EXEC_DATA.sales_prev ? ((EXEC_DATA.sales_curr - EXEC_DATA.sales_prev) / EXEC_DATA.sales_prev * 100).toFixed(1) : 0;
+const custGrowth = EXEC_DATA.custs_prev ? ((EXEC_DATA.custs_curr - EXEC_DATA.custs_prev) / EXEC_DATA.custs_prev * 100).toFixed(1) : 0;
+const topCat = EXEC_DATA.cat_labels[0];
+const topBranch = EXEC_DATA.branch_names[0];
+const dir = salesGrowth >= 0 ? 'increased' : 'decreased';
+const salesColor = salesGrowth >= 0 ? '#86efac' : '#fca5a5';
+
+document.getElementById('ai-summary-text').innerHTML = `
+    Total revenue has <span class="ai-highlight">${dir} by ${Math.abs(salesGrowth)}%</span> compared to the previous 30-day period, 
+    reaching <span class="ai-highlight">₹${fmt(EXEC_DATA.sales_curr)}</span> across 
+    <span class="ai-highlight">${EXEC_DATA.branches} active branches</span>. 
+    <span class="ai-highlight">${topCat}</span> is the highest-revenue hero product category, while 
+    <span class="ai-highlight">${topBranch}</span> leads branch performance with ₹${fmt(EXEC_DATA.branch_revs[0])} in revenue.
+    Customer growth stands at <span class="ai-highlight">${custGrowth > 0 ? '+' : ''}${custGrowth}%</span> with 
+    <span class="ai-highlight">${fmt(EXEC_DATA.new_custs)}</span> new customers acquired this period.
+    Average order value is <span class="ai-highlight">₹${fmt(EXEC_DATA.aov)}</span> per transaction.
+`;
+
+document.getElementById('insight-pills').innerHTML = `
+    <div class="col-auto"><div class="insight-pill"><i class="bi bi-graph-up" style="color:#86efac;"></i> Revenue ${salesGrowth >= 0 ? 'up' : 'down'} ${Math.abs(salesGrowth)}% vs last month</div></div>
+    <div class="col-auto"><div class="insight-pill"><i class="bi bi-people" style="color:#93c5fd;"></i> ${fmt(EXEC_DATA.new_custs)} new customers acquired</div></div>
+    <div class="col-auto"><div class="insight-pill"><i class="bi bi-trophy" style="color:#fcd34d;"></i> ${topBranch} is top performing branch</div></div>
+    <div class="col-auto"><div class="insight-pill"><i class="bi bi-box-seam" style="color:#c4b5fd;"></i> ${topCat} leads category revenue</div></div>
+`;
+
+document.getElementById('last-updated-badge').innerHTML = '<i class="bi bi-clock me-1"></i>' + new Date().toLocaleTimeString();
+</script>
+{% endblock %}

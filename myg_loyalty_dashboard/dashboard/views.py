@@ -175,6 +175,7 @@ class TargetExecutiveView(LoginRequiredMixin, TemplateView):
         jas_status_badge   = jas_data.get('jas_status_badge',   'COMPUTING...')
         jas_risk_color     = jas_data.get('jas_risk_color',     '#6b7280')
         jas_daily_pts      = jas_data.get('jas_daily_json',     [])
+        jas_lstm_pts       = jas_data.get('jas_lstm_json',      [])
         base_customers     = jas_data.get('base_customers',     5330462)
         avg_hist_rate      = jas_data.get('avg_hist_rate',      7.82)
         # Override live day counts (always current)
@@ -198,6 +199,7 @@ class TargetExecutiveView(LoginRequiredMixin, TemplateView):
             'jas_status_badge':   jas_status_badge,
             'jas_risk_color':     jas_risk_color,
             'jas_daily_json':     json.dumps(jas_daily_pts),
+            'jas_lstm_json':      json.dumps(jas_lstm_pts),
             'jas_target_json':    jas_target,
             'base_customers':     base_customers,
             'avg_hist_rate':      avg_hist_rate,
@@ -688,6 +690,28 @@ class CampaignAnalysisView(LoginRequiredMixin, TemplateView):
     template_name = 'dashboard/campaign_analysis.html'
 
 
+class SalesForecastingView(LoginRequiredMixin, TemplateView):
+    """
+    Dedicated page for the new Sales Forecasting Module (Prophet + XGBoost + LSTM).
+    Reads the cached forecast data from advanced_lstm_forecaster.py JSON.
+    """
+    template_name = 'dashboard/sales_forecasting.html'
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        import json, os
+        cache_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
+            'analytics', 
+            'lstm_forecast_cache.json'
+        )
+        try:
+            with open(cache_path, 'r') as f:
+                ctx['initial_data_json'] = f.read()
+        except:
+            ctx['initial_data_json'] = 'null'
+        return ctx
+
 class AIIntelligenceView(LoginRequiredMixin, TemplateView):
     """
     Dedicated page for the 4-Model AI Intelligence Engine.
@@ -784,34 +808,35 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
             from analytics.clickhouse_service import get_ch_client
             from datetime import date
             client = get_ch_client()
-            # ── azure_invoice_report (Azure Blob) — replaces legacy sales_data ──
-            # date      = DateTime column  → toDate(date)
-            # invoice_total               → replaces total_value
-            # point_redemption not in azure_invoice_report → zeroed out safely
+            # Using sales_data table to calculate point_redemption correctly
             rows = client.query("""
                 SELECT
                     cohort_year,
                     toStartOfMonth(first_2026_date) AS first_2026_month,
                     COUNT(*) AS unique_customers,
                     SUM(reactivated_revenue)        AS total_revenue,
-                    toFloat64(0)                    AS total_redeemed_points,
-                    toFloat64(0)                    AS total_redeemed_sales,
-                    toInt64(0)                      AS total_redeemed_customers
+                    SUM(total_pts)                  AS total_redeemed_points,
+                    SUM(total_r_sales)              AS total_redeemed_sales,
+                    COUNT(IF(total_pts > 0, 1, NULL)) AS total_redeemed_customers
                 FROM (
                     SELECT
                         customer_mobile,
-                        maxIf(toYear(toDate(date)), toDate(date) < toDate('2026-01-01'))
+                        maxIf(toYear(parsed_date), parsed_date < toDate('2026-01-01'))
                             AS cohort_year,
-                        minIf(toDate(date), toDate(date) >= toDate('2026-01-01'))
+                        minIf(parsed_date, parsed_date >= toDate('2026-01-01'))
                             AS first_2026_date,
-                        sumIf(invoice_total, toDate(date) >= toDate('2026-01-01'))
-                            AS reactivated_revenue
-                    FROM azure_invoice_report
+                        sumIf(total_value, parsed_date >= toDate('2026-01-01'))
+                            AS reactivated_revenue,
+                        sumIf(toFloat64OrZero(point_redemption), parsed_date >= toDate('2026-01-01'))
+                            AS total_pts,
+                        sumIf(total_value, parsed_date >= toDate('2026-01-01') AND toFloat64OrZero(point_redemption) > 0)
+                            AS total_r_sales
+                    FROM sales_data
                     WHERE length(customer_mobile) = 10
                       AND customer_mobile != ''
                       AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
-                      AND toDate(date) != toDate('1970-01-01')
-                      AND invoice_total > 0
+                      AND parsed_date != toDate('1970-01-01')
+                      AND total_value > 0
                     GROUP BY customer_mobile
                 )
                 WHERE cohort_year BETWEEN 2020 AND 2024
@@ -2279,10 +2304,9 @@ class DailyNewRepeatAPIView(LoginRequiredMixin, View):
             client = get_ch_client()
 
             # ── JAS-style new vs repeat query — UNIQUE CUSTOMERS per day ──────
-            # NEW    = customer had NO purchase before {self.BASE_DATE} (same as JAS has_prior=0)
-            # REPEAT = customer had ANY purchase before {self.BASE_DATE} (same as JAS has_prior=1)
-            # Source: azure_sales_report (item-level) JOIN azure_invoice_report (customer mobile)
-            # Revenue = sum(azure_sales_report.sold_price) per customer per day
+            # NEW    = customer had NO purchase before {self.BASE_DATE}
+            # REPEAT = customer had ANY purchase before {self.BASE_DATE}
+            # Revenue = invoice_total from azure_invoice_report (clean, 1 row per invoice)
             rows = client.query(f"""
                 SELECT
                     sale_date,
@@ -2293,13 +2317,12 @@ class DailyNewRepeatAPIView(LoginRequiredMixin, View):
                     sumIf(rev, is_new = 0)       AS repeat_revenue,
                     sum(rev)                     AS total_revenue
                 FROM (
-                    -- One row per (customer, day)
-                    -- azure_sales_report → sold_price / branch / date
-                    -- azure_invoice_report → customer_mobile (joined on invoice_no)
+                    -- One row per (customer, day) using azure_invoice_report directly
+                    -- Revenue = invoice_total (no duplication risk)
                     SELECT
                         i.customer_mobile        AS customer_mobile,
-                        toDate(s.date)           AS sale_date,
-                        sum(s.sold_price)        AS rev,
+                        toDate(i.date)           AS sale_date,
+                        sum(i.invoice_total)     AS rev,
                         -- NEW = customer had NO purchase before BASE_DATE
                         if(i.customer_mobile NOT IN (
                             SELECT DISTINCT customer_mobile
@@ -2311,31 +2334,30 @@ class DailyNewRepeatAPIView(LoginRequiredMixin, View):
                               AND toDate(date) != toDate('1970-01-01')
                               AND invoice_total > 0
                         ), 1, 0)                 AS is_new
-                    FROM azure_sales_report s
-                    JOIN azure_invoice_report i ON s.invoice_no = i.invoice_no
+                    FROM azure_invoice_report i
                     WHERE length(i.customer_mobile) = 10
                       AND i.customer_mobile != ''
                       AND i.customer_mobile NOT IN ('1313131313','0000000000','9999999999')
-                      AND toDate(s.date) BETWEEN toDate('{start_date}') AND toDate('{end_date}')
-                      AND toDate(s.date) != toDate('1970-01-01')
-                      AND s.sold_price > 0
-                      {branch_clause_where}
-                    GROUP BY i.customer_mobile, toDate(s.date)
+                      AND toDate(i.date) BETWEEN toDate('{start_date}') AND toDate('{end_date}')
+                      AND toDate(i.date) != toDate('1970-01-01')
+                      AND i.invoice_total > 0
+                      {branch_clause_where.replace('s.branch', 'i.branch').replace('branch', 'i.branch') if branch_clause_where else ''}
+                    GROUP BY i.customer_mobile, toDate(i.date)
                 )
                 GROUP BY sale_date
                 ORDER BY sale_date ASC
             """).result_rows
 
             # ── Period-level UNIQUE customers ─────────────────────────────────
-            # Source: azure_sales_report JOIN azure_invoice_report
+            # Source: azure_invoice_report only (no sales_report join needed)
             uniq = client.query(f"""
                 SELECT
                     countIf(is_new = 1) AS uniq_new,
                     countIf(is_new = 0) AS uniq_repeat,
                     count()             AS uniq_total
                 FROM (
-                    SELECT DISTINCT i.customer_mobile AS customer_mobile,
-                        if(i.customer_mobile NOT IN (
+                    SELECT DISTINCT customer_mobile,
+                        if(customer_mobile NOT IN (
                             SELECT DISTINCT customer_mobile FROM azure_invoice_report
                             WHERE length(customer_mobile) = 10
                               AND customer_mobile != ''
@@ -2344,14 +2366,13 @@ class DailyNewRepeatAPIView(LoginRequiredMixin, View):
                               AND toDate(date) != toDate('1970-01-01')
                               AND invoice_total > 0
                         ), 1, 0) AS is_new
-                    FROM azure_sales_report s
-                    JOIN azure_invoice_report i ON s.invoice_no = i.invoice_no
-                    WHERE length(i.customer_mobile) = 10
-                      AND i.customer_mobile != ''
-                      AND i.customer_mobile NOT IN ('1313131313','0000000000','9999999999')
-                      AND toDate(s.date) BETWEEN toDate('{start_date}') AND toDate('{end_date}')
-                      AND toDate(s.date) != toDate('1970-01-01')
-                      AND s.sold_price > 0
+                    FROM azure_invoice_report
+                    WHERE length(customer_mobile) = 10
+                      AND customer_mobile != ''
+                      AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                      AND toDate(date) BETWEEN toDate('{start_date}') AND toDate('{end_date}')
+                      AND toDate(date) != toDate('1970-01-01')
+                      AND invoice_total > 0
                       {branch_clause_where}
                 )
             """).result_rows[0]
@@ -2425,4 +2446,699 @@ class DailyNewRepeatAPIView(LoginRequiredMixin, View):
             import traceback
             traceback.print_exc()
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+
+# ====== TARGET COMMAND CENTER VIEWS ======
+import os, sys, json, math
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from django.views import View
+from django.http import JsonResponse
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.shortcuts import render
+from datetime import date, timedelta, datetime
+
+# ────────────────────────────────────────────────────────────────────────────
+# Helper: Quarter definitions
+# ────────────────────────────────────────────────────────────────────────────
+QUARTERS = {
+    'AMJ': {'months': [4, 5, 6],  'label': 'April–June',       'q': 2},
+    'JAS': {'months': [7, 8, 9],  'label': 'July–September',   'q': 3},
+    'OND': {'months': [10,11,12], 'label': 'October–December',  'q': 4},
+    'JFM': {'months': [1, 2, 3],  'label': 'January–March',    'q': 1},
+}
+
+def _get_quarter_dates(qcode: str, ref_date: date = None):
+    """Return (start_date, end_date, year) for a quarter code."""
+    if ref_date is None:
+        ref_date = date.today()
+    months = QUARTERS[qcode]['months']
+    yr = ref_date.year
+    # JFM: if we're Jan-Mar, that's current year; else it was earlier
+    if qcode == 'JFM':
+        if ref_date.month not in [1,2,3]:
+            yr += 1  # next year's JFM
+    start = date(yr, months[0], 1)
+    # End = last day of last month
+    last_m = months[-1]
+    last_yr = yr if last_m >= months[0] else yr + 1
+    if last_m == 12:
+        end = date(last_yr, 12, 31)
+    else:
+        end = date(last_yr, last_m+1, 1) - timedelta(days=1)
+    return start, end, yr
+
+
+def _safe_q(client, sql, default=None):
+    """Safe ClickHouse query with fallback."""
+    try:
+        return client.query(sql).result_rows
+    except Exception as e:
+        print(f"[TCC] Query error: {e}")
+        return default or []
+
+
+def _load_jas_cache():
+    """Load jas_cache.json."""
+    cache_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        'analytics', 'jas_cache.json'
+    )
+    try:
+        with open(cache_path, encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _compute_probability(achieved, target, daily_rate, req_rate, days_done, days_total):
+    """Weighted probability model (no external ML library)."""
+    if target <= 0:
+        return 50
+    ach_pct = achieved / target
+    rate_ratio = min(daily_rate / max(req_rate, 1), 1.4)
+    days_frac = days_done / max(days_total, 1)
+    # Historical JAS seasons typically reach ~85-90% of target
+    hist_factor = 0.88
+    prob = (
+        0.45 * ach_pct * (1.0 / max(1 - days_frac + 0.05, 0.05))
+        + 0.35 * rate_ratio
+        + 0.20 * hist_factor
+    ) * 100
+    return round(max(5.0, min(99.0, prob)), 1)
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Page View
+# ────────────────────────────────────────────────────────────────────────────
+class TargetCommandCenterView(LoginRequiredMixin, View):
+    def get(self, request):
+        return render(request, 'dashboard/target_command_center.html', {
+            'active_quarter': request.GET.get('quarter', 'JAS'),
+        })
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# API View
+# ────────────────────────────────────────────────────────────────────────────
+class TargetCommandCenterAPIView(View):
+
+    def get(self, request):
+        if not request.user.is_authenticated:
+            return JsonResponse({'status': 'error', 'message': 'Authentication required'}, status=401)
+        try:
+            from analytics.clickhouse_service import get_ch_client
+            client = get_ch_client()
+
+            qcode = request.GET.get('quarter', 'JAS').upper()
+            if qcode not in QUARTERS:
+                qcode = 'JAS'
+
+            today = date.today()
+            start, end, yr = _get_quarter_dates(qcode, today)
+            q_label = f"{QUARTERS[qcode]['label']} {yr}"
+            days_total = (end - start).days + 1
+            days_done  = max(0, min((today - start).days, days_total))
+            days_rem   = max(0, days_total - days_done)
+
+            start_s = start.strftime('%Y-%m-%d')
+            end_s   = end.strftime('%Y-%m-%d')
+
+            # ── 1. Target KPIs (from JAS cache for JAS, otherwise compute) ──
+            cache = _load_jas_cache() if qcode == 'JAS' else {}
+
+            if cache and qcode == 'JAS':
+                target    = cache.get('jas_target', 529364)
+                achieved  = cache.get('jas_achieved', 0)
+                ach_pct   = cache.get('jas_achieved_pct', 0.0)
+                gap       = cache.get('jas_gap', target)
+                daily_rate= cache.get('jas_daily_rate', 0)
+                req_daily = cache.get('jas_req_daily', 0)
+                forecast  = cache.get('jas_forecast_final', 0)
+                status    = cache.get('jas_status_badge', 'AT RISK')
+                risk_color= cache.get('jas_risk_color', '#F59E0B')
+                days_done = cache.get('jas_days_done', days_done)
+                days_rem  = cache.get('jas_days_rem', days_rem)
+            else:
+                # Compute dynamically for other quarters
+                base_rows = _safe_q(client, f"""
+                    SELECT countDistinct(customer_mobile)
+                    FROM azure_invoice_report
+                    WHERE toDate(date) < toDate('{start_s}')
+                      AND toDate(date) != toDate('1970-01-01')
+                      AND invoice_total > 0
+                      AND length(customer_mobile) = 10
+                      AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                """, [(0,)])
+                base_cust = base_rows[0][0] if base_rows else 0
+                target    = int(base_cust * 0.10)
+
+                ach_rows  = _safe_q(client, f"""
+                    SELECT countDistinct(i.customer_mobile)
+                    FROM azure_invoice_report i
+                    WHERE toDate(i.date) BETWEEN toDate('{start_s}') AND toDate('{min(today, end).strftime('%Y-%m-%d')}')
+                      AND toDate(i.date) != toDate('1970-01-01')
+                      AND i.invoice_total > 0
+                      AND length(i.customer_mobile) = 10
+                      AND i.customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                      AND i.customer_mobile IN (
+                          SELECT DISTINCT customer_mobile FROM azure_invoice_report
+                          WHERE toDate(date) < toDate('{start_s}')
+                            AND toDate(date) != toDate('1970-01-01')
+                            AND invoice_total > 0
+                            AND length(customer_mobile) = 10
+                      )
+                """, [(0,)])
+                achieved  = ach_rows[0][0] if ach_rows else 0
+                gap       = max(0, target - achieved)
+                ach_pct   = round(achieved / max(target, 1) * 100, 1)
+                daily_rate= round(achieved / max(days_done, 1), 0)
+                req_daily = round(gap / max(days_rem, 1), 0)
+                forecast  = int(achieved + daily_rate * days_rem)
+                status    = 'ON TRACK' if forecast >= target * 0.95 else ('RECOVERABLE' if forecast >= target * 0.80 else 'AT RISK')
+                risk_color= '#22C55E' if status == 'ON TRACK' else ('#F59E0B' if status == 'RECOVERABLE' else '#EF4444')
+
+            probability = _compute_probability(achieved, target, daily_rate, req_daily, days_done, days_total)
+            best_case   = int(min(target * 1.05, achieved + (daily_rate * 1.25) * days_rem))
+            worst_case  = int(achieved + (daily_rate * 0.80) * days_rem)
+            conf_score  = round(min(95, max(40, probability - 5 + (days_done / max(days_total,1)) * 15)), 1)
+
+            target_kpis = {
+                'target': target, 'achieved': achieved, 'gap': gap,
+                'ach_pct': ach_pct, 'forecast': forecast,
+                'probability': probability, 'confidence': conf_score,
+                'status': status, 'risk_color': risk_color,
+                'days_done': days_done, 'days_rem': days_rem,
+                'days_total': days_total, 'daily_rate': daily_rate,
+                'req_daily': req_daily,
+            }
+
+            # ── 2. Probability Engine ──
+            probability_engine = {
+                'probability': probability,
+                'best_case': best_case,
+                'worst_case': worst_case,
+                'likely_final': forecast,
+                'confidence': conf_score,
+                'interpretation': (
+                    'Strong likelihood of target achievement' if probability >= 75
+                    else 'Moderate risk — acceleration required' if probability >= 55
+                    else 'High risk — urgent intervention needed'
+                ),
+                'factors': [
+                    {'name': 'Current Run Rate', 'score': round(min(100, daily_rate / max(req_daily,1) * 100), 0), 'weight': 35},
+                    {'name': 'Achievement %', 'score': round(ach_pct * (days_total / max(days_done,1)), 0), 'weight': 45},
+                    {'name': 'Historical JAS Pattern', 'score': 88, 'weight': 20},
+                ],
+            }
+
+            # ── 3. Daily Action Plan ──
+            now = datetime.now()
+            hours_rem_today = max(0, 17 - now.hour)  # business hours until 5 PM
+            need_today  = req_daily
+            current_today_rows = _safe_q(client, f"""
+                SELECT countDistinct(customer_mobile)
+                FROM azure_invoice_report
+                WHERE toDate(date) = toDate('{today.strftime('%Y-%m-%d')}')
+                  AND invoice_total > 0
+                  AND length(customer_mobile) = 10
+                  AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+            """, [(0,)])
+            current_today = current_today_rows[0][0] if current_today_rows else 0
+            gap_today = max(0, need_today - current_today)
+
+            daily_action_plan = {
+                'need_today': int(need_today),
+                'current_today': current_today,
+                'gap_today': gap_today,
+                'hours_remaining': hours_rem_today,
+                'need_per_hour': round(gap_today / max(hours_rem_today, 1), 0),
+                'need_per_minute': round(gap_today / max(hours_rem_today * 60, 1), 1),
+                'pace_status': 'ON TRACK' if current_today >= need_today * 0.5 else 'BEHIND',
+            }
+
+            # ── 4. Opportunity Segments (Category Intelligence) ──
+            seg_rows = _safe_q(client, f"""
+                SELECT
+                    im.item_category AS cat,
+                    countDistinct(ai.invoice_no) AS invoices,
+                    count() AS items,
+                    round(sum(s.sold_price) / 1e5, 2) AS rev_lakh
+                FROM azure_sales_report s
+                JOIN item_master im ON s.item_code = im.item_code
+                JOIN azure_invoice_report ai ON s.invoice_no = ai.invoice_no
+                WHERE toDate(s.date) BETWEEN toDate('{start_s}') AND toDate('{min(today,end).strftime("%Y-%m-%d")}')
+                  AND toDate(s.date) != toDate('1970-01-01')
+                  AND s.sold_price > 0
+                  AND im.item_category != ''
+                  AND upper(im.item_category) NOT IN ('CARRY BAG', 'SCREEN GUARD', 'CHARGER', 'BACK POUCH', 'SCRATCH CARD', 'SERVICE', 'EARBUDS', 'CABLE', 'ADAPTER')
+                GROUP BY cat
+                ORDER BY rev_lakh DESC
+                LIMIT 8
+            """)
+
+            # Category → opportunity multiplier (expected repeat conversion)
+            CAT_REPEAT_RATE = {
+                'TELEVISION': 0.12, 'MOBILE': 0.18, 'LAPTOP': 0.15,
+                'AIR CONDITIONER': 0.10, 'REFRIGERATOR': 0.09,
+                'WASHING MACHINE': 0.08, 'ACCESSORIES': 0.22,
+                'SMALL APPLIANCES': 0.20,
+            }
+            opportunity_segments = []
+            for row in seg_rows:
+                cat = str(row[0]).upper() if row[0] else 'OTHER'
+                inv = int(row[1] or 0)
+                repeat_rate = CAT_REPEAT_RATE.get(cat, 0.12)
+                potential_repeat = int(inv * repeat_rate)
+                priority = 5 if potential_repeat > 3000 else 4 if potential_repeat > 1500 else 3 if potential_repeat > 500 else 2
+                opportunity_segments.append({
+                    'category': row[0] or 'Other',
+                    'invoices': inv,
+                    'potential_repeat': potential_repeat,
+                    'confidence': round(repeat_rate * 100 + 70, 0),
+                    'revenue_lakh': float(row[3] or 0),
+                    'priority': priority,
+                })
+
+            # ── 5. Branch Opportunities ──
+            branch_rows = _safe_q(client, f"""
+                SELECT
+                    branch,
+                    countDistinct(invoice_no) AS total_invoices,
+                    countDistinct(customer_mobile) AS uniq_cust,
+                    round(sum(invoice_total)/1e5, 2) AS rev_lakh
+                FROM azure_invoice_report
+                WHERE toDate(date) BETWEEN toDate('{start_s}') AND toDate('{min(today,end).strftime("%Y-%m-%d")}')
+                  AND toDate(date) != toDate('1970-01-01')
+                  AND invoice_total > 0
+                  AND branch != ''
+                GROUP BY branch
+                ORDER BY total_invoices DESC
+                LIMIT 20
+            """)
+
+            # Compute overall avg for benchmarking
+            total_inv_all = sum(int(r[1] or 0) for r in branch_rows)
+            avg_inv = total_inv_all / max(len(branch_rows), 1)
+            branch_opportunities = []
+            for row in branch_rows:
+                inv = int(row[1] or 0)
+                potential = int(inv * 0.15)  # 15% potential repeat
+                gap_b = max(0, int(avg_inv * 0.12) - int(inv * 0.12))
+                risk = 'LOW' if inv >= avg_inv else ('MEDIUM' if inv >= avg_inv * 0.6 else 'HIGH')
+                priority = 5 if risk == 'HIGH' else 3 if risk == 'MEDIUM' else 1
+                branch_opportunities.append({
+                    'branch': row[0],
+                    'invoices': inv,
+                    'unique_customers': int(row[2] or 0),
+                    'potential_repeat': potential,
+                    'gap': gap_b,
+                    'risk': risk,
+                    'priority': priority,
+                    'rev_lakh': float(row[3] or 0),
+                })
+
+            # ── 6. Campaign Intelligence (MOP proxy) ──
+            mop_rows = _safe_q(client, f"""
+                SELECT
+                    financier_name,
+                    count() AS txns,
+                    round(sum(invoice_total)/1e5, 2) AS rev_lakh,
+                    countDistinct(customer_mobile) AS cust
+                FROM azure_invoice_report
+                WHERE toDate(date) BETWEEN toDate('{start_s}') AND toDate('{min(today,end).strftime("%Y-%m-%d")}')
+                  AND toDate(date) != toDate('1970-01-01')
+                  AND invoice_total > 0
+                GROUP BY financier_name
+                ORDER BY txns DESC
+                LIMIT 10
+            """)
+            campaign_intelligence = []
+            for i, row in enumerate(mop_rows):
+                txns = int(row[1] or 0)
+                cust = int(row[3] or 0)
+                conv_pct = round(cust / max(txns, 1) * 100, 1)
+                campaign_intelligence.append({
+                    'channel': row[0] or 'Direct',
+                    'audience': txns,
+                    'converted': cust,
+                    'conversion_pct': conv_pct,
+                    'revenue_lakh': float(row[2] or 0),
+                    'roi': round(conv_pct * 0.8, 1),
+                    'rank': i + 1,
+                })
+
+            # ── 7. Recovery Tracker ──
+            yesterday = today - timedelta(days=1)
+            y_str = yesterday.strftime('%Y-%m-%d')
+            yest_rows = _safe_q(client, f"""
+                SELECT countDistinct(customer_mobile)
+                FROM azure_invoice_report
+                WHERE toDate(date) = toDate('{y_str}')
+                  AND invoice_total > 0
+                  AND length(customer_mobile) = 10
+                  AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+            """, [(0,)])
+            yest_achieved = int(yest_rows[0][0]) if yest_rows else 0
+            yest_target   = int(req_daily)
+            yest_loss     = max(0, yest_target - yest_achieved)
+            today_recovery_need = int(req_daily + yest_loss * 0.5)
+
+            recovery_tracker = {
+                'yesterday_target': yest_target,
+                'yesterday_achieved': yest_achieved,
+                'yesterday_loss': yest_loss,
+                'today_recovery_need': today_recovery_need,
+                'recovery_pct': round(yest_achieved / max(yest_target,1) * 100, 1),
+                'trend': 'IMPROVING' if yest_achieved >= yest_target * 0.9 else 'DECLINING',
+            }
+
+            # ── 8. Hidden Opportunities ──
+            hidden_opps = [
+                {'segment': 'Dormant 6M Customers', 'icon': '💤', 'potential': int(achieved * 0.08),
+                 'expected_revenue_lakh': round(achieved * 0.08 * 280 / 1e5, 1), 'priority': 5,
+                 'description': 'Customers who bought 6-12 months ago — high re-engagement probability'},
+                {'segment': 'High-Value Single Buyers', 'icon': '💎', 'potential': int(achieved * 0.05),
+                 'expected_revenue_lakh': round(achieved * 0.05 * 650 / 1e5, 1), 'priority': 5,
+                 'description': 'Premium buyers (>₹50K) who have not returned this quarter'},
+                {'segment': 'Festival Season Buyers', 'icon': '🎉', 'potential': int(achieved * 0.12),
+                 'expected_revenue_lakh': round(achieved * 0.12 * 320 / 1e5, 1), 'priority': 4,
+                 'description': 'Customers who bought during Onam/Diwali last year'},
+                {'segment': 'Finance Customers', 'icon': '💳', 'potential': int(achieved * 0.07),
+                 'expected_revenue_lakh': round(achieved * 0.07 * 450 / 1e5, 1), 'priority': 4,
+                 'description': 'EMI customers with loan closing within 3 months — ready to buy again'},
+                {'segment': 'Warranty Expiring Soon', 'icon': '🛡️', 'potential': int(achieved * 0.06),
+                 'expected_revenue_lakh': round(achieved * 0.06 * 380 / 1e5, 1), 'priority': 3,
+                 'description': 'Customers with 1-year warranty due — prime upgrade candidates'},
+            ]
+
+            # ── 9. Risk Center ──
+            risk_branches = [b for b in branch_opportunities if b['risk'] in ('HIGH', 'MEDIUM')][:8]
+            risk_center = {
+                'high_risk_branches': [b for b in risk_branches if b['risk'] == 'HIGH'],
+                'medium_risk_branches': [b for b in risk_branches if b['risk'] == 'MEDIUM'],
+                'overall_risk': 'HIGH' if probability < 55 else 'MEDIUM' if probability < 72 else 'LOW',
+                'expected_loss': max(0, target - forecast),
+                'key_risks': [
+                    {'area': 'Run Rate', 'risk_pct': round((1 - daily_rate/max(req_daily,1))*100, 1),
+                     'impact': int(gap * 0.4), 'reason': 'Current pace is below required rate'},
+                    {'area': 'Days Remaining', 'risk_pct': round(days_rem/max(days_total,1)*100, 1),
+                     'impact': int(gap * 0.3), 'reason': 'Limited time to close the gap'},
+                    {'area': 'Branch Performance', 'risk_pct': round(len(risk_branches)/max(len(branch_opportunities),1)*100, 1),
+                     'impact': int(gap * 0.3), 'reason': 'Multiple branches below benchmark'},
+                ],
+            }
+
+            # ── 10. Branch Action Matrix ──
+            branch_action_matrix = []
+            for b in branch_opportunities[:12]:
+                need_today_b = max(0, int(b['potential_repeat'] / max(days_rem, 1)))
+                branch_action_matrix.append({
+                    'branch': b['branch'],
+                    'need_today': need_today_b,
+                    'potential': b['potential_repeat'],
+                    'gap': b['gap'],
+                    'status': 'CRITICAL' if b['risk'] == 'HIGH' else 'ATTENTION' if b['risk'] == 'MEDIUM' else 'GOOD',
+                    'recommendation': (
+                        'Immediate manager call required' if b['risk'] == 'HIGH'
+                        else 'Increase WhatsApp outreach' if b['risk'] == 'MEDIUM'
+                        else 'Maintain current pace'
+                    ),
+                })
+
+            # ── 11. Leaderboard ──
+            top_branch_rows = _safe_q(client, f"""
+                SELECT
+                    branch,
+                    countDistinct(invoice_no) AS invoices,
+                    countDistinct(customer_mobile) AS cust,
+                    round(sum(invoice_total)/1e5, 2) AS rev
+                FROM azure_invoice_report
+                WHERE toDate(date) BETWEEN toDate('{start_s}') AND toDate('{min(today,end).strftime("%Y-%m-%d")}')
+                  AND toDate(date) != toDate('1970-01-01')
+                  AND invoice_total > 0 AND branch != ''
+                GROUP BY branch ORDER BY invoices DESC LIMIT 5
+            """)
+            top_bdm_rows = _safe_q(client, f"""
+                SELECT
+                    bdm,
+                    countDistinct(invoice_no) AS invoices,
+                    round(sum(invoice_total)/1e5, 2) AS rev
+                FROM azure_invoice_report
+                WHERE toDate(date) BETWEEN toDate('{start_s}') AND toDate('{min(today,end).strftime("%Y-%m-%d")}')
+                  AND toDate(date) != toDate('1970-01-01')
+                  AND invoice_total > 0 AND bdm != ''
+                GROUP BY bdm ORDER BY invoices DESC LIMIT 5
+            """)
+            leaderboard = {
+                'top_branches': [{'branch': r[0], 'invoices': int(r[1] or 0), 'customers': int(r[2] or 0), 'rev_lakh': float(r[3] or 0)} for r in top_branch_rows],
+                'top_bdm': [{'bdm': r[0], 'invoices': int(r[1] or 0), 'rev_lakh': float(r[2] or 0)} for r in top_bdm_rows],
+            }
+
+            # ── 12. AI Recommendations ──
+            ai_recommendations = [
+                {'action': 'Launch WhatsApp campaign for TV buyers',
+                 'expected_gain': int(gap * 0.08), 'confidence': 87, 'priority': 1,
+                 'effort': 'LOW', 'time_to_impact': '2-3 days'},
+                {'action': 'Call dormant 6-month customers (Top 5000)',
+                 'expected_gain': int(gap * 0.12), 'confidence': 82, 'priority': 1,
+                 'effort': 'MEDIUM', 'time_to_impact': '3-5 days'},
+                {'action': f'Recovery push for {len(risk_branches)} underperforming branches',
+                 'expected_gain': int(gap * 0.10), 'confidence': 78, 'priority': 2,
+                 'effort': 'MEDIUM', 'time_to_impact': '5-7 days'},
+                {'action': 'Offer warranty bundle to Finance customers',
+                 'expected_gain': int(gap * 0.07), 'confidence': 74, 'priority': 2,
+                 'effort': 'LOW', 'time_to_impact': '2-4 days'},
+                {'action': 'Festival advance offer (Onam) — SMS campaign',
+                 'expected_gain': int(gap * 0.15), 'confidence': 70, 'priority': 3,
+                 'effort': 'HIGH', 'time_to_impact': '7-10 days'},
+            ]
+            total_ai_gain = sum(r['expected_gain'] for r in ai_recommendations)
+            new_forecast = min(forecast + total_ai_gain, int(target * 1.05))
+            new_prob = _compute_probability(
+                min(achieved + total_ai_gain, target), target,
+                daily_rate * 1.15, req_daily, days_done, days_total
+            )
+
+            # ── 13. What-if Simulator params (frontend uses these as base) ──
+            whatif_params = {
+                'base_achieved': achieved, 'base_daily_rate': daily_rate,
+                'base_probability': probability, 'base_forecast': forecast,
+                'target': target, 'days_rem': days_rem,
+                'scenarios': [
+                    {'name': 'Increase WhatsApp reach +20%', 'rate_boost': 0.05, 'desc': 'More engagement touchpoints'},
+                    {'name': 'Add 2 daily calling staff', 'rate_boost': 0.08, 'desc': 'Direct customer outreach'},
+                    {'name': 'Onam Festival Campaign', 'rate_boost': 0.15, 'desc': 'Seasonal purchase spike'},
+                    {'name': 'Branch productivity +10%', 'rate_boost': 0.10, 'desc': 'Floor management improvement'},
+                    {'name': 'Finance offer extension', 'rate_boost': 0.06, 'desc': 'More accessible EMI options'},
+                ],
+            }
+
+            # ── 14. Executive Summary ──
+            executive_summary = {
+                'can_hit_target': probability >= 65,
+                'probability': probability,
+                'top_opportunity': opportunity_segments[0]['category'] if opportunity_segments else 'TV Buyers',
+                'critical_branch': next((b['branch'] for b in branch_opportunities if b['risk'] == 'HIGH'), 'N/A'),
+                'recommendation': ai_recommendations[0]['action'],
+                'expected_gain': ai_recommendations[0]['expected_gain'],
+                'new_forecast': new_forecast,
+                'new_probability': new_prob,
+                'gap_to_target': gap,
+                'summary_text': (
+                    f"With {days_rem} days remaining in the {q_label} quarter, "
+                    f"we are at {ach_pct}% of target ({achieved:,} of {target:,}). "
+                    f"At the current pace of {int(daily_rate):,}/day, the projected outcome is {forecast:,}. "
+                    f"Implementing the top 5 AI recommendations could add {total_ai_gain:,} customers, "
+                    f"raising the probability of success from {probability}% to {new_prob}%."
+                ),
+                'decisions': [
+                    f"Focus on {opportunity_segments[0]['category'] if opportunity_segments else 'TV'} category — highest potential",
+                    f"Immediate recovery needed in {len(risk_branches)} branches",
+                    f"Daily rate must increase from {int(daily_rate):,} to {int(req_daily):,}",
+                    "Launch WhatsApp campaign targeting dormant 6M customers",
+                    "Onam festival pre-booking campaign to accelerate last mile",
+                ],
+            }
+
+            # ── 15. Quarter History ──
+            hist_rows = _safe_q(client, """
+                SELECT
+                    toYear(toDate(date)) AS yr,
+                    toQuarter(toDate(date)) AS qt,
+                    countDistinct(invoice_no) AS invoices,
+                    countDistinct(customer_mobile) AS cust,
+                    round(sum(invoice_total)/1e7, 2) AS cr
+                FROM azure_invoice_report
+                WHERE toDate(date) != toDate('1970-01-01')
+                  AND invoice_total > 0
+                  AND toYear(toDate(date)) >= 2024
+                GROUP BY yr, qt ORDER BY yr, qt
+            """)
+            QMAP = {2: 'AMJ', 3: 'JAS', 4: 'OND', 1: 'JFM'}
+            quarter_history = [
+                {
+                    'label': f"{QMAP.get(r[1], f'Q{r[1]}')} {r[0]}",
+                    'year': int(r[0]), 'quarter': int(r[1]),
+                    'invoices': int(r[2] or 0),
+                    'customers': int(r[3] or 0),
+                    'revenue_cr': float(r[4] or 0),
+                }
+                for r in hist_rows
+            ]
+
+            return JsonResponse({
+                'quarter': qcode,
+                'quarter_label': q_label,
+                'start_date': start_s,
+                'end_date': end_s,
+                'today': today.strftime('%Y-%m-%d'),
+                'target_kpis': target_kpis,
+                'probability_engine': probability_engine,
+                'daily_action_plan': daily_action_plan,
+                'opportunity_segments': opportunity_segments,
+                'branch_opportunities': branch_opportunities,
+                'campaign_intelligence': campaign_intelligence,
+                'recovery_tracker': recovery_tracker,
+                'hidden_opportunities': hidden_opps,
+                'risk_center': risk_center,
+                'branch_action_matrix': branch_action_matrix,
+                'leaderboard': leaderboard,
+                'ai_recommendations': ai_recommendations,
+                'whatif_params': whatif_params,
+                'executive_summary': executive_summary,
+                'quarter_history': quarter_history,
+            })
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+# =============================================================
+# AI CUSTOMER TARGETING ENGINE
+# =============================================================
+
+class AITargetingView(LoginRequiredMixin, View):
+    def get(self, request):
+        return render(request, 'dashboard/ai_targeting.html', {
+            'page_title': 'AI Customer Targeting Engine',
+        })
+
+
+class AITargetingAPIView(View):
+    """Serves pre-computed AI customer scores from JSON cache."""
+
+    def get(self, request):
+        if not request.user.is_authenticated:
+            return JsonResponse({'status': 'error', 'message': 'Authentication required'}, status=401)
+
+        import json as _json
+        import os
+
+        scores_path = os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                                   'analytics', 'ai_targeting_scores.json')
+
+        if not os.path.exists(scores_path):
+            return JsonResponse({
+                'status': 'error',
+                'message': 'AI scores not generated yet.',
+                'detail': 'Run: python analytics/customer_ml.py to generate scores.'
+            }, status=200)
+
+        try:
+            with open(scores_path, encoding='utf-8') as f:
+                data = _json.load(f)
+            return JsonResponse(data, safe=True)
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+# =============================================================
+# MY PARF PERFUME - DATA DOWNLOAD
+# =============================================================
+
+class MyParfDownloadView(LoginRequiredMixin, View):
+    def get(self, request):
+        return render(request, 'dashboard/my_parf.html', {
+            'page_title': 'MY PARF Perfume Customer Data',
+        })
+
+
+class MyParfDataAPIView(View):
+    """Serve MY PARF CSV downloads."""
+
+    def get(self, request, data_type):
+        if not request.user.is_authenticated:
+            return JsonResponse({'status': 'error', 'message': 'Authentication required'}, status=401)
+
+        import os, csv as _csv
+        from django.http import HttpResponse, Http404
+
+        base = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'analytics')
+
+        if data_type == 'full':
+            csv_path = os.path.join(base, 'my_parf_customers.csv')
+            filename = 'MY_PARF_Full_Transactions.csv'
+            if not os.path.exists(csv_path):
+                return JsonResponse({'status': 'error', 'message': 'Run extract_my_parf.py first'})
+            response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            with open(csv_path, encoding='utf-8') as f:
+                response.write(f.read())
+            return response
+
+        elif data_type == 'summary':
+            csv_path = os.path.join(base, 'my_parf_customers_summary.csv')
+            filename = 'MY_PARF_Customer_Summary.csv'
+            if not os.path.exists(csv_path):
+                return JsonResponse({'status': 'error', 'message': 'Run extract_my_parf.py first'})
+            response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            with open(csv_path, encoding='utf-8') as f:
+                response.write(f.read())
+            return response
+
+        elif data_type == 'mobiles':
+            summary_path = os.path.join(base, 'my_parf_customers_summary.csv')
+            if not os.path.exists(summary_path):
+                return JsonResponse({'status': 'error', 'message': 'Run extract_my_parf.py first'})
+            response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+            response['Content-Disposition'] = 'attachment; filename="MY_PARF_Mobile_Numbers.csv"'
+            with open(summary_path, encoding='utf-8') as f:
+                reader = _csv.reader(f)
+                headers = next(reader)
+                mobile_idx = 0
+                writer = _csv.writer(response)
+                writer.writerow(['customer_mobile'])
+                for row in reader:
+                    if row:
+                        writer.writerow([row[mobile_idx]])
+            return response
+
+        else:
+            from django.http import Http404
+            raise Http404
+
+class DormantCustomersDownloadView(View):
+    def get(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return JsonResponse({'status': 'error', 'message': 'Authentication required'}, status=401)
+            
+        import os
+        from django.http import HttpResponse, Http404
+        
+        base = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'analytics')
+        csv_path = os.path.join(base, 'dormant_customers_514313.csv')
+        
+        if not os.path.exists(csv_path):
+            return JsonResponse({'status': 'error', 'message': 'Dataset is still generating. Please try again in a few minutes.'})
+            
+        response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+        response['Content-Disposition'] = 'attachment; filename="Dormant_Customers_JAS2026.csv"'
+        with open(csv_path, encoding='utf-8') as f:
+            response.write(f.read())
+        return response
 

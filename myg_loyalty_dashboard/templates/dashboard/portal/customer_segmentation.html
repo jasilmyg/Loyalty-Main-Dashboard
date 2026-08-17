@@ -1,0 +1,126 @@
+{% extends 'base.html' %}{% load static %}{% block title %}Customer Segmentation | AI Retail Engine{% endblock %}
+{% block content %}
+<style>
+.seg-header{background:linear-gradient(135deg,#4c1d95,#7c3aed 60%,#8b5cf6);color:#fff;padding:2rem 2.5rem;margin:-2.5rem -2.5rem 2rem -2.5rem;overflow:hidden;position:relative;}
+.seg-header h1{font-size:1.6rem;font-weight:800;}
+.seg-header p{color:#ddd6fe;font-size:.88rem;}
+.ai-tag{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:.2rem .75rem;font-size:.68rem;font-weight:700;display:inline-block;margin-bottom:.75rem;}
+.seg-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:1.3rem 1.4rem;transition:all .2s;border-top:3px solid transparent;}
+.seg-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.06);}
+.kpi-label{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b;}
+.kpi-val{font-size:1.8rem;font-weight:800;color:#0f172a;line-height:1.1;margin:.2rem 0;}
+.kpi-sub{font-size:.75rem;color:#94a3b8;}
+.kpi-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;}
+.section-card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:1.5rem;}
+.section-title{font-size:.95rem;font-weight:700;color:#0f172a;}
+.seg-row{display:flex;align-items:center;justify-content:space-between;padding:.75rem 0;border-bottom:1px solid #f1f5f9;}
+.seg-row:last-child{border-bottom:none;}
+.seg-badge{border-radius:20px;padding:.25rem .75rem;font-size:.72rem;font-weight:700;}
+.action-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:1rem 1.25rem;margin-bottom:.75rem;}
+</style>
+<div class="seg-header">
+    <div class="d-flex align-items-start gap-3">
+        <div style="background:rgba(255,255,255,.15);border-radius:14px;padding:.75rem 1rem;font-size:1.75rem;flex-shrink:0;"><i class="bi bi-pie-chart-fill"></i></div>
+        <div>
+            <div class="ai-tag">RFM SEGMENTATION ENGINE</div>
+            <h1 class="mb-1">Customer Segmentation</h1>
+            <p class="mb-0">AI-powered RFM analysis — Champions, Loyal, At-Risk, Dormant and Lost customers</p>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-4 col-xl-2"><div class="seg-card" style="border-top-color:#f59e0b;">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Champions</span><div class="kpi-icon" style="background:#fef3c7;color:#d97706;"><i class="bi bi-trophy-fill"></i></div></div>
+        <div class="kpi-val" style="color:#d97706;">{{ champions|default:0 }}</div>
+        <div class="kpi-sub">Recency≤30d, Freq≥5, Spend≥1L</div>
+    </div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="seg-card" style="border-top-color:#ef4444;">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Loyal Customers</span><div class="kpi-icon" style="background:#fee2e2;color:#ef4444;"><i class="bi bi-heart-fill"></i></div></div>
+        <div class="kpi-val" style="color:#ef4444;">{{ loyal|default:0 }}</div>
+        <div class="kpi-sub">Recency≤60d, Freq≥3</div>
+    </div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="seg-card" style="border-top-color:#10b981;">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">New Customers</span><div class="kpi-icon" style="background:#dcfce7;color:#10b981;"><i class="bi bi-star-fill"></i></div></div>
+        <div class="kpi-val" style="color:#10b981;">{{ new_seg|default:0 }}</div>
+        <div class="kpi-sub">Recency≤30d, Freq≤2</div>
+    </div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="seg-card" style="border-top-color:#f97316;">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">At Risk</span><div class="kpi-icon" style="background:#fff7ed;color:#f97316;"><i class="bi bi-exclamation-triangle-fill"></i></div></div>
+        <div class="kpi-val" style="color:#f97316;">{{ at_risk|default:0 }}</div>
+        <div class="kpi-sub">Recency 61–120d, Freq≥2</div>
+    </div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="seg-card" style="border-top-color:#6366f1;">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Dormant</span><div class="kpi-icon" style="background:#ede9fe;color:#6366f1;"><i class="bi bi-moon-fill"></i></div></div>
+        <div class="kpi-val" style="color:#6366f1;">{{ dormant_seg|default:0 }}</div>
+        <div class="kpi-sub">Recency 121–180d</div>
+    </div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="seg-card" style="border-top-color:#64748b;">
+        <div class="d-flex justify-content-between align-items-start mb-2"><span class="kpi-label">Lost</span><div class="kpi-icon" style="background:#f1f5f9;color:#64748b;"><i class="bi bi-x-circle-fill"></i></div></div>
+        <div class="kpi-val" style="color:#64748b;">{{ lost|default:0 }}</div>
+        <div class="kpi-sub">No purchase in 180+ days</div>
+    </div></div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-12 col-md-5">
+        <div class="section-card h-100">
+            <div class="section-title mb-1"><i class="bi bi-pie-chart-fill me-2" style="color:#7c3aed;"></i>Segment Distribution</div>
+            <div style="font-size:.75rem;color:#64748b;" class="mb-3">Share of total customer base</div>
+            <canvas id="segChart" height="250"></canvas>
+        </div>
+    </div>
+    <div class="col-12 col-md-7">
+        <div class="section-card h-100">
+            <div class="section-title mb-3"><i class="bi bi-lightning-fill me-2 text-warning"></i>AI-Recommended Actions by Segment</div>
+            <div class="action-card">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <strong style="font-size:.85rem;">🏆 Champions ({{ champions|default:0 }})</strong>
+                    <span class="seg-badge" style="background:#fef3c7;color:#d97706;">HIGH VALUE</span>
+                </div>
+                <p style="font-size:.78rem;color:#475569;margin:0;">Offer exclusive early-access deals, premium product previews, and loyalty rewards programs.</p>
+            </div>
+            <div class="action-card">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <strong style="font-size:.85rem;">⚠️ At Risk ({{ at_risk|default:0 }})</strong>
+                    <span class="seg-badge" style="background:#fff7ed;color:#f97316;">URGENT</span>
+                </div>
+                <p style="font-size:.78rem;color:#475569;margin:0;">Send personalized reactivation offers. Target with 10–15% discount on their preferred categories.</p>
+            </div>
+            <div class="action-card">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <strong style="font-size:.85rem;">😴 Dormant ({{ dormant_seg|default:0 }})</strong>
+                    <span class="seg-badge" style="background:#ede9fe;color:#6366f1;">WIN-BACK</span>
+                </div>
+                <p style="font-size:.78rem;color:#475569;margin:0;">Run limited-time win-back campaign. Offer "We miss you" exclusive deals with 20% off.</p>
+            </div>
+            <div class="action-card">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <strong style="font-size:.85rem;">⭐ New Customers ({{ new_seg|default:0 }})</strong>
+                    <span class="seg-badge" style="background:#dcfce7;color:#15803d;">NURTURE</span>
+                </div>
+                <p style="font-size:.78rem;color:#475569;margin:0;">Send onboarding messages, category highlights, and first-repeat-purchase incentives.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const SEG_LABELS = {{ seg_labels|safe|default:'[]' }};
+const SEG_VALUES = {{ seg_values|safe|default:'[]' }};
+const SEG_PCTS   = {{ seg_pcts|safe|default:'[]' }};
+const COLORS = ['#f59e0b','#ef4444','#10b981','#f97316','#6366f1','#94a3b8'];
+new Chart(document.getElementById('segChart').getContext('2d'), {
+    type: 'doughnut',
+    data: {
+        labels: SEG_LABELS.map((l,i) => l + ' (' + SEG_PCTS[i] + '%)'),
+        datasets: [{ data: SEG_VALUES, backgroundColor: COLORS, borderWidth: 2, hoverOffset: 8 }]
+    },
+    options: {
+        responsive: true, cutout: '65%',
+        plugins: { legend: { position: 'bottom', labels: { font: { size: 11, weight: '600' }, padding: 12 } } }
+    }
+});
+</script>
+{% endblock %}

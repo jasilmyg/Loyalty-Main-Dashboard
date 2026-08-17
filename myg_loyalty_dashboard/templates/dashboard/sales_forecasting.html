@@ -1,0 +1,600 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Sales Forecasting Engine | myG Loyalty Analytics{% endblock %}
+
+{% block content %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+    /* Google Fonts */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+    body {
+        background-color: #f8fafc;
+        font-family: 'Inter', sans-serif;
+    }
+
+    /* Hero Section matching Image 1 */
+    .hero-section {
+        background: linear-gradient(135deg, #1e70c8 0%, #2b8ee3 100%);
+        color: white;
+        padding: 4rem 3rem;
+        border-radius: 0;
+        position: relative;
+        overflow: hidden;
+        margin-top: -2.5rem;
+        margin-left: -2.5rem;
+        margin-right: -2.5rem;
+        min-height: 400px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    /* Abstract circles for background design */
+    .hero-bg-circle-1 {
+        position: absolute;
+        top: -150px;
+        right: -100px;
+        width: 600px;
+        height: 600px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.05);
+        pointer-events: none;
+    }
+
+    .hero-bg-circle-2 {
+        position: absolute;
+        bottom: -250px;
+        right: 150px;
+        width: 500px;
+        height: 500px;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.03);
+        pointer-events: none;
+    }
+
+    .hero-module {
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 4px;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.8);
+        margin-bottom: 1.5rem;
+    }
+
+    .hero-title {
+        font-size: 4.5rem;
+        font-weight: 800;
+        line-height: 1.1;
+        margin-bottom: 2.5rem;
+        letter-spacing: -1px;
+    }
+
+    .hero-divider {
+        width: 150px;
+        height: 4px;
+        background-color: #f59e0b; /* Orange accent */
+        margin-bottom: 2rem;
+    }
+
+    .hero-subtitle {
+        font-size: 1rem;
+        font-weight: 500;
+        color: rgba(255, 255, 255, 0.9);
+        margin-bottom: 3rem;
+        letter-spacing: 0.5px;
+    }
+
+    .hero-badges-container {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .hero-badge {
+        border: 1px solid rgba(245, 158, 11, 0.6); /* Orange border */
+        background: rgba(255, 255, 255, 0.1);
+        padding: 0.75rem 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        backdrop-filter: blur(4px);
+        min-width: 200px;
+    }
+
+    .hero-badge i {
+        color: white;
+        font-size: 1.1rem;
+    }
+
+    /* Section Headers */
+    .section-header {
+        background: #1565c0; /* Deep blue header */
+        color: white;
+        padding: 1rem 1.5rem;
+        font-weight: 700;
+        font-size: 1.1rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-top: 2rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        border-radius: 4px 4px 0 0;
+    }
+
+    /* Analysis Report Cards */
+    .analysis-card {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-top: none;
+        padding: 1.5rem;
+        border-radius: 0 0 4px 4px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .analysis-item {
+        padding: 1rem 0;
+        border-bottom: 1px solid #f1f5f9;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .analysis-item:last-child {
+        border-bottom: none;
+    }
+
+    .analysis-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .analysis-title {
+        font-weight: 700;
+        color: #1e293b;
+        font-size: 0.95rem;
+    }
+    
+    .analysis-value {
+        font-weight: 800;
+        color: #0f172a;
+        font-size: 1rem;
+    }
+    
+    .analysis-trend {
+        font-size: 0.8rem;
+        font-weight: 600;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+    }
+    
+    .trend-up {
+        background: #dcfce7;
+        color: #166534;
+    }
+    
+    .trend-down {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+    
+    /* Progress Bars */
+    .analysis-progress-bg {
+        width: 100%;
+        height: 8px;
+        background: #f1f5f9;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    
+    .analysis-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #3b82f6, #2563eb);
+        border-radius: 4px;
+        transition: width 1s ease-in-out;
+    }
+    
+    .branch-progress-fill {
+        background: linear-gradient(90deg, #10b981, #059669);
+    }
+
+    /* Forecast Outputs */
+    .outputs-container {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-top: none;
+        padding: 1.5rem;
+        border-radius: 0 0 4px 4px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    }
+
+    /* Insight Cards Grid */
+    .insights-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+        height: 100%;
+    }
+
+    .insight-box {
+        border: 1px solid #e2e8f0;
+        padding: 1.5rem 1rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        border-radius: 2px;
+        transition: transform 0.2s;
+    }
+    
+    .insight-box:hover {
+        transform: translateY(-2px);
+    }
+
+    .insight-box i {
+        font-size: 2rem;
+        margin-bottom: 1rem;
+        color: #333;
+    }
+
+    .insight-text {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #1e293b;
+        line-height: 1.4;
+    }
+
+    .insight-box.blue { background-color: #eff6ff; border-color: #bfdbfe; }
+    .insight-box.green { background-color: #f0fdf4; border-color: #bbf7d0; }
+    .insight-box.purple { background-color: #faf5ff; border-color: #e9d5ff; }
+    .insight-box.cyan { background-color: #ecfeff; border-color: #a5f3fc; }
+    .insight-box.orange { background-color: #fff7ed; border-color: #fed7aa; }
+    .insight-box.red { background-color: #fef2f2; border-color: #fecaca; }
+
+    /* Business Impact Footer */
+    .business-impact {
+        border: 1px solid #3b82f6;
+        border-radius: 4px;
+        padding: 1.5rem;
+        margin-top: 1.5rem;
+    }
+
+    .business-impact-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: #2563eb;
+        font-weight: 700;
+        margin-bottom: 1.5rem;
+    }
+
+    .impact-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1.5rem;
+    }
+
+    .impact-item h5 {
+        font-size: 0.9rem;
+        font-weight: 800;
+        color: #1e293b;
+        margin-bottom: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .impact-item p {
+        font-size: 0.8rem;
+        color: #64748b;
+        margin: 0;
+        line-height: 1.5;
+    }
+
+    /* Hide Global Filter Bar for this specific module */
+    .filter-bar {
+        display: none !important;
+    }
+</style>
+
+<!-- Hero Section -->
+<div class="hero-section">
+    <div class="hero-bg-circle-1"></div>
+    <div class="hero-bg-circle-2"></div>
+    
+    <div class="hero-module">MODULE 02</div>
+    <div class="hero-title">Sales<br>Forecasting</div>
+    <div class="hero-divider"></div>
+    <div class="hero-subtitle">Prophet + XGBoost + LSTM &rarr; Branch &middot; Category &middot; Item Level Forecasts</div>
+    
+    <div class="hero-badges-container">
+        <div class="hero-badge">
+            <i class="bi bi-layers-fill"></i> Multi-Level
+        </div>
+        <div class="hero-badge">
+            <i class="bi bi-cpu-fill"></i> LSTM Deep Learning
+        </div>
+        <div class="hero-badge">
+            <i class="bi bi-gift-fill"></i> Festival Flags
+        </div>
+        <div class="hero-badge">
+            <i class="bi bi-cash-coin"></i> Salary Effect
+        </div>
+    </div>
+</div>
+
+<div class="container-fluid px-0">
+    <!-- Section 1: Analysis Reports -->
+    <div class="section-header">
+        REAL-TIME INTELLIGENCE &mdash; CATEGORY & BRANCH ANALYSIS
+    </div>
+    
+    <div class="row g-0">
+        <!-- Category Analysis -->
+        <div class="col-md-6 pe-md-2" style="padding-top: 0;">
+            <div class="analysis-card" style="padding-top: 0; padding: 0;">
+                <div class="text-white p-2 fw-bold" style="background-color: #1565c0; border-radius: 4px 4px 0 0; padding-left: 1.5rem !important; border-bottom: 2px solid white;">
+                    <i class="bi bi-bar-chart-steps me-2"></i> Category Velocity Analysis
+                </div>
+                <div id="category-report-container" style="padding: 1rem 1.5rem;">
+                    <!-- Injected by JS -->
+                    <div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>Loading Category Intelligence...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Branch Analysis -->
+        <div class="col-md-6 ps-md-2" style="padding-top: 0;">
+            <div class="analysis-card" style="padding-top: 0; padding: 0;">
+                <div class="text-white p-2 fw-bold" style="background-color: #1565c0; border-radius: 4px 4px 0 0; padding-left: 1.5rem !important; border-bottom: 2px solid white;">
+                    <i class="bi bi-shop me-2"></i> Branch Performance Predictor
+                </div>
+                <div id="branch-report-container" style="padding: 1rem 1.5rem;">
+                    <!-- Injected by JS -->
+                    <div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>Loading Branch Intelligence...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 2: Forecast Outputs -->
+    <div class="section-header">
+        FORECAST OUTPUTS
+    </div>
+    <div class="outputs-container">
+        <div class="row">
+            <!-- Chart Area -->
+            <div class="col-md-7">
+                <div style="border: 1px solid #e2e8f0; border-radius: 4px; padding: 1rem; height: 100%; display: flex; flex-direction: column;">
+                    <div style="display: flex; justify-content: center; gap: 2rem; margin-bottom: 1rem; font-size: 0.85rem; font-weight: 600;">
+                        <span style="display: flex; align-items: center; gap: 0.5rem;"><div style="width:12px;height:12px;border-radius:50%;background:#1d4ed8;"></div> Actual Sales</span>
+                        <span style="display: flex; align-items: center; gap: 0.5rem;"><div style="width:12px;height:12px;border-radius:50%;background:#f59e0b;"></div> Forecast</span>
+                    </div>
+                    <div style="flex-grow: 1; min-height: 250px;">
+                        <canvas id="forecastChart"></canvas>
+                    </div>
+                    <div class="text-center mt-3" style="font-size: 0.8rem; color: #64748b; font-style: italic;">
+                        <i class="bi bi-graph-up"></i> Monthly Sales Trend with AI Forecast
+                    </div>
+                </div>
+            </div>
+
+            <!-- Insights Grid -->
+            <div class="col-md-5">
+                <div class="insights-grid">
+                    <div class="insight-box blue">
+                        <i class="bi bi-phone"></i>
+                        <div class="insight-text" id="card1_text">Next week: iPhone<br>demand &uarr; 25%</div>
+                    </div>
+                    <div class="insight-box green">
+                        <i class="bi bi-pc-display-horizontal"></i>
+                        <div class="insight-text" id="card2_text">Accessories spike<br>every weekend</div>
+                    </div>
+                    <div class="insight-box purple">
+                        <i class="bi bi-tv"></i>
+                        <div class="insight-text" id="card3_text">TV sales +40%<br>during Onam</div>
+                    </div>
+                    <div class="insight-box cyan">
+                        <i class="bi bi-snow"></i>
+                        <div class="insight-text" id="card4_text">AC demand peak<br>April-June</div>
+                    </div>
+                    <div class="insight-box orange">
+                        <i class="bi bi-lightbulb"></i>
+                        <div class="insight-text" id="card5_text">Low stock alert:<br>Samsung S25</div>
+                    </div>
+                    <div class="insight-box red">
+                        <i class="bi bi-box"></i>
+                        <div class="insight-text" id="card6_text">Dead stock risk:<br>3 models in Calicut</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Business Impact -->
+        <div class="business-impact">
+            <div class="business-impact-header">
+                <i class="bi bi-briefcase"></i> Business Impact
+            </div>
+            <div class="impact-grid">
+                <div class="impact-item">
+                    <h5><i class="bi bi-box-seam"></i> Auto Stock Allocation</h5>
+                    <p>Right stock at right branch before demand spike</p>
+                </div>
+                <div class="impact-item">
+                    <h5><i class="bi bi-slash-circle"></i> Eliminate Dead Stock</h5>
+                    <p>Reduce overstocking of slow-moving items</p>
+                </div>
+                <div class="impact-item">
+                    <h5><i class="bi bi-lightning"></i> Prevent Stockouts</h5>
+                    <p>Never miss a sale due to empty shelves</p>
+                </div>
+                <div class="impact-item">
+                    <h5><i class="bi bi-bullseye"></i> Targeted Promotions</h5>
+                    <p>Offer discounts exactly when demand dips</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const ctx = document.getElementById('forecastChart').getContext('2d');
+        
+        // Mock data to match the image chart perfectly
+        const labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'];
+        const actualSales = [450000, 480000, 520000, 490000, 610000, 580000, 700000, 720000, 680000];
+        const forecastSales = [null, null, null, null, null, null, 680000, 750000, 720000];
+
+        // If backend JSON exists, parse it (for future dynamic usage)
+        const rawJson = '{{ initial_data_json|escapejs }}';
+        let backendData = null;
+        if (rawJson && rawJson !== 'null') {
+            try {
+                backendData = JSON.parse(rawJson);
+                console.log("Loaded Forecast Data:", backendData);
+
+                // Populate dynamic insight cards from ClickHouse
+                if (backendData.DynamicCards) {
+                    if (backendData.DynamicCards.card1) document.getElementById('card1_text').innerText = backendData.DynamicCards.card1;
+                    if (backendData.DynamicCards.card2) document.getElementById('card2_text').innerText = backendData.DynamicCards.card2;
+                    if (backendData.DynamicCards.card3) document.getElementById('card3_text').innerText = backendData.DynamicCards.card3;
+                    if (backendData.DynamicCards.card4) document.getElementById('card4_text').innerText = backendData.DynamicCards.card4;
+                    if (backendData.DynamicCards.card5) document.getElementById('card5_text').innerText = backendData.DynamicCards.card5;
+                    if (backendData.DynamicCards.card6) document.getElementById('card6_text').innerText = backendData.DynamicCards.card6;
+                }
+                
+                // Populate Analysis Reports
+                if (backendData.AnalysisReports) {
+                    // Render Category Report
+                    const catContainer = document.getElementById('category-report-container');
+                    if (backendData.AnalysisReports.Categories && backendData.AnalysisReports.Categories.length > 0) {
+                        catContainer.innerHTML = backendData.AnalysisReports.Categories.map(cat => {
+                            const isUp = cat.trend >= 0;
+                            const trendClass = isUp ? 'trend-up' : 'trend-down';
+                            const trendIcon = isUp ? '&uarr;' : '&darr;';
+                            return `
+                            <div class="analysis-item">
+                                <div class="analysis-header">
+                                    <div class="analysis-title">${cat.name}</div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="analysis-value">${cat.volume.toLocaleString()} units</div>
+                                        <div class="analysis-trend ${trendClass}">${trendIcon} ${Math.abs(cat.trend)}% WoW</div>
+                                    </div>
+                                </div>
+                                <div class="analysis-progress-bg">
+                                    <div class="analysis-progress-fill" style="width: ${cat.progress}%;"></div>
+                                </div>
+                            </div>
+                            `;
+                        }).join('');
+                    }
+
+                    // Render Branch Report
+                    const branchContainer = document.getElementById('branch-report-container');
+                    if (backendData.AnalysisReports.Branches && backendData.AnalysisReports.Branches.length > 0) {
+                        branchContainer.innerHTML = backendData.AnalysisReports.Branches.map(b => {
+                            const isUp = b.revenue > 10000000; // Mock trend logic for visual 
+                            const trendClass = isUp ? 'trend-up' : 'trend-down';
+                            const trendIcon = isUp ? '&uarr;' : '&darr;';
+                            return `
+                            <div class="analysis-item">
+                                <div class="analysis-header">
+                                    <div class="analysis-title">${b.name} Branch</div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="analysis-value">₹${(b.revenue / 100000).toFixed(1)}L</div>
+                                        <div class="analysis-trend ${trendClass}">${trendIcon} Revenue</div>
+                                    </div>
+                                </div>
+                                <div class="analysis-progress-bg">
+                                    <div class="analysis-progress-fill branch-progress-fill" style="width: ${b.progress}%;"></div>
+                                </div>
+                            </div>
+                            `;
+                        }).join('');
+                    }
+                }
+            } catch(e) {
+                console.error("Error parsing JSON", e);
+            }
+        }
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Actual Sales',
+                        data: actualSales,
+                        borderColor: '#1d4ed8',
+                        backgroundColor: '#1d4ed8',
+                        borderWidth: 3,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#1d4ed8',
+                        tension: 0.3,
+                        fill: false
+                    },
+                    {
+                        label: 'Forecast',
+                        data: forecastSales,
+                        borderColor: '#f59e0b',
+                        backgroundColor: '#f59e0b',
+                        borderWidth: 3,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#f59e0b',
+                        tension: 0.3,
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false // Using custom HTML legend above
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 800000,
+                        ticks: {
+                            stepSize: 100000,
+                            font: { size: 11, family: 'Inter' }
+                        },
+                        grid: {
+                            color: '#f1f5f9'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            font: { size: 12, family: 'Inter' }
+                        }
+                    }
+                }
+            }
+        });
+    });
+</script>
+
+{% endblock %}

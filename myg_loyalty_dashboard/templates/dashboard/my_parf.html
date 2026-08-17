@@ -1,0 +1,348 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+:root{--bg:#f4f6fb;--card:#fff;--border:#e2e8f0;--accent:#e11d48;--text:#1e293b;--muted:#64748b;}
+body{background:var(--bg);}
+.pf-hero{background:linear-gradient(135deg,#1a0a0f 0%,#7f1d1d 40%,#e11d48 80%,#f43f5e 100%);
+  padding:2rem 2.5rem;position:relative;overflow:hidden;}
+.pf-hero::after{content:'';position:absolute;top:-40%;right:-5%;width:500px;height:500px;
+  border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.07),transparent 70%);}
+.pf-title{font-size:1.6rem;font-weight:900;color:#fff;letter-spacing:-.5px;}
+.pf-sub{font-size:.83rem;color:rgba(255,255,255,.75);margin-top:.2rem;}
+.badge-row{display:flex;gap:.75rem;flex-wrap:wrap;margin-top:1.2rem;}
+.bc{background:rgba(255,255,255,.1);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.2);
+  border-radius:12px;padding:.7rem 1.2rem;}
+.bc-lbl{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:rgba(255,255,255,.65);}
+.bc-val{font-size:1.4rem;font-weight:900;color:#fff;line-height:1.1;margin-top:.15rem;}
+.bc-sub{font-size:.65rem;color:rgba(255,255,255,.6);}
+
+/* Download buttons */
+.dl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.25rem;padding:1.5rem 2.5rem;}
+.dl-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:1.5rem;
+  display:flex;flex-direction:column;gap:.75rem;transition:transform .2s,box-shadow .2s;position:relative;overflow:hidden;}
+.dl-card:hover{transform:translateY(-3px);box-shadow:0 12px 32px rgba(0,0,0,.1);}
+.dl-card::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:var(--dk,#e11d48);}
+.dc-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;}
+.dc-title{font-size:1rem;font-weight:800;color:var(--text);}
+.dc-desc{font-size:.78rem;color:var(--muted);line-height:1.5;}
+.dc-meta{font-size:.72rem;color:var(--muted);display:flex;gap:.75rem;flex-wrap:wrap;}
+.dc-meta b{color:var(--text);}
+.dl-btn{display:inline-flex;align-items:center;gap:.5rem;padding:.6rem 1.25rem;border-radius:10px;
+  border:none;cursor:pointer;font-size:.82rem;font-weight:700;font-family:inherit;
+  background:linear-gradient(135deg,var(--dk,#e11d48),var(--dk2,#f43f5e));color:#fff;
+  transition:opacity .2s,transform .2s;width:100%;justify-content:center;}
+.dl-btn:hover{opacity:.9;transform:translateY(-1px);}
+
+/* Stats */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:1rem;padding:0 2.5rem;}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1.2rem;
+  border-top:3px solid var(--sc,#e11d48);}
+.sc-lbl{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);}
+.sc-val{font-size:1.65rem;font-weight:900;color:var(--text);line-height:1;margin-top:.25rem;}
+.sc-sub{font-size:.68rem;color:var(--muted);margin-top:.15rem;}
+
+/* Monthly bar */
+.monthly-section{padding:1.5rem 2.5rem .5rem;}
+.monthly-title{font-size:1rem;font-weight:800;color:var(--text);margin-bottom:1rem;}
+.bar-grid{display:flex;align-items:flex-end;gap:8px;height:160px;}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;}
+.bar-fill{width:100%;border-radius:5px 5px 0 0;background:linear-gradient(to top,#e11d48,#f43f5e);min-height:3px;}
+.bar-lbl{font-size:.55rem;color:var(--muted);text-align:center;transform:rotate(-35deg);white-space:nowrap;}
+.bar-val{font-size:.6rem;color:var(--text);font-weight:700;}
+
+/* Top products */
+.prod-table{width:100%;border-collapse:separate;border-spacing:0 4px;font-size:.82rem;}
+.prod-table th{font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:1px;
+  color:var(--muted);padding:.4rem .9rem;border-bottom:2px solid var(--border);}
+.prod-table td{padding:.55rem .9rem;background:var(--card);color:var(--text);}
+.prod-table tr td:first-child{border-radius:8px 0 0 8px;}
+.prod-table tr td:last-child{border-radius:0 8px 8px 0;}
+.prod-table tbody tr:hover td{background:#fff0f3;}
+
+.sec-hd{display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;}
+.sec-icon{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:.9rem;}
+.sec-title{font-size:1rem;font-weight:800;color:var(--text);}
+.sec-wrap{padding:1.5rem 2.5rem .5rem;}
+.divider{height:1px;background:var(--border);margin:.5rem 2.5rem;}
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="min-height:100vh;background:#f4f6fb;padding-bottom:3rem;">
+
+  <!-- Hero -->
+  <div class="pf-hero">
+    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+      <div>
+        <div class="pf-title">&#127774; MY PARF Perfume — Customer Data</div>
+        <div class="pf-sub">84 product variants | 79,269 unique buyers | Rs.6.5 Cr total revenue</div>
+      </div>
+      <div style="margin-left:auto;font-size:.75rem;color:rgba(255,255,255,.7)">Data as of 2026-08-14</div>
+    </div>
+    <div class="badge-row">
+      <div class="bc"><div class="bc-lbl">Unique Customers</div><div class="bc-val">79,269</div><div class="bc-sub">bought MY PARF</div></div>
+      <div class="bc"><div class="bc-lbl">Total Units Sold</div><div class="bc-val">95,704</div><div class="bc-sub">perfume bottles</div></div>
+      <div class="bc"><div class="bc-lbl">Total Revenue</div><div class="bc-val">Rs.6.5 Cr</div><div class="bc-sub">since Dec 2024</div></div>
+      <div class="bc"><div class="bc-lbl">Avg Price/Unit</div><div class="bc-val">Rs.679</div><div class="bc-sub">per bottle</div></div>
+      <div class="bc"><div class="bc-lbl">Total Invoices</div><div class="bc-val">83,578</div><div class="bc-sub">transactions</div></div>
+      <div class="bc"><div class="bc-lbl">Product Variants</div><div class="bc-val">84</div><div class="bc-sub">SKUs in catalog</div></div>
+    </div>
+  </div>
+
+  <!-- Download Section -->
+  <div class="sec-wrap">
+    <div class="sec-hd">
+      <div class="sec-icon" style="background:linear-gradient(135deg,#e11d48,#f43f5e)">&#11123;</div>
+      <div>
+        <div class="sec-title">Download Customer Data</div>
+        <div style="font-size:.72rem;color:var(--muted)">All MY PARF perfume buyers — multiple export formats</div>
+      </div>
+    </div>
+    <div class="dl-grid">
+
+      <!-- Full transaction data -->
+      <div class="dl-card" style="--dk:#e11d48;--dk2:#f43f5e">
+        <div style="display:flex;align-items:center;gap:.85rem">
+          <div class="dc-icon" style="background:#fff0f3">&#128202;</div>
+          <div>
+            <div class="dc-title">Full Transaction Data</div>
+            <div class="dc-desc">Every MY PARF purchase — one row per transaction with invoice, branch, date, product and price</div>
+          </div>
+        </div>
+        <div class="dc-meta">
+          <span><b>95,400</b> rows</span>
+          <span><b>11</b> columns</span>
+          <span><b>CSV format</b></span>
+        </div>
+        <button class="dl-btn" onclick="downloadFile('full')">&#11123; Download Full Data (CSV)</button>
+      </div>
+
+      <!-- Customer Summary -->
+      <div class="dl-card" style="--dk:#7c3aed;--dk2:#8b5cf6">
+        <div style="display:flex;align-items:center;gap:.85rem">
+          <div class="dc-icon" style="background:#f5f3ff">&#128104;</div>
+          <div>
+            <div class="dc-title">Customer Summary</div>
+            <div class="dc-desc">One row per customer with total purchases, spend, first/last purchase date and branch</div>
+          </div>
+        </div>
+        <div class="dc-meta">
+          <span><b>79,269</b> rows</span>
+          <span><b>9</b> columns</span>
+          <span><b>CSV format</b></span>
+        </div>
+        <button class="dl-btn" style="background:linear-gradient(135deg,#7c3aed,#8b5cf6)" onclick="downloadFile('summary')">&#11123; Download Customer Summary (CSV)</button>
+      </div>
+
+      <!-- Mobile numbers only -->
+      <div class="dl-card" style="--dk:#0369a1;--dk2:#0ea5e9">
+        <div style="display:flex;align-items:center;gap:.85rem">
+          <div class="dc-icon" style="background:#f0f9ff">&#128222;</div>
+          <div>
+            <div class="dc-title">Mobile Numbers Only</div>
+            <div class="dc-desc">Just the list of 79,269 unique mobile numbers — ready for WhatsApp/SMS campaigns</div>
+          </div>
+        </div>
+        <div class="dc-meta">
+          <span><b>79,269</b> numbers</span>
+          <span><b>1</b> column</span>
+          <span><b>TXT / CSV</b></span>
+        </div>
+        <button class="dl-btn" style="background:linear-gradient(135deg,#0369a1,#0ea5e9)" onclick="downloadFile('mobiles')">&#11123; Download Mobile Numbers</button>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Stats -->
+  <div class="sec-wrap">
+    <div class="sec-hd">
+      <div class="sec-icon" style="background:linear-gradient(135deg,#e11d48,#f43f5e)">&#128200;</div>
+      <div><div class="sec-title">Sales Statistics</div></div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card" style="--sc:#e11d48"><div class="sc-lbl">Unique Customers</div><div class="sc-val">79,269</div><div class="sc-sub">bought MY PARF perfume</div></div>
+      <div class="stat-card" style="--sc:#7c3aed"><div class="sc-lbl">Total Units Sold</div><div class="sc-val">95,704</div><div class="sc-sub">perfume bottles</div></div>
+      <div class="stat-card" style="--sc:#0369a1"><div class="sc-lbl">Total Revenue</div><div class="sc-val">Rs.6.5 Cr</div><div class="sc-sub">Dec 2024 - Aug 2026</div></div>
+      <div class="stat-card" style="--sc:#d97706"><div class="sc-lbl">Avg Price</div><div class="sc-val">Rs.679</div><div class="sc-sub">per bottle sold</div></div>
+      <div class="stat-card" style="--sc:#16a34a"><div class="sc-lbl">Total Invoices</div><div class="sc-val">83,578</div><div class="sc-sub">purchase transactions</div></div>
+      <div class="stat-card" style="--sc:#dc2626"><div class="sc-lbl">Jul 2026 Revenue</div><div class="sc-val">Rs.1.1 Cr</div><div class="sc-sub">highest month ever</div></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Monthly trend -->
+  <div class="monthly-section">
+    <div class="sec-hd">
+      <div class="sec-icon" style="background:linear-gradient(135deg,#0369a1,#0ea5e9)">&#128336;</div>
+      <div><div class="sec-title">Monthly Sales Trend</div></div>
+    </div>
+    <div class="bar-grid" id="monthly-bars">
+      <!-- Rendered by JS -->
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Top products -->
+  <div class="sec-wrap">
+    <div class="sec-hd">
+      <div class="sec-icon" style="background:linear-gradient(135deg,#d97706,#f59e0b)">&#127774;</div>
+      <div>
+        <div class="sec-title">Top MY PARF Products by Units Sold &amp; Revenue</div>
+        <div style="font-size:.72rem;color:var(--muted)">Revenue bar shows relative contribution to total Rs.6.5 Cr</div>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="prod-table">
+        <thead><tr>
+          <th>#</th><th>Product</th><th>Units Sold</th>
+          <th>Revenue (Rs)</th><th>Avg Price</th><th>Revenue Share</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td style="color:var(--muted);font-weight:700">1</td>
+            <td style="font-weight:600">MY PARF AMORA BLOOM 30ML</td>
+            <td><b>13,152</b></td>
+            <td style="color:#e11d48;font-weight:800">Rs.76,19,000</td>
+            <td style="color:var(--muted)">Rs.579</td>
+            <td><div style="height:8px;border-radius:4px;background:#fee2e2;width:100%"><div style="height:8px;border-radius:4px;background:linear-gradient(90deg,#e11d48,#f43f5e);width:100%"></div></div><span style="font-size:.65rem;color:var(--muted)">11.7%</span></td>
+          </tr>
+          <tr>
+            <td style="color:var(--muted);font-weight:700">2</td>
+            <td style="font-weight:600">MY PARF IMPERIUM 30ML</td>
+            <td><b>9,873</b></td>
+            <td style="color:#e11d48;font-weight:800">Rs.56,99,981</td>
+            <td style="color:var(--muted)">Rs.577</td>
+            <td><div style="height:8px;border-radius:4px;background:#fee2e2;width:100%"><div style="height:8px;border-radius:4px;background:linear-gradient(90deg,#e11d48,#f43f5e);width:74.8%"></div></div><span style="font-size:.65rem;color:var(--muted)">8.8%</span></td>
+          </tr>
+          <tr>
+            <td style="color:var(--muted);font-weight:700">3</td>
+            <td style="font-weight:600">MY PARF ECLIPSE NOIR 30ML</td>
+            <td><b>8,721</b></td>
+            <td style="color:#e11d48;font-weight:800">Rs.51,14,256</td>
+            <td style="color:var(--muted)">Rs.586</td>
+            <td><div style="height:8px;border-radius:4px;background:#fee2e2;width:100%"><div style="height:8px;border-radius:4px;background:linear-gradient(90deg,#e11d48,#f43f5e);width:67.1%"></div></div><span style="font-size:.65rem;color:var(--muted)">7.9%</span></td>
+          </tr>
+          <tr>
+            <td style="color:var(--muted);font-weight:700">4</td>
+            <td style="font-weight:600">MY PARF SAVOIR 30ML</td>
+            <td><b>6,546</b></td>
+            <td style="color:#e11d48;font-weight:800">Rs.38,57,769</td>
+            <td style="color:var(--muted)">Rs.589</td>
+            <td><div style="height:8px;border-radius:4px;background:#fee2e2;width:100%"><div style="height:8px;border-radius:4px;background:linear-gradient(90deg,#e11d48,#f43f5e);width:50.6%"></div></div><span style="font-size:.65rem;color:var(--muted)">5.9%</span></td>
+          </tr>
+          <tr>
+            <td style="color:var(--muted);font-weight:700">5</td>
+            <td style="font-weight:600">MY PARF MYSTIC AURA 30ML</td>
+            <td><b>5,898</b></td>
+            <td style="color:#e11d48;font-weight:800">Rs.39,49,157</td>
+            <td style="color:var(--muted)">Rs.670</td>
+            <td><div style="height:8px;border-radius:4px;background:#fee2e2;width:100%"><div style="height:8px;border-radius:4px;background:linear-gradient(90deg,#e11d48,#f43f5e);width:51.8%"></div></div><span style="font-size:.65rem;color:var(--muted)">6.1%</span></td>
+          </tr>
+          <tr>
+            <td style="color:var(--muted);font-weight:700">6</td>
+            <td style="font-weight:600">MY PARF ELORIA 30ML</td>
+            <td><b>5,376</b></td>
+            <td style="color:#e11d48;font-weight:800">Rs.36,02,619</td>
+            <td style="color:var(--muted)">Rs.670</td>
+            <td><div style="height:8px;border-radius:4px;background:#fee2e2;width:100%"><div style="height:8px;border-radius:4px;background:linear-gradient(90deg,#e11d48,#f43f5e);width:47.3%"></div></div><span style="font-size:.65rem;color:var(--muted)">5.5%</span></td>
+          </tr>
+          <tr>
+            <td style="color:var(--muted);font-weight:700">7</td>
+            <td style="font-weight:600">MY PARF MONACO VIBES 30ML</td>
+            <td><b>5,352</b></td>
+            <td style="color:#e11d48;font-weight:800">Rs.35,82,078</td>
+            <td style="color:var(--muted)">Rs.669</td>
+            <td><div style="height:8px;border-radius:4px;background:#fee2e2;width:100%"><div style="height:8px;border-radius:4px;background:linear-gradient(90deg,#e11d48,#f43f5e);width:47.0%"></div></div><span style="font-size:.65rem;color:var(--muted)">5.5%</span></td>
+          </tr>
+          <tr>
+            <td style="color:var(--muted);font-weight:700">8</td>
+            <td style="font-weight:600">MY PARF CRAVES 30ML</td>
+            <td><b>4,927</b></td>
+            <td style="color:#e11d48;font-weight:800">Rs.32,68,580</td>
+            <td style="color:var(--muted)">Rs.663</td>
+            <td><div style="height:8px;border-radius:4px;background:#fee2e2;width:100%"><div style="height:8px;border-radius:4px;background:linear-gradient(90deg,#e11d48,#f43f5e);width:42.9%"></div></div><span style="font-size:.65rem;color:var(--muted)">5.0%</span></td>
+          </tr>
+          <tr>
+            <td style="color:var(--muted);font-weight:700">9</td>
+            <td style="font-weight:600">MY PARF AMORA BLOOM 50ML</td>
+            <td><b>2,843</b></td>
+            <td style="color:#e11d48;font-weight:800">Rs.22,35,546</td>
+            <td style="color:var(--muted)">Rs.786</td>
+            <td><div style="height:8px;border-radius:4px;background:#fee2e2;width:100%"><div style="height:8px;border-radius:4px;background:linear-gradient(90deg,#e11d48,#f43f5e);width:29.3%"></div></div><span style="font-size:.65rem;color:var(--muted)">3.4%</span></td>
+          </tr>
+          <tr>
+            <td style="color:var(--muted);font-weight:700">10</td>
+            <td style="font-weight:600">MY PARF ROSE BOMB 30ML</td>
+            <td><b>2,938</b></td>
+            <td style="color:#e11d48;font-weight:800">Rs.15,73,683</td>
+            <td style="color:var(--muted)">Rs.536</td>
+            <td><div style="height:8px;border-radius:4px;background:#fee2e2;width:100%"><div style="height:8px;border-radius:4px;background:linear-gradient(90deg,#e11d48,#f43f5e);width:20.6%"></div></div><span style="font-size:.65rem;color:var(--muted)">2.4%</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Revenue summary strip -->
+    <div style="display:flex;gap:1.5rem;flex-wrap:wrap;margin-top:1.25rem;padding:.9rem 1rem;background:linear-gradient(135deg,#fff0f3,#fef2f2);border-radius:12px;border:1px solid #fecdd3;">
+      <div style="font-size:.72rem;color:#be123c;font-weight:700">&#128200; TOTAL REVENUE BREAKDOWN</div>
+      <div style="font-size:.72rem;color:#be123c">Top 10 products: <b>Rs.4.04 Cr</b> (62% of total)</div>
+      <div style="font-size:.72rem;color:#be123c">Remaining 74 variants: <b>Rs.2.46 Cr</b> (38%)</div>
+      <div style="font-size:.72rem;color:#be123c">Grand Total: <b>Rs.6.50 Cr</b></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+var MONTHLY = [
+  {m:'Sep 25', inv:3285,  rev:2292725},
+  {m:'Oct 25', inv:3620,  rev:2689833},
+  {m:'Nov 25', inv:3880,  rev:2800887},
+  {m:'Dec 25', inv:4718,  rev:3327297},
+  {m:'Jan 26', inv:5107,  rev:3855457},
+  {m:'Feb 26', inv:3855,  rev:3077980},
+  {m:'Mar 26', inv:4815,  rev:4015702},
+  {m:'Apr 26', inv:3252,  rev:2711163},
+  {m:'May 26', inv:6211,  rev:5235853},
+  {m:'Jun 26', inv:10210, rev:8906254},
+  {m:'Jul 26', inv:13284, rev:11072972},
+  {m:'Aug 26', inv:6008,  rev:4382487},
+];
+
+function fmtL(v){ return 'Rs.'+(v/100000).toFixed(1)+'L'; }
+function fmtCr(v){ return 'Rs.'+(v/10000000).toFixed(2)+' Cr'; }
+
+var maxRev = Math.max.apply(null, MONTHLY.map(function(m){return m.rev;}));
+var container = document.getElementById('monthly-bars');
+var html = '';
+MONTHLY.forEach(function(m){
+  var h = Math.max(4, (m.rev / maxRev * 140)).toFixed(0);
+  var isMax = m.rev === maxRev;
+  html += '<div class="bar-col" title="'+m.m+' | '+m.inv.toLocaleString('en-IN')+' invoices | '+fmtCr(m.rev)+'">';
+  html += '<div class="bar-val" style="font-size:.58rem;color:#e11d48;font-weight:800">'+fmtL(m.rev)+'</div>';
+  html += '<div class="bar-val" style="color:var(--muted);font-size:.55rem">'+m.inv.toLocaleString('en-IN')+'</div>';
+  html += '<div class="bar-fill" style="height:'+h+'px;'+(isMax?'background:linear-gradient(to top,#991b1b,#e11d48);':'')+'"></div>';
+  html += '<div class="bar-lbl">'+m.m+'</div>';
+  html += '</div>';
+});
+container.innerHTML = html;
+
+// Download functions
+function downloadFile(type){
+  if(type === 'full'){
+    window.location.href = '/download/my-parf/full/';
+  } else if(type === 'summary'){
+    window.location.href = '/download/my-parf/summary/';
+  } else if(type === 'mobiles'){
+    window.location.href = '/download/my-parf/mobiles/';
+  }
+}
+</script>
+{% endblock %}

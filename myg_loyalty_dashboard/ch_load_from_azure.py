@@ -18,7 +18,7 @@ from analytics.clickhouse_service import get_ch_client
 # ── Azure Blob Config ─────────────────────────────────────────────────────────
 ACCOUNT_NAME   = "stmygoalposreports"
 CONTAINER_NAME = "sales-reports"
-SAS_TOKEN      = "sp=racwl&st=2026-07-24T05:11:23Z&se=2026-07-31T13:26:23Z&spr=https&sv=2026-02-06&sr=c&sig=z3Wx%2FuVRpC%2BnrNiwRv12VrfK6TTBNVdHgzZlfm36bBI%3D"
+SAS_TOKEN      = "sp=racwl&st=2026-08-11T03:51:43Z&se=2026-12-31T18:29:43Z&spr=https&sv=2026-02-06&sr=c&sig=b5URyZCBQKQU3rwuqxY5z2vqyKNrsDKIPABLQ%2FFyywQ%3D"
 ACCOUNT_URL    = f"https://{ACCOUNT_NAME}.blob.core.windows.net"
 
 from azure.storage.blob import ContainerClient

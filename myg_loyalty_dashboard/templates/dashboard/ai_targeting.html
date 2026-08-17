@@ -1,0 +1,532 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+:root{
+  --bg:#f4f6fb;--card:#fff;--border:#e2e8f0;
+  --accent:#4f46e5;--accent2:#7c3aed;
+  --text:#1e293b;--muted:#64748b;--subtle:#f8fafc;
+  --green:#16a34a;--red:#dc2626;--orange:#ea580c;--gold:#d97706;
+}
+body{background:var(--bg);}
+.at-wrap{min-height:100vh;background:var(--bg);padding-bottom:4rem;}
+
+/* Hero */
+.at-hero{background:linear-gradient(135deg,#1e1b4b 0%,#4338ca 50%,#7c3aed 100%);
+  padding:2rem 2.5rem;position:relative;overflow:hidden;}
+.at-hero::after{content:'';position:absolute;top:-40%;right:-5%;width:500px;height:500px;
+  border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.07),transparent 70%);pointer-events:none;}
+.at-hero-title{font-size:1.6rem;font-weight:900;color:#fff;letter-spacing:-.5px;}
+.at-hero-sub{font-size:.83rem;color:rgba(255,255,255,.75);margin-top:.2rem;}
+.at-hero-badges{display:flex;gap:.75rem;flex-wrap:wrap;margin-top:1.2rem;}
+.badge-card{background:rgba(255,255,255,.1);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.2);
+  border-radius:12px;padding:.7rem 1.2rem;min-width:130px;}
+.bc-lbl{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:rgba(255,255,255,.65);}
+.bc-val{font-size:1.4rem;font-weight:900;color:#fff;line-height:1.1;margin-top:.15rem;}
+.bc-sub{font-size:.65rem;color:rgba(255,255,255,.6);}
+
+/* Toolbar */
+.at-toolbar{background:#fff;border-bottom:1px solid var(--border);
+  padding:.85rem 2.5rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;
+  position:sticky;top:0;z-index:100;box-shadow:0 1px 8px rgba(0,0,0,.05);}
+.at-filter-lbl{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);}
+.at-select{border:1px solid #d1d5db;border-radius:8px;padding:.4rem .75rem;
+  font-size:.82rem;color:var(--text);background:#fff;cursor:pointer;font-family:inherit;}
+.at-search{border:1px solid #d1d5db;border-radius:8px;padding:.4rem .85rem;
+  font-size:.82rem;color:var(--text);background:#fff;font-family:inherit;width:200px;}
+.at-btn{padding:.4rem 1.1rem;border-radius:8px;border:none;cursor:pointer;font-size:.82rem;
+  font-weight:700;font-family:inherit;transition:all .2s;}
+.btn-primary{background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;}
+.btn-primary:hover{opacity:.9;transform:translateY(-1px);}
+.btn-outline{background:#fff;color:var(--accent);border:1.5px solid var(--accent);}
+.btn-outline:hover{background:#eff1ff;}
+.btn-success{background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;}
+.btn-success:hover{opacity:.9;}
+.ml-auto{margin-left:auto;}
+
+/* Sections */
+.at-sec{padding:1.75rem 2.5rem .5rem;}
+.at-sec-hd{display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem;}
+.at-sec-icon{width:34px;height:34px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1rem;}
+.at-sec-title{font-size:1.05rem;font-weight:800;color:var(--text);}
+.at-sec-sub{font-size:.71rem;color:var(--muted);margin-top:1px;}
+.divider{height:1px;background:var(--border);margin:1.5rem 2.5rem .5rem;}
+
+/* KPI row */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:1rem;padding:0 2.5rem;}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1.2rem 1.3rem;
+  position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s;}
+.kpi:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.09);}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--ka,#4f46e5);}
+.kpi-lbl{font-size:.61rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin-bottom:.35rem;}
+.kpi-val{font-size:1.7rem;font-weight:900;color:var(--text);line-height:1;}
+.kpi-sub{font-size:.68rem;color:var(--muted);margin-top:.2rem;}
+
+/* Progress bar */
+.prog-wrap{padding:0 2.5rem;margin-bottom:.5rem;}
+.prog-bar{background:#e2e8f0;border-radius:30px;height:10px;overflow:hidden;}
+.prog-fill{height:100%;border-radius:30px;background:linear-gradient(90deg,#4f46e5,#7c3aed);
+  transition:width .8s ease;}
+
+/* Model performance */
+.model-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;padding:0 2.5rem;}
+.model-card{background:var(--card);border:1px solid var(--border);border-radius:14px;
+  padding:1.1rem 1.3rem;text-align:center;}
+.mc-lbl{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:.3rem;}
+.mc-val{font-size:1.8rem;font-weight:900;color:var(--text);}
+.mc-bar{height:4px;background:#e2e8f0;border-radius:4px;margin-top:.6rem;overflow:hidden;}
+.mc-fill{height:100%;border-radius:4px;}
+
+/* Feature importance */
+.fi-list{padding:0 2.5rem;display:flex;flex-direction:column;gap:.4rem;}
+.fi-row{display:flex;align-items:center;gap:.8rem;padding:.4rem 0;}
+.fi-name{width:200px;font-size:.78rem;font-weight:600;color:var(--text);}
+.fi-bar-wrap{flex:1;background:#e2e8f0;border-radius:4px;height:8px;overflow:hidden;}
+.fi-bar-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,#4f46e5,#7c3aed);}
+.fi-pct{width:45px;font-size:.75rem;font-weight:700;color:var(--accent);text-align:right;}
+
+/* Segment pills */
+.seg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:1rem;padding:0 2.5rem;}
+.seg-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:1.2rem 1.3rem;
+  border-top:3px solid var(--sc,#4f46e5);}
+.sg-name{font-size:.83rem;font-weight:800;color:var(--text);margin-bottom:.5rem;}
+.sg-count{font-size:1.5rem;font-weight:900;color:var(--sc,#4f46e5);margin-bottom:.2rem;}
+.sg-score{font-size:.7rem;color:var(--muted);}
+.sg-conv{font-size:.7rem;color:var(--green);font-weight:700;margin-top:.3rem;}
+
+/* Priority table */
+.tbl-container{padding:0 2.5rem;overflow-x:auto;}
+.at-tbl{width:100%;border-collapse:separate;border-spacing:0 3px;font-size:.8rem;min-width:900px;}
+.at-tbl th{font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:1px;
+  color:var(--muted);padding:.5rem .9rem;border-bottom:2px solid var(--border);white-space:nowrap;}
+.at-tbl td{padding:.65rem .9rem;background:var(--card);color:var(--text);
+  border-top:1px solid var(--border);}
+.at-tbl tr td:first-child{border-radius:8px 0 0 8px;}
+.at-tbl tr td:last-child{border-radius:0 8px 8px 0;}
+.at-tbl tbody tr:hover td{background:#f0f4ff;}
+
+/* Score badge */
+.score-badge{display:inline-flex;align-items:center;gap:.3rem;padding:.2rem .6rem;
+  border-radius:20px;font-size:.7rem;font-weight:800;}
+.s90{background:#dcfce7;color:#15803d;}
+.s70{background:#dbeafe;color:#1d4ed8;}
+.s50{background:#fef3c7;color:#b45309;}
+.s30{background:#fee2e2;color:#b91c1c;}
+
+/* Action pill */
+.action-pill{display:inline-block;padding:.15rem .55rem;border-radius:6px;font-size:.63rem;
+  font-weight:700;white-space:nowrap;}
+.a-hot{background:#fee2e2;color:#dc2626;}
+.a-warm{background:#ffedd5;color:#ea580c;}
+.a-cool{background:#fef3c7;color:#b45309;}
+.a-cold{background:#f1f5f9;color:#64748b;}
+
+/* Pagination */
+.pag{display:flex;align-items:center;justify-content:center;gap:.5rem;padding:1rem 2.5rem;}
+.pag-btn{padding:.35rem .8rem;border:1px solid var(--border);border-radius:8px;
+  background:#fff;color:var(--text);cursor:pointer;font-size:.8rem;font-family:inherit;}
+.pag-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.pag-btn:hover:not(.active){background:#f1f5f9;}
+
+/* Charts */
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;padding:0 2.5rem;}
+.chart-box{background:var(--card);border:1px solid var(--border);border-radius:14px;
+  padding:1.3rem;height:260px;}
+
+/* Stat inline */
+.stat-inline{display:inline-flex;align-items:center;gap:.4rem;font-size:.72rem;color:var(--muted);
+  background:#f1f5f9;border-radius:6px;padding:.2rem .6rem;}
+.stat-inline b{color:var(--text);}
+
+/* Loading */
+.at-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:5rem;color:var(--muted);}
+.spin{width:36px;height:36px;border:3px solid rgba(79,70,229,.15);
+  border-top-color:#4f46e5;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:1rem;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* Score dist */
+.hist-bar{display:flex;align-items:flex-end;gap:4px;height:120px;padding:0 2.5rem;margin-top:.5rem;}
+.hist-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;}
+.hist-fill{width:100%;border-radius:4px 4px 0 0;background:linear-gradient(to top,#4f46e5,#7c3aed);
+  min-height:2px;transition:height .5s;}
+.hist-lbl{font-size:.55rem;color:var(--muted);text-align:center;}
+.hist-cnt{font-size:.58rem;color:var(--text);font-weight:700;}
+
+/* Responsive */
+@media(max-width:900px){
+  .model-grid{grid-template-columns:1fr 1fr;}
+  .chart-row{grid-template-columns:1fr;}
+}
+.fade{opacity:0;transform:translateY(12px);transition:opacity .45s,transform .45s;}
+.fade.vis{opacity:1;transform:none;}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="at-wrap">
+
+  <!-- Hero -->
+  <div class="at-hero">
+    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+      <div>
+        <div class="at-hero-title">AI Customer Targeting Engine</div>
+        <div class="at-hero-sub" id="hero-sub">Loading AI model results...</div>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:.5rem;flex-wrap:wrap" id="hero-status"></div>
+    </div>
+    <div class="at-hero-badges" id="hero-badges">
+      <div class="badge-card"><div class="bc-lbl">Target Gap</div><div class="bc-val" id="hb-gap"> - </div><div class="bc-sub">customers needed</div></div>
+      <div class="badge-card"><div class="bc-lbl">AI Scored Pool</div><div class="bc-val" id="hb-pool"> - </div><div class="bc-sub">JAS returners identified</div></div>
+      <div class="badge-card"><div class="bc-lbl">Score &gt; 80%</div><div class="bc-val" id="hb-hot"> - </div><div class="bc-sub">call today</div></div>
+      <div class="badge-card"><div class="bc-lbl">Model Accuracy</div><div class="bc-val" id="hb-acc"> - </div><div class="bc-sub">ensemble model</div></div>
+      <div class="badge-card"><div class="bc-lbl">JAS Loyalists</div><div class="bc-val" id="hb-loyal"> - </div><div class="bc-sub">2024 + 2025 buyers</div></div>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="at-toolbar">
+    <span class="at-filter-lbl">Filter:</span>
+    <select class="at-select" id="filter-seg" onchange="applyFilters()">
+      <option value="">All Segments</option>
+      <option value="JAS Champions">JAS Champions</option>
+      <option value="Active Loyalists">Active Loyalists</option>
+      <option value="Potential Returners">Potential Returners</option>
+      <option value="Seasonal Buyers">Seasonal Buyers</option>
+      <option value="Inactive High-Value">Inactive High-Value</option>
+    </select>
+    <select class="at-select" id="filter-score" onchange="applyFilters()">
+      <option value="0">All Scores</option>
+      <option value="80">Score &gt; 80%</option>
+      <option value="60">Score &gt; 60%</option>
+      <option value="40">Score &gt; 40%</option>
+    </select>
+    <select class="at-select" id="filter-branch" onchange="applyFilters()">
+      <option value="">All Branches</option>
+    </select>
+    <input class="at-search" type="text" placeholder="Search mobile..." id="search-mobile" oninput="applyFilters()">
+    <button class="at-btn btn-outline ml-auto" style="border-color:#d97706;color:#d97706" onclick="window.location.href='/download/dormant-customers/'">&#11123; Download Dormant (5.1L)</button>
+    <button class="at-btn btn-outline" onclick="downloadCSV()">&#11123; Download CSV</button>
+    <button class="at-btn btn-success" onclick="downloadCallList()">&#128222; Download Call List</button>
+  </div>
+
+  <!-- Main content -->
+  <div id="at-main">
+    <div class="at-loading"><div class="spin"></div><div>Loading AI targeting data...</div></div>
+  </div>
+
+</div>
+
+<script>
+var AT = null;
+var ALL_CUSTOMERS = [];
+var FILTERED = [];
+var PAGE = 1;
+var PAGE_SIZE = 50;
+
+function n(v){ return Number(v||0).toLocaleString('en-IN'); }
+function pct(v){ return (Number(v||0)).toFixed(1)+'%'; }
+
+function scoreBadge(s){
+  var cls = s>=80?'s90':s>=60?'s70':s>=40?'s50':'s30';
+  return '<span class="score-badge '+cls+'">'+s.toFixed(1)+'%</span>';
+}
+function actionPill(a){
+  var cls = a.includes('TODAY')?'a-hot':a.includes('week')?'a-warm':a.includes('SMS')?'a-cool':'a-cold';
+  return '<span class="action-pill '+cls+'">'+a+'</span>';
+}
+function segColor(s){
+  var map = {'JAS Champions':'#4f46e5','Active Loyalists':'#16a34a','Potential Returners':'#0ea5e9',
+    'Seasonal Buyers':'#d97706','Inactive High-Value':'#64748b'};
+  return map[s] || '#4f46e5';
+}
+
+function render(data){
+  AT = data;
+  ALL_CUSTOMERS = data.top_customers || [];
+  FILTERED = [...ALL_CUSTOMERS];
+
+  var k = data.target_kpis || {};
+  var m = data.model || {};
+  var ss = data.score_summary || {};
+
+  // Hero badges
+  document.getElementById('hb-gap').textContent = n(k.gap);
+  document.getElementById('hb-pool').textContent = n(k.jas25_not_jas26);
+  document.getElementById('hb-hot').textContent = n(ss.high_prob_80plus);
+  document.getElementById('hb-acc').textContent = pct(m.accuracy*100);
+  document.getElementById('hb-loyal').textContent = n(k.jas_loyalists);
+  document.getElementById('hero-sub').textContent = 'JAS 2026 | Ensemble ML (RF + GBM + Neural Net) | '+data.generated_at+' | '+n(ss.total_scored)+' customers scored';
+
+  // Populate branch filter
+  var branches = [...new Set(ALL_CUSTOMERS.map(c=>c.branch))].sort();
+  var sel = document.getElementById('filter-branch');
+  branches.forEach(function(b){ sel.innerHTML += '<option value="'+b+'">'+b+'</option>'; });
+
+  // Build page
+  var html = '';
+
+  // S1: Gap analysis KPIs
+  html += '<div class="at-sec fade"><div class="at-sec-hd">';
+  html += '<div class="at-sec-icon" style="background:linear-gradient(135deg,#dc2626,#ef4444)">&#127919;</div>';
+  html += '<div><div class="at-sec-title">Target Gap Analysis</div><div class="at-sec-sub">JAS 2025 buyers not yet in JAS 2026 - your highest probability targets</div></div></div>';
+  html += '<div class="kpi-row">';
+  var kpis = [
+    {lbl:'Gap to Target',val:n(k.gap),sub:'customers needed',c:'#dc2626'},
+    {lbl:'JAS 2025 Returners',val:n(k.jas25_not_jas26),sub:'bought last JAS, not yet this',c:'#4f46e5'},
+    {lbl:'JAS Loyalists',val:n(k.jas_loyalists),sub:'2024+2025 buyer, not JAS 2026',c:'#7c3aed'},
+    {lbl:'Recent Active',val:n(k.amj26_not_jas26),sub:'AMJ 2026 buyer, not JAS 2026',c:'#0ea5e9'},
+    {lbl:'HOTTEST Leads',val:n(k.hottest_leads),sub:'JAS25 + AMJ26 + not JAS26',c:'#d97706'},
+    {lbl:'Days Remaining',val:k.days_left,sub:'until JAS 2026 closes',c:'#ea580c'},
+  ];
+  kpis.forEach(function(ki){
+    html += '<div class="kpi" style="--ka:'+ki.c+'"><div class="kpi-lbl">'+ki.lbl+'</div><div class="kpi-val">'+ki.val+'</div><div class="kpi-sub">'+ki.sub+'</div></div>';
+  });
+  html += '</div>';
+
+  // Progress bar
+  var ach_pct = k.achieved / k.quarter_target * 100;
+  html += '<div class="prog-wrap" style="margin-top:1.2rem">';
+  html += '<div style="display:flex;justify-content:space-between;margin-bottom:.4rem"><span style="font-size:.72rem;color:var(--muted)">Quarter Achievement</span><span style="font-size:.72rem;font-weight:700;color:var(--text)">'+n(k.achieved)+' / '+n(k.quarter_target)+' ('+ach_pct.toFixed(1)+'%)</span></div>';
+  html += '<div class="prog-bar"><div class="prog-fill" style="width:'+ach_pct.toFixed(1)+'%"></div></div></div>';
+  html += '</div><div class="divider"></div>';
+
+  // S2: Model performance
+  html += '<div class="at-sec fade"><div class="at-sec-hd">';
+  html += '<div class="at-sec-icon" style="background:linear-gradient(135deg,#6d28d9,#8b5cf6)">&#129504;</div>';
+  html += '<div><div class="at-sec-title">AI Model Performance</div><div class="at-sec-sub">'+m.type+' | Trained on JAS 2025 purchase labels</div></div></div>';
+  html += '<div class="model-grid">';
+  [
+    {lbl:'Accuracy',val:pct(m.accuracy*100),fill:m.accuracy,c:'#4f46e5'},
+    {lbl:'Precision',val:pct(m.precision*100),fill:m.precision,c:'#16a34a'},
+    {lbl:'Recall',val:pct(m.recall*100),fill:m.recall,c:'#0ea5e9'},
+    {lbl:'F1 Score',val:pct(m.f1*100),fill:m.f1,c:'#d97706'},
+  ].forEach(function(mc){
+    html += '<div class="model-card"><div class="mc-lbl">'+mc.lbl+'</div><div class="mc-val" style="color:'+mc.c+'">'+mc.val+'</div>';
+    html += '<div class="mc-bar"><div class="mc-fill" style="width:'+pct(mc.fill*100)+';background:'+mc.c+'"></div></div></div>';
+  });
+  html += '</div>';
+  html += '<div style="padding:.75rem 2.5rem 0;display:flex;gap:1rem;flex-wrap:wrap">';
+  html += '<span class="stat-inline">Training samples: <b>'+n(m.training_samples)+'</b></span>';
+  html += '<span class="stat-inline">Test samples: <b>'+n(m.test_samples)+'</b></span>';
+  html += '<span class="stat-inline">Features: <b>'+m.features_used+'</b></span>';
+  html += '<span class="stat-inline">Training label: <b>'+m.training_label+'</b></span></div>';
+  html += '</div><div class="divider"></div>';
+
+  // S3: Feature Importance
+  html += '<div class="at-sec fade"><div class="at-sec-hd">';
+  html += '<div class="at-sec-icon" style="background:linear-gradient(135deg,#0369a1,#0ea5e9)">&#128200;</div>';
+  html += '<div><div class="at-sec-title">Feature Importance - What Drives Repeat Purchase</div><div class="at-sec-sub">Combined importance from Random Forest + Gradient Boosting</div></div></div>';
+  html += '<div class="fi-list">';
+  var maxFI = data.feature_importance[0].importance;
+  data.feature_importance.forEach(function(f){
+    var width = (f.importance/maxFI*100).toFixed(1);
+    var nameMap = {
+      'jas_season_total':'JAS Season History','freq':'Total Purchases','recency_days':'Recency (days)',
+      'amj25_count':'Last Quarter Active','jas_rate':'JAS Purchase Rate','recency_score':'Recency Score',
+      'monetary':'Total Lifetime Spend','avg_spend':'Average Spend','tenure_days':'Customer Tenure',
+      'jas24_count':'JAS 2024 Activity','amj26_count':'AMJ 2026 Activity','recent_active':'Recent Quarter Active',
+      'jas24_active':'JAS 2024 Active Flag','high_value_flag':'High Value Flag','max_spend':'Max Single Spend',
+      'big_ticket_count':'Big Ticket Purchases','financed_count':'Financed Purchases',
+      'purchase_velocity':'Purchase Velocity','finance_rate':'Finance Rate'
+    };
+    var displayName = nameMap[f.feature] || f.feature;
+    html += '<div class="fi-row"><div class="fi-name">'+displayName+'</div>';
+    html += '<div class="fi-bar-wrap"><div class="fi-bar-fill" style="width:'+width+'%"></div></div>';
+    html += '<div class="fi-pct">'+f.importance.toFixed(1)+'%</div></div>';
+  });
+  html += '</div></div><div class="divider"></div>';
+
+  // S4: Customer Segments
+  html += '<div class="at-sec fade"><div class="at-sec-hd">';
+  html += '<div class="at-sec-icon" style="background:linear-gradient(135deg,#059669,#10b981)">&#128104;&#8205;&#128203;</div>';
+  html += '<div><div class="at-sec-title">Customer Segments (K-Means Clustering)</div><div class="at-sec-sub">5 AI-discovered segments from the JAS 2025 non-returning pool</div></div></div>';
+  html += '<div class="seg-grid">';
+  data.segment_summary.forEach(function(s){
+    var c = segColor(s.segment);
+    html += '<div class="seg-card" style="--sc:'+c+'"><div class="sg-name">'+s.segment+'</div>';
+    html += '<div class="sg-count">'+n(s.count)+'</div>';
+    html += '<div class="sg-score">Avg ML Score: '+s.avg_score+'%</div>';
+    html += '<div class="sg-conv">Est. conversions: '+n(s.expected_conversions)+'</div>';
+    html += '<div style="font-size:.65rem;color:var(--muted);margin-top:.3rem">Avg recency: '+s.avg_recency+' days</div></div>';
+  });
+  html += '</div></div><div class="divider"></div>';
+
+  // S5: Charts
+  html += '<div class="at-sec fade"><div class="at-sec-hd">';
+  html += '<div class="at-sec-icon" style="background:linear-gradient(135deg,#0f766e,#14b8a6)">&#128202;</div>';
+  html += '<div><div class="at-sec-title">Score Distribution</div><div class="at-sec-sub">Probability score spread across '+n(ss.total_scored)+' scored customers</div></div></div>';
+  // Histogram
+  html += '<div class="hist-bar" id="hist-container">';
+  var maxCnt = Math.max(...data.score_distribution.map(b=>b.count));
+  data.score_distribution.forEach(function(b){
+    var h = Math.max(4, (b.count/maxCnt*110)).toFixed(0);
+    html += '<div class="hist-col">';
+    html += '<div class="hist-cnt">'+n(b.count)+'</div>';
+    html += '<div class="hist-fill" style="height:'+h+'px"></div>';
+    html += '<div class="hist-lbl">'+b.range+'</div></div>';
+  });
+  html += '</div></div><div class="divider"></div>';
+
+  // S6: Priority Customer Table (rendered by JS pagination)
+  html += '<div class="at-sec fade"><div class="at-sec-hd">';
+  html += '<div class="at-sec-icon" style="background:linear-gradient(135deg,#dc2626,#ef4444)">&#128222;</div>';
+  html += '<div><div class="at-sec-title">Priority Call List</div>';
+  html += '<div class="at-sec-sub" id="tbl-sub">JAS 2025 buyers NOT yet in JAS 2026 - ranked by AI probability score</div></div></div>';
+  html += '<div id="table-wrap"><div class="at-loading"><div class="spin"></div></div></div>';
+  html += '</div>';
+
+  document.getElementById('at-main').innerHTML = html;
+
+  // Fade in
+  var obs = new IntersectionObserver(function(es){
+    es.forEach(function(e){if(e.isIntersecting)e.target.classList.add('vis');});
+  },{threshold:.1});
+  document.querySelectorAll('.fade').forEach(function(el){obs.observe(el);});
+  setTimeout(function(){document.querySelector('.fade').classList.add('vis');},100);
+
+  // Render table after DOM settles
+  setTimeout(function(){ applyFilters(); }, 150);
+}
+
+function applyFilters(){
+  if(!AT) return;
+  try {
+    var seg = document.getElementById('filter-seg').value;
+    var minScore = parseFloat(document.getElementById('filter-score').value)||0;
+    var branch = document.getElementById('filter-branch').value;
+    var search = (document.getElementById('search-mobile').value||'').toLowerCase();
+
+    FILTERED = ALL_CUSTOMERS.filter(function(c){
+      if(seg && c.segment !== seg) return false;
+      if(c.score < minScore) return false;
+      if(branch && c.branch !== branch) return false;
+      if(search && !c.mobile_masked.toLowerCase().includes(search) && !c.mobile_full.includes(search)) return false;
+      return true;
+    });
+
+    PAGE = 1;
+    var tblSub = document.getElementById('tbl-sub');
+    if(tblSub) tblSub.textContent = n(FILTERED.length)+' customers matched | JAS 2025 buyers NOT yet in JAS 2026 - ranked by AI probability score';
+    renderTable();
+  } catch(e) {
+    var tw = document.getElementById('table-wrap');
+    if(tw) tw.innerHTML = '<div style="padding:2rem;color:#dc2626;font-size:.85rem">Error in filter: '+e.message+'</div>';
+    console.error('applyFilters error:', e);
+  }
+}
+
+function renderTable(){
+  try {
+    var start = (PAGE-1)*PAGE_SIZE;
+    var end = start+PAGE_SIZE;
+    var page = FILTERED.slice(start, end);
+    var totalPages = Math.ceil(FILTERED.length/PAGE_SIZE) || 1;
+
+    var html = '<div class="tbl-container"><table class="at-tbl"><thead><tr>';
+    html += '<th>#</th><th>Mobile</th><th>Branch</th><th>AI Score</th><th>Segment</th>';
+    html += '<th>Last Purchase</th><th>Total Purchases</th><th>Avg Spend (Rs)</th>';
+    html += '<th>JAS History</th><th>AMJ26 Active</th><th>Action</th></tr></thead><tbody>';
+
+    if(page.length === 0){
+      html += '<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:2rem">No customers match the current filters.</td></tr>';
+    }
+
+    page.forEach(function(c,i){
+      var idx = start+i+1;
+      var score = typeof c.score === 'number' ? c.score : parseFloat(c.score)||0;
+      var avgSpend = typeof c.avg_spend === 'number' ? c.avg_spend : parseFloat(c.avg_spend)||0;
+      html += '<tr>';
+      html += '<td style="color:var(--muted);font-weight:700">'+idx+'</td>';
+      html += '<td style="font-family:monospace;font-size:.82rem;font-weight:700">'+(c.mobile_masked||'')+'</td>';
+      html += '<td style="font-weight:600">'+(c.branch||'')+'</td>';
+      html += '<td>'+scoreBadge(score)+'</td>';
+      html += '<td><span style="font-size:.72rem;font-weight:700;color:'+segColor(c.segment||'')+'">'+( c.segment||'')+'</span></td>';
+      html += '<td style="color:var(--muted)">'+(c.last_purchase||'')+'</td>';
+      html += '<td style="color:#4f46e5;font-weight:700">'+(c.total_purchases||0)+'</td>';
+      html += '<td style="font-weight:700">'+n(avgSpend)+'</td>';
+      html += '<td style="color:#d97706;font-weight:700">'+(c.jas_history||0)+'x</td>';
+      html += '<td>'+(c.amj26_bought ? '<span style="color:#16a34a;font-weight:700">YES</span>' : '<span style="color:#94a3b8">No</span>')+'</td>';
+      html += '<td>'+actionPill(c.action||'')+'</td>';
+      html += '</tr>';
+    });
+
+    html += '</tbody></table></div>';
+
+    // Pagination
+    html += '<div class="pag">';
+    html += '<button class="pag-btn" onclick="goPage('+(PAGE-1)+')" '+(PAGE<=1?'disabled':'')+'>&#8592; Prev</button>';
+    var maxP = Math.min(totalPages, 10);
+    for(var p=Math.max(1,PAGE-3); p<=Math.min(maxP,PAGE+3); p++){
+      html += '<button class="pag-btn '+(p===PAGE?'active':'')+'" onclick="goPage('+p+')">'+p+'</button>';
+    }
+    html += '<button class="pag-btn" onclick="goPage('+(PAGE+1)+')" '+(PAGE>=totalPages?'disabled':'')+'>Next &#8594;</button>';
+    html += '<span style="font-size:.72rem;color:var(--muted);margin-left:.5rem">Page '+PAGE+' of '+totalPages+' | '+n(FILTERED.length)+' customers</span>';
+    html += '</div>';
+
+    var tw = document.getElementById('table-wrap');
+    if(tw) tw.innerHTML = html;
+  } catch(e) {
+    var tw = document.getElementById('table-wrap');
+    if(tw) tw.innerHTML = '<div style="padding:2rem;color:#dc2626;font-size:.85rem">Table error: '+e.message+'<br><small>'+e.stack+'</small></div>';
+    console.error('renderTable error:', e);
+  }
+}
+
+function goPage(p){
+  var totalPages = Math.ceil(FILTERED.length/PAGE_SIZE);
+  if(p<1||p>totalPages) return;
+  PAGE = p;
+  renderTable();
+  document.getElementById('table-wrap').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function downloadCSV(){
+  if(!AT) return;
+  var rows = [['Rank','Mobile','Branch','AI Score','Segment','Last Purchase','Total Purchases','Avg Spend','JAS History','AMJ26 Active','Action']];
+  FILTERED.forEach(function(c,i){
+    rows.push([i+1, c.mobile_full, c.branch, c.score.toFixed(1)+'%', c.segment,
+      c.last_purchase, c.total_purchases, c.avg_spend, c.jas_history,
+      c.amj26_bought?'Yes':'No', c.action]);
+  });
+  var csv = rows.map(function(r){return r.join(',');}).join('\n');
+  var a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download = 'AI_Customer_Targets_JAS2026.csv';
+  a.click();
+}
+
+function downloadCallList(){
+  if(!AT) return;
+  var today = FILTERED.filter(function(c){return c.score>=70;});
+  var rows = [['Priority','Mobile','Branch','Score','Last Purchase','Action']];
+  today.forEach(function(c,i){
+    rows.push([i+1, c.mobile_full, c.branch, c.score.toFixed(1)+'%', c.last_purchase, c.action]);
+  });
+  var csv = rows.map(function(r){return r.join(',');}).join('\n');
+  var a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download = 'Priority_Call_List_JAS2026.csv';
+  a.click();
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+  fetch('/api/v1/ai-targeting/')
+    .then(function(r){return r.json();})
+    .then(function(data){
+      if(data.status === 'error'){
+        document.getElementById('at-main').innerHTML =
+          '<div class="at-loading" style="color:#dc2626"><div>&#9888; '+data.message+'</div><div style="margin-top:.5rem;font-size:.8rem">'+
+          (data.detail||'Run python analytics/customer_ml.py to generate scores')+'</div></div>';
+        return;
+      }
+      render(data);
+    })
+    .catch(function(err){
+      document.getElementById('at-main').innerHTML =
+        '<div class="at-loading" style="color:#dc2626"><div>&#9888; Failed to load targeting data</div><div style="font-size:.8rem;margin-top:.5rem">'+err.message+'</div></div>';
+    });
+});
+</script>
+{% endblock %}

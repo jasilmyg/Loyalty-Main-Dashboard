@@ -1,0 +1,67 @@
+{% extends 'base.html' %}{% load static %}{% block title %}Model Management | AI Retail Engine{% endblock %}
+{% block content %}
+<style>
+.mmh{background:linear-gradient(135deg,#0f172a,#1e3a8a 60%,#1d4ed8);color:#fff;padding:2rem 2.5rem;margin:-2.5rem -2.5rem 2rem -2.5rem;position:relative;overflow:hidden;}
+.mmh h1{font-size:1.6rem;font-weight:800;} .mmh p{color:#bfdbfe;font-size:.88rem;}
+.ai-tag{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:.2rem .75rem;font-size:.68rem;font-weight:700;display:inline-block;margin-bottom:.75rem;}
+.section-card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:1.5rem;}
+.section-title{font-size:.95rem;font-weight:700;color:#0f172a;}
+.model-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:1.25rem;transition:all .2s;}
+.model-card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.06);}
+.status-active{background:#dcfce7;color:#15803d;border-radius:20px;padding:.2rem .7rem;font-size:.7rem;font-weight:700;}
+.status-training{background:#fef3c7;color:#d97706;border-radius:20px;padding:.2rem .7rem;font-size:.7rem;font-weight:700;}
+.status-inactive{background:#f1f5f9;color:#64748b;border-radius:20px;padding:.2rem .7rem;font-size:.7rem;font-weight:700;}
+</style>
+<div class="mmh">
+    <div class="d-flex align-items-start gap-3">
+        <div style="background:rgba(255,255,255,.15);border-radius:14px;padding:.75rem 1rem;font-size:1.75rem;flex-shrink:0;"><i class="bi bi-cpu-fill"></i></div>
+        <div>
+            <div class="ai-tag">ML MODEL REGISTRY</div>
+            <h1 class="mb-1">Model Management</h1>
+            <p class="mb-0">AI/ML model registry — status, accuracy, training history, and performance metrics</p>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-3"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:1.3rem 1.4rem;">
+        <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:#64748b;">Active Models</div>
+        <div style="font-size:1.8rem;font-weight:800;color:#15803d;">5</div><div style="font-size:.75rem;color:#94a3b8;">running in production</div>
+    </div></div>
+    <div class="col-6 col-md-3"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:1.3rem 1.4rem;">
+        <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:#64748b;">In Training</div>
+        <div style="font-size:1.8rem;font-weight:800;color:#d97706;">1</div><div style="font-size:.75rem;color:#94a3b8;">retraining in progress</div>
+    </div></div>
+    <div class="col-6 col-md-3"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:1.3rem 1.4rem;">
+        <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:#64748b;">Best Accuracy</div>
+        <div style="font-size:1.8rem;font-weight:800;color:#1e40af;">91.2%</div><div style="font-size:.75rem;color:#94a3b8;">LSTM Sales Forecaster</div>
+    </div></div>
+    <div class="col-6 col-md-3"><div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:1.3rem 1.4rem;">
+        <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:#64748b;">Last Trained</div>
+        <div style="font-size:1.8rem;font-weight:800;color:#7c3aed;font-size:1.2rem;">Aug 15</div><div style="font-size:.75rem;color:#94a3b8;">most recent training run</div>
+    </div></div>
+</div>
+
+<div class="section-card mb-3">
+    <div class="section-title mb-3"><i class="bi bi-grid-fill me-2 text-primary"></i>AI Model Registry</div>
+    <div class="row g-3">
+        {% for m in models %}
+        <div class="col-12 col-md-6 col-xl-4">
+            <div class="model-card">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:#64748b;letter-spacing:1px;">{{ m.type }}</span>
+                    {% if m.status == 'Active' %}<span class="status-active">● ACTIVE</span>
+                    {% elif m.status == 'Training' %}<span class="status-training">⟳ TRAINING</span>
+                    {% else %}<span class="status-inactive">○ INACTIVE</span>{% endif %}
+                </div>
+                <div style="font-weight:800;font-size:.95rem;color:#0f172a;margin-bottom:.5rem;">{{ m.name }}</div>
+                <div class="d-flex gap-3 mt-2">
+                    <div><div style="font-size:.65rem;color:#64748b;font-weight:700;text-transform:uppercase;">Accuracy</div><div style="font-size:1rem;font-weight:800;color:#1e40af;">{{ m.accuracy }}</div></div>
+                    <div><div style="font-size:.65rem;color:#64748b;font-weight:700;text-transform:uppercase;">Last Trained</div><div style="font-size:.82rem;font-weight:600;color:#334155;">{{ m.last_trained }}</div></div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
