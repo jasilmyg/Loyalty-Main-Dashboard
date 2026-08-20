@@ -34,6 +34,9 @@ base_row = client.query("""
       AND toDate(date) < toDate('2026-07-01')
       AND toDate(date) != toDate('1970-01-01')
       AND invoice_total > 0
+      AND branch NOT IN ('3GH', 'SMC', 'HEAD OFFICE', 'UG SMART CHOICE')
+      AND invoice_no NOT LIKE '%SMC%'
+      AND invoice_no NOT LIKE '%EI%'
 """).result_rows
 base_customers = int(base_row[0][0]) if base_row else 5292679
 print(f"  Base customers: {base_customers:,}")
@@ -56,6 +59,9 @@ row = client.query("""
           AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
           AND toDate(date) != toDate('1970-01-01')
           AND invoice_total > 0
+          AND branch NOT IN ('3GH', 'SMC', 'HEAD OFFICE', 'UG SMART CHOICE')
+          AND invoice_no NOT LIKE '%SMC%'
+          AND invoice_no NOT LIKE '%EI%'
         GROUP BY customer_mobile
     )
 """).result_rows
@@ -77,6 +83,9 @@ daily_rows = client.query("""
           AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
           AND toDate(date) != toDate('1970-01-01')
           AND invoice_total > 0
+          AND branch NOT IN ('3GH', 'SMC', 'HEAD OFFICE', 'UG SMART CHOICE')
+          AND invoice_no NOT LIKE '%SMC%'
+          AND invoice_no NOT LIKE '%EI%'
         GROUP BY customer_mobile
         HAVING has_prior = 1 AND first_jas_date != toDate('1970-01-01')
     )

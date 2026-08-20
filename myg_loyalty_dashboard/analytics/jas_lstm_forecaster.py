@@ -30,6 +30,9 @@ def run_jas_bilstm_forecast(jas_daily_actuals, remaining_days):
     remaining_days: int
     Returns: sum of projected daily repeats for the remaining days.
     """
+    if TORCH_AVAILABLE:
+        torch.manual_seed(42)
+
     if not TORCH_AVAILABLE:
         print("Falling back to statistical average since PyTorch is unavailable.")
         if jas_daily_actuals:
@@ -149,7 +152,7 @@ def run_jas_bilstm_forecast(jas_daily_actuals, remaining_days):
     optimizer = torch.optim.Adam(model.parameters(), lr=0.005)
 
     model.train()
-    epochs = 15
+    epochs = 50
     print(f"Training BiLSTM over {epochs} epochs...")
     for epoch in range(epochs):
         epoch_loss = 0.0

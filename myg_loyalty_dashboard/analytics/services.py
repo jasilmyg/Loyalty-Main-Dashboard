@@ -954,13 +954,12 @@ class AnalyticsService:
 
     # ── Staff Performance ────────────────────────────────────────────────────
     def get_staff_performance(self, filters):
-        where_sql, params = self._build_where_clause(filters)
         ch_where, ch_params = self._build_ch_where_clause(filters)
+        # azure_invoice_report columns: sales_staff_code (no 'staff' name column)
+        ch_where_az = ch_where.replace('parsed_date', 'toDate(date)')
         try:
-            # azure_invoice_report: date→toDate(date), total_value→invoice_total, invoice_number→invoice_no
-            ch_where_az = ch_where.replace('parsed_date', 'toDate(date)')
             rows = _ch_q(f"""
-                SELECT staff, staff_code,
+                SELECT sales_staff_code AS staff_code,
                     SUM(invoice_total) AS sales_value,
                     COUNT(DISTINCT invoice_no) AS invoice_count,
                     SUM(invoice_total) / nullIf(COUNT(DISTINCT invoice_no), 0) AS atv
@@ -968,23 +967,14 @@ class AnalyticsService:
                 WHERE {ch_where_az}
                   AND toDate(date) != toDate('1970-01-01')
                   AND invoice_total > 0
-                  AND staff != '' AND length(staff) > 0
-                GROUP BY staff, staff_code
+                  AND sales_staff_code != '' AND length(sales_staff_code) > 0
+                GROUP BY sales_staff_code
                 ORDER BY sales_value DESC LIMIT 50
             """, ch_params)
+            return [{'staff': r[0], 'code': r[0], 'sales': float(r[1] or 0), 'invoices': r[2], 'atv': float(r[3] or 0)} for r in rows]
         except Exception as e:
-            print(f"[CH] staff_performance fallback: {e}")
-            rows = _q(f"""
-                SELECT "Staff", "Staff Code",
-                    SUM("Total Value")::FLOAT AS sales_value,
-                    COUNT(DISTINCT "Invoice Number") AS invoice_count,
-                    SUM("Total Value")::FLOAT / NULLIF(COUNT(DISTINCT "Invoice Number"),0) AS atv
-                FROM {TABLE}
-                WHERE {where_sql} AND "Staff" IS NOT NULL AND "Staff" != ''
-                GROUP BY "Staff","Staff Code"
-                ORDER BY sales_value DESC NULLS LAST LIMIT 50
-            """, params)
-        return [{'staff':r[0],'code':r[1],'sales':float(r[2] or 0),'invoices':r[3],'atv':float(r[4] or 0)} for r in rows]
+            print(f"[CH] staff_performance error: {e}")
+            return []
 
     def get_branch_performance(self, filters):
         where_sql, params = self._build_where_clause(filters)

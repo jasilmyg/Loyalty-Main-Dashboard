@@ -617,36 +617,47 @@ class MonthlyRetentionAPIView(LoginRequiredMixin, View):
             if is_ch_available():
                 # azure_invoice_report: toDate(date) instead of parsed_date, invoice_total instead of total_value
                 rows = ch_query("""
-                    SELECT
-                        month_start,
-                        formatDateTime(month_start, '%b %Y') AS month_label,
-                        unique_customers,
-                        total_sales
-                    FROM (
-                        SELECT
-                            toStartOfMonth(toDate(date))    AS month_start,
-                            count(DISTINCT customer_mobile) AS unique_customers,
-                            round(sum(invoice_total), 2)    AS total_sales
+                    WITH baseline AS (
+                        SELECT DISTINCT customer_mobile
                         FROM azure_invoice_report
-                        WHERE toDate(date) >= '2026-01-01'
-                          AND toDate(date) != toDate('1970-01-01')
+                        WHERE toDate(date) < '2026-01-01'
+                          AND toDate(date) != '1970-01-01'
                           AND invoice_total > 0
                           AND length(customer_mobile) = 10
                           AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
                           AND customer_mobile != ''
-                          AND customer_mobile IN (
-                              SELECT DISTINCT customer_mobile
-                              FROM azure_invoice_report
-                              WHERE toDate(date) < toDate('2026-01-01')
-                                AND toDate(date) != toDate('1970-01-01')
-                                AND invoice_total > 0
-                                AND length(customer_mobile) = 10
-                                AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
-                                AND customer_mobile != ''
-                          )
-                        GROUP BY month_start
+                    ),
+                    purchases_2026 AS (
+                        SELECT 
+                            customer_mobile, 
+                            toStartOfMonth(toDate(date)) AS month_start, 
+                            invoice_total
+                        FROM azure_invoice_report
+                        WHERE toDate(date) >= '2026-01-01'
+                          AND invoice_total > 0
+                          AND length(customer_mobile) = 10
+                          AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                          AND customer_mobile != ''
+                          AND customer_mobile IN (SELECT customer_mobile FROM baseline)
+                    ),
+                    first_month AS (
+                        SELECT 
+                            customer_mobile, 
+                            min(month_start) AS first_month_2026
+                        FROM purchases_2026
+                        GROUP BY customer_mobile
                     )
-                    ORDER BY month_start ASC
+                    SELECT
+                        f.first_month_2026 AS month_start,
+                        formatDateTime(f.first_month_2026, '%b %Y') AS month_label,
+                        count(DISTINCT f.customer_mobile) AS unique_customers,
+                        round(sum(p.invoice_total), 2) AS total_sales
+                    FROM first_month f
+                    JOIN purchases_2026 p 
+                      ON p.customer_mobile = f.customer_mobile 
+                     AND p.month_start = f.first_month_2026
+                    GROUP BY f.first_month_2026
+                    ORDER BY f.first_month_2026 ASC
                 """)
                 data = [
                     {
@@ -808,29 +819,50 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
             from analytics.clickhouse_service import get_ch_client
             from datetime import date
             client = get_ch_client()
-            # Using sales_data table to calculate point_redemption correctly
-            rows = client.query("""
+            
+            # Query 1: Reactivation Waterfall + Cohort Resurrection Matrix (from azure_invoice_report)
+            rows_azure = client.query("""
                 SELECT
                     cohort_year,
                     toStartOfMonth(first_2026_date) AS first_2026_month,
                     COUNT(*) AS unique_customers,
-                    SUM(reactivated_revenue)        AS total_revenue,
-                    SUM(total_pts)                  AS total_redeemed_points,
-                    SUM(total_r_sales)              AS total_redeemed_sales,
+                    SUM(reactivated_revenue) AS total_revenue
+                FROM (
+                    SELECT
+                        customer_mobile,
+                        maxIf(toYear(toDate(date)), toDate(date) < toDate('2026-01-01')) AS cohort_year,
+                        minIf(toDate(date), toDate(date) >= toDate('2026-01-01')) AS first_2026_date,
+                        sumIf(invoice_total, toDate(date) >= toDate('2026-01-01')) AS reactivated_revenue
+                    FROM azure_invoice_report
+                    WHERE length(customer_mobile) = 10
+                      AND customer_mobile != ''
+                      AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                      AND toDate(date) != toDate('1970-01-01')
+                      AND invoice_total > 0
+                    GROUP BY customer_mobile
+                )
+                WHERE cohort_year BETWEEN 2020 AND 2024
+                  AND (first_2026_date = toDate('1970-01-01')
+                       OR toStartOfMonth(first_2026_date) < toDate('2026-10-01'))
+                GROUP BY cohort_year, first_2026_month
+                ORDER BY cohort_year ASC, first_2026_month ASC
+            """).result_rows
+
+            # Query 2: Loyalty Point Matrix (from sales_data for point_redemption)
+            rows_sales = client.query("""
+                SELECT
+                    cohort_year,
+                    toStartOfMonth(first_2026_date) AS first_2026_month,
+                    SUM(total_pts) AS total_redeemed_points,
+                    SUM(total_r_sales) AS total_redeemed_sales,
                     COUNT(IF(total_pts > 0, 1, NULL)) AS total_redeemed_customers
                 FROM (
                     SELECT
                         customer_mobile,
-                        maxIf(toYear(parsed_date), parsed_date < toDate('2026-01-01'))
-                            AS cohort_year,
-                        minIf(parsed_date, parsed_date >= toDate('2026-01-01'))
-                            AS first_2026_date,
-                        sumIf(total_value, parsed_date >= toDate('2026-01-01'))
-                            AS reactivated_revenue,
-                        sumIf(toFloat64OrZero(point_redemption), parsed_date >= toDate('2026-01-01'))
-                            AS total_pts,
-                        sumIf(total_value, parsed_date >= toDate('2026-01-01') AND toFloat64OrZero(point_redemption) > 0)
-                            AS total_r_sales
+                        maxIf(toYear(parsed_date), parsed_date < toDate('2026-01-01')) AS cohort_year,
+                        minIf(parsed_date, parsed_date >= toDate('2026-01-01')) AS first_2026_date,
+                        sumIf(toFloat64OrZero(point_redemption), parsed_date >= toDate('2026-01-01')) AS total_pts,
+                        sumIf(total_value, parsed_date >= toDate('2026-01-01') AND toFloat64OrZero(point_redemption) > 0) AS total_r_sales
                     FROM sales_data
                     WHERE length(customer_mobile) = 10
                       AND customer_mobile != ''
@@ -840,11 +872,43 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                     GROUP BY customer_mobile
                 )
                 WHERE cohort_year BETWEEN 2020 AND 2024
-                  AND (first_2026_date = toDate('1970-01-01')
-                       OR toStartOfMonth(first_2026_date) < toDate('2026-09-01'))
+                  AND first_2026_date != toDate('1970-01-01')
+                  AND toStartOfMonth(first_2026_date) < toDate('2026-10-01')
                 GROUP BY cohort_year, first_2026_month
-                ORDER BY cohort_year ASC, first_2026_month ASC
             """).result_rows
+
+            # Combine the results
+            combined = {}
+            for row in rows_azure:
+                key = (row[0], row[1])
+                combined[key] = {
+                    'count': row[2],
+                    'revenue': row[3] or 0,
+                    'redeemed_points': 0,
+                    'redeemed_sales': 0,
+                    'redeemed_customers': 0
+                }
+            
+            for row in rows_sales:
+                key = (row[0], row[1])
+                if key in combined:
+                    combined[key]['redeemed_points'] = row[2] or 0
+                    combined[key]['redeemed_sales'] = row[3] or 0
+                    combined[key]['redeemed_customers'] = row[4] or 0
+                else:
+                    combined[key] = {
+                        'count': 0,
+                        'revenue': 0,
+                        'redeemed_points': row[2] or 0,
+                        'redeemed_sales': row[3] or 0,
+                        'redeemed_customers': row[4] or 0
+                    }
+            
+            # Format rows to match the old expected loop structure
+            # (c_year, month_val, count, rev, pts, r_sales, r_cust)
+            rows = []
+            for (y, m), data in sorted(combined.items(), key=lambda x: (x[0][0], x[0][1])):
+                rows.append((y, m, data['count'], data['revenue'], data['redeemed_points'], data['redeemed_sales'], data['redeemed_customers']))
             
             # Format the output data
             # Data structure: dict mapping cohort_year -> details
