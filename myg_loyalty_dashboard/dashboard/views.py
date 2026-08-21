@@ -3481,29 +3481,32 @@ class MarketBasketAPIView(LoginRequiredMixin, View):
     # ── Engine 1: Association Rules (Apriori) ────────────────────────────────
     def _association(self, ch, limit, cache):
         from django.http import JsonResponse
-        cache_key = f"mba_assoc_top_{limit}_v3"
+        cache_key = f"mba_assoc_cust_top_{limit}_v1"
         cached = cache.get(cache_key)
         if cached:
             return JsonResponse({"status": "success", "engine": "association",
                                  "cached": True, "rules": cached})
 
-        # ── Step 1: Total unique invoices (for lift denominator) ──────────────
-        total_inv = int(ch.query("""
-            SELECT countDistinct(invoice_no)
-            FROM azure_sales_report
-            WHERE toDate(date) != toDate('1970-01-01')
-              AND sold_price > 0
+        # ── Step 1: Total unique customers (valid mobiles only) ───────────────
+        total_cust = int(ch.query(f"""
+            SELECT countDistinct(customer_mobile)
+            FROM azure_invoice_report
+            WHERE {_MBA_MOB_FILTER}
         """).result_rows[0][0])
-        if total_inv == 0:
+        if total_cust == 0:
             return JsonResponse({"status": "success", "engine": "association",
                                  "cached": False, "rules": []})
 
-        # ── Step 2: Per-category unique invoice counts (whitelist only retail products) ──
+        # ── Step 2: Per-category unique CUSTOMER count ────────────────────────
+        # "How many distinct customers ever bought this category?"
         cat_rows = ch.query(f"""
-            SELECT m.item_category, countDistinct(s.invoice_no) AS inv_count
-            FROM azure_sales_report s
-            JOIN item_master m ON s.item_code = m.item_code
-            WHERE toDate(s.date) != toDate('1970-01-01')
+            SELECT m.item_category,
+                   countDistinct(i.customer_mobile) AS cust_count
+            FROM azure_invoice_report i
+            JOIN azure_sales_report  s ON s.invoice_no = i.invoice_no
+            JOIN item_master          m ON s.item_code  = m.item_code
+            WHERE {_MBA_MOB_FILTER}
+              AND toDate(s.date) != toDate('1970-01-01')
               AND s.sold_price > 0
               AND m.product IN ({_MBA_PRODUCT_IN})
               AND m.item_category NOT IN ({_MBA_CAT_EXCLUDE})
@@ -3511,36 +3514,46 @@ class MarketBasketAPIView(LoginRequiredMixin, View):
         """).result_rows
         cat_counts = {str(r[0]): int(r[1]) for r in cat_rows}
 
-        # ── Step 3: Co-occurrence pairs — retail only, deduplicated (A < B), cat filtered ──
+        # ── Step 3: Customers who bought BOTH categories (cross-invoice) ──────
+        # Strategy:
+        #   - Subquery c1/c2: get DISTINCT (customer_mobile, item_category, product)
+        #     per customer — deduplicated so one row per customer per category
+        #   - Self-JOIN on customer_mobile → count co-purchasing customers
+        #   - m1.item_category < m2.item_category → no duplicate A↔B reverse pairs
+        cust_cat_cte = f"""
+            SELECT DISTINCT i.customer_mobile,
+                            m.item_category,
+                            m.product
+            FROM azure_invoice_report i
+            JOIN azure_sales_report  s ON s.invoice_no = i.invoice_no
+            JOIN item_master          m ON s.item_code  = m.item_code
+            WHERE {_MBA_MOB_FILTER}
+              AND toDate(s.date) != toDate('1970-01-01')
+              AND s.sold_price > 0
+              AND m.product IN ({_MBA_PRODUCT_IN})
+              AND m.item_category NOT IN ({_MBA_CAT_EXCLUDE})
+        """
         pair_rows = ch.query(f"""
             SELECT
-                m1.item_category AS cat_a,
-                m1.product       AS prod_a,
-                m2.item_category AS cat_b,
-                m2.product       AS prod_b,
+                c1.item_category AS cat_a,
+                c1.product       AS prod_a,
+                c2.item_category AS cat_b,
+                c2.product       AS prod_b,
                 count()          AS support
-            FROM azure_sales_report s1
-            JOIN azure_sales_report s2
-                ON s1.invoice_no = s2.invoice_no
-               AND s1.item_code  != s2.item_code
-            JOIN item_master m1 ON s1.item_code = m1.item_code
-            JOIN item_master m2 ON s2.item_code = m2.item_code
-            WHERE toDate(s1.date) != toDate('1970-01-01')
-              AND s1.sold_price > 0
-              AND toDate(s2.date) != toDate('1970-01-01')
-              AND s2.sold_price > 0
-              AND m1.product IN ({_MBA_PRODUCT_IN})
-              AND m2.product IN ({_MBA_PRODUCT_IN})
-              AND m1.item_category NOT IN ({_MBA_CAT_EXCLUDE})
-              AND m2.item_category NOT IN ({_MBA_CAT_EXCLUDE})
-              AND m1.item_category < m2.item_category
+            FROM ({cust_cat_cte}) c1
+            JOIN ({cust_cat_cte}) c2
+                ON c1.customer_mobile = c2.customer_mobile
+               AND c1.item_category < c2.item_category
             GROUP BY cat_a, prod_a, cat_b, prod_b
-            HAVING support > 100
+            HAVING support > 50
             ORDER BY support DESC
             LIMIT 1000
         """).result_rows
 
         # ── Step 4: Compute confidence & lift in Python ───────────────────────
+        # Support    = unique customers who bought BOTH (across lifetime)
+        # Confidence = Support / Customers who ever bought A
+        # Lift       = confidence / P(any customer bought B)
         rules = []
         for r in pair_rows:
             cat_a, prod_a, cat_b, prod_b, support = r[0], r[1], r[2], r[3], int(r[4])
@@ -3549,13 +3562,13 @@ class MarketBasketAPIView(LoginRequiredMixin, View):
             if cnt_a == 0 or cnt_b == 0:
                 continue
             confidence = round(support / cnt_a * 100, 1)
-            lift       = round((support / cnt_a) / (cnt_b / total_inv), 2)
-            # Cap lift at 500 — absurd values mean tiny niche bundles, not meaningful patterns
+            lift       = round((support / cnt_a) / (cnt_b / total_cust), 2)
+            # Cap lift at 500 — absurd values = niche/forced bundles, not useful
             if 1.2 < lift <= 500:
                 rules.append({
                     "cat_a": cat_a, "prod_a": prod_a,
                     "cat_b": cat_b, "prod_b": prod_b,
-                    "support": support,
+                    "support": support,          # = unique customers who bought both
                     "confidence": confidence,
                     "lift": lift,
                 })
@@ -3564,7 +3577,9 @@ class MarketBasketAPIView(LoginRequiredMixin, View):
         rules = rules[:limit]
         cache.set(cache_key, rules, 60 * 60 * 6)  # 6 hours
         return JsonResponse({"status": "success", "engine": "association",
-                             "cached": False, "rules": rules})
+                             "cached": False,
+                             "support_label": "Customers (lifetime)",
+                             "rules": rules})
 
     # ── Engine 2: Collaborative Filtering ────────────────────────────────────
     def _collaborative(self, ch, item_cat, limit, cache):

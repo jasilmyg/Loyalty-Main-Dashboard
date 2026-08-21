@@ -103,7 +103,7 @@
     <div class="kpi-chip"><div class="kv" id="kpi-rules">-</div><div class="kl">Rules Found</div></div>
     <div class="kpi-chip"><div class="kv" id="kpi-maxlift">-</div><div class="kl">Max Lift</div></div>
     <div class="kpi-chip"><div class="kv" id="kpi-maxconf">-</div><div class="kl">Max Confidence</div></div>
-    <div class="kpi-chip"><div class="kv" id="kpi-maxsup">-</div><div class="kl">Max Support</div></div>
+    <div class="kpi-chip"><div class="kv" id="kpi-maxsup">-</div><div class="kl">Max Customers</div></div>
   </div>
 
   <!-- ── Main Layout ── -->
@@ -225,7 +225,7 @@ function renderAssociation(rules) {
   if (!rules.length) { document.getElementById('results-area').innerHTML='<div class="empty">No rules found.</div>'; return; }
   let html = '<div style="overflow-x:auto;"><table class="mba-table"><thead><tr>'
     + '<th>Product A</th><th></th><th>Product B</th>'
-    + '<th>Lift</th><th>Confidence</th><th>Support</th></tr></thead><tbody>';
+    + '<th>Lift</th><th>Confidence</th><th>Customers</th></tr></thead><tbody>';
   for (const r of rules) {
     html += `<tr>
       <td><span style="font-weight:600;color:#134e4a;">${r.cat_a}</span>
@@ -370,7 +370,7 @@ function debounceSearch(val) {
 
 function downloadCSV() {
   if (!assocData.length) return;
-  const rows = [['Category A','Product A','Category B','Product B','Lift','Confidence %','Support']];
+  const rows = [['Category A','Product A','Category B','Product B','Lift','Confidence %','Customers (lifetime)')];
   assocData.forEach(r => rows.push([r.cat_a,r.prod_a,r.cat_b,r.prod_b,r.lift,r.confidence,r.support]));
   const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
   const a   = document.createElement('a');
