@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Product Penetration Report | myG Loyalty{% endblock %}
+{% block content %}
+<style>
+.pp-hero{background:linear-gradient(135deg,#1e3a5f 0%,#1e40af 60%,#2563eb 100%);border-radius:20px;padding:2rem 2.5rem 1.6rem;color:#fff;margin-bottom:1.8rem;position:relative;overflow:hidden;}
+.pp-hero::before{content:"";position:absolute;top:-60px;right:-60px;width:260px;height:260px;background:rgba(255,255,255,.06);border-radius:50%;}
+.pen-wrap{background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(30,58,95,.08);overflow:hidden;margin-bottom:1.5rem;}
+.pen-wrap table{width:100%;border-collapse:collapse;}
+.pen-wrap thead th{background:#1e3a5f;color:#fff;font-size:.82rem;font-weight:700;letter-spacing:.6px;text-transform:uppercase;padding:1rem 1.4rem;}
+.pen-wrap tbody tr:hover{background:#eff6ff;}
+.pen-wrap tbody td{padding:.9rem 1.4rem;font-size:.95rem;border-bottom:1px solid #e2e8f0;color:#1e3a5f;}
+.bar-wrap{display:flex;align-items:center;gap:8px;}
+.bar-track{flex:1;height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:4px;transition:width .6s ease;}
+.bar-pct{font-size:.75rem;color:#64748b;min-width:36px;text-align:right;}
+.hl-card{background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);border-radius:16px;padding:1.8rem 2rem;color:#fff;margin-bottom:1.5rem;display:flex;align-items:center;gap:1.5rem;}
+.hl-num{font-size:2rem;font-weight:800;color:#38bdf8;line-height:1;}
+.cat-wrap{background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(30,58,95,.08);overflow:hidden;}
+.cat-wrap table{width:100%;border-collapse:collapse;}
+.cat-wrap thead th{background:#1e3a5f;color:#fff;font-size:.8rem;font-weight:700;letter-spacing:.6px;text-transform:uppercase;padding:.85rem 1.3rem;}
+.cat-wrap tbody td{padding:.85rem 1.3rem;font-size:.93rem;border-bottom:1px solid #e2e8f0;color:#1e3a5f;font-weight:600;}
+.cat-wrap tbody tr:last-child td{border-bottom:none;}
+.bce{background:#dbeafe;color:#1d4ed8;border-radius:6px;padding:3px 10px;font-size:.78rem;font-weight:700;}
+.bde{background:#dcfce7;color:#15803d;border-radius:6px;padding:3px 10px;font-size:.78rem;font-weight:700;}
+.sec-title{font-size:1rem;font-weight:700;color:#1e3a5f;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem;}
+.spin{animation:spin 1s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading{display:flex;align-items:center;justify-content:center;padding:3rem;color:#94a3b8;font-size:.95rem;gap:.75rem;}
+</style>
+
+<div class="container-fluid py-4 px-4">
+  <div class="pp-hero">
+    <div class="d-flex align-items-center gap-3 mb-2">
+      <i class="bi bi-layers-fill" style="font-size:2rem;opacity:.9;"></i>
+      <div>
+        <h1 class="mb-0 fw-bold" style="font-size:1.6rem;">Product Penetration Report</h1>
+        <p class="mb-0 mt-1" style="opacity:.75;font-size:.88rem;">Cross-purchase analysis &middot; Purchased vs Not Purchased per product category</p>
+      </div>
+    </div>
+    <div class="d-flex gap-4 mt-3">
+      <div><div style="font-size:1.5rem;font-weight:800;" id="k-total">...</div><div style="font-size:.75rem;opacity:.7;">Total Database</div></div>
+      <div><div style="font-size:1.5rem;font-weight:800;color:#38bdf8;" id="k-mob">...</div><div style="font-size:.75rem;opacity:.7;">Mobile Penetration</div></div>
+      <div><div style="font-size:1.5rem;font-weight:800;color:#34d399;" id="k-ce">...</div><div style="font-size:.75rem;opacity:.7;">CE Penetration</div></div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <div class="sec-title"><i class="bi bi-table text-primary"></i> Individual Product Penetration</div>
+      <div class="pen-wrap" id="tbl-prod">
+        <div class="loading"><svg class="spin" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5"><circle cx="12" cy="12" r="10" stroke-opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/></svg>Computing from ClickHouse&hellip;</div>
+      </div>
+      <div class="sec-title mt-3"><i class="bi bi-bar-chart-steps text-success"></i> Category Summary</div>
+      <div class="cat-wrap" id="tbl-cat">
+        <div class="loading"><svg class="spin" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><circle cx="12" cy="12" r="10" stroke-opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/></svg>Loading&hellip;</div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="sec-title"><i class="bi bi-phone-fill" style="color:#f59e0b;"></i> Key Insight</div>
+      <div class="hl-card">
+        <i class="bi bi-phone-fill" style="font-size:2.5rem;color:#38bdf8;opacity:.8;"></i>
+        <div>
+          <div class="hl-num" id="mob-only">...</div>
+          <div style="font-size:.93rem;font-weight:600;margin-top:4px;">Customers who purchased Mobile</div>
+          <div style="font-size:.8rem;color:#94a3b8;margin-top:2px;">but NOT any CE product<br>(AC, Refrigerator, Washing Machine, TV)</div>
+        </div>
+      </div>
+      <div class="pen-wrap p-3" id="mini-bars">
+        <div class="loading" style="padding:2rem;"><svg class="spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5"><circle cx="12" cy="12" r="10" stroke-opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/></svg></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const f  = n => n ? Number(n).toLocaleString('en-IN') : '0';
+const fp = n => (n||0).toFixed(1)+'%';
+const C  = {WSM:'#2563eb',REF:'#0ea5e9',TV:'#8b5cf6',AC:'#06b6d4',LAP:'#f59e0b',MOB:'#10b981'};
+const IC = {WSM:'bi-droplet',REF:'bi-snow',TV:'bi-tv',AC:'bi-wind',LAP:'bi-laptop',MOB:'bi-phone'};
+
+(async()=>{
+  try{
+    const d = await (await fetch("{% url 'product_penetration_api' %}")).json();
+    if(d.status!=='success'){setErr(d.message);return;}
+    const{total_db:tot,products:ps,mobile_only_count:mc,category_summary:cs}=d;
+
+    document.getElementById('k-total').textContent=f(tot);
+    const m=ps.find(p=>p.prefix==='MOB'); if(m) document.getElementById('k-mob').textContent=fp(m.pct);
+    const c=cs.find(x=>x.category==='CE'); if(c) document.getElementById('k-ce').textContent=fp(c.purchased/c.total_db*100);
+    document.getElementById('mob-only').textContent=f(mc);
+
+    document.getElementById('tbl-prod').innerHTML=
+      '<table><thead><tr><th>Product</th><th>Not Purchased</th><th>Purchased</th><th style="min-width:140px">Penetration</th></tr></thead><tbody>'+
+      ps.map(p=>'<tr>'+
+        '<td style="font-weight:600;color:#0f172a;"><i class="bi '+(IC[p.prefix]||'bi-box')+' me-2" style="color:'+(C[p.prefix]||'#94a3b8')+'"></i>'+p.product+'</td>'+
+        '<td style="color:#1e40af;font-weight:600;">'+f(p.not_purchased)+'</td>'+
+        '<td style="color:#0ea5e9;font-weight:700;">'+f(p.purchased)+'</td>'+
+        '<td><div class="bar-wrap"><div class="bar-track"><div class="bar-fill" style="width:'+p.pct+'%;background:'+(C[p.prefix]||'#94a3b8')+'"></div></div><span class="bar-pct">'+fp(p.pct)+'</span></div></td>'+
+        '</tr>').join('')+
+      '</tbody></table>';
+
+    document.getElementById('tbl-cat').innerHTML=
+      '<table><thead><tr><th>Category</th><th>Purchased</th><th>Not Purchased</th><th>Not Purchased %</th><th>Total Database</th></tr></thead><tbody>'+
+      cs.map(c=>'<tr>'+
+        '<td><span class="'+(c.category==='CE'?'bce':'bde')+'">'+c.category+'</span></td>'+
+        '<td style="color:#0ea5e9;">'+f(c.purchased)+'</td>'+
+        '<td style="color:#1e40af;">'+f(c.not_purchased)+'</td>'+
+        '<td><span style="background:'+(c.not_pct>50?'#fef3c7':'#dcfce7')+';color:'+(c.not_pct>50?'#b45309':'#15803d')+';padding:3px 10px;border-radius:6px;font-size:.82rem;font-weight:700;">'+c.not_pct+'%</span></td>'+
+        '<td>'+f(c.total_db)+'</td>'+
+        '</tr>').join('')+
+      '</tbody></table>';
+
+    document.getElementById('mini-bars').innerHTML='<div class="p-2">'+
+      ps.map(p=>'<div class="mb-3">'+
+        '<div class="d-flex justify-content-between mb-1" style="font-size:.82rem;"><span style="font-weight:600;color:#0f172a;">'+p.product+'</span><span style="color:#64748b;">'+f(p.purchased)+'</span></div>'+
+        '<div class="bar-track" style="height:10px;"><div class="bar-fill" style="width:'+p.pct+'%;background:'+(C[p.prefix]||'#94a3b8')+';height:10px;"></div></div>'+
+        '<div style="font-size:.75rem;color:#94a3b8;margin-top:2px;">'+fp(p.pct)+' penetration</div>'+
+        '</div>').join('')+
+      '</div>';
+  }catch(e){setErr(e.message);}
+})();
+
+function setErr(m){['tbl-prod','tbl-cat','mini-bars'].forEach(id=>{document.getElementById(id).innerHTML='<div class="p-4 text-danger"><i class="bi bi-exclamation-triangle me-2"></i>'+m+'</div>';});}
+</script>
+{% endblock %}

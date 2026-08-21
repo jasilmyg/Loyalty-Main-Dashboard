@@ -98,4 +98,8 @@ urlpatterns = [
     
     # Dormant Customers Download
     path('download/dormant-customers/', views.DormantCustomersDownloadView.as_view(), name='dormant_customers_download'),
+
+    # Product Penetration Report
+    path('product-penetration/', views.ProductPenetrationView.as_view(), name='product_penetration'),
+    path('api/v1/product-penetration/', views.ProductPenetrationAPIView.as_view(), name='product_penetration_api'),
 ]

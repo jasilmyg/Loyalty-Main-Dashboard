@@ -3189,22 +3189,20 @@ class MyParfDataAPIView(View):
 
         if data_type == 'full':
             csv_path = os.path.join(base, 'my_parf_customers.csv')
-            filename = 'MY_PARF_Full_Transactions.csv'
             if not os.path.exists(csv_path):
                 return JsonResponse({'status': 'error', 'message': 'Run extract_my_parf.py first'})
             response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
-            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            response['Content-Disposition'] = 'attachment; filename="MY_PARF_Full_Transactions.csv"'
             with open(csv_path, encoding='utf-8') as f:
                 response.write(f.read())
             return response
 
         elif data_type == 'summary':
             csv_path = os.path.join(base, 'my_parf_customers_summary.csv')
-            filename = 'MY_PARF_Customer_Summary.csv'
             if not os.path.exists(csv_path):
                 return JsonResponse({'status': 'error', 'message': 'Run extract_my_parf.py first'})
             response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
-            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            response['Content-Disposition'] = 'attachment; filename="MY_PARF_Customer_Summary.csv"'
             with open(csv_path, encoding='utf-8') as f:
                 response.write(f.read())
             return response
@@ -3250,3 +3248,154 @@ class DormantCustomersDownloadView(View):
             response.write(f.read())
         return response
 
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Product Penetration Report
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ProductPenetrationView(LoginRequiredMixin, TemplateView):
+    template_name = 'dashboard/product_penetration.html'
+
+
+class ProductPenetrationAPIView(LoginRequiredMixin, View):
+    """
+    Returns product cross-purchase penetration data from ClickHouse.
+    Shows Purchased vs Not Purchased counts per product category.
+    Also returns CE vs DE+Accessories summary.
+    """
+    PRODUCT_ORDER  = ['WSM', 'REF', 'TV', 'AC', 'LAP', 'MOB']
+    PRODUCT_LABELS = {
+        'WSM': 'Washing Machine',
+        'REF': 'Refrigerator',
+        'TV':  'Television',
+        'AC':  'Air Conditioner',
+        'LAP': 'Laptop',
+        'MOB': 'Mobile',
+    }
+
+    def get(self, request):
+        import traceback
+        try:
+            from analytics.clickhouse_service import get_ch_client
+            ch = get_ch_client()
+
+            # Total unique customers in database
+            total_db = int(ch.query("""
+                SELECT countDistinct(customer_mobile)
+                FROM azure_invoice_report
+                WHERE length(customer_mobile) = 10
+                  AND customer_mobile != ''
+                  AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                  AND toDate(date) != toDate('1970-01-01')
+                  AND invoice_total > 0
+            """).result_rows[0][0])
+
+            # Per-product purchased counts
+            prod_rows = ch.query("""
+                SELECT
+                    upper(extract(item_code, '^([A-Za-z]+)')) AS prefix,
+                    countDistinct(customer_mobile)             AS purchased
+                FROM azure_sales_report
+                WHERE length(customer_mobile) = 10
+                  AND customer_mobile != ''
+                  AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                  AND toDate(date) != toDate('1970-01-01')
+                  AND sold_price > 0
+                  AND upper(extract(item_code, '^([A-Za-z]+)')) IN ('WSM','REF','TV','AC','LAP','MOB')
+                GROUP BY prefix
+            """).result_rows
+            pbp = {str(r[0]): int(r[1]) for r in prod_rows}
+
+            products = []
+            for prefix in self.PRODUCT_ORDER:
+                purch = pbp.get(prefix, 0)
+                products.append({
+                    'product':       self.PRODUCT_LABELS[prefix],
+                    'prefix':        prefix,
+                    'purchased':     purch,
+                    'not_purchased': max(0, total_db - purch),
+                    'pct':           round(purch / total_db * 100, 1) if total_db else 0,
+                })
+
+            # Mobile-only customers (Mobile but not AC/Refrigerator/WM/TV)
+            mob_only = int(ch.query("""
+                SELECT countDistinct(customer_mobile)
+                FROM azure_sales_report
+                WHERE length(customer_mobile) = 10
+                  AND customer_mobile != ''
+                  AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                  AND toDate(date) != toDate('1970-01-01')
+                  AND sold_price > 0
+                  AND upper(extract(item_code, '^([A-Za-z]+)')) = 'MOB'
+                  AND customer_mobile NOT IN (
+                      SELECT DISTINCT customer_mobile FROM azure_sales_report
+                      WHERE length(customer_mobile) = 10
+                        AND customer_mobile != ''
+                        AND toDate(date) != toDate('1970-01-01')
+                        AND sold_price > 0
+                        AND upper(extract(item_code, '^([A-Za-z]+)')) IN ('WSM','REF','TV','AC')
+                  )
+            """).result_rows[0][0])
+
+            # CE summary
+            ce = int(ch.query("""
+                SELECT countDistinct(customer_mobile)
+                FROM azure_sales_report
+                WHERE length(customer_mobile) = 10
+                  AND customer_mobile != ''
+                  AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                  AND toDate(date) != toDate('1970-01-01')
+                  AND sold_price > 0
+                  AND upper(extract(item_code, '^([A-Za-z]+)')) IN ('WSM','REF','TV','AC','LAP')
+            """).result_rows[0][0])
+
+            # DE + Accessories summary
+            de = int(ch.query("""
+                SELECT countDistinct(customer_mobile)
+                FROM azure_sales_report
+                WHERE length(customer_mobile) = 10
+                  AND customer_mobile != ''
+                  AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                  AND toDate(date) != toDate('1970-01-01')
+                  AND sold_price > 0
+                  AND upper(extract(item_code, '^([A-Za-z]+)')) IN (
+                      'MOB','ACC','GDC','SWA','STB','STY','GAS','MXI','IRB','FAN','FRY','PERF','SRV'
+                  )
+            """).result_rows[0][0])
+
+            category_summary = [
+                {
+                    'category':      'CE',
+                    'full_name':     'Consumer Electronics',
+                    'purchased':     ce,
+                    'not_purchased': max(0, total_db - ce),
+                    'not_pct':       round(max(0, total_db - ce) / total_db * 100) if total_db else 0,
+                    'total_db':      total_db,
+                },
+                {
+                    'category':      'DE + ACCESSORIES',
+                    'full_name':     'Digital Electronics & Accessories',
+                    'purchased':     de,
+                    'not_purchased': max(0, total_db - de),
+                    'not_pct':       round(max(0, total_db - de) / total_db * 100) if total_db else 0,
+                    'total_db':      total_db,
+                },
+            ]
+
+            from django.http import JsonResponse
+            return JsonResponse({
+                'status':            'success',
+                'total_db':          total_db,
+                'products':          products,
+                'mobile_only_count': mob_only,
+                'category_summary':  category_summary,
+            })
+
+        except Exception as e:
+            from django.http import JsonResponse
+            return JsonResponse({
+                'status':  'error',
+                'message': str(e),
+                'trace':   traceback.format_exc()
+            }, status=500)
