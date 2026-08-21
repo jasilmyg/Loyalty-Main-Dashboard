@@ -3280,29 +3280,33 @@ class ProductPenetrationAPIView(LoginRequiredMixin, View):
             from analytics.clickhouse_service import get_ch_client
             ch = get_ch_client()
 
-            # Total unique customers in database
-            total_db = int(ch.query("""
+            # Helper: customer mobile filter applied to azure_invoice_report alias 'i'
+            MOB_FILTER = """
+                length(i.customer_mobile) = 10
+                AND i.customer_mobile != ''
+                AND i.customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                AND toDate(i.date) != toDate('1970-01-01')
+                AND i.invoice_total > 0
+            """
+
+            # Total unique customers in database (from invoice table directly)
+            total_db = int(ch.query(f"""
                 SELECT countDistinct(customer_mobile)
-                FROM azure_invoice_report
-                WHERE length(customer_mobile) = 10
-                  AND customer_mobile != ''
-                  AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
-                  AND toDate(date) != toDate('1970-01-01')
-                  AND invoice_total > 0
+                FROM azure_invoice_report i
+                WHERE {MOB_FILTER}
             """).result_rows[0][0])
 
             # Per-product purchased counts
-            prod_rows = ch.query("""
+            # JOIN azure_sales_report (has item_code) with azure_invoice_report (has customer_mobile)
+            prod_rows = ch.query(f"""
                 SELECT
-                    upper(extract(item_code, '^([A-Za-z]+)')) AS prefix,
-                    countDistinct(customer_mobile)             AS purchased
-                FROM azure_sales_report
-                WHERE length(customer_mobile) = 10
-                  AND customer_mobile != ''
-                  AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
-                  AND toDate(date) != toDate('1970-01-01')
-                  AND sold_price > 0
-                  AND upper(extract(item_code, '^([A-Za-z]+)')) IN ('WSM','REF','TV','AC','LAP','MOB')
+                    upper(extract(s.item_code, '^([A-Za-z]+)')) AS prefix,
+                    countDistinct(i.customer_mobile)             AS purchased
+                FROM azure_sales_report s
+                JOIN azure_invoice_report i ON s.invoice_no = i.invoice_no
+                WHERE {MOB_FILTER}
+                  AND s.sold_price > 0
+                  AND upper(extract(s.item_code, '^([A-Za-z]+)')) IN ('WSM','REF','TV','AC','LAP','MOB')
                 GROUP BY prefix
             """).result_rows
             pbp = {str(r[0]): int(r[1]) for r in prod_rows}
@@ -3318,48 +3322,45 @@ class ProductPenetrationAPIView(LoginRequiredMixin, View):
                     'pct':           round(purch / total_db * 100, 1) if total_db else 0,
                 })
 
-            # Mobile-only customers (Mobile but not AC/Refrigerator/WM/TV)
-            mob_only = int(ch.query("""
-                SELECT countDistinct(customer_mobile)
-                FROM azure_sales_report
-                WHERE length(customer_mobile) = 10
-                  AND customer_mobile != ''
-                  AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
-                  AND toDate(date) != toDate('1970-01-01')
-                  AND sold_price > 0
-                  AND upper(extract(item_code, '^([A-Za-z]+)')) = 'MOB'
-                  AND customer_mobile NOT IN (
-                      SELECT DISTINCT customer_mobile FROM azure_sales_report
-                      WHERE length(customer_mobile) = 10
-                        AND customer_mobile != ''
-                        AND toDate(date) != toDate('1970-01-01')
-                        AND sold_price > 0
-                        AND upper(extract(item_code, '^([A-Za-z]+)')) IN ('WSM','REF','TV','AC')
+            # Mobile-only: bought Mobile but NOT AC / Refrigerator / Washing Machine / TV
+            mob_only = int(ch.query(f"""
+                SELECT countDistinct(i.customer_mobile)
+                FROM azure_sales_report s
+                JOIN azure_invoice_report i ON s.invoice_no = i.invoice_no
+                WHERE {MOB_FILTER}
+                  AND s.sold_price > 0
+                  AND upper(extract(s.item_code, '^([A-Za-z]+)')) = 'MOB'
+                  AND i.customer_mobile NOT IN (
+                      SELECT DISTINCT i2.customer_mobile
+                      FROM azure_sales_report s2
+                      JOIN azure_invoice_report i2 ON s2.invoice_no = i2.invoice_no
+                      WHERE length(i2.customer_mobile) = 10
+                        AND i2.customer_mobile != ''
+                        AND toDate(i2.date) != toDate('1970-01-01')
+                        AND i2.invoice_total > 0
+                        AND s2.sold_price > 0
+                        AND upper(extract(s2.item_code, '^([A-Za-z]+)')) IN ('WSM','REF','TV','AC')
                   )
             """).result_rows[0][0])
 
-            # CE summary
-            ce = int(ch.query("""
-                SELECT countDistinct(customer_mobile)
-                FROM azure_sales_report
-                WHERE length(customer_mobile) = 10
-                  AND customer_mobile != ''
-                  AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
-                  AND toDate(date) != toDate('1970-01-01')
-                  AND sold_price > 0
-                  AND upper(extract(item_code, '^([A-Za-z]+)')) IN ('WSM','REF','TV','AC','LAP')
+            # CE summary (Washing Machine, Refrigerator, TV, AC, Laptop)
+            ce = int(ch.query(f"""
+                SELECT countDistinct(i.customer_mobile)
+                FROM azure_sales_report s
+                JOIN azure_invoice_report i ON s.invoice_no = i.invoice_no
+                WHERE {MOB_FILTER}
+                  AND s.sold_price > 0
+                  AND upper(extract(s.item_code, '^([A-Za-z]+)')) IN ('WSM','REF','TV','AC','LAP')
             """).result_rows[0][0])
 
-            # DE + Accessories summary
-            de = int(ch.query("""
-                SELECT countDistinct(customer_mobile)
-                FROM azure_sales_report
-                WHERE length(customer_mobile) = 10
-                  AND customer_mobile != ''
-                  AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
-                  AND toDate(date) != toDate('1970-01-01')
-                  AND sold_price > 0
-                  AND upper(extract(item_code, '^([A-Za-z]+)')) IN (
+            # DE + Accessories summary (Mobile + accessories)
+            de = int(ch.query(f"""
+                SELECT countDistinct(i.customer_mobile)
+                FROM azure_sales_report s
+                JOIN azure_invoice_report i ON s.invoice_no = i.invoice_no
+                WHERE {MOB_FILTER}
+                  AND s.sold_price > 0
+                  AND upper(extract(s.item_code, '^([A-Za-z]+)')) IN (
                       'MOB','ACC','GDC','SWA','STB','STY','GAS','MXI','IRB','FAN','FRY','PERF','SRV'
                   )
             """).result_rows[0][0])
