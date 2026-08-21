@@ -3408,7 +3408,15 @@ class ProductPenetrationAPIView(LoginRequiredMixin, View):
 
 # Products to exclude from all recommendation engines (spares/internal)
 _MBA_EXCLUDE = ("'D SPARE','SPARE','FIXED ASSETS','GLAMSHIELD','CROCKERY',"
-                "'SMART CHOICE','RIG','OSG WARRANTY'")
+                "'SMART CHOICE','RIG','OSG WARRANTY','STATIONERY ITEMS',"
+                "'SERVICE','HOME THEATRE'")
+
+# Whitelist: only real retail product groups (by revenue/volume from item_master)
+_MBA_PRODUCT_IN = ("'MOBILE','LAPTOP','TV','AIR CONDITIONER','REFRIGERATORS',"
+                   "'WASHING MACHINES','SMALL APPLIANCES','EAR WEARABLES',"
+                   "'TABLET','ACCESSORIES','SMART WATCH','HOME APPLIANCES',"
+                   "'AUDIO','MICROWAVE OVEN','STABILIZER','PRINTER',"
+                   "'STORAGE DEVICES','IT ACCESSORIES','CAMERA','GAMING'")
 
 _MBA_DATE_FILTER = "toDate(s.date) != toDate('1970-01-01') AND s.sold_price > 0"
 _MBA_MOB_FILTER  = ("length(i.customer_mobile) = 10 AND i.customer_mobile != '' "
@@ -3483,19 +3491,19 @@ class MarketBasketAPIView(LoginRequiredMixin, View):
             return JsonResponse({"status": "success", "engine": "association",
                                  "cached": False, "rules": []})
 
-        # ── Step 2: Per-category unique invoice counts ────────────────────────
+        # ── Step 2: Per-category unique invoice counts (whitelist only retail products) ──
         cat_rows = ch.query(f"""
             SELECT m.item_category, countDistinct(s.invoice_no) AS inv_count
             FROM azure_sales_report s
             JOIN item_master m ON s.item_code = m.item_code
             WHERE toDate(s.date) != toDate('1970-01-01')
               AND s.sold_price > 0
-              AND m.product NOT IN ({_MBA_EXCLUDE})
+              AND m.product IN ({_MBA_PRODUCT_IN})
             GROUP BY m.item_category
         """).result_rows
         cat_counts = {str(r[0]): int(r[1]) for r in cat_rows}
 
-        # ── Step 3: Co-occurrence pairs (category level) ──────────────────────
+        # ── Step 3: Co-occurrence pairs — retail categories only via whitelist ──
         pair_rows = ch.query(f"""
             SELECT
                 m1.item_category AS cat_a,
@@ -3513,13 +3521,13 @@ class MarketBasketAPIView(LoginRequiredMixin, View):
               AND s1.sold_price > 0
               AND toDate(s2.date) != toDate('1970-01-01')
               AND s2.sold_price > 0
-              AND m1.product NOT IN ({_MBA_EXCLUDE})
-              AND m2.product NOT IN ({_MBA_EXCLUDE})
+              AND m1.product IN ({_MBA_PRODUCT_IN})
+              AND m2.product IN ({_MBA_PRODUCT_IN})
               AND m1.item_category != m2.item_category
             GROUP BY cat_a, prod_a, cat_b, prod_b
-            HAVING support > 30
+            HAVING support > 100
             ORDER BY support DESC
-            LIMIT 500
+            LIMIT 1000
         """).result_rows
 
         # ── Step 4: Compute confidence & lift in Python ───────────────────────
@@ -3579,7 +3587,7 @@ class MarketBasketAPIView(LoginRequiredMixin, View):
           AND s2.sold_price > 0
           AND toDate(s1.date) != toDate('1970-01-01')
           AND toDate(s2.date) != toDate('1970-01-01')
-          AND m2.product NOT IN ({_MBA_EXCLUDE})
+          AND m2.product IN ({_MBA_PRODUCT_IN})
         GROUP BY rec_category, rec_product
         ORDER BY co_buyers DESC
         LIMIT {limit}
