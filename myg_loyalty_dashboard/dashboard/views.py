@@ -3463,74 +3463,86 @@ class MarketBasketAPIView(LoginRequiredMixin, View):
                 "status": "error", "message": str(e), "trace": traceback.format_exc()
             }, status=500)
 
-    # ── Engine 1: Association Rules (Apriori via self-JOIN) ───────────────────
+    # ── Engine 1: Association Rules (Apriori) ────────────────────────────────
     def _association(self, ch, limit, cache):
         from django.http import JsonResponse
-        cache_key = f"mba_assoc_top_{limit}_v2"
+        cache_key = f"mba_assoc_top_{limit}_v3"
         cached = cache.get(cache_key)
         if cached:
             return JsonResponse({"status": "success", "engine": "association",
                                  "cached": True, "rules": cached})
 
-        # Build per-product totals needed for confidence/lift
-        # NOTE: each CTE/subquery uses its own alias — no global _MBA_DATE_FILTER alias
-        query = f"""
-        WITH
-          total_inv AS (
-              SELECT countDistinct(invoice_no) AS n
-              FROM azure_sales_report
-              WHERE toDate(date) != toDate('1970-01-01')
-                AND sold_price > 0
-          ),
-          prod_counts AS (
-              SELECT m.item_category AS cat,
-                     count(DISTINCT s.invoice_no) AS inv_count
-              FROM azure_sales_report s
-              JOIN item_master m ON s.item_code = m.item_code
-              WHERE toDate(s.date) != toDate('1970-01-01')
-                AND s.sold_price > 0
-                AND m.product NOT IN ({_MBA_EXCLUDE})
-              GROUP BY m.item_category
-          )
-        SELECT
-            m1.item_category  AS cat_a,
-            m1.product        AS prod_a,
-            m2.item_category  AS cat_b,
-            m2.product        AS prod_b,
-            count()           AS support,
-            round(count() / pc_a.inv_count * 100, 1)                          AS confidence,
-            round((count() / pc_a.inv_count) / (pc_b.inv_count / t.n), 2)     AS lift
-        FROM azure_sales_report s1
-        JOIN azure_sales_report s2  ON s1.invoice_no = s2.invoice_no
-                                    AND s1.item_code  != s2.item_code
-        JOIN item_master m1          ON s1.item_code  = m1.item_code
-        JOIN item_master m2          ON s2.item_code  = m2.item_code
-        JOIN prod_counts pc_a        ON pc_a.cat = m1.item_category
-        JOIN prod_counts pc_b        ON pc_b.cat = m2.item_category
-        CROSS JOIN total_inv t
-        WHERE toDate(s1.date) != toDate('1970-01-01')
-          AND s1.sold_price > 0
-          AND toDate(s2.date) != toDate('1970-01-01')
-          AND s2.sold_price > 0
-          AND m1.product NOT IN ({_MBA_EXCLUDE})
-          AND m2.product NOT IN ({_MBA_EXCLUDE})
-          AND m1.item_category != m2.item_category
-        GROUP BY cat_a, prod_a, cat_b, prod_b
-        HAVING support > 30 AND lift > 1.2
-        ORDER BY lift DESC
-        LIMIT {limit}
-        """
-        rows = ch.query(query).result_rows
-        rules = [
-            {
-                "cat_a": r[0], "prod_a": r[1],
-                "cat_b": r[2], "prod_b": r[3],
-                "support": int(r[4]),
-                "confidence": float(r[5]),
-                "lift": float(r[6]),
-            }
-            for r in rows
-        ]
+        # ── Step 1: Total unique invoices (for lift denominator) ──────────────
+        total_inv = int(ch.query("""
+            SELECT countDistinct(invoice_no)
+            FROM azure_sales_report
+            WHERE toDate(date) != toDate('1970-01-01')
+              AND sold_price > 0
+        """).result_rows[0][0])
+        if total_inv == 0:
+            return JsonResponse({"status": "success", "engine": "association",
+                                 "cached": False, "rules": []})
+
+        # ── Step 2: Per-category unique invoice counts ────────────────────────
+        cat_rows = ch.query(f"""
+            SELECT m.item_category, countDistinct(s.invoice_no) AS inv_count
+            FROM azure_sales_report s
+            JOIN item_master m ON s.item_code = m.item_code
+            WHERE toDate(s.date) != toDate('1970-01-01')
+              AND s.sold_price > 0
+              AND m.product NOT IN ({_MBA_EXCLUDE})
+            GROUP BY m.item_category
+        """).result_rows
+        cat_counts = {str(r[0]): int(r[1]) for r in cat_rows}
+
+        # ── Step 3: Co-occurrence pairs (category level) ──────────────────────
+        pair_rows = ch.query(f"""
+            SELECT
+                m1.item_category AS cat_a,
+                m1.product       AS prod_a,
+                m2.item_category AS cat_b,
+                m2.product       AS prod_b,
+                count()          AS support
+            FROM azure_sales_report s1
+            JOIN azure_sales_report s2
+                ON s1.invoice_no = s2.invoice_no
+               AND s1.item_code  != s2.item_code
+            JOIN item_master m1 ON s1.item_code = m1.item_code
+            JOIN item_master m2 ON s2.item_code = m2.item_code
+            WHERE toDate(s1.date) != toDate('1970-01-01')
+              AND s1.sold_price > 0
+              AND toDate(s2.date) != toDate('1970-01-01')
+              AND s2.sold_price > 0
+              AND m1.product NOT IN ({_MBA_EXCLUDE})
+              AND m2.product NOT IN ({_MBA_EXCLUDE})
+              AND m1.item_category != m2.item_category
+            GROUP BY cat_a, prod_a, cat_b, prod_b
+            HAVING support > 30
+            ORDER BY support DESC
+            LIMIT 500
+        """).result_rows
+
+        # ── Step 4: Compute confidence & lift in Python ───────────────────────
+        rules = []
+        for r in pair_rows:
+            cat_a, prod_a, cat_b, prod_b, support = r[0], r[1], r[2], r[3], int(r[4])
+            cnt_a = cat_counts.get(cat_a, 1)
+            cnt_b = cat_counts.get(cat_b, 1)
+            if cnt_a == 0:
+                continue
+            confidence = round(support / cnt_a * 100, 1)
+            lift       = round((support / cnt_a) / (cnt_b / total_inv), 2)
+            if lift > 1.2:
+                rules.append({
+                    "cat_a": cat_a, "prod_a": prod_a,
+                    "cat_b": cat_b, "prod_b": prod_b,
+                    "support": support,
+                    "confidence": confidence,
+                    "lift": lift,
+                })
+
+        rules.sort(key=lambda x: x["lift"], reverse=True)
+        rules = rules[:limit]
         cache.set(cache_key, rules, 60 * 60 * 6)  # 6 hours
         return JsonResponse({"status": "success", "engine": "association",
                              "cached": False, "rules": rules})
