@@ -3400,3 +3400,275 @@ class ProductPenetrationAPIView(LoginRequiredMixin, View):
                 'message': str(e),
                 'trace':   traceback.format_exc()
             }, status=500)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Market Basket Analysis / Recommendation System (Module 03)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Products to exclude from all recommendation engines (spares/internal)
+_MBA_EXCLUDE = ("'D SPARE','SPARE','FIXED ASSETS','GLAMSHIELD','CROCKERY',"
+                "'SMART CHOICE','RIG','OSG WARRANTY'")
+
+_MBA_DATE_FILTER = "toDate(s.date) != toDate('1970-01-01') AND s.sold_price > 0"
+_MBA_MOB_FILTER  = ("length(i.customer_mobile) = 10 AND i.customer_mobile != '' "
+                    "AND i.customer_mobile NOT IN ('1313131313','0000000000','9999999999')")
+
+
+class MarketBasketView(LoginRequiredMixin, TemplateView):
+    template_name = "dashboard/market_basket.html"
+
+
+class MarketBasketAPIView(LoginRequiredMixin, View):
+    """
+    GET /api/v1/market-basket/?engine=association|collaborative|content|hybrid
+                               &item_category=MOBILE+SMART+PHONE
+                               &product=MOBILE
+                               &limit=30
+
+    3-table JOIN:
+        azure_sales_report s
+        JOIN item_master m ON s.item_code = m.item_code
+        JOIN azure_invoice_report i ON s.invoice_no = i.invoice_no
+    """
+
+    def get(self, request):
+        import traceback, hashlib
+        from django.core.cache import cache
+        from analytics.clickhouse_service import get_ch_client
+
+        engine       = request.GET.get("engine", "association").lower()
+        item_cat     = request.GET.get("item_category", "").strip()
+        product_grp  = request.GET.get("product", "").strip()
+        limit        = min(int(request.GET.get("limit", 50)), 200)
+
+        try:
+            ch = get_ch_client()
+
+            if engine == "association":
+                return self._association(ch, limit, cache)
+            elif engine == "collaborative":
+                return self._collaborative(ch, item_cat, limit, cache)
+            elif engine == "content":
+                return self._content(ch, product_grp, limit, cache)
+            elif engine == "hybrid":
+                return self._hybrid(ch, item_cat, product_grp, limit, cache)
+            else:
+                from django.http import JsonResponse
+                return JsonResponse({"status": "error", "message": f"Unknown engine: {engine}"}, status=400)
+
+        except Exception as e:
+            from django.http import JsonResponse
+            return JsonResponse({
+                "status": "error", "message": str(e), "trace": traceback.format_exc()
+            }, status=500)
+
+    # ── Engine 1: Association Rules (Apriori via self-JOIN) ───────────────────
+    def _association(self, ch, limit, cache):
+        from django.http import JsonResponse
+        cache_key = f"mba_assoc_top_{limit}_v2"
+        cached = cache.get(cache_key)
+        if cached:
+            return JsonResponse({"status": "success", "engine": "association",
+                                 "cached": True, "rules": cached})
+
+        # Build per-product totals needed for confidence/lift
+        query = f"""
+        WITH
+          total_inv AS (SELECT countDistinct(invoice_no) AS n FROM azure_sales_report
+                        WHERE {_MBA_DATE_FILTER}),
+          prod_counts AS (
+              SELECT m.item_category AS cat, count(DISTINCT s.invoice_no) AS inv_count
+              FROM azure_sales_report s
+              JOIN item_master m ON s.item_code = m.item_code
+              WHERE {_MBA_DATE_FILTER} AND m.product NOT IN ({_MBA_EXCLUDE})
+              GROUP BY m.item_category
+          )
+        SELECT
+            m1.item_category  AS cat_a,
+            m1.product        AS prod_a,
+            m2.item_category  AS cat_b,
+            m2.product        AS prod_b,
+            count()           AS support,
+            round(count() / pc_a.inv_count * 100, 1)                            AS confidence,
+            round((count() / pc_a.inv_count) / (pc_b.inv_count / t.n), 2)       AS lift
+        FROM azure_sales_report s1
+        JOIN azure_sales_report s2  ON s1.invoice_no = s2.invoice_no
+                                    AND s1.item_code  != s2.item_code
+        JOIN item_master m1 ON s1.item_code = m1.item_code
+        JOIN item_master m2 ON s2.item_code = m2.item_code
+        JOIN prod_counts pc_a ON pc_a.cat = m1.item_category
+        JOIN prod_counts pc_b ON pc_b.cat = m2.item_category
+        CROSS JOIN total_inv t
+        WHERE {_MBA_DATE_FILTER.replace("s.", "s1.")}
+          AND s2.sold_price > 0
+          AND toDate(s2.date) != toDate('1970-01-01')
+          AND m1.product NOT IN ({_MBA_EXCLUDE})
+          AND m2.product NOT IN ({_MBA_EXCLUDE})
+          AND m1.item_category != m2.item_category
+        GROUP BY cat_a, prod_a, cat_b, prod_b
+        HAVING support > 30 AND lift > 1.2
+        ORDER BY lift DESC
+        LIMIT {limit}
+        """
+        rows = ch.query(query).result_rows
+        rules = [
+            {
+                "cat_a": r[0], "prod_a": r[1],
+                "cat_b": r[2], "prod_b": r[3],
+                "support": int(r[4]),
+                "confidence": float(r[5]),
+                "lift": float(r[6]),
+            }
+            for r in rows
+        ]
+        cache.set(cache_key, rules, 60 * 60 * 6)  # 6 hours
+        return JsonResponse({"status": "success", "engine": "association",
+                             "cached": False, "rules": rules})
+
+    # ── Engine 2: Collaborative Filtering ────────────────────────────────────
+    def _collaborative(self, ch, item_cat, limit, cache):
+        from django.http import JsonResponse
+        import hashlib
+        if not item_cat:
+            return JsonResponse({"status": "error",
+                                 "message": "item_category is required for collaborative engine"}, status=400)
+        h = hashlib.md5(item_cat.encode()).hexdigest()[:8]
+        cache_key = f"mba_collab_{h}_v2"
+        cached = cache.get(cache_key)
+        if cached:
+            return JsonResponse({"status": "success", "engine": "collaborative",
+                                 "cached": True, "item_category": item_cat, "recommendations": cached})
+
+        safe_cat = item_cat.replace("'", "")
+        query = f"""
+        SELECT
+            m2.item_category    AS rec_category,
+            m2.product          AS rec_product,
+            count(DISTINCT i.customer_mobile) AS co_buyers
+        FROM azure_invoice_report    i
+        JOIN azure_sales_report  s1  ON s1.invoice_no = i.invoice_no
+        JOIN item_master         m1  ON s1.item_code  = m1.item_code
+        JOIN azure_sales_report  s2  ON s2.invoice_no = i.invoice_no
+        JOIN item_master         m2  ON s2.item_code  = m2.item_code
+        WHERE m1.item_category = '{safe_cat}'
+          AND m2.item_category != m1.item_category
+          AND {_MBA_MOB_FILTER}
+          AND s1.sold_price > 0
+          AND s2.sold_price > 0
+          AND toDate(s1.date) != toDate('1970-01-01')
+          AND toDate(s2.date) != toDate('1970-01-01')
+          AND m2.product NOT IN ({_MBA_EXCLUDE})
+        GROUP BY rec_category, rec_product
+        ORDER BY co_buyers DESC
+        LIMIT {limit}
+        """
+        rows = ch.query(query).result_rows
+        recs = [{"rec_category": r[0], "rec_product": r[1], "co_buyers": int(r[2])} for r in rows]
+        cache.set(cache_key, recs, 60 * 60 * 2)  # 2 hours
+        return JsonResponse({"status": "success", "engine": "collaborative",
+                             "cached": False, "item_category": item_cat, "recommendations": recs})
+
+    # ── Engine 3: Content Based ───────────────────────────────────────────────
+    def _content(self, ch, product_grp, limit, cache):
+        from django.http import JsonResponse
+        import hashlib
+        if not product_grp:
+            return JsonResponse({"status": "error",
+                                 "message": "product is required for content engine"}, status=400)
+        h = hashlib.md5(product_grp.encode()).hexdigest()[:8]
+        cache_key = f"mba_content_{h}_v2"
+        cached = cache.get(cache_key)
+        if cached:
+            return JsonResponse({"status": "success", "engine": "content",
+                                 "cached": True, "product": product_grp, "items": cached})
+
+        safe_prod = product_grp.replace("'", "")
+        query = f"""
+        SELECT
+            m.item_category,
+            m.brand,
+            m.product,
+            count()           AS times_sold,
+            sum(s.sold_price) AS total_revenue,
+            avg(s.sold_price) AS avg_price
+        FROM azure_sales_report s
+        JOIN item_master m ON s.item_code = m.item_code
+        WHERE m.product = '{safe_prod}'
+          AND {_MBA_DATE_FILTER}
+        GROUP BY m.item_category, m.brand, m.product
+        ORDER BY times_sold DESC
+        LIMIT {limit}
+        """
+        rows = ch.query(query).result_rows
+        items = [
+            {
+                "item_category": r[0], "brand": r[1], "product": r[2],
+                "times_sold": int(r[3]),
+                "total_revenue": round(float(r[4] or 0), 2),
+                "avg_price": round(float(r[5] or 0), 2),
+            }
+            for r in rows
+        ]
+        cache.set(cache_key, items, 60 * 60 * 6)  # 6 hours
+        return JsonResponse({"status": "success", "engine": "content",
+                             "cached": False, "product": product_grp, "items": items})
+
+    # ── Engine 4: Hybrid Engine ───────────────────────────────────────────────
+    def _hybrid(self, ch, item_cat, product_grp, limit, cache):
+        from django.http import JsonResponse
+        import hashlib
+
+        # Run engines 1, 2, 3 and merge
+        assoc_resp = self._association(ch, 100, cache)
+        assoc_data = assoc_resp.content
+        import json as _json
+        assoc_json = _json.loads(assoc_data)
+        assoc_rules = assoc_json.get("rules", [])
+
+        # Build collab results for the item_cat
+        collab_items = []
+        if item_cat:
+            collab_resp = self._collaborative(ch, item_cat, 50, cache)
+            collab_json = _json.loads(collab_resp.content)
+            collab_items = collab_json.get("recommendations", [])
+
+        # Gather all candidate item_categories from association
+        candidates = {}
+        max_lift = max((r["lift"] for r in assoc_rules), default=1)
+        for r in assoc_rules:
+            key = (r["cat_b"], r["prod_b"])
+            score_a = (r["lift"] / max_lift) * 50  # 50% weight
+            if key not in candidates:
+                candidates[key] = {"cat": r["cat_b"], "prod": r["prod_b"],
+                                   "assoc_score": 0, "collab_score": 0,
+                                   "lift": r["lift"], "support": r["support"],
+                                   "confidence": r["confidence"], "co_buyers": 0}
+            candidates[key]["assoc_score"] += score_a
+
+        max_buyers = max((r["co_buyers"] for r in collab_items), default=1)
+        for r in collab_items:
+            key = (r["rec_category"], r["rec_product"])
+            score_c = (r["co_buyers"] / max_buyers) * 30  # 30% weight
+            if key not in candidates:
+                candidates[key] = {"cat": r["rec_category"], "prod": r["rec_product"],
+                                   "assoc_score": 0, "collab_score": 0,
+                                   "lift": 0, "support": 0, "confidence": 0,
+                                   "co_buyers": r["co_buyers"]}
+            candidates[key]["collab_score"] = score_c
+            candidates[key]["co_buyers"] = r["co_buyers"]
+
+        # Compute hybrid score
+        results = []
+        for key, v in candidates.items():
+            hybrid_score = round(v["assoc_score"] + v["collab_score"], 1)
+            results.append({
+                "cat": v["cat"], "prod": v["prod"],
+                "hybrid_score": hybrid_score,
+                "lift": v["lift"], "support": v["support"],
+                "confidence": v["confidence"], "co_buyers": v["co_buyers"],
+            })
+        results.sort(key=lambda x: x["hybrid_score"], reverse=True)
+        return JsonResponse({"status": "success", "engine": "hybrid",
+                             "item_category": item_cat,
+                             "recommendations": results[:limit]})

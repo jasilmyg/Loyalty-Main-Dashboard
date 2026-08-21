@@ -102,4 +102,8 @@ urlpatterns = [
     # Product Penetration Report
     path('product-penetration/', views.ProductPenetrationView.as_view(), name='product_penetration'),
     path('api/v1/product-penetration/', views.ProductPenetrationAPIView.as_view(), name='product_penetration_api'),
+
+    # Market Basket Analysis / Recommendation System
+    path('market-basket/', views.MarketBasketView.as_view(), name='market_basket'),
+    path('api/v1/market-basket/', views.MarketBasketAPIView.as_view(), name='market_basket_api'),
 ]
