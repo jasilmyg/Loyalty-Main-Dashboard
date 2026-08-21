@@ -26,13 +26,33 @@ def generate_forecast():
     engine = create_engine(conn_str)
     
     TOTAL_DB = 5033297 # Or query it if needed
-    from sqlalchemy import text
     try:
-        with engine.connect() as con:
-            res = con.execute(text("SELECT COUNT(DISTINCT customer_mobile) FROM mv_true_repeat_amj_2026"))
-            AMJ_REPEAT = res.scalar()
+        import os as _os, sys as _sys
+        _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+        _os.environ.setdefault("DJANGO_SETTINGS_MODULE", "myg_loyalty_dashboard.settings")
+        import django; django.setup()
+        from analytics.clickhouse_service import get_ch_client
+        _ch = get_ch_client()
+        # AMJ 2026 repeat customers = customers who had a prior purchase before Apr 2026
+        # AND made at least one purchase in Apr-Jun 2026
+        res = _ch.query("""
+            SELECT countDistinct(customer_mobile)
+            FROM azure_invoice_report
+            WHERE toDate(date) BETWEEN toDate('2026-04-01') AND toDate('2026-06-30')
+              AND toDate(date) != toDate('1970-01-01')
+              AND invoice_total > 0
+              AND length(customer_mobile) = 10
+              AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+              AND customer_mobile IN (
+                  SELECT DISTINCT customer_mobile FROM azure_invoice_report
+                  WHERE toDate(date) < toDate('2026-04-01')
+                    AND toDate(date) != toDate('1970-01-01')
+                    AND invoice_total > 0
+              )
+        """).result_rows
+        AMJ_REPEAT = int(res[0][0]) if res else 210302
     except Exception as e:
-        print("Failed to get AMJ_REPEAT from DB, falling back:", e)
+        print("Failed to get AMJ_REPEAT from ClickHouse, falling back:", e)
         AMJ_REPEAT = 210302
         
     TARGET_PCT = 0.08

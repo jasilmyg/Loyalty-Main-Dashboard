@@ -469,16 +469,12 @@ import threading
 from django.db import connection
 
 def rebuild_propensity_view_and_cache():
+    """Regenerate propensity cache directly from ClickHouse — no Postgres MV needed."""
     try:
-        with connection.cursor() as cursor:
-            # Concurrently refresh the materialized view
-            cursor.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY mv_customer_propensity;")
-            
-        # Re-run propensity engine cache regeneration
         from analytics.customer_propensity_engine import generate_propensity_forecast
         generate_propensity_forecast()
     except Exception as e:
-        print(f"Error rebuilding propensity materialized view or cache: {e}")
+        print(f"Error regenerating propensity cache: {e}")
 
 
 class CustomerPropensityView(LoginRequiredMixin, TemplateView):
@@ -525,21 +521,38 @@ class CustomerPropensitySearchAPIView(LoginRequiredMixin, View):
             return JsonResponse({"error": "Invalid input. Please enter a valid 10-digit mobile number."}, status=400)
             
         try:
-            with connection.cursor() as cursor:
-                cursor.execute("""
-                    SELECT mobile,
-                           GREATEST(0.0, LEAST(1.0, 1.0 - (churn_score / 3.0)))::double precision AS repeat_prob,
-                           recency::int, frequency::int, monetary::int
-                    FROM mv_customer_propensity
-                    WHERE mobile = %s
-                    LIMIT 1;
-                """, [mobile])
-                row = cursor.fetchone()
-                
-            if not row:
-                return JsonResponse({"error": f"No customer intelligence record found for mobile '{mobile}' in our 5.17M records."}, status=404)
-                
-            mobile, prob, recency, freq, monetary = row
+            # ── ClickHouse: compute RFM on-the-fly from azure_invoice_report ──
+            from analytics.clickhouse_service import get_ch_client
+            ch = get_ch_client()
+            rows = ch.query("""
+                SELECT
+                    customer_mobile,
+                    today() - toDate(max(date))         AS recency,
+                    countDistinct(toDate(date))          AS frequency,
+                    toInt64(sum(invoice_total))          AS monetary,
+                    GREATEST(0.0, LEAST(1.0,
+                        1.0 - (
+                            (today() - toDate(max(date))) / 365.0 * 0.5
+                            + (1.0 / (countDistinct(toDate(date)) + 1)) * 0.3
+                            + (1.0 / (sum(invoice_total) / 10000.0 + 1)) * 0.2
+                        )
+                    )) AS repeat_prob
+                FROM azure_invoice_report
+                WHERE customer_mobile = %(mobile)s
+                  AND length(customer_mobile) = 10
+                  AND customer_mobile != ''
+                  AND toDate(date) != toDate('1970-01-01')
+                  AND invoice_total > 0
+                GROUP BY customer_mobile
+                LIMIT 1
+            """, {'mobile': mobile}).result_rows
+
+            if not rows:
+                return JsonResponse({"error": f"No customer intelligence record found for mobile '{mobile}' in our database."}, status=404)
+
+            r = rows[0]
+            mobile_val, recency, freq, monetary, prob = r[0], int(r[1]), int(r[2]), int(r[3]), float(r[4])
+            mobile, recency, freq, monetary = mobile_val, recency, freq, monetary
             
             # Formulate strategic campaigns & intent tags
             if prob >= 0.7:
@@ -1355,21 +1368,33 @@ class CampaignLoyaltyDownloadAPIView(UserPassesTestMixin, View):
 
         try:
             cohort_year = int(cohort_year)
-            rows = _q("""
-                SELECT 
-                    "Customer Mobile",
-                    customer_name,
-                    last_branch,
-                    last_purchase_date,
-                    reactivated_revenue,
-                    reactivated_redeemed_points,
-                    reactivated_redeemed_sales
-                FROM mv_dormant_reactivation_customers
-                WHERE cohort_year = %s
-                  AND first_2026_month = %s
-                  AND reactivated_redeemed_customers > 0
-                ORDER BY reactivated_redeemed_points DESC NULLS LAST
-            """, [cohort_year, target_date])
+            # ── ClickHouse: dormant reactivation loyalty customers ─────────
+            from analytics.clickhouse_service import get_ch_client
+            ch = get_ch_client()
+            target_month_start = target_date  # 'YYYY-MM-01'
+            target_month_end_q = f"toDate(toStartOfMonth(toDate('{target_month_start}'))) + INTERVAL 1 MONTH - INTERVAL 1 DAY"
+            ch_rows = ch.query(f"""
+                SELECT
+                    customer_mobile,
+                    '' AS customer_name,
+                    argMaxIf(branch, date, toDate(date) < toDate('2026-01-01')) AS last_branch,
+                    toDate(maxIf(date, toDate(date) < toDate('2026-01-01'))) AS last_purchase_date,
+                    sumIf(invoice_total, toDate(date) >= toDate('2026-01-01')) AS reactivated_revenue,
+                    toFloat64(0) AS redeemed_points,
+                    toFloat64(0) AS redeemed_sales
+                FROM azure_invoice_report
+                WHERE length(customer_mobile) = 10
+                  AND customer_mobile != ''
+                  AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                  AND toDate(date) != toDate('1970-01-01')
+                  AND invoice_total > 0
+                GROUP BY customer_mobile
+                HAVING
+                    maxIf(toYear(toDate(date)), toDate(date) < toDate('2026-01-01')) = {cohort_year}
+                    AND toStartOfMonth(minIf(toDate(date), toDate(date) >= toDate('2026-01-01'))) = toDate('{target_month_start}')
+                ORDER BY redeemed_points DESC
+            """).result_rows
+            rows = [(r[0], r[1], r[2], r[3], r[4], r[5], r[6]) for r in ch_rows]
 
             output = io.BytesIO()
             workbook = xlsxwriter.Workbook(output)
@@ -1457,18 +1482,29 @@ class CampaignResurrectedDownloadAPIView(UserPassesTestMixin, View):
 
         try:
             cohort_year = int(cohort_year)
-            rows = _q("""
-                SELECT 
-                    "Customer Mobile",
-                    customer_name,
-                    last_branch,
-                    last_purchase_date,
-                    reactivated_revenue
-                FROM mv_dormant_reactivation_customers
-                WHERE cohort_year = %s
-                  AND first_2026_month = %s
-                ORDER BY reactivated_revenue DESC NULLS LAST
-            """, [cohort_year, target_date])
+            # ── ClickHouse: resurrected dormant customers ───────────────────
+            from analytics.clickhouse_service import get_ch_client
+            ch = get_ch_client()
+            ch_rows = ch.query(f"""
+                SELECT
+                    customer_mobile,
+                    '' AS customer_name,
+                    argMaxIf(branch, date, toDate(date) < toDate('2026-01-01')) AS last_branch,
+                    toDate(maxIf(date, toDate(date) < toDate('2026-01-01'))) AS last_purchase_date,
+                    sumIf(invoice_total, toDate(date) >= toDate('2026-01-01')) AS reactivated_revenue
+                FROM azure_invoice_report
+                WHERE length(customer_mobile) = 10
+                  AND customer_mobile != ''
+                  AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                  AND toDate(date) != toDate('1970-01-01')
+                  AND invoice_total > 0
+                GROUP BY customer_mobile
+                HAVING
+                    maxIf(toYear(toDate(date)), toDate(date) < toDate('2026-01-01')) = {cohort_year}
+                    AND toStartOfMonth(minIf(toDate(date), toDate(date) >= toDate('2026-01-01'))) = toDate('{target_date}')
+                ORDER BY reactivated_revenue DESC
+            """).result_rows
+            rows = [(r[0], r[1], r[2], r[3], r[4]) for r in ch_rows]
 
             output = io.BytesIO()
             workbook = xlsxwriter.Workbook(output)
@@ -1549,17 +1585,29 @@ class CampaignDormantDownloadAPIView(UserPassesTestMixin, View):
 
         try:
             cohort_year = int(cohort_year)
-            rows = _q("""
-                SELECT 
-                    "Customer Mobile",
-                    customer_name,
-                    last_branch,
-                    last_purchase_date
-                FROM mv_dormant_reactivation_customers
-                WHERE cohort_year = %s
-                  AND (first_2026_month IS NULL OR first_2026_month > %s)
-                ORDER BY last_purchase_date DESC NULLS LAST
-            """, [cohort_year, target_date])
+            # ── ClickHouse: remaining dormant customers (not yet reactivated) ─
+            from analytics.clickhouse_service import get_ch_client
+            ch = get_ch_client()
+            ch_rows = ch.query(f"""
+                SELECT
+                    customer_mobile,
+                    '' AS customer_name,
+                    argMaxIf(branch, date, toDate(date) < toDate('2026-01-01')) AS last_branch,
+                    toDate(maxIf(date, toDate(date) < toDate('2026-01-01'))) AS last_purchase_date
+                FROM azure_invoice_report
+                WHERE length(customer_mobile) = 10
+                  AND customer_mobile != ''
+                  AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                  AND toDate(date) != toDate('1970-01-01')
+                  AND invoice_total > 0
+                GROUP BY customer_mobile
+                HAVING
+                    maxIf(toYear(toDate(date)), toDate(date) < toDate('2026-01-01')) = {cohort_year}
+                    AND (minIf(toDate(date), toDate(date) >= toDate('2026-01-01')) = toDate('1970-01-01')
+                         OR toStartOfMonth(minIf(toDate(date), toDate(date) >= toDate('2026-01-01'))) > toDate('{target_date}'))
+                ORDER BY last_purchase_date DESC
+            """).result_rows
+            rows = [(r[0], r[1], r[2], r[3]) for r in ch_rows]
 
             output = io.BytesIO()
             workbook = xlsxwriter.Workbook(output)
@@ -2023,67 +2071,63 @@ class StoreAnalysisProcessAPIView(LoginRequiredMixin, View):
             if not mobiles:
                 return JsonResponse({'status': 'error', 'message': 'No customer mobiles found in the file.'})
                 
-            # To avoid huge IN clauses if file is massive, we can pass them in batches or as ANY(ARRAY)
-            # Fetch lifetime metrics from mv_customer_summary which has (mobile, first_visit, total_spend, visits)
-            query = """
-                SELECT mobile, first_visit, total_spend, visits 
-                FROM mv_customer_summary 
-                WHERE mobile = ANY(%s)
-            """
-            
+            # ── ClickHouse: fetch customer lifetime metrics from azure_invoice_report ──
+            from analytics.clickhouse_service import get_ch_client as _get_ch
+            ch_client = _get_ch()
+            # Build comma-separated mobile list for ClickHouse IN clause
+            safe_mobiles = [str(m) for m in mobiles if str(m).isdigit() and len(str(m)) == 10]
+            if safe_mobiles:
+                mobile_list = "','" .join(safe_mobiles)
+                ch_cust_rows = ch_client.query(f"""
+                    SELECT
+                        customer_mobile,
+                        toString(toDate(min(date))) AS first_visit,
+                        sum(invoice_total)           AS total_spend,
+                        countDistinct(toDate(date))  AS visits
+                    FROM azure_invoice_report
+                    WHERE customer_mobile IN ('{mobile_list}')
+                      AND toDate(date) != toDate('1970-01-01')
+                      AND invoice_total > 0
+                    GROUP BY customer_mobile
+                """).result_rows
+            else:
+                ch_cust_rows = []
+
             db_customers = {}
-            with connection.cursor() as cur:
-                cur.execute(query, [mobiles])
-                for row in cur.fetchall():
-                    # mobile, first_visit, total_spend, visits
-                    mob = str(row[0])
-                    fv = row[1]
-                    ts = row[2] or 0
-                    v = row[3] or 0
-                    db_customers[mob] = {
-                        'first_visit': fv if isinstance(fv, str) else (fv.strftime('%Y-%m-%d') if fv else None),
-                        'total_spend': float(ts),
-                        'visits': int(v)
-                    }
-                    
-            # Wait, the requirement says: "whose first-ever purchase in the entire Kerala database was made at this store"
-            # We need the first_purchase_store as well. The mv_customer_summary might not have it.
-            # Let's query v_sales_data directly for these customers to get the exact first purchase date and store.
-            
-            # We don't need to run a heavy query on v_sales_data to find the exact first branch.
-            # We already have first_visit from mv_customer_summary.
-            # If their first_visit is >= start_date, they are 'New' and we can infer first_branch as current_store.
+            for row in ch_cust_rows:
+                mob = str(row[0])
+                fv = str(row[1]) if row[1] else None
+                db_customers[mob] = {
+                    'first_visit': fv,
+                    'total_spend': float(row[2] or 0),
+                    'visits': int(row[3] or 0)
+                }
+
             first_purchase_details = {}
             for mob, vals in db_customers.items():
                 first_purchase_details[mob] = {
                     'first_date': vals['first_visit'],
                     'first_branch': None
                 }
-                
-            # Now, for Repeat customers, we can find their exact first branch from sales_data
+
+            # For Repeat customers, find their first branch from ClickHouse
             repeat_mobiles = [mob for mob, vals in db_customers.items() if vals['first_visit'] and vals['first_visit'] < start_date]
             if repeat_mobiles:
-                query_branch = """
-                    SELECT "Customer Mobile", "Branch", "Date"
-                    FROM sales_data
-                    WHERE "Customer Mobile" = ANY(%s)
-                """
-                with connection.cursor() as cur:
-                    cur.execute(query_branch, [repeat_mobiles])
-                    for row in cur.fetchall():
-                        m = str(row[0])
-                        b = str(row[1])
-                        d = str(row[2])
-                        
-                        # normalize date from sales_data (can be YYYY-MM-DD or DD-MM-YYYY and may have time)
-                        d_norm = d.split(' ')[0] if ' ' in d else d
-                        if '-' in d_norm and len(d_norm) == 10:
-                            if d_norm[2] == '-': # DD-MM-YYYY
-                                d_norm = f"{d_norm[6:10]}-{d_norm[3:5]}-{d_norm[0:2]}"
-                                
-                        if m in first_purchase_details and d_norm == first_purchase_details[m]['first_date']:
-                            if first_purchase_details[m]['first_branch'] is None:
-                                first_purchase_details[m]['first_branch'] = b
+                rep_mobile_list = "','".join(repeat_mobiles)
+                ch_branch_rows = ch_client.query(f"""
+                    SELECT customer_mobile, branch, toString(toDate(date)) AS date_str
+                    FROM azure_invoice_report
+                    WHERE customer_mobile IN ('{rep_mobile_list}')
+                      AND toDate(date) != toDate('1970-01-01')
+                      AND invoice_total > 0
+                """).result_rows
+                for row in ch_branch_rows:
+                    m = str(row[0])
+                    b = str(row[1])
+                    d_norm = str(row[2])
+                    if m in first_purchase_details and d_norm == first_purchase_details[m]['first_date']:
+                        if first_purchase_details[m]['first_branch'] is None:
+                            first_purchase_details[m]['first_branch'] = b
             
             # Now aggregate metrics
             total_sales = df['Sold Price'].sum() if 'Sold Price' in df.columns else 0
