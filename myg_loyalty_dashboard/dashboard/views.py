@@ -3473,15 +3473,23 @@ class MarketBasketAPIView(LoginRequiredMixin, View):
                                  "cached": True, "rules": cached})
 
         # Build per-product totals needed for confidence/lift
+        # NOTE: each CTE/subquery uses its own alias — no global _MBA_DATE_FILTER alias
         query = f"""
         WITH
-          total_inv AS (SELECT countDistinct(invoice_no) AS n FROM azure_sales_report
-                        WHERE {_MBA_DATE_FILTER}),
+          total_inv AS (
+              SELECT countDistinct(invoice_no) AS n
+              FROM azure_sales_report
+              WHERE toDate(date) != toDate('1970-01-01')
+                AND sold_price > 0
+          ),
           prod_counts AS (
-              SELECT m.item_category AS cat, count(DISTINCT s.invoice_no) AS inv_count
+              SELECT m.item_category AS cat,
+                     count(DISTINCT s.invoice_no) AS inv_count
               FROM azure_sales_report s
               JOIN item_master m ON s.item_code = m.item_code
-              WHERE {_MBA_DATE_FILTER} AND m.product NOT IN ({_MBA_EXCLUDE})
+              WHERE toDate(s.date) != toDate('1970-01-01')
+                AND s.sold_price > 0
+                AND m.product NOT IN ({_MBA_EXCLUDE})
               GROUP BY m.item_category
           )
         SELECT
@@ -3490,19 +3498,20 @@ class MarketBasketAPIView(LoginRequiredMixin, View):
             m2.item_category  AS cat_b,
             m2.product        AS prod_b,
             count()           AS support,
-            round(count() / pc_a.inv_count * 100, 1)                            AS confidence,
-            round((count() / pc_a.inv_count) / (pc_b.inv_count / t.n), 2)       AS lift
+            round(count() / pc_a.inv_count * 100, 1)                          AS confidence,
+            round((count() / pc_a.inv_count) / (pc_b.inv_count / t.n), 2)     AS lift
         FROM azure_sales_report s1
         JOIN azure_sales_report s2  ON s1.invoice_no = s2.invoice_no
                                     AND s1.item_code  != s2.item_code
-        JOIN item_master m1 ON s1.item_code = m1.item_code
-        JOIN item_master m2 ON s2.item_code = m2.item_code
-        JOIN prod_counts pc_a ON pc_a.cat = m1.item_category
-        JOIN prod_counts pc_b ON pc_b.cat = m2.item_category
+        JOIN item_master m1          ON s1.item_code  = m1.item_code
+        JOIN item_master m2          ON s2.item_code  = m2.item_code
+        JOIN prod_counts pc_a        ON pc_a.cat = m1.item_category
+        JOIN prod_counts pc_b        ON pc_b.cat = m2.item_category
         CROSS JOIN total_inv t
-        WHERE {_MBA_DATE_FILTER.replace("s.", "s1.")}
-          AND s2.sold_price > 0
+        WHERE toDate(s1.date) != toDate('1970-01-01')
+          AND s1.sold_price > 0
           AND toDate(s2.date) != toDate('1970-01-01')
+          AND s2.sold_price > 0
           AND m1.product NOT IN ({_MBA_EXCLUDE})
           AND m2.product NOT IN ({_MBA_EXCLUDE})
           AND m1.item_category != m2.item_category
