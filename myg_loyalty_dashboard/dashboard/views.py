@@ -3481,77 +3481,80 @@ class MarketBasketAPIView(LoginRequiredMixin, View):
     # ── Engine 1: Association Rules (Apriori) ────────────────────────────────
     def _association(self, ch, limit, cache):
         from django.http import JsonResponse
-        cache_key = f"mba_assoc_cust_top_{limit}_v2"
+        cache_key = f"mba_assoc_inv_{limit}_v4"
         cached = cache.get(cache_key)
         if cached:
             return JsonResponse({"status": "success", "engine": "association",
                                  "cached": True, "rules": cached})
 
-        # ── Step 1: Fetch all (customer, item_category, product) in one query ──
-        # One row per unique customer×category — deduplicated at source
-        # Filters: valid mobile, retail whitelist, no digital/spare categories
-        raw = ch.query(f"""
-            SELECT
-                i.customer_mobile,
-                m.item_category,
-                m.product
-            FROM azure_invoice_report i
-            JOIN azure_sales_report  s ON s.invoice_no = i.invoice_no
-            JOIN item_master          m ON s.item_code  = m.item_code
-            WHERE {_MBA_MOB_FILTER}
-              AND toDate(s.date) != toDate('1970-01-01')
+        # ── Step 1: Total unique invoices ─────────────────────────────────────
+        total_inv = int(ch.query(f"""
+            SELECT countDistinct(s.invoice_no)
+            FROM azure_sales_report s
+            JOIN item_master m ON s.item_code = m.item_code
+            WHERE toDate(s.date) != toDate('1970-01-01')
               AND s.sold_price > 0
               AND m.product IN ({_MBA_PRODUCT_IN})
               AND m.item_category NOT IN ({_MBA_CAT_EXCLUDE})
-            GROUP BY i.customer_mobile, m.item_category, m.product
-        """).result_rows   # returns (mobile, item_category, product) per customer per category
-
-        if not raw:
+        """).result_rows[0][0])
+        if total_inv == 0:
             return JsonResponse({"status": "success", "engine": "association",
                                  "cached": False, "rules": []})
 
-        # ── Step 2: Build per-customer set of (category, product) in Python ───
-        from collections import defaultdict
-        import itertools
+        # ── Step 2: Per-category invoice count ───────────────────────────────
+        cat_rows = ch.query(f"""
+            SELECT m.item_category, m.product,
+                   countDistinct(s.invoice_no) AS inv_count
+            FROM azure_sales_report s
+            JOIN item_master m ON s.item_code = m.item_code
+            WHERE toDate(s.date) != toDate('1970-01-01')
+              AND s.sold_price > 0
+              AND m.product IN ({_MBA_PRODUCT_IN})
+              AND m.item_category NOT IN ({_MBA_CAT_EXCLUDE})
+            GROUP BY m.item_category, m.product
+        """).result_rows
+        cat_counts  = {str(r[0]): int(r[2]) for r in cat_rows}
+        cat_product = {str(r[0]): str(r[1]) for r in cat_rows}
 
-        cust_cats: dict[str, set] = defaultdict(set)
-        cat_product: dict[str, str] = {}          # item_category → product
-        cat_counts:  dict[str, int] = defaultdict(int)  # category → unique customers
+        # ── Step 3: Co-occurrence on same invoice ─────────────────────────────
+        # Self-JOIN azure_sales_report on invoice_no.
+        # m1.item_category < m2.item_category → no duplicate A↔B reverse pairs.
+        pair_rows = ch.query(f"""
+            SELECT
+                m1.item_category AS cat_a,
+                m2.item_category AS cat_b,
+                count()          AS support
+            FROM azure_sales_report s1
+            JOIN azure_sales_report s2
+                ON s1.invoice_no = s2.invoice_no
+               AND s1.item_code  != s2.item_code
+            JOIN item_master m1 ON s1.item_code = m1.item_code
+            JOIN item_master m2 ON s2.item_code = m2.item_code
+            WHERE toDate(s1.date) != toDate('1970-01-01')
+              AND s1.sold_price > 0
+              AND toDate(s2.date) != toDate('1970-01-01')
+              AND s2.sold_price > 0
+              AND m1.product IN ({_MBA_PRODUCT_IN})
+              AND m2.product IN ({_MBA_PRODUCT_IN})
+              AND m1.item_category NOT IN ({_MBA_CAT_EXCLUDE})
+              AND m2.item_category NOT IN ({_MBA_CAT_EXCLUDE})
+              AND m1.item_category < m2.item_category
+            GROUP BY cat_a, cat_b
+            HAVING support > 100
+            ORDER BY support DESC
+            LIMIT 1000
+        """).result_rows
 
-        for mobile, cat, prod in raw:
-            cust_cats[mobile].add(cat)
-            cat_product[cat] = prod
-
-        total_cust = len(cust_cats)
-
-        # Per-category customer count
-        for cats in cust_cats.values():
-            for cat in cats:
-                cat_counts[cat] += 1
-
-        # ── Step 3: Count co-purchasing pairs in Python ────────────────────────
-        # For each customer, generate all unordered pairs of categories they bought
-        # Pair (A, B) where A < B to avoid duplicates
-        pair_support: dict[tuple, int] = defaultdict(int)
-        for cats in cust_cats.values():
-            cats_list = sorted(cats)          # sorted → A < B guaranteed
-            for cat_a, cat_b in itertools.combinations(cats_list, 2):
-                pair_support[(cat_a, cat_b)] += 1
-
-        # ── Step 4: Compute confidence & lift, filter, sort ───────────────────
-        # Support    = unique customers who bought BOTH categories (ever)
-        # Confidence = Support / Customers who ever bought category A
-        # Lift       = confidence / P(any customer bought B)
+        # ── Step 4: Compute confidence & lift in Python ───────────────────────
         rules = []
-        for (cat_a, cat_b), support in pair_support.items():
-            if support < 50:
-                continue
+        for r in pair_rows:
+            cat_a, cat_b, support = str(r[0]), str(r[1]), int(r[2])
             cnt_a = cat_counts.get(cat_a, 1)
             cnt_b = cat_counts.get(cat_b, 1)
             if cnt_a == 0 or cnt_b == 0:
                 continue
             confidence = round(support / cnt_a * 100, 1)
-            lift       = round((support / cnt_a) / (cnt_b / total_cust), 2)
+            lift       = round((support / cnt_a) / (cnt_b / total_inv), 2)
             if 1.2 < lift <= 500:
                 rules.append({
                     "cat_a": cat_a, "prod_a": cat_product.get(cat_a, ""),
@@ -3563,11 +3566,9 @@ class MarketBasketAPIView(LoginRequiredMixin, View):
 
         rules.sort(key=lambda x: x["lift"], reverse=True)
         rules = rules[:limit]
-        cache.set(cache_key, rules, 60 * 60 * 6)  # 6 hours
+        cache.set(cache_key, rules, 60 * 60 * 6)  # cache 6 hours
         return JsonResponse({"status": "success", "engine": "association",
-                             "cached": False,
-                             "support_label": "Customers (lifetime)",
-                             "rules": rules})
+                             "cached": False, "rules": rules})
 
     # ── Engine 2: Collaborative Filtering ────────────────────────────────────
     def _collaborative(self, ch, item_cat, limit, cache):
