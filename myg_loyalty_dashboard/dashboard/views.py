@@ -3416,7 +3416,14 @@ _MBA_PRODUCT_IN = ("'MOBILE','LAPTOP','TV','AIR CONDITIONER','REFRIGERATORS',"
                    "'WASHING MACHINES','SMALL APPLIANCES','EAR WEARABLES',"
                    "'TABLET','ACCESSORIES','SMART WATCH','HOME APPLIANCES',"
                    "'AUDIO','MICROWAVE OVEN','STABILIZER','PRINTER',"
-                   "'STORAGE DEVICES','IT ACCESSORIES','CAMERA','GAMING'")
+                   "'STORAGE DEVICES','IT ACCESSORIES','GAMING'")
+
+# item_category-level exclusions — digital/software/non-physical items
+# (these sneak in via ACCESSORIES/GAMING product groups but inflate lift artificially)
+_MBA_CAT_EXCLUDE = ("'SOFTWARE DOWNLOADS','MDM SOFTWARE','PS SOFTWARE',"
+                    "'SOFTWARE','DIGITAL LOCKER','WOW BOX','WOW BOX 18%',"
+                    "'WOW BOX 5%','SANITIZER','MASK','FREE ACCESSORIES',"
+                    "'SPARE','COMBO','999 COMBO','1499 COMBO'")
 
 _MBA_DATE_FILTER = "toDate(s.date) != toDate('1970-01-01') AND s.sold_price > 0"
 _MBA_MOB_FILTER  = ("length(i.customer_mobile) = 10 AND i.customer_mobile != '' "
@@ -3499,11 +3506,12 @@ class MarketBasketAPIView(LoginRequiredMixin, View):
             WHERE toDate(s.date) != toDate('1970-01-01')
               AND s.sold_price > 0
               AND m.product IN ({_MBA_PRODUCT_IN})
+              AND m.item_category NOT IN ({_MBA_CAT_EXCLUDE})
             GROUP BY m.item_category
         """).result_rows
         cat_counts = {str(r[0]): int(r[1]) for r in cat_rows}
 
-        # ── Step 3: Co-occurrence pairs — retail categories only via whitelist ──
+        # ── Step 3: Co-occurrence pairs — retail only, deduplicated (A < B), cat filtered ──
         pair_rows = ch.query(f"""
             SELECT
                 m1.item_category AS cat_a,
@@ -3523,7 +3531,9 @@ class MarketBasketAPIView(LoginRequiredMixin, View):
               AND s2.sold_price > 0
               AND m1.product IN ({_MBA_PRODUCT_IN})
               AND m2.product IN ({_MBA_PRODUCT_IN})
-              AND m1.item_category != m2.item_category
+              AND m1.item_category NOT IN ({_MBA_CAT_EXCLUDE})
+              AND m2.item_category NOT IN ({_MBA_CAT_EXCLUDE})
+              AND m1.item_category < m2.item_category
             GROUP BY cat_a, prod_a, cat_b, prod_b
             HAVING support > 100
             ORDER BY support DESC
@@ -3536,11 +3546,12 @@ class MarketBasketAPIView(LoginRequiredMixin, View):
             cat_a, prod_a, cat_b, prod_b, support = r[0], r[1], r[2], r[3], int(r[4])
             cnt_a = cat_counts.get(cat_a, 1)
             cnt_b = cat_counts.get(cat_b, 1)
-            if cnt_a == 0:
+            if cnt_a == 0 or cnt_b == 0:
                 continue
             confidence = round(support / cnt_a * 100, 1)
             lift       = round((support / cnt_a) / (cnt_b / total_inv), 2)
-            if lift > 1.2:
+            # Cap lift at 500 — absurd values mean tiny niche bundles, not meaningful patterns
+            if 1.2 < lift <= 500:
                 rules.append({
                     "cat_a": cat_a, "prod_a": prod_a,
                     "cat_b": cat_b, "prod_b": prod_b,
