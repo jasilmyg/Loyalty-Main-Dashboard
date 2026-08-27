@@ -384,6 +384,10 @@
               style="padding:.65rem 1.1rem; font-size:.78rem; font-weight:700; background:none; border:none; border-bottom:2px solid transparent; color:var(--text-3); cursor:pointer; letter-spacing:.04em; text-transform:uppercase;">
         <i class="bi bi-award me-1"></i> Brand Report
       </button>
+      <button id="tab-branch" onclick="switchTab('branch')" class="dash-tab"
+              style="padding:.65rem 1.1rem; font-size:.78rem; font-weight:700; background:none; border:none; border-bottom:2px solid transparent; color:var(--text-3); cursor:pointer; letter-spacing:.04em; text-transform:uppercase;">
+        <i class="bi bi-shop me-1"></i> Branch Report
+      </button>
       <span style="margin-left:auto; font-size:.7rem; color:var(--text-3);" id="sc-period-label"></span>
     </div>
 
@@ -697,6 +701,13 @@ function renderScorecard(scorecard) {
   _set('brand-comp-qty-h1',  cLabelShort);
   _set('brand-share-qty-h1', 'SHARE ' + cLabelShort);
 
+_set('branch-base-amt-h1',  bLabelShort);
+  _set('branch-comp-amt-h1',  cLabelShort);
+  _set('branch-share-amt-h1', 'SHARE ' + cLabelShort);
+  _set('branch-base-qty-h1',  bLabelShort);
+  _set('branch-comp-qty-h1',  cLabelShort);
+  _set('branch-share-qty-h1', 'SHARE ' + cLabelShort);
+
   _set('sc-period-label', bLabel + ' vs ' + cLabel);
 
   if (!scorecard||!scorecard.length){
@@ -964,7 +975,7 @@ function exportExcel() {
    Tab Switching
 ══════════════════════════════════════════════════════════════════════════════ */
 function switchTab(tab) {
-  ['cat','product','brand'].forEach(t => {
+  ['cat','product','brand','branch'].forEach(t => {
     const btn   = document.getElementById('tab-'+t);
     const panel = document.getElementById('panel-'+t);
     const active = (t === tab);
@@ -976,6 +987,7 @@ function switchTab(tab) {
   if (_data) {
     if (tab === 'product') renderProductReport(_data.detailed_table);
     if (tab === 'brand')   renderBrandReport(_data.detailed_table);
+    renderBranchReport(_data.detailed_table);
   }
 }
 
@@ -1044,6 +1056,10 @@ function renderBrandReport(table) {
   _renderFlatReport(table, 'brand', 'brand-tbody');
 }
 
+function renderBranchReport(table) {
+  _renderFlatReport(table, 'branch', 'branch-tbody');
+}
+
 /* ══════════════════════════════════════════════════════════════════════════════
    Main load
 ══════════════════════════════════════════════════════════════════════════════ */
@@ -1088,6 +1104,7 @@ async function loadDashboardData() {
     renderScorecard(_data.scorecard);
     renderProductReport(_data.detailed_table);
     renderBrandReport(_data.detailed_table);
+    renderBranchReport(_data.detailed_table);
 
   } catch(e) {
     console.error(e);
