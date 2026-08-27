@@ -42,7 +42,7 @@ EXCLUDE_CATS = {'SPARE', 'DEMO', 'OTHERS'}
 
 # ── Date-range helpers ────────────────────────────────────────────────────────
 def _get_months(q):
-    return {'Q1': [1,2,3], 'Q2': [4,5,6], 'Q3': [7,8,9], 'Q4': [10,11,12]}.get(q, [1,2,3])
+    return {'JFM': [1,2,3], 'AMJ': [4,5,6], 'JAS': [7,8,9], 'OND': [10,11,12]}.get(q, [1,2,3])
 
 def _date_filter_sql(comp_type, val, year=2026, alias='s'):
     """Return a SQL WHERE fragment for date filtering on azure_sales_report."""

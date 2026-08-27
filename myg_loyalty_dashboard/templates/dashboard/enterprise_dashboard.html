@@ -572,8 +572,8 @@ function initPeriods() {
       document.getElementById('comp-year-container').style.display = 'block';
       document.getElementById('base-period-container').style.display = 'block';
       document.getElementById('comp-period-container').style.display = 'block';
-      ['Q1','Q2','Q3','Q4'].forEach(q => { b.add(new Option(q,q)); c.add(new Option(q,q)); });
-      b.value = 'Q1'; c.value = 'Q2';
+      ['JFM','AMJ','JAS','OND'].forEach(q => { b.add(new Option(q,q)); c.add(new Option(q,q)); });
+      b.value = 'JFM'; c.value = 'AMJ';
     } else {
       document.getElementById('base-year-container').style.display = 'block';
       document.getElementById('comp-year-container').style.display = 'block';
