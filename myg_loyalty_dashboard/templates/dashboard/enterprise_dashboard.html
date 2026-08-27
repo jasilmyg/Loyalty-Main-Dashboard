@@ -12,6 +12,13 @@
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 
 <style>
+  /* Ensure dynamic date headers have enough width */
+  th[id$="-amt-h1"], th[id$="-qty-h1"] {
+    min-width: 170px;
+  }
+  th[id*="-share-"] {
+    min-width: 220px;
+  }
   /* ── Hide ONLY the global base filter bar (date pickers / Apply Filters) ── */
   /* Target the filter-bar that contains the global form, not the dashboard's own */
   .filter-bar:has(#global-filter-form),
