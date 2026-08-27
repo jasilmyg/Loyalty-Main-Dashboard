@@ -424,14 +424,14 @@
           <thead>
             <tr>
               <th rowspan="2" style="padding-left:1.25rem; vertical-align:middle; border-right:1px solid var(--border);">PRODUCT</th>
-              <th class="text-center">BASE AMT</th>
-              <th class="text-center">COMP AMT</th>
+              <th class="text-center" id="prod-base-amt-h1">BASE AMT</th>
+              <th class="text-center" id="prod-comp-amt-h1">COMP AMT</th>
               <th rowspan="2" class="text-center" style="vertical-align:middle;">GROWTH %</th>
-              <th rowspan="2" class="text-center" style="vertical-align:middle; border-right:1px solid var(--border);">SHARE COMP</th>
-              <th class="text-center">BASE QTY</th>
-              <th class="text-center">COMP QTY</th>
+              <th rowspan="2" class="text-center" id="prod-share-amt-h1" style="vertical-align:middle; border-right:1px solid var(--border);">SHARE COMP</th>
+              <th class="text-center" id="prod-base-qty-h1">BASE QTY</th>
+              <th class="text-center" id="prod-comp-qty-h1">COMP QTY</th>
               <th rowspan="2" class="text-center" style="vertical-align:middle;">GROWTH %</th>
-              <th rowspan="2" class="text-center" style="padding-right:1.25rem; vertical-align:middle;">SHARE COMP</th>
+              <th rowspan="2" class="text-center" id="prod-share-qty-h1" style="padding-right:1.25rem; vertical-align:middle;">SHARE COMP</th>
             </tr>
             <tr>
               <th class="text-center" style="border-top:none;">AMT</th>
@@ -454,14 +454,14 @@
           <thead>
             <tr>
               <th rowspan="2" style="padding-left:1.25rem; vertical-align:middle; border-right:1px solid var(--border);">BRAND</th>
-              <th class="text-center">BASE AMT</th>
-              <th class="text-center">COMP AMT</th>
+              <th class="text-center" id="brand-base-amt-h1">BASE AMT</th>
+              <th class="text-center" id="brand-comp-amt-h1">COMP AMT</th>
               <th rowspan="2" class="text-center" style="vertical-align:middle;">GROWTH %</th>
-              <th rowspan="2" class="text-center" style="vertical-align:middle; border-right:1px solid var(--border);">SHARE COMP</th>
-              <th class="text-center">BASE QTY</th>
-              <th class="text-center">COMP QTY</th>
+              <th rowspan="2" class="text-center" id="brand-share-amt-h1" style="vertical-align:middle; border-right:1px solid var(--border);">SHARE COMP</th>
+              <th class="text-center" id="brand-base-qty-h1">BASE QTY</th>
+              <th class="text-center" id="brand-comp-qty-h1">COMP QTY</th>
               <th rowspan="2" class="text-center" style="vertical-align:middle;">GROWTH %</th>
-              <th rowspan="2" class="text-center" style="padding-right:1.25rem; vertical-align:middle;">SHARE COMP</th>
+              <th rowspan="2" class="text-center" id="brand-share-qty-h1" style="padding-right:1.25rem; vertical-align:middle;">SHARE COMP</th>
             </tr>
             <tr>
               <th class="text-center" style="border-top:none;">AMT</th>
@@ -682,6 +682,21 @@ function renderScorecard(scorecard) {
   _set('sc-base-qty-h1',  bLabelShort);
   _set('sc-comp-qty-h1',  cLabelShort);
   _set('sc-share-qty-h1', 'SHARE ' + cLabelShort);
+  
+  _set('prod-base-amt-h1',  bLabelShort);
+  _set('prod-comp-amt-h1',  cLabelShort);
+  _set('prod-share-amt-h1', 'SHARE ' + cLabelShort);
+  _set('prod-base-qty-h1',  bLabelShort);
+  _set('prod-comp-qty-h1',  cLabelShort);
+  _set('prod-share-qty-h1', 'SHARE ' + cLabelShort);
+  
+  _set('brand-base-amt-h1',  bLabelShort);
+  _set('brand-comp-amt-h1',  cLabelShort);
+  _set('brand-share-amt-h1', 'SHARE ' + cLabelShort);
+  _set('brand-base-qty-h1',  bLabelShort);
+  _set('brand-comp-qty-h1',  cLabelShort);
+  _set('brand-share-qty-h1', 'SHARE ' + cLabelShort);
+
   _set('sc-period-label', bLabel + ' vs ' + cLabel);
 
   if (!scorecard||!scorecard.length){
