@@ -121,10 +121,59 @@ class Command(BaseCommand):
             """
             try:
                 start = time.time()
+                # 1. Insert into raw ingestion table
                 client.command(sql)
+                
+                # 2. Insert into the main sales_data table that powers the dashboard MVs
+                sql_sales_data = f"""
+                INSERT INTO sales_data (
+                    `Date`, `Time`, `invoice_number`, `branch`, `RBM`, `BDM`,
+                    `customer_mobile`, `staff_code`, `total_value`, 
+                    `discount`, `buyback`, `parsed_date`, `uid`, `customer_type`, `financier`, `finance`
+                )
+                SELECT 
+                    toString(toDate(`Date`)) as `Date`,
+                    `Time` as `Time`,
+                    `Invoice No` as `invoice_number`,
+                    `Branch` as `branch`,
+                    `RBM` as `RBM`,
+                    `BDM` as `BDM`,
+                    `Customer Bill To No` as `customer_mobile`,
+                    `Sales Staff Code` as `staff_code`,
+                    toFloat64OrZero(toString(`Invoice Total`)) as `total_value`,
+                    toString(`Discount`) as `discount`,
+                    toString(`Buyback`) as `buyback`,
+                    toDate(`Date`) as `parsed_date`,
+                    rand64() as `uid`,
+                    `Customer Type` as `customer_type`,
+                    `Financier Name` as `financier`,
+                    `Scheme` as `finance`
+                FROM azureBlobStorage('{connection_string}', 'sales-reports', '{file}', 'CSVWithNames')
+                WHERE 
+                    `Invoice No` NOT LIKE '%SMC%' AND 
+                    `Invoice No` NOT LIKE '%EI%' AND 
+                    `Branch` NOT IN ('HEAD OFFICE', 'UG SMART CHOICE')
+                """
+                client.command(sql_sales_data)
+                
+                # 3. Log the file as ingested
                 client.insert('azure_ingestion_log', [[file]], column_names=['file_name'])
                 self.stdout.write(self.style.SUCCESS(f"  -> Done in {time.time()-start:.2f}s"))
             except Exception as e:
                 self.stderr.write(self.style.ERROR(f"  -> Failed: {e}"))
 
         self.stdout.write(self.style.SUCCESS("Daily sync completed!"))
+
+        # Auto-update dashboard by clearing caches if new files were ingested
+        if item_sales_files or invoice_sales_files:
+            self.stdout.write("Clearing caches to auto-update dashboard...")
+            try:
+                import subprocess
+                clear_script = os.path.join(settings.BASE_DIR, 'clear_all_caches.py')
+                if os.path.exists(clear_script):
+                    subprocess.run(["python", clear_script], check=True)
+                    self.stdout.write(self.style.SUCCESS("Dashboard caches cleared successfully."))
+                else:
+                    self.stdout.write(self.style.WARNING(f"Cache clearing script not found at {clear_script}"))
+            except Exception as e:
+                self.stderr.write(self.style.ERROR(f"Failed to clear dashboard caches: {e}"))

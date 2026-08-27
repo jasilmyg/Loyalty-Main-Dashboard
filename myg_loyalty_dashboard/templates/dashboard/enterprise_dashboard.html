@@ -2,423 +2,1154 @@
 {% load static %}
 
 {% block content %}
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
-<link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css">
 <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/jquery/latest/jquery.min.js"></script>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 
 <style>
-    .enterprise-bg { background-color: #f8fafc; }
-    .card-kpi { border: none; border-top: 4px solid #3b82f6; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
-    .card-kpi-title { font-size: 0.85rem; color: #64748b; font-weight: 600; text-transform: uppercase; }
-    .card-kpi-value { font-size: 1.8rem; font-weight: 800; color: #0f172a; }
-    .growth-pos { color: #10b981; font-weight: 600; }
-    .growth-neg { color: #ef4444; font-weight: 600; }
-    
-    .filter-bar { display: none !important; }
-    
-    .filter-bar-sticky { position: sticky; top: 0; z-index: 1000; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); border-bottom: 1px solid #e2e8f0; padding: 1rem; margin-bottom: 2rem; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); }
-    
-    .chart-card { border: none; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
-    .chart-card .card-header { background: white; border-bottom: 1px solid #f1f5f9; border-radius: 12px 12px 0 0; padding: 1rem 1.5rem; font-weight: 700; color: #1e293b; }
-    
-    .nav-tabs .nav-link { color: #64748b; font-weight: 600; padding: 1rem 1.5rem; border: none; border-bottom: 3px solid transparent; }
-    .nav-tabs .nav-link.active { color: #3b82f6; border-bottom: 3px solid #3b82f6; background: transparent; }
+  /* ── Hide ONLY the global base filter bar (date pickers / Apply Filters) ── */
+  /* Target the filter-bar that contains the global form, not the dashboard's own */
+  .filter-bar:has(#global-filter-form),
+  .filter-bar:has(form[id="global-filter-form"]) {
+    display: none !important;
+  }
+
+  :root {
+    --bg:        #f0f4f8;
+    --surface:   #ffffff;
+    --border:    #e2e8f0;
+    --text-1:    #0f172a;
+    --text-2:    #475569;
+    --text-3:    #94a3b8;
+    --blue:      #3b82f6;
+    --green:     #10b981;
+    --red:       #ef4444;
+    --orange:    #f59e0b;
+    --purple:    #8b5cf6;
+    --indigo:    #6366f1;
+    --radius:    12px;
+    --shadow:    0 1px 4px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
+  }
+
+  body { background: var(--bg) !important; }
+
+  /* ── Layout ── */
+  .dash-wrap  { padding: 1.5rem 1.75rem; max-width: 1600px; }
+
+  /* ── Card ── */
+  .card-s {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+  .card-s .card-head {
+    padding: .9rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: .5rem;
+  }
+  .card-s .card-head .title {
+    font-size: .78rem; font-weight: 700; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--text-2);
+  }
+  .card-s .card-body-s { padding: 1.25rem; }
+
+  /* ── Filter bar ── */
+  .filter-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    overflow: visible;
+  }
+  .filter-bar label { font-size: .72rem; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: .05em; margin-bottom: .3rem; display: block; }
+  .filter-bar .form-select, .filter-bar .form-control {
+    font-size: .83rem; border: 1px solid var(--border); border-radius: 8px;
+    padding: .4rem .7rem; color: var(--text-1); min-width: 130px;
+  }
+  /* Tom Select inside filter bar */
+  .filter-bar .ts-wrapper {
+    width: 100%;
+  }
+  .filter-bar .ts-control {
+    border: 1px solid var(--border) !important;
+    border-radius: 8px !important;
+    font-size: 0.83rem !important;
+    min-height: 36px !important;
+    background: #f8fafc !important;
+    box-shadow: none !important;
+    padding: 3px 8px !important;
+    cursor: pointer;
+  }
+  .filter-bar .ts-control input { font-size: 0.83rem !important; }
+  .filter-bar .ts-control .item {
+    background: #e0e7ff !important;
+    color: #3730a3 !important;
+    border-radius: 4px !important;
+    font-size: 0.72rem !important;
+    padding: 1px 6px !important;
+    font-weight: 600 !important;
+  }
+
+  /* ── KPI cards ── */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+  @media(max-width:900px){ .kpi-grid { grid-template-columns: repeat(2,1fr); } }
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1.1rem 1.25rem;
+    position: relative; overflow: hidden;
+  }
+  .kpi-card::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+    width: 4px; border-radius: 4px 0 0 4px;
+  }
+  .kpi-card.c-blue::before   { background: var(--blue); }
+  .kpi-card.c-green::before  { background: var(--green); }
+  .kpi-card.c-orange::before { background: var(--orange); }
+  .kpi-card.c-purple::before { background: var(--purple); }
+  .kpi-label { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-3); margin-bottom: .35rem; }
+  .kpi-value { font-size: 1.65rem; font-weight: 800; color: var(--text-1); line-height: 1.1; }
+  .kpi-badge {
+    display: inline-flex; align-items: center; gap: .2rem;
+    font-size: .7rem; font-weight: 700; padding: .18rem .5rem;
+    border-radius: 20px; margin-top: .45rem;
+  }
+  .kpi-badge.pos { background: rgba(16,185,129,.1); color: var(--green); }
+  .kpi-badge.neg { background: rgba(239,68,68,.1);  color: var(--red); }
+  .kpi-badge.neu { background: rgba(100,116,139,.1); color: var(--text-2); }
+
+  /* ── Scorecard table ── */
+  .sc-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  .sc-table thead th {
+    background: #eef2ff;
+    color: #3730a3;
+    font-size: .78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    padding: .75rem 1rem;
+    border-bottom: 2px solid #c7d2fe;
+    white-space: nowrap;
+  }
+  .sc-table tbody tr { border-bottom: 1px solid #f1f5f9; transition: background .12s; }
+  .sc-table tbody tr:hover { background: #fafbff; }
+  .sc-table tbody tr.grand-total { background: #f8fafc; font-weight: 700; border-top: 2px solid var(--border); }
+  .sc-table td { padding: .65rem 1rem; color: var(--text-1); vertical-align: middle; }
+  .cat-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .badge-g {
+    display: inline-flex; align-items: center; gap: .2rem;
+    font-size: .7rem; font-weight: 700;
+    padding: .22rem .6rem; border-radius: 6px; min-width: 72px; justify-content: center;
+  }
+  .badge-g.pos { background: rgba(16,185,129,.12); color: #059669; }
+  .badge-g.neg { background: rgba(239,68,68,.12);  color: #dc2626; }
+  .badge-g.zer { background: #f1f5f9; color: var(--text-3); }
+
+  /* ── Brand table ── */
+  .brand-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+  .brand-table thead th {
+    background: #f8fafc; color: var(--text-3);
+    font-size: .67rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
+    padding: .55rem .9rem; border-bottom: 1px solid var(--border);
+  }
+  .brand-table tbody tr { border-bottom: 1px solid #f1f5f9; }
+  .brand-table tbody tr:hover { background: #fafbff; }
+  .brand-table td { padding: .5rem .9rem; color: var(--text-1); }
+
+  /* ── Tab nav ── */
+  .tab-nav { display: flex; gap: 0; border-bottom: 1px solid var(--border); }
+  .tab-btn {
+    background: none; border: none; padding: .6rem 1.1rem;
+    font-size: .76rem; font-weight: 600; color: var(--text-3); cursor: pointer;
+    border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all .15s;
+  }
+  .tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); }
+  .tab-panel { display: none; } .tab-panel.active { display: block; }
+
+  /* ── Section grid ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media(max-width:860px){ .two-col { grid-template-columns: 1fr; } }
+
+  /* ── Misc ── */
+  .section-icon { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: .85rem; }
+  .text-right { text-align: right; }
+  .text-mono  { font-family: 'Courier New', monospace; }
+  /* Table scroll container — fixed height so sticky thead works perfectly */
+  .scrollable {
+    overflow-x: auto;
+    overflow-y: auto;
+    max-height: 65vh;   /* scrollable table body */
+    border-radius: 0 0 var(--radius) var(--radius);
+  }
+
+  /* ── Sticky tab bar + thead ── */
+  .dash-tab-bar {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+  /* Row 1 of thead — sticks at the very top of the scroll container */
+  .sc-table thead tr:first-child th {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: #eef2ff;
+    box-shadow: 0 1px 0 #c7d2fe;
+  }
+  /* Row 2 of thead — sticks just below row 1 (~38px) */
+  .sc-table thead tr:last-child th {
+    position: sticky;
+    top: 38px;
+    z-index: 30;
+    background: #eef2ff;
+    box-shadow: 0 2px 4px rgba(99,102,241,.12), 0 2px 0 #c7d2fe;
+  }
+  .rank-badge { display: inline-block; width: 20px; height: 20px; line-height: 20px; text-align: center; font-size: .65rem; font-weight: 800; border-radius: 50%; background: #f1f5f9; color: var(--text-2); }
+  .var-pos { color: var(--green); font-weight: 700; }
+  .var-neg { color: var(--red);   font-weight: 700; }
+  .btn-comp {
+    background: var(--text-1); color: #fff; border: none; border-radius: 8px;
+    padding: .5rem 1.4rem; font-size: .83rem; font-weight: 700; cursor: pointer;
+    transition: opacity .15s;
+  }
+  .btn-comp:hover { opacity: .85; }
+  .btn-exp {
+    background: var(--surface); color: var(--text-2); border: 1px solid var(--border);
+    border-radius: 8px; padding: .45rem 1rem; font-size: .78rem; font-weight: 600; cursor: pointer;
+    display: inline-flex; align-items: center; gap: .35rem; transition: background .15s;
+  }
+  .btn-exp:hover { background: #f8fafc; }
+  .btn-refresh {
+    background: #f59e0b; color: #fff; border: none; border-radius: 8px;
+    padding: .45rem 1rem; font-size: .78rem; font-weight: 700; cursor: pointer;
+    display: inline-flex; align-items: center; gap: .35rem;
+  }
+  .skeleton { background: linear-gradient(90deg, #f0f4f8 25%, #e2e8f0 50%, #f0f4f8 75%); background-size: 200%; animation: shimmer 1.2s infinite; border-radius: 6px; }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  .loading-row td { padding: .7rem 1rem; }
+  .progress-bar-mini { height: 4px; border-radius: 2px; background: #e2e8f0; overflow: hidden; margin-top: 3px; }
+  .progress-bar-mini-fill { height: 100%; border-radius: 2px; background: var(--blue); }
 </style>
 
-<div class="container-fluid enterprise-bg p-4 pt-2">
+<div class="dash-wrap">
+
+  <!-- ══ HEADER ══════════════════════════════════════════════════════════════ -->
+  <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+    <div>
+      <h2 style="font-size:1.4rem;font-weight:800;color:var(--text-1);margin:0">
+        Retail Performance Analytics
+      </h2>
+      <p style="font-size:.78rem;color:var(--text-3);margin:.2rem 0 0">
+        Category · Brand · Product Intelligence — powered by ClickHouse
+      </p>
+    </div>
     
-    <!-- 1. DASHBOARD HEADER -->
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <div>
-            <h2 class="fw-bold mb-0 text-dark">Retail Performance Analytics Dashboard</h2>
-            <p class="text-muted mb-0">Category, Brand & VAS Intelligence Platform</p>
-        </div>
-        <div class="d-flex gap-2">
-            <button class="btn btn-outline-primary" onclick="exportExcel()"><i class="bi bi-file-earmark-excel"></i> Export Excel</button>
-            <button class="btn btn-outline-danger" onclick="window.print()"><i class="bi bi-file-pdf"></i> Export PDF</button>
-            <button class="btn btn-primary" onclick="loadDashboardData()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
-        </div>
+    <div class="d-flex gap-2 align-items-center">
+      <button class="btn-exp" onclick="exportExcel()">
+        <i class="bi bi-file-earmark-excel" style="color:#10b981"></i> Export Excel
+      </button>
+      <button class="btn-exp" onclick="window.print()">
+        <i class="bi bi-file-pdf" style="color:#ef4444"></i> PDF
+      </button>
+      <button class="btn-refresh" onclick="loadDashboardData()">
+        <i class="bi bi-arrow-clockwise"></i> Refresh
+      </button>
+    </div>
+  </div>
+
+  <!-- ══ FILTER BAR ══════════════════════════════════════════════════════════ -->
+  <div class="filter-bar mb-3">
+
+    <!-- Row 1: Comparison Type + Filters (full-width 5-column grid) -->
+    <div style="display:grid; grid-template-columns: 170px 1fr 1fr 1fr 1fr; gap:0.75rem; align-items:end; width:100%;">
+      <div>
+        <label><i class="bi bi-sliders text-primary me-1"></i> Comparison Type</label>
+        <select class="form-select" id="comp-type" onchange="togglePeriods()" style="background-color:#f8fafc; font-size:0.83rem; width:100%;">
+          <option value="monthly" selected>Monthly</option>
+          <option value="quarterly">Quarterly</option>
+          <option value="yearly">Yearly</option>
+          <option value="fy">Financial Year</option>
+          <option disabled>──────────</option>
+          <option value="mtd">MTD</option>
+          <option value="mtd_yoy">MTD YoY</option>
+          <option value="qtd">QTD</option>
+          <option value="qtd_yoy">QTD YoY</option>
+          <option value="ytd_existing">YTD Existing</option>
+          <option value="ytd_fy">YTD FY</option>
+          <option disabled>──────────</option>
+          <option value="custom">Custom Date</option>
+        </select>
+      </div>
+      <div>
+        <label><i class="bi bi-tags text-primary me-1"></i> Category</label>
+        <select id="dash-cat"></select>
+      </div>
+      <div>
+        <label><i class="bi bi-building text-primary me-1"></i> Branch</label>
+        <select id="dash-branch"></select>
+      </div>
+      <div>
+        <label><i class="bi bi-award text-primary me-1"></i> Brand</label>
+        <select id="dash-brand"></select>
+      </div>
+      <div>
+        <label><i class="bi bi-box-seam text-primary me-1"></i> Product</label>
+        <select id="dash-product"></select>
+      </div>
     </div>
 
-    <!-- 2. GLOBAL FILTER BAR -->
-    <div class="filter-bar-sticky d-flex gap-3 align-items-end flex-wrap">
-        <div style="min-width: 150px;">
-            <label class="form-label small text-muted fw-bold">Comparison Type</label>
-            <select class="form-select" id="comp-type" onchange="togglePeriods()">
-                <option value="monthly" selected>Monthly</option>
-                <option value="quarterly">Quarterly</option>
-                <option value="fy">Financial Yearly</option>
-            </select>
+    <!-- Bottom Row: Base vs Comp -->
+    <div class="d-flex flex-wrap align-items-center w-100" style="gap: 1.5rem; position: relative;">
+      
+      <!-- Base Period -->
+      <div class="flex-grow-1 p-3 rounded" style="background:#f8fafc; border:1px solid #e2e8f0;">
+        <div style="font-size:0.75rem; font-weight:700; color:#64748b; margin-bottom:0.6rem; text-transform:uppercase; letter-spacing:0.05em;">
+          <i class="bi bi-calendar-minus me-1"></i> Base Period
         </div>
-        <div style="min-width: 150px;">
-            <label class="form-label small text-muted fw-bold">Base Period</label>
-            <select class="form-select" id="base-period"></select>
+        <div class="d-flex gap-2" id="base-selects">
+          <div id="base-year-container" class="flex-grow-1">
+            <select class="form-select w-100" id="base-year"></select>
+          </div>
+          <div class="flex-grow-1" id="base-period-container">
+            <select class="form-select w-100" id="base-period"></select>
+          </div>
         </div>
-        <div style="min-width: 150px;">
-            <label class="form-label small text-muted fw-bold">Comparison Period</label>
-            <select class="form-select" id="comp-period"></select>
+        <div id="base-custom-container" style="display:none;">
+          <input type="text" class="form-control daterange-picker" id="base-daterange" style="background-color:#fff; min-width:210px; cursor:pointer;" readonly />
         </div>
-        
-        <div class="border-start mx-2 h-100"></div>
+      </div>
 
-        <div style="min-width: 150px;">
-            <label class="form-label small text-muted fw-bold">Category</label>
-            <select class="form-select" id="filter-cat">
-                <option value="">All Categories</option>
-                <option value="MOBILE">Mobile</option>
-                <option value="LAPTOP">Laptop/Computers</option>
-                <option value="CE">Consumer Electronics</option>
-                <option value="ACC">Accessories</option>
-                <option value="TABLET">Tablet</option>
-                <option value="RIG">Rig</option>
-                <option value="OTHER">Other</option>
-            </select>
+      <!-- VS Badge -->
+      <div class="d-flex align-items-center justify-content-center shadow-sm" style="width:40px; height:40px; background:#fff; color:var(--blue); border:1px solid #e2e8f0; border-radius:50%; font-size:0.8rem; font-weight:800; z-index:2; margin: 0 -1.2rem;">
+        VS
+      </div>
+
+      <!-- Comp Period -->
+      <div class="flex-grow-1 p-3 rounded" style="background:#f0f9ff; border:1px solid #bae6fd;">
+        <div style="font-size:0.75rem; font-weight:700; color:#0284c7; margin-bottom:0.6rem; text-transform:uppercase; letter-spacing:0.05em;">
+          <i class="bi bi-calendar-check me-1"></i> Comparison Period
         </div>
-        
-        <div class="ms-auto">
-            <button class="btn btn-dark px-4" onclick="loadDashboardData()">Compare</button>
+        <div class="d-flex gap-2" id="comp-selects">
+          <div id="comp-year-container" class="flex-grow-1">
+            <select class="form-select w-100" id="comp-year"></select>
+          </div>
+          <div class="flex-grow-1" id="comp-period-container">
+            <select class="form-select w-100" id="comp-period"></select>
+          </div>
         </div>
+        <div id="comp-custom-container" style="display:none;">
+          <input type="text" class="form-control daterange-picker" id="comp-daterange" style="background-color:#fff; min-width:210px; cursor:pointer;" readonly />
+        </div>
+      </div>
+
+      <!-- Compare Button -->
+      <div class="ms-auto ps-2 mt-3 mt-md-0">
+        <button class="btn btn-primary d-flex align-items-center gap-2 shadow-sm" onclick="loadDashboardData()" style="padding: 0.6rem 1.5rem; font-weight:700; border-radius:8px; font-size:0.85rem;">
+          <i class="bi bi-lightning-charge-fill"></i> Compare
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══ REPORT TABS + SCORECARD ══════════════════════════════════════════ -->
+  <div class="card-s mb-3">
+
+    <!-- Tab Bar -->
+    <div class="dash-tab-bar" style="display:flex; align-items:center; gap:0; padding:0 1.25rem; border-radius: var(--radius) var(--radius) 0 0;">
+      <button id="tab-cat" onclick="switchTab('cat')" class="dash-tab active"
+              style="padding:.65rem 1.1rem; font-size:.78rem; font-weight:700; background:none; border:none; border-bottom:2px solid var(--blue); color:var(--blue); cursor:pointer; letter-spacing:.04em; text-transform:uppercase; margin-right:.5rem;">
+        <i class="bi bi-table me-1"></i> Category
+      </button>
+      <button id="tab-product" onclick="switchTab('product')" class="dash-tab"
+              style="padding:.65rem 1.1rem; font-size:.78rem; font-weight:700; background:none; border:none; border-bottom:2px solid transparent; color:var(--text-3); cursor:pointer; letter-spacing:.04em; text-transform:uppercase; margin-right:.5rem;">
+        <i class="bi bi-box-seam me-1"></i> Product Report
+      </button>
+      <button id="tab-brand" onclick="switchTab('brand')" class="dash-tab"
+              style="padding:.65rem 1.1rem; font-size:.78rem; font-weight:700; background:none; border:none; border-bottom:2px solid transparent; color:var(--text-3); cursor:pointer; letter-spacing:.04em; text-transform:uppercase;">
+        <i class="bi bi-award me-1"></i> Brand Report
+      </button>
+      <span style="margin-left:auto; font-size:.7rem; color:var(--text-3);" id="sc-period-label"></span>
     </div>
 
-    <!-- 3. KPI SECTION -->
-    <div class="row g-4 mb-4">
-        <div class="col-md-4">
-            <div class="card card-kpi h-100 p-3">
-                <div class="card-kpi-title">Total Sales (Comparison)</div>
-                <div class="card-kpi-value" id="kpi-sales">₹0</div>
-                <div class="small mt-2" id="kpi-sales-growth">0% vs Base</div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card card-kpi h-100 p-3">
-                <div class="card-kpi-title">Total QTY</div>
-                <div class="card-kpi-value" id="kpi-qty">0</div>
-                <div class="small mt-2" id="kpi-qty-growth">0% vs Base</div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card card-kpi h-100 p-3">
-                <div class="card-kpi-title">Avg Selling Price</div>
-                <div class="card-kpi-value" id="kpi-asp">₹0</div>
-                <div class="small mt-2" id="kpi-asp-growth">0% vs Base</div>
-            </div>
-        </div>
+    <!-- PANEL: Category Scorecard -->
+    <div id="panel-cat" class="dash-panel" style="display:block;">
+      <div class="scrollable">
+        <table class="sc-table">
+          <thead>
+            <tr>
+              <th rowspan="2" style="padding-left:1.25rem; vertical-align:middle; border-right:1px solid var(--border);">PDT CAT</th>
+              <th class="text-center" id="sc-base-amt-h1">BASE</th>
+              <th class="text-center" id="sc-comp-amt-h1">COMP</th>
+              <th rowspan="2" class="text-center" style="vertical-align:middle;">GROWTH %</th>
+              <th rowspan="2" class="text-center" id="sc-share-amt-h1" style="vertical-align:middle; border-right:1px solid var(--border);">SHARE COMP</th>
+              <th class="text-center" id="sc-base-qty-h1">BASE</th>
+              <th class="text-center" id="sc-comp-qty-h1">COMP</th>
+              <th rowspan="2" class="text-center" style="vertical-align:middle;">GROWTH %</th>
+              <th rowspan="2" class="text-center" id="sc-share-qty-h1" style="padding-right:1.25rem; vertical-align:middle;">SHARE COMP</th>
+            </tr>
+            <tr>
+              <th class="text-center" style="border-top:none;">AMT</th>
+              <th class="text-center" style="border-top:none;">AMT</th>
+              <th class="text-center" style="border-top:none; border-left:1px solid var(--border);">QTY</th>
+              <th class="text-center" style="border-top:none;">QTY</th>
+            </tr>
+          </thead>
+          <tbody id="scorecard-tbody">
+            <tr class="loading-row"><td colspan="9"><div class="skeleton" style="height:14px;width:60%"></div></td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
-    <!-- 4. CATEGORY SCORECARD -->
-    <div class="card chart-card mb-4">
-        <div class="card-header text-uppercase" style="letter-spacing: 1px; font-size: 0.85rem; color: #475569;">
-            <i class="bi bi-circle-fill text-warning" style="font-size: 0.5rem; vertical-align: middle; margin-right: 8px;"></i>
-            Category Scorecard — Full Detail
-        </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0" id="scorecard-table">
-                    <thead style="background-color: #f8fafc; font-size: 0.75rem; color: #64748b; letter-spacing: 1px;" class="text-uppercase">
-                        <tr>
-                            <th class="ps-4 py-3">Category</th>
-                            <th class="py-3 text-end" id="sc-base-th">Base ₹Cr</th>
-                            <th class="py-3 text-end" id="sc-comp-th">Comp ₹Cr</th>
-                            <th class="py-3 text-end">Amt Growth</th>
-                            <th class="py-3 text-end" id="sc-qty-th">Comp Qty</th>
-                            <th class="py-3 text-end">Qty Growth</th>
-                            <th class="py-3 text-end">Comp ASP</th>
-                            <th class="pe-4 py-3 text-end">Share %</th>
-                        </tr>
-                    </thead>
-                    <tbody class="border-top-0" id="scorecard-tbody">
-                        <!-- Populated by JS -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
+    <!-- PANEL: Product Report -->
+    <div id="panel-product" class="dash-panel" style="display:none;">
+      <div class="scrollable">
+        <table class="sc-table">
+          <thead>
+            <tr>
+              <th rowspan="2" style="padding-left:1.25rem; vertical-align:middle; border-right:1px solid var(--border);">PRODUCT</th>
+              <th class="text-center">BASE AMT</th>
+              <th class="text-center">COMP AMT</th>
+              <th rowspan="2" class="text-center" style="vertical-align:middle;">GROWTH %</th>
+              <th rowspan="2" class="text-center" style="vertical-align:middle; border-right:1px solid var(--border);">SHARE COMP</th>
+              <th class="text-center">BASE QTY</th>
+              <th class="text-center">COMP QTY</th>
+              <th rowspan="2" class="text-center" style="vertical-align:middle;">GROWTH %</th>
+              <th rowspan="2" class="text-center" style="padding-right:1.25rem; vertical-align:middle;">SHARE COMP</th>
+            </tr>
+            <tr>
+              <th class="text-center" style="border-top:none;">AMT</th>
+              <th class="text-center" style="border-top:none;">AMT</th>
+              <th class="text-center" style="border-top:none; border-left:1px solid var(--border);">QTY</th>
+              <th class="text-center" style="border-top:none;">QTY</th>
+            </tr>
+          </thead>
+          <tbody id="product-tbody">
+            <tr class="loading-row"><td colspan="9"><div class="skeleton" style="height:14px;width:60%"></div></td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
-
-
-    <!-- 6. BRAND PERFORMANCE SECTION -->
-    <div class="card chart-card mb-4">
-        <div class="card-header border-bottom-0 pb-0">Brand Analytics (Top 15)</div>
-        <ul class="nav nav-tabs px-3 border-bottom" id="brandTabs">
-            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#mobile">Mobile</a></li>
-            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#laptop">Laptop</a></li>
-            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tablet">Tablet</a></li>
-            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ce">CE</a></li>
-        </ul>
-        <div class="card-body tab-content">
-            <div class="tab-pane fade show active" id="mobile">
-                <div class="row">
-                    <div class="col-md-5"><div id="brand-donut-mobile"></div></div>
-                    <div class="col-md-7"><div id="brand-bar-mobile"></div></div>
-                </div>
-            </div>
-            <div class="tab-pane fade" id="laptop">
-                <div class="row">
-                    <div class="col-md-5"><div id="brand-donut-laptop"></div></div>
-                    <div class="col-md-7"><div id="brand-bar-laptop"></div></div>
-                </div>
-            </div>
-            <div class="tab-pane fade" id="tablet">
-                <div class="row">
-                    <div class="col-md-5"><div id="brand-donut-tablet"></div></div>
-                    <div class="col-md-7"><div id="brand-bar-tablet"></div></div>
-                </div>
-            </div>
-            <div class="tab-pane fade" id="ce">
-                <div class="row">
-                    <div class="col-md-5"><div id="brand-donut-ce"></div></div>
-                    <div class="col-md-7"><div id="brand-bar-ce"></div></div>
-                </div>
-            </div>
-        </div>
+    <!-- PANEL: Brand Report -->
+    <div id="panel-brand" class="dash-panel" style="display:none;">
+      <div class="scrollable">
+        <table class="sc-table">
+          <thead>
+            <tr>
+              <th rowspan="2" style="padding-left:1.25rem; vertical-align:middle; border-right:1px solid var(--border);">BRAND</th>
+              <th class="text-center">BASE AMT</th>
+              <th class="text-center">COMP AMT</th>
+              <th rowspan="2" class="text-center" style="vertical-align:middle;">GROWTH %</th>
+              <th rowspan="2" class="text-center" style="vertical-align:middle; border-right:1px solid var(--border);">SHARE COMP</th>
+              <th class="text-center">BASE QTY</th>
+              <th class="text-center">COMP QTY</th>
+              <th rowspan="2" class="text-center" style="vertical-align:middle;">GROWTH %</th>
+              <th rowspan="2" class="text-center" style="padding-right:1.25rem; vertical-align:middle;">SHARE COMP</th>
+            </tr>
+            <tr>
+              <th class="text-center" style="border-top:none;">AMT</th>
+              <th class="text-center" style="border-top:none;">AMT</th>
+              <th class="text-center" style="border-top:none; border-left:1px solid var(--border);">QTY</th>
+              <th class="text-center" style="border-top:none;">QTY</th>
+            </tr>
+          </thead>
+          <tbody id="brand-tbody">
+            <tr class="loading-row"><td colspan="9"><div class="skeleton" style="height:14px;width:60%"></div></td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
-    <!-- 7. BRAND REPORT MODAL -->
-    <div class="modal fade" id="brandReportModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header bg-light">
-                    <h5 class="modal-title fw-bold" id="brandReportTitle">Top 15 Brands</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover table-striped mb-0 align-middle">
-                            <thead class="table-light text-uppercase" style="font-size: 0.75rem; letter-spacing: 1px;">
-                                <tr>
-                                    <th class="ps-4 py-3">Brand</th>
-                                    <th class="py-3 text-end">Base Qty</th>
-                                    <th class="py-3 text-end">Base Rev</th>
-                                    <th class="py-3 text-end">Comp Qty</th>
-                                    <th class="py-3 text-end">Comp Rev</th>
-                                    <th class="py-3 text-end">Variance Rev</th>
-                                    <th class="pe-4 py-3 text-end">Comp ASP</th>
-                                </tr>
-                            </thead>
-                            <tbody id="brand-report-tbody">
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+  </div><!-- /.card-s tabs -->
 
-</div>
+</div><!-- /.dash-wrap -->
+
 
 <script>
-    let charts = {};
+/* ══════════════════════════════════════════════════════════════════════════════
+   State
+══════════════════════════════════════════════════════════════════════════════ */
+let _data        = null;
+let _chartRef    = {};
+let _activeBrand = 'MOBILE';
 
-    function initPeriods() {
-        const type = document.getElementById('comp-type').value;
-        const b = document.getElementById('base-period');
-        const c = document.getElementById('comp-period');
-        b.innerHTML = ''; c.innerHTML = '';
-        
-        if (type === 'monthly') {
-            const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-            for(let i=1; i<=12; i++) {
-                b.options.add(new Option(monthNames[i-1], i));
-                c.options.add(new Option(monthNames[i-1], i));
-            }
-            b.value = 4; c.value = 5;
-        } else if (type === 'quarterly') {
-            ['Q1', 'Q2', 'Q3', 'Q4'].forEach(q => {
-                b.options.add(new Option(q, q));
-                c.options.add(new Option(q, q));
-            });
-            b.value = 'Q1'; c.value = 'Q2';
-        } else {
-            ['2024', '2025', '2026', '2027'].forEach(y => {
-                b.options.add(new Option(y, y));
-                c.options.add(new Option(y, y));
-            });
-            b.value = '2025'; c.value = '2026';
-        }
-    }
+const CAT_COLORS = {
+  MOBILE:'#3b82f6', LAPTOP:'#64748b', CE:'#ef4444',
+  ACC:'#10b981', TABLET:'#8b5cf6', RIG:'#f59e0b',
+  'VALUE ADDED SERVICE':'#06b6d4', OTHER:'#94a3b8'
+};
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Formatters
+══════════════════════════════════════════════════════════════════════════════ */
+const fCr  = v => (v/1e7).toFixed(2);
+const fRs  = v => '₹'+Math.round(v).toLocaleString('en-IN');
+const fN   = v => Number(v||0).toLocaleString('en-IN');
+const gBadge = (g, narrow=false) => {
+  const w = narrow ? '62px' : '72px';
+  if (!g && g!==0) return `<span class="badge-g zer" style="min-width:${w}">—</span>`;
+  if (Math.abs(g) < 0.005) return `<span class="badge-g zer" style="min-width:${w}">0.00%</span>`;
+  const cls = g > 0 ? 'pos' : 'neg';
+  const arr = g > 0 ? '▲' : '▼';
+  return `<span class="badge-g ${cls}" style="min-width:${w}">${arr} ${Math.abs(g).toFixed(2)}%</span>`;
+};
+const gKpi = (g, id) => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const cls = g >= 0 ? 'pos' : 'neg';
+  const arr = g >= 0 ? '▲' : '▼';
+  el.innerHTML = `<span class="kpi-badge ${cls}">${arr} ${Math.abs(g).toFixed(1)}%</span>
+                  <span style="font-size:.67rem;color:var(--text-3);margin-left:.3rem">vs Base</span>`;
+};
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Period selectors
+══════════════════════════════════════════════════════════════════════════════ */
+function initPeriods() {
+  const type = document.getElementById('comp-type').value;
+  const b = document.getElementById('base-period');
+  const c = document.getElementById('comp-period');
+  const by = document.getElementById('base-year');
+  const cy = document.getElementById('comp-year');
+
+  b.innerHTML = ''; c.innerHTML = '';
+  
+  if (by.options.length === 0) {
+      ['2020','2021','2022','2023','2024','2025','2026','2027'].forEach(y => { 
+          by.add(new Option(y,y)); 
+          cy.add(new Option(y,y)); 
+      });
+      by.value = '2025'; cy.value = '2026';
+  }
+
+  const customTypes = ['custom', 'mtd', 'mtd_yoy', 'qtd', 'qtd_yoy', 'ytd', 'ytd_existing', 'ytd_fy'];
+  if (customTypes.includes(type)) {
+    document.getElementById('base-selects').classList.add('d-none');
+    document.getElementById('comp-selects').classList.add('d-none');
+    document.getElementById('base-custom-container').style.display = 'block';
+    document.getElementById('comp-custom-container').style.display = 'block';
     
-    window.togglePeriods = initPeriods;
+    const isCustom = type === 'custom';
+    $('#base-daterange').prop('disabled', !isCustom);
+    $('#comp-daterange').prop('disabled', !isCustom);
     
-    const fCurrency = (v) => '₹' + (v/10000000).toFixed(2) + 'Cr';
-    const fLakhs = (v) => '₹' + (v/100000).toFixed(2) + 'L';
-
-    function buildChart(id, options) {
-        if(charts[id]) charts[id].destroy();
-        charts[id] = new ApexCharts(document.querySelector("#" + id), options);
-        charts[id].render();
+    if (!isCustom) {
+      calculateQuickDates(type);
     }
+  } else {
+    document.getElementById('base-selects').classList.remove('d-none');
+    document.getElementById('comp-selects').classList.remove('d-none');
+    document.getElementById('base-custom-container').style.display = 'none';
+    document.getElementById('comp-custom-container').style.display = 'none';
+    
+    if (type === 'monthly') {
+      document.getElementById('base-year-container').style.display = 'block';
+      document.getElementById('comp-year-container').style.display = 'block';
+      document.getElementById('base-period-container').style.display = 'block';
+      document.getElementById('comp-period-container').style.display = 'block';
+      const mth = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      mth.forEach((m,i) => { b.add(new Option(m,i+1)); c.add(new Option(m,i+1)); });
+      b.value = 4; c.value = 5;
+    } else if (type === 'quarterly') {
+      document.getElementById('base-year-container').style.display = 'block';
+      document.getElementById('comp-year-container').style.display = 'block';
+      document.getElementById('base-period-container').style.display = 'block';
+      document.getElementById('comp-period-container').style.display = 'block';
+      ['Q1','Q2','Q3','Q4'].forEach(q => { b.add(new Option(q,q)); c.add(new Option(q,q)); });
+      b.value = 'Q1'; c.value = 'Q2';
+    } else {
+      document.getElementById('base-year-container').style.display = 'block';
+      document.getElementById('comp-year-container').style.display = 'block';
+      document.getElementById('base-period-container').style.display = 'none';
+      document.getElementById('comp-period-container').style.display = 'none';
+      ['2020','2021','2022','2023','2024','2025','2026','2027'].forEach(y => { b.add(new Option(y,y)); c.add(new Option(y,y)); });
+      b.value = '2025'; c.value = '2026';
+    }
+  }
+}
 
-    async function loadDashboardData() {
-        if(window.showLoading) window.showLoading();
-        
-        const type = document.getElementById('comp-type').value;
-        const base = document.getElementById('base-period').value;
-        const comp = document.getElementById('comp-period').value;
-        const cat = document.getElementById('filter-cat').value;
-        
-        try {
-            const res = await fetch(`/api/v1/enterprise-dashboard/?type=${type}&base=${base}&comp=${comp}&category=${cat}`);
-            const json = await res.json();
-            
-            if (json.status !== 'success') {
-                alert("Error loading data: " + json.message);
-                if(window.hideLoading) window.hideLoading();
-                return;
-            }
-            
-            const data = json.data;
-            window.dashboardData = data; // Store for popup modal
-            
-            // 1. KPIs
-            document.getElementById('kpi-sales').innerText = fCurrency(data.kpis.comp.sales);
-            document.getElementById('kpi-qty').innerText = data.kpis.comp.qty.toLocaleString();
-            
-            // Format ASP in normal Rs (since ASP is around ₹8000)
-            const fRupees = (v) => '₹' + Math.round(v).toLocaleString('en-IN');
-            document.getElementById('kpi-asp').innerText = fRupees(data.kpis.comp.asp);
-            
-            const renderGrowth = (g, elId) => {
-                const gCls = g >= 0 ? 'growth-pos' : 'growth-neg';
-                document.getElementById(elId).innerHTML = `<span class="${gCls}">${g>0?'▲':'▼'} ${Math.abs(g).toFixed(1)}%</span> vs Base`;
+function calculateQuickDates(type) {
+  if (typeof $ === 'undefined' || !$.fn.daterangepicker) return;
+  const drpB = $('#base-daterange').data('daterangepicker');
+  const drpC = $('#comp-daterange').data('daterangepicker');
+  if (!drpB || !drpC) return;
+
+  let bStart = moment(), bEnd = moment(), cStart = moment(), cEnd = moment();
+  
+  if (type === 'mtd') {
+    cStart = moment().startOf('month'); cEnd = moment();
+    bStart = moment().subtract(1, 'month').startOf('month');
+    bEnd = moment().subtract(1, 'month').date(Math.min(moment().date(), moment().subtract(1, 'month').daysInMonth()));
+  } else if (type === 'mtd_yoy') {
+    cStart = moment().startOf('month'); cEnd = moment();
+    bStart = moment().subtract(1, 'year').startOf('month');
+    bEnd = moment().subtract(1, 'year').date(moment().date());
+  } else if (type === 'qtd') {
+    cStart = moment().startOf('quarter'); cEnd = moment();
+    bStart = moment().subtract(1, 'quarter').startOf('quarter');
+    const daysInQ = moment().diff(moment().startOf('quarter'), 'days');
+    bEnd = moment(bStart).add(daysInQ, 'days');
+  } else if (type === 'qtd_yoy') {
+    cStart = moment().startOf('quarter'); cEnd = moment();
+    bStart = moment().subtract(1, 'year').startOf('quarter');
+    const daysInQ = moment().diff(moment().startOf('quarter'), 'days');
+    bEnd = moment(bStart).add(daysInQ, 'days');
+  } else if (type === 'ytd' || type === 'ytd_existing') {
+    cStart = moment().startOf('year'); cEnd = moment();
+    bStart = moment().subtract(1, 'year').startOf('year');
+    bEnd = moment().subtract(1, 'year').date(moment().date()).month(moment().month());
+  } else if (type === 'ytd_fy') {
+    const fyStartMonth = 3; 
+    let fyStart = moment().month(fyStartMonth).startOf('month');
+    if (moment().isBefore(fyStart)) fyStart.subtract(1, 'year');
+    cStart = moment(fyStart); cEnd = moment();
+    bStart = moment(fyStart).subtract(1, 'year');
+    bEnd = moment().subtract(1, 'year');
+  }
+  
+  drpB.setStartDate(bStart); drpB.setEndDate(bEnd);
+  drpC.setStartDate(cStart); drpC.setEndDate(cEnd);
+  
+  setTimeout(() => loadDashboardData(), 50);
+}
+window.togglePeriods = initPeriods;
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Chart helpers
+══════════════════════════════════════════════════════════════════════════════ */
+function buildChart(id, opts) {
+  if (_chartRef[id]) { _chartRef[id].destroy(); delete _chartRef[id]; }
+  const el = document.getElementById(id);
+  if (!el) return;
+  _chartRef[id] = new ApexCharts(el, opts);
+  _chartRef[id].render();
+}
+
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Render: Scorecard table
+══════════════════════════════════════════════════════════════════════════════ */
+function renderScorecard(scorecard) {
+  const tbody = document.getElementById('scorecard-tbody');
+  const type = document.getElementById('comp-type').value;
+  let bLabel = '', cLabel = '', bLabelShort = '', cLabelShort = '';
+  
+  const customTypes = ['custom', 'mtd', 'mtd_yoy', 'qtd', 'qtd_yoy', 'ytd', 'ytd_existing', 'ytd_fy'];
+  if (customTypes.includes(type)) {
+    const drpB = $('#base-daterange').data('daterangepicker');
+    const drpC = $('#comp-daterange').data('daterangepicker');
+    if (drpB) {
+      bLabel = drpB.startDate.format('DD MMM') + ' - ' + drpB.endDate.format('DD MMM YYYY');
+      bLabelShort = bLabel.toUpperCase();
+    }
+    if (drpC) {
+      cLabel = drpC.startDate.format('DD MMM') + ' - ' + drpC.endDate.format('DD MMM YYYY');
+      cLabelShort = cLabel.toUpperCase();
+    }
+  } else {
+    const bText = document.getElementById('base-period').options[document.getElementById('base-period').selectedIndex]?.text||'Base';
+    const cText = document.getElementById('comp-period').options[document.getElementById('comp-period').selectedIndex]?.text||'Comp';
+    const by = (type === 'yearly' || type === 'fy') ? '' : ' ' + document.getElementById('base-year').value;
+    const cy = (type === 'yearly' || type === 'fy') ? '' : ' ' + document.getElementById('comp-year').value;
+    bLabel = bText + by;
+    cLabel = cText + cy;
+    bLabelShort = (type === 'yearly' || type === 'fy') ? bText : bText.substring(0,3).toUpperCase() + by;
+    cLabelShort = (type === 'yearly' || type === 'fy') ? cText : cText.substring(0,3).toUpperCase() + cy;
+  }
+  
+  const _set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  _set('sc-base-amt-h1',  bLabelShort);
+  _set('sc-comp-amt-h1',  cLabelShort);
+  _set('sc-share-amt-h1', 'SHARE ' + cLabelShort);
+  _set('sc-base-qty-h1',  bLabelShort);
+  _set('sc-comp-qty-h1',  cLabelShort);
+  _set('sc-share-qty-h1', 'SHARE ' + cLabelShort);
+  _set('sc-period-label', bLabel + ' vs ' + cLabel);
+
+  if (!scorecard||!scorecard.length){
+    tbody.innerHTML='<tr><td colspan="9" style="text-align:center;padding:1.5rem;color:var(--text-3)">No data</td></tr>';
+    return;
+  }
+  const grandRow = scorecard.find(x => x.category === 'Grand Total');
+  const totalCQty = grandRow ? grandRow.c_qty : 1;
+
+  tbody.innerHTML = scorecard.map((r,i) => {
+    const isGrand = r.category==='Grand Total';
+    const color   = CAT_COLORS[r.category]||'#94a3b8';
+    const qtyShare = isGrand ? 100 : ((r.c_qty||0) / totalCQty * 100);
+    
+    let brandHtml = '';
+    if (!isGrand) {
+      const cat = r.category;
+      if (cat === 'CE' || cat === 'ACC') {
+        const ceRows = (_data.detailed_table||[]).filter(x => x.category === cat);
+        const productMap = {};
+        ceRows.forEach(row => {
+          if (!productMap[row.product]) {
+            productMap[row.product] = {
+              product: row.product,
+              b_rev: 0, c_rev: 0, b_qty: 0, c_qty: 0,
+              brands: {}
             };
+          }
+          let pm = productMap[row.product];
+          pm.b_rev += (row.b_rev || 0);
+          pm.c_rev += (row.c_rev || 0);
+          pm.b_qty += (row.b_qty || 0);
+          pm.c_qty += (row.c_qty || 0);
+          
+          if (!pm.brands[row.brand]) {
+            pm.brands[row.brand] = {
+              brand: row.brand,
+              b_rev: 0, c_rev: 0, b_qty: 0, c_qty: 0
+            };
+          }
+          pm.brands[row.brand].b_rev += (row.b_rev || 0);
+          pm.brands[row.brand].c_rev += (row.c_rev || 0);
+          pm.brands[row.brand].b_qty += (row.b_qty || 0);
+          pm.brands[row.brand].c_qty += (row.c_qty || 0);
+        });
+        
+        let ceBrandHtml = '';
+        const b_rows = (_data.brands[cat]||[]).slice(0,10);
+        const bRowsMap = (_data.table||[]).filter(x=>x.category===cat).reduce((acc,x)=>{ acc[x.brand]=x; return acc; },{});
+        if (b_rows.length > 0) {
+          ceBrandHtml = b_rows.map((br,bi) => {
+            const bRow = bRowsMap[br.brand]||{};
+            const b_rev = bRow.b_rev||0;
+            const b_qty = bRow.b_qty||0;
             
-            renderGrowth(data.kpis.growth.sales, 'kpi-sales-growth');
-            renderGrowth(data.kpis.growth.qty, 'kpi-qty-growth');
-            renderGrowth(data.kpis.growth.asp, 'kpi-asp-growth');
+            const rev_growth = b_rev > 0 ? ((br.sales - b_rev)/b_rev*100) : 0;
+            const qty_growth = b_qty > 0 ? ((br.qty - b_qty)/b_qty*100) : 0;
+            const rev_share  = r.c_rev > 0 ? (br.sales / r.c_rev * 100) : 0;
+            const qty_share  = r.c_qty > 0 ? (br.qty / r.c_qty * 100) : 0;
             
-            // 2. Category Scorecard
-            const scTbody = document.getElementById('scorecard-tbody');
-            scTbody.innerHTML = '';
-            
-            const bText = document.getElementById('base-period').options[document.getElementById('base-period').selectedIndex].text;
-            const cText = document.getElementById('comp-period').options[document.getElementById('comp-period').selectedIndex].text;
-            document.getElementById('sc-base-th').innerText = bText.substring(0,3).toUpperCase() + ' ₹CR';
-            document.getElementById('sc-comp-th').innerText = cText.substring(0,3).toUpperCase() + ' ₹CR';
-            document.getElementById('sc-qty-th').innerText = cText.substring(0,3).toUpperCase() + ' QTY';
-
-            if(data.scorecard) {
-                data.scorecard.forEach(r => {
-                    const isGrand = r.category === 'Grand Total';
-                    const rowStyle = isGrand ? 'font-weight: 700; color: #1e293b;' : 'color: #475569; font-weight: 500;';
-                    const bgStyle = isGrand ? 'background-color: #f8fafc;' : '';
-                    
-                    const getBadge = (cat) => {
-                        if (isGrand) return '';
-                        const colors = {'TELECOM':'#3b82f6', 'IT':'#64748b', 'CONSUMER ELECTRONICS':'#ef4444', 'ACCESSORIES':'#10b981', 'HOME SOLUTIONS':'#f59e0b'};
-                        return `<i class="bi bi-circle-fill me-2" style="font-size: 0.5rem; color: ${colors[cat] || '#8b5cf6'}; vertical-align: middle;"></i>`;
-                    };
-
-                    const formatGrowth = (g) => {
-                        if(g === 0) return `<span class="badge bg-light text-muted border px-2 py-1" style="width: 75px">0.00%</span>`;
-                        return g > 0 ? `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1" style="width: 75px">▲ ${g.toFixed(2)}%</span>` 
-                                     : `<span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2 py-1" style="width: 75px">▼ ${Math.abs(g).toFixed(2)}%</span>`;
-                    };
-
-                    const catName = r.category === 'TELECOM' ? 'Mobile' : r.category === 'IT' ? 'Laptop' : r.category === 'CONSUMER ELECTRONICS' ? 'CE' : r.category === 'ACCESSORIES' ? 'ACC' : r.category;
-
-                    scTbody.innerHTML += `
-                        <tr style="${rowStyle} ${bgStyle}">
-                            <td class="ps-4 py-3">
-                                ${getBadge(r.category)}
-                                ${isGrand ? catName : `<a href="javascript:void(0)" class="text-decoration-none fw-bold" style="color: #3b82f6;" onclick="showBrandReport('${r.category}')">${catName}</a>`}
-                            </td>
-                            <td class="py-3 text-end">${(r.b_rev/10000000).toFixed(2)}</td>
-                            <td class="py-3 text-end">${(r.c_rev/10000000).toFixed(2)}</td>
-                            <td class="py-3 text-end">${formatGrowth(r.rev_growth)}</td>
-                            <td class="py-3 text-end">${r.c_qty.toLocaleString()}</td>
-                            <td class="py-3 text-end">${formatGrowth(r.qty_growth)}</td>
-                            <td class="py-3 text-end text-primary fw-medium">₹${Math.round(r.c_asp).toLocaleString('en-IN')}</td>
-                            <td class="pe-4 py-3 text-end fw-bold">${r.share.toFixed(2)}%</td>
-                        </tr>
-                    `;
-                });
-            }
-
-            // 5. Brand Charts
-            ['MOBILE', 'LAPTOP', 'TABLET', 'CE'].forEach(cat => {
-                const lowerCat = cat.toLowerCase();
-                if(data.brands[cat] && data.brands[cat].length > 0) {
-                    const top5 = data.brands[cat].slice(0,5);
-                    buildChart('brand-donut-' + lowerCat, {
-                        series: top5.map(x=>x.sales),
-                        labels: top5.map(x=>x.brand),
-                        chart: { type: 'donut', height: 300 }
-                    });
-                    
-                    const top15 = data.brands[cat].slice(0,15);
-                    buildChart('brand-bar-' + lowerCat, {
-                        series: [{ name: 'Sales', data: top15.map(x=>x.sales) }],
-                        chart: { type: 'bar', height: 300 },
-                        plotOptions: { bar: { horizontal: true, borderRadius: 4 } },
-                        xaxis: { categories: top15.map(x=>x.brand) }
-                    });
-                }
-            });
-            
-        } catch(e) {
-            console.error(e);
-        } finally {
-            if(window.hideLoading) window.hideLoading();
+            return `<tr class="brand-row-${cat.replace(/[\s\W]+/g,'-')}" style="display:none; background-color:#fafafa; font-size:0.75rem;">
+              <td style="padding-left:2.5rem; min-width:160px; border-right: 1px solid var(--border); color:var(--text-2);">
+                <span class="rank-badge" style="background:#e2e8f0;color:#64748b;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.65rem;margin-right:0.5rem;">${bi+1}</span>
+                <span style="font-weight:600;">${br.brand}</span>
+              </td>
+              <td class="text-right" style="color:var(--text-2);">${fCr(b_rev)}</td>
+              <td class="text-right" style="font-weight:600; color:var(--text-1);">${fCr(br.sales)}</td>
+              <td class="text-right">${gBadge(rev_growth)}</td>
+              <td class="text-right" style="border-right: 1px solid var(--border); color:var(--text-2);">${rev_share.toFixed(2)}%</td>
+              <td class="text-right" style="color:var(--text-2);">${fN(b_qty)}</td>
+              <td class="text-right" style="font-weight:600; color:var(--text-1);">${fN(br.qty)}</td>
+              <td class="text-right">${gBadge(qty_growth)}</td>
+              <td class="text-right" style="padding-right:1.25rem; font-weight:600; color:var(--text-2);">${qty_share.toFixed(2)}%</td>
+            </tr>`;
+          }).join('');
         }
-    }
-
-    function exportExcel() {
-        const type = document.getElementById('comp-type').value;
-        const base = document.getElementById('base-period').value;
-        const comp = document.getElementById('comp-period').value;
-        const cat = document.getElementById('filter-cat').value;
-        window.location.href = `/api/v1/enterprise-dashboard/export/?type=${type}&base=${base}&comp=${comp}&category=${cat}`;
-    }
-
-    function showBrandReport(category) {
-        if(!window.dashboardData || !window.dashboardData.table) return;
         
-        const title = document.getElementById('brandReportTitle');
-        const tbody = document.getElementById('brand-report-tbody');
-        
-        title.innerText = `Top 15 Brands: ${category}`;
-        tbody.innerHTML = '';
-        
-        const brands = window.dashboardData.table
-            .filter(r => r.category === category)
-            .sort((a,b) => b.c_rev - a.c_rev)
-            .slice(0, 15);
+        let sortedProducts = Object.values(productMap).sort((a,b) => b.c_rev - a.c_rev);
+        if (sortedProducts.length > 0) {
+          brandHtml = ceBrandHtml + sortedProducts.map((pRow, pi) => {
+            const p_rev_growth = pRow.b_rev > 0 ? ((pRow.c_rev - pRow.b_rev)/pRow.b_rev*100) : 0;
+            const p_qty_growth = pRow.b_qty > 0 ? ((pRow.c_qty - pRow.b_qty)/pRow.b_qty*100) : 0;
+            const p_rev_share  = r.c_rev > 0 ? (pRow.c_rev / r.c_rev * 100) : 0;
+            const p_qty_share  = r.c_qty > 0 ? (pRow.c_qty / r.c_qty * 100) : 0;
             
-        if(brands.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-muted">No brand data available for ${category}</td></tr>`;
+            let sortedBrands = Object.values(pRow.brands).sort((a,b) => (b.c_rev||0) - (a.c_rev||0)).slice(0,10);
+            let innerBrandHtml = sortedBrands.map((br, bi) => {
+              const b_rev = br.b_rev||0, c_rev = br.c_rev||0;
+              const b_qty = br.b_qty||0, c_qty = br.c_qty||0;
+              const b_rev_growth = b_rev > 0 ? ((c_rev - b_rev)/b_rev*100) : 0;
+              const b_qty_growth = b_qty > 0 ? ((c_qty - b_qty)/b_qty*100) : 0;
+              const b_rev_share  = pRow.c_rev > 0 ? (c_rev / pRow.c_rev * 100) : 0;
+              const b_qty_share  = pRow.c_qty > 0 ? (c_qty / pRow.c_qty * 100) : 0;
+              
+              let pId = (pRow.product||'unknown').replace(/[\s\W]+/g, '-');
+              let prefix = cat.replace(/[\s\W]+/g, '-').toLowerCase();
+              return `<tr class="brand-row-${prefix}-${pId} brand-row-${cat.replace(/[\s\W]+/g,'-')}-child" style="display:none; background-color:#ffffff; font-size:0.7rem;">
+                <td style="padding-left:4rem; min-width:160px; border-right: 1px solid var(--border); color:var(--text-3);">
+                  <span class="rank-badge" style="background:#f1f5f9;color:#94a3b8;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.6rem;margin-right:0.4rem;">${bi+1}</span>
+                  <span style="font-weight:600;">${br.brand}</span>
+                </td>
+                <td class="text-right" style="color:var(--text-3);">${fCr(b_rev)}</td>
+                <td class="text-right" style="font-weight:600; color:var(--text-2);">${fCr(c_rev)}</td>
+                <td class="text-right">${gBadge(b_rev_growth)}</td>
+                <td class="text-right" style="border-right: 1px solid var(--border); color:var(--text-3);">${b_rev_share.toFixed(2)}%</td>
+                <td class="text-right" style="color:var(--text-3);">${fN(b_qty)}</td>
+                <td class="text-right" style="font-weight:600; color:var(--text-2);">${fN(c_qty)}</td>
+                <td class="text-right">${gBadge(b_qty_growth)}</td>
+                <td class="text-right" style="color:var(--text-3); padding-right:1.25rem;">${b_qty_share.toFixed(2)}%</td>
+              </tr>`;
+            }).join('');
+            
+            let pId = (pRow.product||'unknown').replace(/[\s\W]+/g, '-');
+            let prefix = cat.replace(/[\s\W]+/g, '-').toLowerCase();
+            return `<tr class="brand-row-${cat.replace(/[\s\W]+/g,'-')}" style="display:none; background-color:#fafafa; font-size:0.75rem; cursor:pointer;" onclick="toggleBrandRow('${prefix}-${pId}', event)">
+              <td style="padding-left:2.5rem; min-width:160px; border-right: 1px solid var(--border); color:var(--text-2);">
+                <i class="bi bi-chevron-down" style="font-size:0.6rem; margin-right:0.3rem;" id="brand-icon-${prefix}-${pId}"></i>
+                <span style="font-weight:600;">${pRow.product}</span>
+              </td>
+              <td class="text-right" style="color:var(--text-2);">${fCr(pRow.b_rev)}</td>
+              <td class="text-right" style="font-weight:600; color:var(--text-1);">${fCr(pRow.c_rev)}</td>
+              <td class="text-right">${gBadge(p_rev_growth)}</td>
+              <td class="text-right" style="border-right: 1px solid var(--border); color:var(--text-2);">${p_rev_share.toFixed(2)}%</td>
+              <td class="text-right" style="color:var(--text-2);">${fN(pRow.b_qty)}</td>
+              <td class="text-right" style="font-weight:600; color:var(--text-1);">${fN(pRow.c_qty)}</td>
+              <td class="text-right">${gBadge(p_qty_growth)}</td>
+              <td class="text-right" style="color:var(--text-2); padding-right:1.25rem;">${p_qty_share.toFixed(2)}%</td>
+            </tr>` + innerBrandHtml;
+          }).join('');
         } else {
-            brands.forEach(r => {
-                const asp = r.c_qty > 0 ? (r.c_rev / r.c_qty) : 0;
-                tbody.innerHTML += `
-                    <tr>
-                        <td class="ps-4 py-3 fw-medium">${r.brand}</td>
-                        <td class="py-3 text-end">${r.b_qty.toLocaleString()}</td>
-                        <td class="py-3 text-end">${fCurrency(r.b_rev)}</td>
-                        <td class="py-3 text-end">${r.c_qty.toLocaleString()}</td>
-                        <td class="py-3 text-end fw-bold">${fCurrency(r.c_rev)}</td>
-                        <td class="py-3 text-end ${r.v_rev >= 0 ? 'text-success' : 'text-danger'} fw-bold">${fCurrency(r.v_rev)}</td>
-                        <td class="pe-4 py-3 text-end text-primary">₹${Math.round(asp).toLocaleString('en-IN')}</td>
-                    </tr>
-                `;
-            });
+          brandHtml = `<tr class="brand-row-${cat.replace(/[\s\W]+/g,'-')}" style="display:none; background-color:#fafafa;">
+            <td colspan="9" style="text-align:center; padding:1rem; color:var(--text-3); font-size:0.75rem;">No data</td>
+          </tr>`;
         }
+      } else {
+        const b_rows = (_data.brands[cat]||[]).slice(0,10);
+        const bRowsMap = (_data.table||[]).filter(x=>x.category===cat).reduce((acc,x)=>{ acc[x.brand]=x; return acc; },{});
         
-        const modal = new bootstrap.Modal(document.getElementById('brandReportModal'));
-        modal.show();
+        if (b_rows.length > 0) {
+          brandHtml = b_rows.map((br,bi) => {
+            const bRow = bRowsMap[br.brand]||{};
+            const b_rev = bRow.b_rev||0;
+            const b_qty = bRow.b_qty||0;
+            
+            const rev_growth = b_rev > 0 ? ((br.sales - b_rev)/b_rev*100) : 0;
+            const qty_growth = b_qty > 0 ? ((br.qty - b_qty)/b_qty*100) : 0;
+            const rev_share  = r.c_rev > 0 ? (br.sales / r.c_rev * 100) : 0;
+            const qty_share  = r.c_qty > 0 ? (br.qty / r.c_qty * 100) : 0;
+            
+            return `<tr class="brand-row-${cat.replace(/[\s\W]+/g,'-')}" style="display:none; background-color:#fafafa; font-size:0.75rem;">
+              <td style="padding-left:2.5rem; min-width:160px; border-right: 1px solid var(--border); color:var(--text-2);">
+                <span class="rank-badge" style="background:#e2e8f0;color:#64748b;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.65rem;margin-right:0.5rem;">${bi+1}</span>
+                <span style="font-weight:600;">${br.brand}</span>
+              </td>
+              <td class="text-right" style="color:var(--text-2);">${fCr(b_rev)}</td>
+              <td class="text-right" style="font-weight:600; color:var(--text-1);">${fCr(br.sales)}</td>
+              <td class="text-right">${gBadge(rev_growth)}</td>
+              <td class="text-right" style="border-right: 1px solid var(--border); color:var(--text-2);">${rev_share.toFixed(2)}%</td>
+              <td class="text-right" style="color:var(--text-2);">${fN(b_qty)}</td>
+              <td class="text-right" style="font-weight:600; color:var(--text-1);">${fN(br.qty)}</td>
+              <td class="text-right">${gBadge(qty_growth)}</td>
+              <td class="text-right" style="padding-right:1.25rem; font-weight:600; color:var(--text-2);">${qty_share.toFixed(2)}%</td>
+            </tr>`;
+          }).join('');
+        } else {
+          brandHtml = `<tr class="brand-row-${cat.replace(/[\s\W]+/g,'-')}" style="display:none; background-color:#fafafa;">
+            <td colspan="9" style="text-align:center; padding:1rem; color:var(--text-3); font-size:0.75rem;">No data</td>
+          </tr>`;
+        }
+      }
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-        initPeriods();
-        
-        // Auto-read URL params to support sidebar clicks
-        const urlParams = new URLSearchParams(window.location.search);
-        if(urlParams.get('type')) document.getElementById('comp-type').value = urlParams.get('type');
-        
-        togglePeriods();
-        loadDashboardData();
+    return `
+    <tr class="${isGrand?'grand-total':''}">
+      <td style="padding-left:1.25rem;min-width:160px; border-right: 1px solid var(--border);">
+        ${isGrand
+          ? `<span style="font-weight:800;color:var(--text-1)">Grand Total</span>`
+          : `<span class="cat-dot" style="background:${color}"></span>
+             <a href="javascript:void(0)" onclick="toggleBrandRow('${r.category.replace(/[\\s\\W]+/g,'-')}')" style="color:var(--text-1);font-weight:600;text-decoration:none; text-transform:uppercase; display:inline-flex; align-items:center; gap:0.25rem;">
+               ${r.category} <i class="bi bi-chevron-down" style="font-size:0.7rem; color:var(--text-3);" id="brand-icon-${r.category.replace(/[\\s\\W]+/g,'-')}"></i>
+             </a>`
+        }
+      </td>
+      <td class="text-right">${fCr(r.b_rev)}</td>
+      <td class="text-right" style="font-weight:600">${fCr(r.c_rev)}</td>
+      <td class="text-right">${gBadge(r.rev_growth)}</td>
+      <td class="text-right" style="border-right: 1px solid var(--border);">${(r.share||0).toFixed(2)}%</td>
+      <td class="text-right">${fN(r.b_qty)}</td>
+      <td class="text-right" style="font-weight:600">${fN(r.c_qty)}</td>
+      <td class="text-right">${gBadge(r.qty_growth)}</td>
+      <td class="text-right" style="padding-right:1.25rem;font-weight:700">${qtyShare.toFixed(2)}%</td>
+    </tr>
+    ${brandHtml}`;
+  }).join('');
+}
+
+function toggleBrandRow(catId, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+  const rows = document.querySelectorAll(`.brand-row-${catId}`);
+  const icon = document.getElementById(`brand-icon-${catId}`);
+  if (!rows.length) return;
+  
+  const isHidden = rows[0].style.display === 'none';
+  rows.forEach(r => {
+    r.style.display = isHidden ? 'table-row' : 'none';
+  });
+  
+  // If closing a category, also close its children
+  if (!isHidden) {
+    const childRows = document.querySelectorAll(`.brand-row-${catId}-child`);
+    childRows.forEach(r => {
+      r.style.display = 'none';
     });
+    // Reset any child icons
+    const childIcons = document.querySelectorAll(`[id^='brand-icon-${catId.toLowerCase()}-']`);
+    childIcons.forEach(ic => {
+      ic.classList.remove('bi-chevron-up');
+      ic.classList.add('bi-chevron-down');
+    });
+  }
+  
+  if (icon) {
+    if (isHidden) {
+      icon.classList.remove('bi-chevron-down'); icon.classList.add('bi-chevron-up');
+    } else {
+      icon.classList.remove('bi-chevron-up'); icon.classList.add('bi-chevron-down');
+    }
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Export
+══════════════════════════════════════════════════════════════════════════════ */
+function exportExcel() {
+  const type = document.getElementById('comp-type').value;
+  let apiType = type;
+  let base, comp, by, cy;
+  
+  const customTypes = ['custom', 'mtd', 'mtd_yoy', 'qtd', 'qtd_yoy', 'ytd', 'ytd_existing', 'ytd_fy'];
+  if (customTypes.includes(type)) {
+    apiType = 'custom';
+    const drpB = $('#base-daterange').data('daterangepicker');
+    const drpC = $('#comp-daterange').data('daterangepicker');
+    base = drpB.startDate.format('YYYY-MM-DD') + '|' + drpB.endDate.format('YYYY-MM-DD');
+    comp = drpC.startDate.format('YYYY-MM-DD') + '|' + drpC.endDate.format('YYYY-MM-DD');
+    by = drpB.startDate.format('YYYY');
+    cy = drpC.startDate.format('YYYY');
+  } else {
+    base = document.getElementById('base-period').value;
+    comp = document.getElementById('comp-period').value;
+    by = document.getElementById('base-year').value;
+    cy = document.getElementById('comp-year').value;
+  }
+  const cat     = window._dash_ts && window._dash_ts['dash-cat']     ? window._dash_ts['dash-cat'].getValue().join(',')     : '';
+  const branch  = window._dash_ts && window._dash_ts['dash-branch']  ? window._dash_ts['dash-branch'].getValue().join(',')  : '';
+  const brand   = window._dash_ts && window._dash_ts['dash-brand']   ? window._dash_ts['dash-brand'].getValue().join(',')   : '';
+  const product = window._dash_ts && window._dash_ts['dash-product'] ? window._dash_ts['dash-product'].getValue().join(',') : '';
+  window.location.href = `/api/v1/enterprise-dashboard/export/?type=${apiType}&base=${base}&comp=${comp}&base_year=${by}&comp_year=${cy}&category=${encodeURIComponent(cat)}&branch=${encodeURIComponent(branch)}&brand=${encodeURIComponent(brand)}&product=${encodeURIComponent(product)}`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Tab Switching
+══════════════════════════════════════════════════════════════════════════════ */
+function switchTab(tab) {
+  ['cat','product','brand'].forEach(t => {
+    const btn   = document.getElementById('tab-'+t);
+    const panel = document.getElementById('panel-'+t);
+    const active = (t === tab);
+    btn.style.borderBottom   = active ? '2px solid var(--blue)' : '2px solid transparent';
+    btn.style.color          = active ? 'var(--blue)' : 'var(--text-3)';
+    panel.style.display      = active ? 'block' : 'none';
+  });
+  // Render on first switch if data is ready
+  if (_data) {
+    if (tab === 'product') renderProductReport(_data.detailed_table);
+    if (tab === 'brand')   renderBrandReport(_data.detailed_table);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Generic flat report renderer (for Product and Brand)
+══════════════════════════════════════════════════════════════════════════════ */
+function _renderFlatReport(rows, groupKey, tbodyId) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  if (!rows || !rows.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-3);">No data available</td></tr>';
+    return;
+  }
+
+  // Aggregate by groupKey (product or brand)
+  const map = {};
+  rows.forEach(r => {
+    const key = r[groupKey] || '—';
+    if (!map[key]) map[key] = { b_rev:0, c_rev:0, b_qty:0, c_qty:0 };
+    map[key].b_rev += (r.b_rev || 0);
+    map[key].c_rev += (r.c_rev || 0);
+    map[key].b_qty += (r.b_qty || 0);
+    map[key].c_qty += (r.c_qty || 0);
+  });
+
+  // Sort by comp revenue desc
+  const sorted = Object.entries(map).sort((a,b) => b[1].c_rev - a[1].c_rev);
+
+  // Grand total
+  let tot_b_rev=0, tot_c_rev=0, tot_b_qty=0, tot_c_qty=0;
+  sorted.forEach(([,v]) => { tot_b_rev+=v.b_rev; tot_c_rev+=v.c_rev; tot_b_qty+=v.b_qty; tot_c_qty+=v.c_qty; });
+
+  const buildRow = (label, v, isTotal) => {
+    const rev_g = v.b_rev > 0 ? (v.c_rev - v.b_rev) / v.b_rev * 100 : 0;
+    const qty_g = v.b_qty > 0 ? (v.c_qty - v.b_qty) / v.b_qty * 100 : 0;
+    const rev_s = tot_c_rev > 0 ? v.c_rev / tot_c_rev * 100 : 0;
+    const qty_s = tot_c_qty > 0 ? v.c_qty / tot_c_qty * 100 : 0;
+    const rowClass = isTotal ? 'grand-total' : '';
+    const labelHtml = isTotal
+      ? `<strong>${label}</strong>`
+      : `<span style="font-weight:600">${label}</span>`;
+    return `<tr class="${rowClass}">
+      <td style="padding-left:1.25rem; min-width:180px; border-right:1px solid var(--border);">${labelHtml}</td>
+      <td class="text-right">${fCr(v.b_rev)}</td>
+      <td class="text-right" style="font-weight:${isTotal?800:600}">${fCr(v.c_rev)}</td>
+      <td class="text-right">${gBadge(rev_g)}</td>
+      <td class="text-right" style="border-right:1px solid var(--border);">${rev_s.toFixed(2)}%</td>
+      <td class="text-right">${fN(v.b_qty)}</td>
+      <td class="text-right" style="font-weight:${isTotal?800:600}">${fN(v.c_qty)}</td>
+      <td class="text-right">${gBadge(qty_g)}</td>
+      <td class="text-right" style="padding-right:1.25rem; font-weight:${isTotal?800:600}">${qty_s.toFixed(2)}%</td>
+    </tr>`;
+  };
+
+  const dataRows = sorted.map(([label, v]) => buildRow(label, v, false)).join('');
+  const totalRow = buildRow('Grand Total', {b_rev:tot_b_rev,c_rev:tot_c_rev,b_qty:tot_b_qty,c_qty:tot_c_qty}, true);
+
+  tbody.innerHTML = dataRows + totalRow;
+}
+
+function renderProductReport(table) {
+  _renderFlatReport(table, 'product', 'product-tbody');
+}
+
+function renderBrandReport(table) {
+  _renderFlatReport(table, 'brand', 'brand-tbody');
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Main load
+══════════════════════════════════════════════════════════════════════════════ */
+async function loadDashboardData() {
+  // Show skeletons
+  ['scorecard-tbody'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.innerHTML=`<tr class="loading-row"><td colspan="10"><div class="skeleton" style="height:13px;width:70%"></div></td></tr>`;
+  });
+
+  const type = document.getElementById('comp-type').value;
+  let apiType = type;
+  let base, comp, by, cy;
+  const customTypes = ['custom', 'mtd', 'mtd_yoy', 'qtd', 'qtd_yoy', 'ytd', 'ytd_existing', 'ytd_fy'];
+  if (customTypes.includes(type)) {
+    apiType = 'custom';
+    const drpB = $('#base-daterange').data('daterangepicker');
+    const drpC = $('#comp-daterange').data('daterangepicker');
+    base = drpB ? drpB.startDate.format('YYYY-MM-DD') + '|' + drpB.endDate.format('YYYY-MM-DD') : '';
+    comp = drpC ? drpC.startDate.format('YYYY-MM-DD') + '|' + drpC.endDate.format('YYYY-MM-DD') : '';
+    by = drpB ? drpB.startDate.format('YYYY') : '2026';
+    cy = drpC ? drpC.startDate.format('YYYY') : '2026';
+  } else {
+    base = document.getElementById('base-period').value;
+    comp = document.getElementById('comp-period').value;
+    by = document.getElementById('base-year').value;
+    cy = document.getElementById('comp-year').value;
+  }
+  const cat     = window._dash_ts && window._dash_ts['dash-cat']     ? window._dash_ts['dash-cat'].getValue().join(',')     : '';
+  const branch  = window._dash_ts && window._dash_ts['dash-branch']  ? window._dash_ts['dash-branch'].getValue().join(',')  : '';
+  const brand   = window._dash_ts && window._dash_ts['dash-brand']   ? window._dash_ts['dash-brand'].getValue().join(',')   : '';
+  const product = window._dash_ts && window._dash_ts['dash-product'] ? window._dash_ts['dash-product'].getValue().join(',') : '';
+
+  try {
+    const res  = await fetch(`/api/v1/enterprise-dashboard/?type=${apiType}&base=${base}&comp=${comp}&base_year=${by}&comp_year=${cy}&category=${encodeURIComponent(cat)}&branch=${encodeURIComponent(branch)}&brand=${encodeURIComponent(brand)}&product=${encodeURIComponent(product)}`);
+    const json = await res.json();
+    if (json.status !== 'success') { alert('Error: '+json.message); return; }
+
+    _data = json.data;
+
+    // ── Render all three panels ──
+    renderScorecard(_data.scorecard);
+    renderProductReport(_data.detailed_table);
+    renderBrandReport(_data.detailed_table);
+
+  } catch(e) {
+    console.error(e);
+    alert('Failed to load: '+e.message);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Init
+══════════════════════════════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  initPeriods();
+  
+  // Initialize Daterangepickers
+  if (typeof $ !== 'undefined' && $.fn.daterangepicker) {
+    const ranges = {
+       'Today': [moment(), moment()],
+       'Yesterday': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
+       'Last 7 Days': [moment().subtract(6, 'days'), moment()],
+       'Last 30 Days': [moment().subtract(29, 'days'), moment()],
+       'This Month': [moment().startOf('month'), moment().endOf('month')],
+       'Last Month': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')],
+       'Year To Date': [moment().startOf('year'), moment()]
+    };
+    $('.daterange-picker').daterangepicker({
+      locale: { format: 'DD-MM-YYYY' },
+      ranges: ranges,
+      alwaysShowCalendars: true,
+      opens: 'left'
+    });
+    // Set some defaults just in case
+    $('#base-daterange').data('daterangepicker').setStartDate(moment().subtract(1, 'month').startOf('month'));
+    $('#base-daterange').data('daterangepicker').setEndDate(moment().subtract(1, 'month').endOf('month'));
+    $('#comp-daterange').data('daterangepicker').setStartDate(moment().startOf('month'));
+    $('#comp-daterange').data('daterangepicker').setEndDate(moment().endOf('month'));
+  }
+
+  const p = new URLSearchParams(window.location.search);
+  if (p.get('type')) document.getElementById('comp-type').value = p.get('type');
+  togglePeriods();
+
+  // ── Init Tom Select for multi-selects ─────────────────────────────────────
+  window._dash_ts = {};
+  // maxItems:null = unlimited multi-select; no native 'multiple' attr needed
+  const tsOpts = {
+    plugins: ['remove_button', 'clear_button'],
+    maxItems: null,
+    maxOptions: 600,
+    dropdownParent: 'body',
+    placeholder: 'All...',
+  };
+  ['dash-cat','dash-branch','dash-brand','dash-product'].forEach(id => {
+      window._dash_ts[id] = new TomSelect('#'+id, {...tsOpts});
+  });
+
+  // Pre-populate category options (fixed list)
+  const cats = ['MOBILE','CE','LAPTOP','ACC','TABLET','OTHER','VALUE ADDED SERVICE','RIG'];
+  cats.forEach(c => window._dash_ts['dash-cat'].addOption({value:c, text:c}));
+  window._dash_ts['dash-cat'].refreshOptions(false);
+
+  // Load dynamic filters (branches, brands, products) from API
+  fetch('/api/v1/special-event-reports/filters/')
+    .then(r => r.json())
+    .then(j => {
+      if (j.status !== 'success') return;
+      const fill = (id, items) => {
+        const s = window._dash_ts[id];
+        items.forEach(v => { if(v) s.addOption({value:v, text:v}); });
+        s.refreshOptions(false);
+      };
+      fill('dash-branch',  j.data.branches);
+      fill('dash-brand',   j.data.brands);
+      fill('dash-product', j.data.products);
+    })
+    .catch(e => console.error('Filter load failed', e));
+
+  loadDashboardData();
+});
 </script>
 {% endblock %}

@@ -92,18 +92,11 @@
     <div class="section-header"><i class="bi bi-grid-3x3"></i> Cohort Resurrection Matrix</div>
     <div class="table-responsive">
         <table class="cohort-table" id="cohort-table">
-            <thead>
+            <thead id="cohort-thead">
                 <tr>
                     <th>Cohort Year</th>
                     <th>Initial Dormant Base</th>
-                    <th>Jan 2026</th>
-                    <th>Feb 2026</th>
-                    <th>Mar 2026</th>
-                    <th>Apr 2026</th>
-                    <th>May 2026</th>
-                    <th>Jun 2026</th>
-                    <th>Jul 2026</th>
-                    <th>Aug 2026</th>
+                    <th>...</th>
                     <th>Total Reactivated</th>
                     <th>Resurrection Rate</th>
                     <th>Revenue Generated</th>
@@ -121,17 +114,10 @@
     <div class="section-header"><i class="bi bi-star"></i> Loyalty Point Matrix</div>
     <div class="table-responsive">
         <table class="cohort-table" id="loyalty-table">
-            <thead>
+            <thead id="loyalty-thead">
                 <tr>
                     <th>Cohort Year</th>
-                    <th>Jan 2026</th>
-                    <th>Feb 2026</th>
-                    <th>Mar 2026</th>
-                    <th>Apr 2026</th>
-                    <th>May 2026</th>
-                    <th>Jun 2026</th>
-                    <th>Jul 2026</th>
-                    <th>Aug 2026</th>
+                    <th>...</th>
                     <th>Total Pts</th>
                     <th>Total R.Sales</th>
                     <th>Total R.Cust</th>
@@ -195,17 +181,33 @@
             let totalReactivated = 0;
             let totalRev = 0;
 
-            // Aggregate by month for waterfall
-            let monthTotals = {
-                'Jan 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0}, 
-                'Feb 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0}, 
-                'Mar 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0}, 
-                'Apr 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0}, 
-                'May 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0},
-                'Jun 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0},
-                'Jul 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0},
-                'Aug 2026': {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0}
-            };
+            // Dynamically collect months from the data
+            let dynamicMonths = [];
+            data.forEach(cohort => {
+                cohort.monthly_breakdown.forEach(mb => {
+                    if (!dynamicMonths.includes(mb.month)) {
+                        dynamicMonths.push(mb.month);
+                    }
+                });
+            });
+
+            // Rebuild the headers
+            let cohortThead = '<tr><th>Cohort Year</th><th>Initial Dormant Base</th>';
+            let loyaltyThead = '<tr><th>Cohort Year</th>';
+            dynamicMonths.forEach(m => {
+                cohortThead += `<th>${m}</th>`;
+                loyaltyThead += `<th>${m}</th>`;
+            });
+            cohortThead += '<th>Total Reactivated</th><th>Resurrection Rate</th><th>Revenue Generated</th></tr>';
+            loyaltyThead += '<th>Total Pts</th><th>Total R.Sales</th><th>Total R.Cust</th></tr>';
+            document.getElementById('cohort-thead').innerHTML = cohortThead;
+            document.getElementById('loyalty-thead').innerHTML = loyaltyThead;
+
+            // Initialize monthTotals dynamically
+            let monthTotals = {};
+            dynamicMonths.forEach(m => {
+                monthTotals[m] = {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0};
+            });
 
             let tableHtml = '';
             let loyaltyTableHtml = '';
@@ -303,7 +305,7 @@
             // Generate Total Row
             let totalMonthCells = '';
             let totalLoyaltyMonthCells = '';
-            ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026', 'Jun 2026', 'Jul 2026', 'Aug 2026'].forEach(m => {
+            dynamicMonths.forEach(m => {
                 let mData = monthTotals[m] || {reactivated: 0, revenue: 0, remaining: 0, redeemed_points: 0, redeemed_sales: 0, redeemed_customers: 0};
                 let mRate = totalBase > 0 ? ((mData.reactivated / totalBase) * 100).toFixed(2) : 0;
                 
@@ -376,20 +378,19 @@
             `;
 
             // Plotly Waterfall
-            const wfX = ['Initial Base', 'Jan Return', 'Feb Return', 'Mar Return', 'Apr Return', 'May Return', 'Jun Return', 'Jul Return', 'Aug Return', 'Remaining Dormant'];
-            const wfY = [
-                totalBase, 
-                -(monthTotals['Jan 2026']?.reactivated || 0), 
-                -(monthTotals['Feb 2026']?.reactivated || 0), 
-                -(monthTotals['Mar 2026']?.reactivated || 0), 
-                -(monthTotals['Apr 2026']?.reactivated || 0), 
-                -(monthTotals['May 2026']?.reactivated || 0), 
-                -(monthTotals['Jun 2026']?.reactivated || 0), 
-                -(monthTotals['Jul 2026']?.reactivated || 0), 
-                -(monthTotals['Aug 2026']?.reactivated || 0), 
-                totalBase - totalReactivated
-            ];
-            const wfMeasure = ['absolute', 'relative', 'relative', 'relative', 'relative', 'relative', 'relative', 'relative', 'relative', 'total'];
+            const wfX = ['Initial Base'];
+            const wfY = [totalBase];
+            const wfMeasure = ['absolute'];
+            
+            dynamicMonths.forEach(m => {
+                wfX.push(m.split(' ')[0] + ' Return');
+                wfY.push(-(monthTotals[m]?.reactivated || 0));
+                wfMeasure.push('relative');
+            });
+            
+            wfX.push('Remaining Dormant');
+            wfY.push(totalBase - totalReactivated);
+            wfMeasure.push('total');
             
             const wfData = [{
                 name: 'Customers',

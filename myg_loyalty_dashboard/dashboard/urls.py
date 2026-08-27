@@ -49,6 +49,10 @@ urlpatterns = [
     path('api/v1/customer-propensity/rebuild/', views.CustomerPropensityRebuildAPIView.as_view(), name='customer_propensity_rebuild'),
     path('report-generator/', RedirectView.as_view(url='/enterprise-dashboard/', permanent=False)),
     path('enterprise-dashboard/', views.EnterpriseDashboardView.as_view(), name='enterprise_dashboard'),
+    path('special-event-reports/', views.SpecialEventReportsView.as_view(), name='special_event_reports'),
+    path('api/v1/special-event-reports/filters/', views.SpecialFiltersAPIView.as_view(), name='special_filters'),
+    path('api/v1/special-event-reports/export-3-periods/', views.SpecialThreePeriodExportView.as_view(), name='special_3_period_export'),
+    path('api/v1/special-event-reports/export-custom-4/', views.SpecialCustom4PeriodExportView.as_view(), name='special_custom_4_export'),
     path('api/v1/enterprise-dashboard/', views.EnterpriseDashboardAPIView.as_view(), name='enterprise_dashboard_api'),
     path('api/v1/enterprise-dashboard/export/', views.EnterpriseDashboardExportAPIView.as_view(), name='enterprise_dashboard_export'),
     path('monthly-retention/', views.MonthlyRetentionView.as_view(), name='monthly_retention'),
@@ -102,8 +106,5 @@ urlpatterns = [
     # Product Penetration Report
     path('product-penetration/', views.ProductPenetrationView.as_view(), name='product_penetration'),
     path('api/v1/product-penetration/', views.ProductPenetrationAPIView.as_view(), name='product_penetration_api'),
-
-    # Market Basket Analysis / Recommendation System
-    path('market-basket/', views.MarketBasketView.as_view(), name='market_basket'),
-    path('api/v1/market-basket/', views.MarketBasketAPIView.as_view(), name='market_basket_api'),
 ]
+

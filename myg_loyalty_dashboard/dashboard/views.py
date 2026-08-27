@@ -14,6 +14,8 @@ class DashboardView(LoginRequiredMixin, TemplateView):
     def get(self, request, *args, **kwargs):
         if request.user.username == 'shestart':
             return redirect('she_start')
+        if request.user.username == 'mygusers':
+            return redirect('enterprise_dashboard')
         return super().get(request, *args, **kwargs)
 
 class CustomerAnalyticsView(LoginRequiredMixin, TemplateView):
@@ -52,13 +54,75 @@ class CategoryAnalysisView(LoginRequiredMixin, TemplateView):
 class EnterpriseDashboardView(LoginRequiredMixin, TemplateView):
     template_name = 'dashboard/enterprise_dashboard.html'
 
+class SpecialEventReportsView(LoginRequiredMixin, TemplateView):
+    template_name = 'dashboard/special_reports.html'
+
 from django.http import JsonResponse, HttpResponse
 from analytics.models import ProductSale
 from django.db.models import Sum
 
 from .dashboard_api_logic import build_api_response, generate_dashboard_excel
+from .special_report_logic import generate_3_period_excel, generate_custom_4_period_excel
 from django.core.serializers.json import DjangoJSONEncoder
+from datetime import datetime
 
+class SpecialFiltersAPIView(LoginRequiredMixin, View):
+    def get(self, request):
+        try:
+            from analytics.clickhouse_service import get_ch_client
+            ch = get_ch_client()
+            
+            # Fetch distinct branches
+            branches = ch.query("SELECT distinct branch FROM azure_sales_report WHERE branch != '' ORDER BY branch").result_rows
+            branches = [b[0] for b in branches]
+            
+            # Fetch products and brands from item_master
+            items = ch.query("SELECT distinct product, brand FROM item_master WHERE product != '' OR brand != ''").result_rows
+            products = sorted(list(set([i[0] for i in items if i[0]])))
+            brands   = sorted(list(set([i[1] for i in items if i[1]])))
+            
+            # Use the fixed mapped category names (same as PRODUCT_CAT_MAPPING display categories)
+            categories = ['MOBILE', 'CE', 'LAPTOP', 'ACC', 'TABLET', 'OTHER', 'VALUE ADDED SERVICE', 'RIG']
+            
+            return JsonResponse({
+                'status': 'success',
+                'data': {
+                    'branches':   branches,
+                    'categories': categories,
+                    'products':   products,
+                    'brands':     brands
+                }
+            })
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+class SpecialThreePeriodExportView(LoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        try:
+            filters = request.GET.dict()
+            excel_data = generate_3_period_excel(filters)
+            response = HttpResponse(
+                excel_data,
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            response['Content-Disposition'] = f'attachment; filename="Special_Report_3_Periods_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx"'
+            return response
+        except Exception as e:
+            return HttpResponse(f"Error generating report: {str(e)}", status=500)
+
+class SpecialCustom4PeriodExportView(LoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        try:
+            filters = request.GET.dict()
+            excel_data = generate_custom_4_period_excel(filters)
+            response = HttpResponse(
+                excel_data,
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            response['Content-Disposition'] = f'attachment; filename="Custom_4_Period_Report_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx"'
+            return response
+        except Exception as e:
+            return HttpResponse(f"Error generating report: {str(e)}", status=500)
 class EnterpriseDashboardAPIView(LoginRequiredMixin, View):
     def get(self, request):
         try:
@@ -856,7 +920,7 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                 )
                 WHERE cohort_year BETWEEN 2020 AND 2024
                   AND (first_2026_date = toDate('1970-01-01')
-                       OR toStartOfMonth(first_2026_date) < toDate('2026-10-01'))
+                       OR toYear(first_2026_date) = 2026)
                 GROUP BY cohort_year, first_2026_month
                 ORDER BY cohort_year ASC, first_2026_month ASC
             """).result_rows
@@ -886,7 +950,7 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                 )
                 WHERE cohort_year BETWEEN 2020 AND 2024
                   AND first_2026_date != toDate('1970-01-01')
-                  AND toStartOfMonth(first_2026_date) < toDate('2026-10-01')
+                  AND toYear(first_2026_date) = 2026
                 GROUP BY cohort_year, first_2026_month
             """).result_rows
 
@@ -959,6 +1023,12 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                         }
                         cohort_data[c_year]['reactivated_revenue'] += float(rev)
 
+            # Dynamically determine the months up to the current month in 2026
+            from datetime import date
+            current_date = date.today()
+            current_month = current_date.month if current_date.year == 2026 else 12
+            months = [date(2026, m, 1).strftime('%b %Y') for m in range(1, current_month + 1)]
+            
             # Build waterfall format with running balances
             results = []
             for year in range(2020, 2025):
@@ -969,8 +1039,6 @@ class CampaignAnalysisAPIView(LoginRequiredMixin, View):
                 if base == 0:
                     continue
                     
-                months = ['Jan 2026', 'Feb 2026', 'Mar 2026', 'Apr 2026', 'May 2026', 'Jun 2026', 'Jul 2026', 'Aug 2026']
-                
                 monthly_breakdown = []
                 running_balance = base
                 total_reactivated = 0
@@ -3401,318 +3469,3 @@ class ProductPenetrationAPIView(LoginRequiredMixin, View):
                 'trace':   traceback.format_exc()
             }, status=500)
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-#  Market Basket Analysis / Recommendation System (Module 03)
-# ─────────────────────────────────────────────────────────────────────────────
-
-# Products to exclude from all recommendation engines (spares/internal)
-_MBA_EXCLUDE = ("'D SPARE','SPARE','FIXED ASSETS','GLAMSHIELD','CROCKERY',"
-                "'SMART CHOICE','RIG','OSG WARRANTY','STATIONERY ITEMS',"
-                "'SERVICE','HOME THEATRE'")
-
-# Whitelist: only real retail product groups (by revenue/volume from item_master)
-_MBA_PRODUCT_IN = ("'MOBILE','LAPTOP','TV','AIR CONDITIONER','REFRIGERATORS',"
-                   "'WASHING MACHINES','SMALL APPLIANCES','EAR WEARABLES',"
-                   "'TABLET','ACCESSORIES','SMART WATCH','HOME APPLIANCES',"
-                   "'AUDIO','MICROWAVE OVEN','STABILIZER','PRINTER',"
-                   "'STORAGE DEVICES','IT ACCESSORIES','GAMING'")
-
-# item_category-level exclusions — digital/software/non-physical items
-# (these sneak in via ACCESSORIES/GAMING product groups but inflate lift artificially)
-_MBA_CAT_EXCLUDE = ("'SOFTWARE DOWNLOADS','MDM SOFTWARE','PS SOFTWARE',"
-                    "'SOFTWARE','DIGITAL LOCKER','WOW BOX','WOW BOX 18%',"
-                    "'WOW BOX 5%','SANITIZER','MASK','FREE ACCESSORIES',"
-                    "'SPARE','COMBO','999 COMBO','1499 COMBO'")
-
-_MBA_DATE_FILTER = "toDate(s.date) != toDate('1970-01-01') AND s.sold_price > 0"
-_MBA_MOB_FILTER  = ("length(i.customer_mobile) = 10 AND i.customer_mobile != '' "
-                    "AND i.customer_mobile NOT IN ('1313131313','0000000000','9999999999')")
-
-
-class MarketBasketView(LoginRequiredMixin, TemplateView):
-    template_name = "dashboard/market_basket.html"
-
-
-class MarketBasketAPIView(LoginRequiredMixin, View):
-    """
-    GET /api/v1/market-basket/?engine=association|collaborative|content|hybrid
-                               &item_category=MOBILE+SMART+PHONE
-                               &product=MOBILE
-                               &limit=30
-
-    3-table JOIN:
-        azure_sales_report s
-        JOIN item_master m ON s.item_code = m.item_code
-        JOIN azure_invoice_report i ON s.invoice_no = i.invoice_no
-    """
-
-    def get(self, request):
-        import traceback, hashlib
-        from django.core.cache import cache
-        from analytics.clickhouse_service import get_ch_client
-
-        engine       = request.GET.get("engine", "association").lower()
-        item_cat     = request.GET.get("item_category", "").strip()
-        product_grp  = request.GET.get("product", "").strip()
-        limit        = min(int(request.GET.get("limit", 50)), 200)
-
-        try:
-            ch = get_ch_client()
-
-            if engine == "association":
-                return self._association(ch, limit, cache)
-            elif engine == "collaborative":
-                return self._collaborative(ch, item_cat, limit, cache)
-            elif engine == "content":
-                return self._content(ch, product_grp, limit, cache)
-            elif engine == "hybrid":
-                return self._hybrid(ch, item_cat, product_grp, limit, cache)
-            else:
-                from django.http import JsonResponse
-                return JsonResponse({"status": "error", "message": f"Unknown engine: {engine}"}, status=400)
-
-        except Exception as e:
-            from django.http import JsonResponse
-            return JsonResponse({
-                "status": "error", "message": str(e), "trace": traceback.format_exc()
-            }, status=500)
-
-    # ── Engine 1: Association Rules (Apriori) ────────────────────────────────
-    def _association(self, ch, limit, cache):
-        from django.http import JsonResponse
-        cache_key = f"mba_assoc_inv_{limit}_v4"
-        cached = cache.get(cache_key)
-        if cached:
-            return JsonResponse({"status": "success", "engine": "association",
-                                 "cached": True, "rules": cached})
-
-        # ── Step 1: Total unique invoices ─────────────────────────────────────
-        total_inv = int(ch.query(f"""
-            SELECT countDistinct(s.invoice_no)
-            FROM azure_sales_report s
-            JOIN item_master m ON s.item_code = m.item_code
-            WHERE toDate(s.date) != toDate('1970-01-01')
-              AND s.sold_price > 0
-              AND m.product IN ({_MBA_PRODUCT_IN})
-              AND m.item_category NOT IN ({_MBA_CAT_EXCLUDE})
-        """).result_rows[0][0])
-        if total_inv == 0:
-            return JsonResponse({"status": "success", "engine": "association",
-                                 "cached": False, "rules": []})
-
-        # ── Step 2: Per-category invoice count ───────────────────────────────
-        cat_rows = ch.query(f"""
-            SELECT m.item_category, m.product,
-                   countDistinct(s.invoice_no) AS inv_count
-            FROM azure_sales_report s
-            JOIN item_master m ON s.item_code = m.item_code
-            WHERE toDate(s.date) != toDate('1970-01-01')
-              AND s.sold_price > 0
-              AND m.product IN ({_MBA_PRODUCT_IN})
-              AND m.item_category NOT IN ({_MBA_CAT_EXCLUDE})
-            GROUP BY m.item_category, m.product
-        """).result_rows
-        cat_counts  = {str(r[0]): int(r[2]) for r in cat_rows}
-        cat_product = {str(r[0]): str(r[1]) for r in cat_rows}
-
-        # ── Step 3: Co-occurrence on same invoice ─────────────────────────────
-        # Self-JOIN azure_sales_report on invoice_no.
-        # m1.item_category < m2.item_category → no duplicate A↔B reverse pairs.
-        pair_rows = ch.query(f"""
-            SELECT
-                m1.item_category AS cat_a,
-                m2.item_category AS cat_b,
-                count()          AS support
-            FROM azure_sales_report s1
-            JOIN azure_sales_report s2
-                ON s1.invoice_no = s2.invoice_no
-               AND s1.item_code  != s2.item_code
-            JOIN item_master m1 ON s1.item_code = m1.item_code
-            JOIN item_master m2 ON s2.item_code = m2.item_code
-            WHERE toDate(s1.date) != toDate('1970-01-01')
-              AND s1.sold_price > 0
-              AND toDate(s2.date) != toDate('1970-01-01')
-              AND s2.sold_price > 0
-              AND m1.product IN ({_MBA_PRODUCT_IN})
-              AND m2.product IN ({_MBA_PRODUCT_IN})
-              AND m1.item_category NOT IN ({_MBA_CAT_EXCLUDE})
-              AND m2.item_category NOT IN ({_MBA_CAT_EXCLUDE})
-              AND m1.item_category < m2.item_category
-            GROUP BY cat_a, cat_b
-            HAVING support > 100
-            ORDER BY support DESC
-            LIMIT 1000
-        """).result_rows
-
-        # ── Step 4: Compute confidence & lift in Python ───────────────────────
-        rules = []
-        for r in pair_rows:
-            cat_a, cat_b, support = str(r[0]), str(r[1]), int(r[2])
-            cnt_a = cat_counts.get(cat_a, 1)
-            cnt_b = cat_counts.get(cat_b, 1)
-            if cnt_a == 0 or cnt_b == 0:
-                continue
-            confidence = round(support / cnt_a * 100, 1)
-            lift       = round((support / cnt_a) / (cnt_b / total_inv), 2)
-            if 1.2 < lift <= 500:
-                rules.append({
-                    "cat_a": cat_a, "prod_a": cat_product.get(cat_a, ""),
-                    "cat_b": cat_b, "prod_b": cat_product.get(cat_b, ""),
-                    "support": support,
-                    "confidence": confidence,
-                    "lift": lift,
-                })
-
-        rules.sort(key=lambda x: x["lift"], reverse=True)
-        rules = rules[:limit]
-        cache.set(cache_key, rules, 60 * 60 * 6)  # cache 6 hours
-        return JsonResponse({"status": "success", "engine": "association",
-                             "cached": False, "rules": rules})
-
-    # ── Engine 2: Collaborative Filtering ────────────────────────────────────
-    def _collaborative(self, ch, item_cat, limit, cache):
-        from django.http import JsonResponse
-        import hashlib
-        if not item_cat:
-            return JsonResponse({"status": "error",
-                                 "message": "item_category is required for collaborative engine"}, status=400)
-        h = hashlib.md5(item_cat.encode()).hexdigest()[:8]
-        cache_key = f"mba_collab_{h}_v2"
-        cached = cache.get(cache_key)
-        if cached:
-            return JsonResponse({"status": "success", "engine": "collaborative",
-                                 "cached": True, "item_category": item_cat, "recommendations": cached})
-
-        safe_cat = item_cat.replace("'", "")
-        query = f"""
-        SELECT
-            m2.item_category    AS rec_category,
-            m2.product          AS rec_product,
-            count(DISTINCT i.customer_mobile) AS co_buyers
-        FROM azure_invoice_report    i
-        JOIN azure_sales_report  s1  ON s1.invoice_no = i.invoice_no
-        JOIN item_master         m1  ON s1.item_code  = m1.item_code
-        JOIN azure_sales_report  s2  ON s2.invoice_no = i.invoice_no
-        JOIN item_master         m2  ON s2.item_code  = m2.item_code
-        WHERE m1.item_category = '{safe_cat}'
-          AND m2.item_category != m1.item_category
-          AND {_MBA_MOB_FILTER}
-          AND s1.sold_price > 0
-          AND s2.sold_price > 0
-          AND toDate(s1.date) != toDate('1970-01-01')
-          AND toDate(s2.date) != toDate('1970-01-01')
-          AND m2.product IN ({_MBA_PRODUCT_IN})
-        GROUP BY rec_category, rec_product
-        ORDER BY co_buyers DESC
-        LIMIT {limit}
-        """
-        rows = ch.query(query).result_rows
-        recs = [{"rec_category": r[0], "rec_product": r[1], "co_buyers": int(r[2])} for r in rows]
-        cache.set(cache_key, recs, 60 * 60 * 2)  # 2 hours
-        return JsonResponse({"status": "success", "engine": "collaborative",
-                             "cached": False, "item_category": item_cat, "recommendations": recs})
-
-    # ── Engine 3: Content Based ───────────────────────────────────────────────
-    def _content(self, ch, product_grp, limit, cache):
-        from django.http import JsonResponse
-        import hashlib
-        if not product_grp:
-            return JsonResponse({"status": "error",
-                                 "message": "product is required for content engine"}, status=400)
-        h = hashlib.md5(product_grp.encode()).hexdigest()[:8]
-        cache_key = f"mba_content_{h}_v2"
-        cached = cache.get(cache_key)
-        if cached:
-            return JsonResponse({"status": "success", "engine": "content",
-                                 "cached": True, "product": product_grp, "items": cached})
-
-        safe_prod = product_grp.replace("'", "")
-        query = f"""
-        SELECT
-            m.item_category,
-            m.brand,
-            m.product,
-            count()           AS times_sold,
-            sum(s.sold_price) AS total_revenue,
-            avg(s.sold_price) AS avg_price
-        FROM azure_sales_report s
-        JOIN item_master m ON s.item_code = m.item_code
-        WHERE m.product = '{safe_prod}'
-          AND {_MBA_DATE_FILTER}
-        GROUP BY m.item_category, m.brand, m.product
-        ORDER BY times_sold DESC
-        LIMIT {limit}
-        """
-        rows = ch.query(query).result_rows
-        items = [
-            {
-                "item_category": r[0], "brand": r[1], "product": r[2],
-                "times_sold": int(r[3]),
-                "total_revenue": round(float(r[4] or 0), 2),
-                "avg_price": round(float(r[5] or 0), 2),
-            }
-            for r in rows
-        ]
-        cache.set(cache_key, items, 60 * 60 * 6)  # 6 hours
-        return JsonResponse({"status": "success", "engine": "content",
-                             "cached": False, "product": product_grp, "items": items})
-
-    # ── Engine 4: Hybrid Engine ───────────────────────────────────────────────
-    def _hybrid(self, ch, item_cat, product_grp, limit, cache):
-        from django.http import JsonResponse
-        import hashlib
-
-        # Run engines 1, 2, 3 and merge
-        assoc_resp = self._association(ch, 100, cache)
-        assoc_data = assoc_resp.content
-        import json as _json
-        assoc_json = _json.loads(assoc_data)
-        assoc_rules = assoc_json.get("rules", [])
-
-        # Build collab results for the item_cat
-        collab_items = []
-        if item_cat:
-            collab_resp = self._collaborative(ch, item_cat, 50, cache)
-            collab_json = _json.loads(collab_resp.content)
-            collab_items = collab_json.get("recommendations", [])
-
-        # Gather all candidate item_categories from association
-        candidates = {}
-        max_lift = max((r["lift"] for r in assoc_rules), default=1)
-        for r in assoc_rules:
-            key = (r["cat_b"], r["prod_b"])
-            score_a = (r["lift"] / max_lift) * 50  # 50% weight
-            if key not in candidates:
-                candidates[key] = {"cat": r["cat_b"], "prod": r["prod_b"],
-                                   "assoc_score": 0, "collab_score": 0,
-                                   "lift": r["lift"], "support": r["support"],
-                                   "confidence": r["confidence"], "co_buyers": 0}
-            candidates[key]["assoc_score"] += score_a
-
-        max_buyers = max((r["co_buyers"] for r in collab_items), default=1)
-        for r in collab_items:
-            key = (r["rec_category"], r["rec_product"])
-            score_c = (r["co_buyers"] / max_buyers) * 30  # 30% weight
-            if key not in candidates:
-                candidates[key] = {"cat": r["rec_category"], "prod": r["rec_product"],
-                                   "assoc_score": 0, "collab_score": 0,
-                                   "lift": 0, "support": 0, "confidence": 0,
-                                   "co_buyers": r["co_buyers"]}
-            candidates[key]["collab_score"] = score_c
-            candidates[key]["co_buyers"] = r["co_buyers"]
-
-        # Compute hybrid score
-        results = []
-        for key, v in candidates.items():
-            hybrid_score = round(v["assoc_score"] + v["collab_score"], 1)
-            results.append({
-                "cat": v["cat"], "prod": v["prod"],
-                "hybrid_score": hybrid_score,
-                "lift": v["lift"], "support": v["support"],
-                "confidence": v["confidence"], "co_buyers": v["co_buyers"],
-            })
-        results.sort(key=lambda x: x["hybrid_score"], reverse=True)
-        return JsonResponse({"status": "success", "engine": "hybrid",
-                             "item_category": item_cat,
-                             "recommendations": results[:limit]})
