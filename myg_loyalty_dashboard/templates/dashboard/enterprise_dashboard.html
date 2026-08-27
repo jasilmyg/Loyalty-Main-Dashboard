@@ -397,11 +397,11 @@
         <table class="sc-table">
           <thead>
             <tr>
-              <th rowspan="2" style="padding-left:1.25rem; vertical-align:middle; border-right:1px solid var(--border);">PDT CAT</th>
+              <th rowspan="2" style="padding-left:1.25rem; vertical-align:middle; border-right: 2px solid #64748b;">PDT CAT</th>
               <th class="text-center" id="sc-base-amt-h1">BASE</th>
               <th class="text-center" id="sc-comp-amt-h1">COMP</th>
               <th rowspan="2" class="text-center" style="vertical-align:middle;">GROWTH %</th>
-              <th rowspan="2" class="text-center" id="sc-share-amt-h1" style="vertical-align:middle; border-right:1px solid var(--border);">SHARE COMP</th>
+              <th rowspan="2" class="text-center" id="sc-share-amt-h1" style="vertical-align:middle; border-right: 2px solid #64748b;">SHARE COMP</th>
               <th class="text-center" id="sc-base-qty-h1">BASE</th>
               <th class="text-center" id="sc-comp-qty-h1">COMP</th>
               <th rowspan="2" class="text-center" style="vertical-align:middle;">GROWTH %</th>
@@ -427,11 +427,11 @@
         <table class="sc-table">
           <thead>
             <tr>
-              <th rowspan="2" style="padding-left:1.25rem; vertical-align:middle; border-right:1px solid var(--border);">PRODUCT</th>
+              <th rowspan="2" style="padding-left:1.25rem; vertical-align:middle; border-right: 2px solid #64748b;">PRODUCT</th>
               <th class="text-center" id="prod-base-amt-h1">BASE AMT</th>
               <th class="text-center" id="prod-comp-amt-h1">COMP AMT</th>
               <th rowspan="2" class="text-center" style="vertical-align:middle;">GROWTH %</th>
-              <th rowspan="2" class="text-center" id="prod-share-amt-h1" style="vertical-align:middle; border-right:1px solid var(--border);">SHARE COMP</th>
+              <th rowspan="2" class="text-center" id="prod-share-amt-h1" style="vertical-align:middle; border-right: 2px solid #64748b;">SHARE COMP</th>
               <th class="text-center" id="prod-base-qty-h1">BASE QTY</th>
               <th class="text-center" id="prod-comp-qty-h1">COMP QTY</th>
               <th rowspan="2" class="text-center" style="vertical-align:middle;">GROWTH %</th>
@@ -457,11 +457,11 @@
         <table class="sc-table">
           <thead>
             <tr>
-              <th rowspan="2" style="padding-left:1.25rem; vertical-align:middle; border-right:1px solid var(--border);">BRAND</th>
+              <th rowspan="2" style="padding-left:1.25rem; vertical-align:middle; border-right: 2px solid #64748b;">BRAND</th>
               <th class="text-center" id="brand-base-amt-h1">BASE AMT</th>
               <th class="text-center" id="brand-comp-amt-h1">COMP AMT</th>
               <th rowspan="2" class="text-center" style="vertical-align:middle;">GROWTH %</th>
-              <th rowspan="2" class="text-center" id="brand-share-amt-h1" style="vertical-align:middle; border-right:1px solid var(--border);">SHARE COMP</th>
+              <th rowspan="2" class="text-center" id="brand-share-amt-h1" style="vertical-align:middle; border-right: 2px solid #64748b;">SHARE COMP</th>
               <th class="text-center" id="brand-base-qty-h1">BASE QTY</th>
               <th class="text-center" id="brand-comp-qty-h1">COMP QTY</th>
               <th rowspan="2" class="text-center" style="vertical-align:middle;">GROWTH %</th>
@@ -487,11 +487,11 @@
         <table class="sc-table">
           <thead>
             <tr>
-              <th rowspan="2" style="padding-left:1.25rem; vertical-align:middle; border-right:1px solid var(--border);">BRANCH</th>
+              <th rowspan="2" style="padding-left:1.25rem; vertical-align:middle; border-right: 2px solid #64748b;">BRANCH</th>
               <th class="text-center" id="branch-base-amt-h1">BASE AMT</th>
               <th class="text-center" id="branch-comp-amt-h1">COMP AMT</th>
               <th rowspan="2" class="text-center" style="vertical-align:middle;">GROWTH %</th>
-              <th rowspan="2" class="text-center" id="branch-share-amt-h1" style="vertical-align:middle; border-right:1px solid var(--border);">SHARE COMP</th>
+              <th rowspan="2" class="text-center" id="branch-share-amt-h1" style="vertical-align:middle; border-right: 2px solid #64748b;">SHARE COMP</th>
               <th class="text-center" id="branch-base-qty-h1">BASE QTY</th>
               <th class="text-center" id="branch-comp-qty-h1">COMP QTY</th>
               <th rowspan="2" class="text-center" style="vertical-align:middle;">GROWTH %</th>
@@ -800,14 +800,14 @@ _set('branch-base-amt-h1',  bLabelShort);
             const qty_share  = r.c_qty > 0 ? (br.qty / r.c_qty * 100) : 0;
             
             return `<tr class="brand-row-${cat.replace(/[\s\W]+/g,'-')}" style="display:none; background-color:#fafafa; font-size:0.75rem;">
-              <td style="padding-left:2.5rem; min-width:160px; border-right: 1px solid var(--border); color:var(--text-2);">
+              <td style="padding-left:2.5rem; min-width:160px; border-right: 2px solid #64748b; color:var(--text-2);">
                 <span class="rank-badge" style="background:#e2e8f0;color:#64748b;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.65rem;margin-right:0.5rem;">${bi+1}</span>
                 <span style="font-weight:600;">${br.brand}</span>
               </td>
               <td class="text-right" style="color:var(--text-2);">${fCr(b_rev)}</td>
               <td class="text-right" style="font-weight:600; color:var(--text-1);">${fCr(br.sales)}</td>
               <td class="text-right">${gBadge(rev_growth)}</td>
-              <td class="text-right" style="border-right: 1px solid var(--border); color:var(--text-2);">${rev_share.toFixed(2)}%</td>
+              <td class="text-right" style="border-right: 2px solid #64748b; color:var(--text-2);">${rev_share.toFixed(2)}%</td>
               <td class="text-right" style="color:var(--text-2);">${fN(b_qty)}</td>
               <td class="text-right" style="font-weight:600; color:var(--text-1);">${fN(br.qty)}</td>
               <td class="text-right">${gBadge(qty_growth)}</td>
@@ -836,14 +836,14 @@ _set('branch-base-amt-h1',  bLabelShort);
               let pId = (pRow.product||'unknown').replace(/[\s\W]+/g, '-');
               let prefix = cat.replace(/[\s\W]+/g, '-').toLowerCase();
               return `<tr class="brand-row-${prefix}-${pId} brand-row-${cat.replace(/[\s\W]+/g,'-')}-child" style="display:none; background-color:#ffffff; font-size:0.7rem;">
-                <td style="padding-left:4rem; min-width:160px; border-right: 1px solid var(--border); color:var(--text-3);">
+                <td style="padding-left:4rem; min-width:160px; border-right: 2px solid #64748b; color:var(--text-3);">
                   <span class="rank-badge" style="background:#f1f5f9;color:#94a3b8;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.6rem;margin-right:0.4rem;">${bi+1}</span>
                   <span style="font-weight:600;">${br.brand}</span>
                 </td>
                 <td class="text-right" style="color:var(--text-3);">${fCr(b_rev)}</td>
                 <td class="text-right" style="font-weight:600; color:var(--text-2);">${fCr(c_rev)}</td>
                 <td class="text-right">${gBadge(b_rev_growth)}</td>
-                <td class="text-right" style="border-right: 1px solid var(--border); color:var(--text-3);">${b_rev_share.toFixed(2)}%</td>
+                <td class="text-right" style="border-right: 2px solid #64748b; color:var(--text-3);">${b_rev_share.toFixed(2)}%</td>
                 <td class="text-right" style="color:var(--text-3);">${fN(b_qty)}</td>
                 <td class="text-right" style="font-weight:600; color:var(--text-2);">${fN(c_qty)}</td>
                 <td class="text-right">${gBadge(b_qty_growth)}</td>
@@ -854,14 +854,14 @@ _set('branch-base-amt-h1',  bLabelShort);
             let pId = (pRow.product||'unknown').replace(/[\s\W]+/g, '-');
             let prefix = cat.replace(/[\s\W]+/g, '-').toLowerCase();
             return `<tr class="brand-row-${cat.replace(/[\s\W]+/g,'-')}" style="display:none; background-color:#fafafa; font-size:0.75rem; cursor:pointer;" onclick="toggleBrandRow('${prefix}-${pId}', event)">
-              <td style="padding-left:2.5rem; min-width:160px; border-right: 1px solid var(--border); color:var(--text-2);">
+              <td style="padding-left:2.5rem; min-width:160px; border-right: 2px solid #64748b; color:var(--text-2);">
                 <i class="bi bi-chevron-down" style="font-size:0.6rem; margin-right:0.3rem;" id="brand-icon-${prefix}-${pId}"></i>
                 <span style="font-weight:600;">${pRow.product}</span>
               </td>
               <td class="text-right" style="color:var(--text-2);">${fCr(pRow.b_rev)}</td>
               <td class="text-right" style="font-weight:600; color:var(--text-1);">${fCr(pRow.c_rev)}</td>
               <td class="text-right">${gBadge(p_rev_growth)}</td>
-              <td class="text-right" style="border-right: 1px solid var(--border); color:var(--text-2);">${p_rev_share.toFixed(2)}%</td>
+              <td class="text-right" style="border-right: 2px solid #64748b; color:var(--text-2);">${p_rev_share.toFixed(2)}%</td>
               <td class="text-right" style="color:var(--text-2);">${fN(pRow.b_qty)}</td>
               <td class="text-right" style="font-weight:600; color:var(--text-1);">${fN(pRow.c_qty)}</td>
               <td class="text-right">${gBadge(p_qty_growth)}</td>
@@ -889,14 +889,14 @@ _set('branch-base-amt-h1',  bLabelShort);
             const qty_share  = r.c_qty > 0 ? (br.qty / r.c_qty * 100) : 0;
             
             return `<tr class="brand-row-${cat.replace(/[\s\W]+/g,'-')}" style="display:none; background-color:#fafafa; font-size:0.75rem;">
-              <td style="padding-left:2.5rem; min-width:160px; border-right: 1px solid var(--border); color:var(--text-2);">
+              <td style="padding-left:2.5rem; min-width:160px; border-right: 2px solid #64748b; color:var(--text-2);">
                 <span class="rank-badge" style="background:#e2e8f0;color:#64748b;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.65rem;margin-right:0.5rem;">${bi+1}</span>
                 <span style="font-weight:600;">${br.brand}</span>
               </td>
               <td class="text-right" style="color:var(--text-2);">${fCr(b_rev)}</td>
               <td class="text-right" style="font-weight:600; color:var(--text-1);">${fCr(br.sales)}</td>
               <td class="text-right">${gBadge(rev_growth)}</td>
-              <td class="text-right" style="border-right: 1px solid var(--border); color:var(--text-2);">${rev_share.toFixed(2)}%</td>
+              <td class="text-right" style="border-right: 2px solid #64748b; color:var(--text-2);">${rev_share.toFixed(2)}%</td>
               <td class="text-right" style="color:var(--text-2);">${fN(b_qty)}</td>
               <td class="text-right" style="font-weight:600; color:var(--text-1);">${fN(br.qty)}</td>
               <td class="text-right">${gBadge(qty_growth)}</td>
@@ -913,7 +913,7 @@ _set('branch-base-amt-h1',  bLabelShort);
 
     return `
     <tr class="${isGrand?'grand-total':''}">
-      <td style="padding-left:1.25rem;min-width:160px; border-right: 1px solid var(--border);">
+      <td style="padding-left:1.25rem;min-width:160px; border-right: 2px solid #64748b;">
         ${isGrand
           ? `<span style="font-weight:800;color:var(--text-1)">Grand Total</span>`
           : `<span class="cat-dot" style="background:${color}"></span>
@@ -925,7 +925,7 @@ _set('branch-base-amt-h1',  bLabelShort);
       <td class="text-right">${fCr(r.b_rev)}</td>
       <td class="text-right" style="font-weight:600">${fCr(r.c_rev)}</td>
       <td class="text-right">${gBadge(r.rev_growth)}</td>
-      <td class="text-right" style="border-right: 1px solid var(--border);">${(r.share||0).toFixed(2)}%</td>
+      <td class="text-right" style="border-right: 2px solid #64748b;">${(r.share||0).toFixed(2)}%</td>
       <td class="text-right">${fN(r.b_qty)}</td>
       <td class="text-right" style="font-weight:600">${fN(r.c_qty)}</td>
       <td class="text-right">${gBadge(r.qty_growth)}</td>
@@ -1061,11 +1061,11 @@ function _renderFlatReport(rows, groupKey, tbodyId) {
       ? `<strong>${label}</strong>`
       : `<span style="font-weight:600">${label}</span>`;
     return `<tr class="${rowClass}">
-      <td style="padding-left:1.25rem; min-width:180px; border-right:1px solid var(--border);">${labelHtml}</td>
+      <td style="padding-left:1.25rem; min-width:180px; border-right: 2px solid #64748b;">${labelHtml}</td>
       <td class="text-right">${fCr(v.b_rev)}</td>
       <td class="text-right" style="font-weight:${isTotal?800:600}">${fCr(v.c_rev)}</td>
       <td class="text-right">${gBadge(rev_g)}</td>
-      <td class="text-right" style="border-right:1px solid var(--border);">${rev_s.toFixed(2)}%</td>
+      <td class="text-right" style="border-right: 2px solid #64748b;">${rev_s.toFixed(2)}%</td>
       <td class="text-right">${fN(v.b_qty)}</td>
       <td class="text-right" style="font-weight:${isTotal?800:600}">${fN(v.c_qty)}</td>
       <td class="text-right">${gBadge(qty_g)}</td>
