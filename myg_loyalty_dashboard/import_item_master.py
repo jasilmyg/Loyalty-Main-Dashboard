@@ -32,13 +32,17 @@ def import_master():
     print("Truncating item_master (if exists)...")
     client.command("TRUNCATE TABLE item_master")
 
-    file_path = r'C:\Users\jasil_myg\Desktop\myG Loyalty Main Dashboard\project_folder\Item Master as on 2026-08-04 (2).xlsx'
+    file_path = r'C:\Users\jasil_myg\Desktop\myG Loyalty Main Dashboard\project_folder\Item Master as on 2026-08-27.xlsx'
     print(f"Reading Excel file: {file_path}")
     start = time.time()
     
     df = pd.read_excel(file_path)
     print(f"Loaded {len(df)} rows in {time.time()-start:.2f}s")
     
+    # Handle column name casing variations
+    if 'Mop' in df.columns: df.rename(columns={'Mop': 'MOP'}, inplace=True)
+    if 'Mrp' in df.columns: df.rename(columns={'Mrp': 'MRP'}, inplace=True)
+
     # Fill NAs
     df = df.fillna({
         'Product': '', 'Brand': '', 'Category': '', 'Item': '', 

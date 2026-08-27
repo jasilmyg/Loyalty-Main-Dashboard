@@ -474,13 +474,12 @@
         </div>
 
 
+        {% if request.user.username != 'shestart' and request.user.username != 'mygusers' %}
         <!-- === LEGACY MODULES === -->
         <div class="mb-2 mt-4" style="padding-left: 2.5rem;">
             <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">Legacy Operations</small>
         </div>
 
-
-        {% if request.user.username != 'shestart' and request.user.username != 'mygusers' %}
         <ul class="nav flex-column mb-4">
             <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}"><i class="bi bi-grid-1x2"></i> Sales Overview</a>
