@@ -1,9 +1,9 @@
 def get_branch_mappings(ch):
-    \"\"\"
+    """
     Returns two dictionaries:
     code_to_name: {'ADF': 'ADIMALY FUTURE', ...}
     name_to_code: {'ADIMALY FUTURE': 'ADF', ...}
-    \"\"\"
+    """
     rows = ch.query("SELECT code, branch_name FROM branch_master WHERE code != ''").result_rows
     code_to_name = {}
     name_to_code = {}
