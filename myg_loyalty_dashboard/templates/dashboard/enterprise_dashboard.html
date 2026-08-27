@@ -481,6 +481,37 @@
       </div>
     </div>
 
+    <!-- PANEL: Branch Report -->
+    <div id="panel-branch" class="dash-panel" style="display:none;">
+      <div class="scrollable">
+        <table class="sc-table">
+          <thead>
+            <tr>
+              <th rowspan="2" style="padding-left:1.25rem; vertical-align:middle; border-right:1px solid var(--border);">BRANCH</th>
+              <th class="text-center" id="branch-base-amt-h1">BASE AMT</th>
+              <th class="text-center" id="branch-comp-amt-h1">COMP AMT</th>
+              <th rowspan="2" class="text-center" style="vertical-align:middle;">GROWTH %</th>
+              <th rowspan="2" class="text-center" id="branch-share-amt-h1" style="vertical-align:middle; border-right:1px solid var(--border);">SHARE COMP</th>
+              <th class="text-center" id="branch-base-qty-h1">BASE QTY</th>
+              <th class="text-center" id="branch-comp-qty-h1">COMP QTY</th>
+              <th rowspan="2" class="text-center" style="vertical-align:middle;">GROWTH %</th>
+              <th rowspan="2" class="text-center" id="branch-share-qty-h1" style="padding-right:1.25rem; vertical-align:middle;">SHARE COMP</th>
+            </tr>
+            <tr>
+              <th class="text-center" style="border-top:none;">AMT</th>
+              <th class="text-center" style="border-top:none;">AMT</th>
+              <th class="text-center" style="border-top:none;">QTY</th>
+              <th class="text-center" style="border-top:none;">QTY</th>
+            </tr>
+          </thead>
+          <tbody id="branch-tbody">
+            <tr class="loading-row"><td colspan="9"><div class="skeleton" style="height:14px;width:60%"></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+
   </div><!-- /.card-s tabs -->
 
 </div><!-- /.dash-wrap -->
