@@ -138,9 +138,18 @@ def build_api_response(request):
 
     ch = _get_ch()
 
+    from .utils import get_branch_mappings
+    code_to_name, name_to_code = get_branch_mappings(ch)
+
+    if branch:
+        branch = ','.join([name_to_code.get(b.strip(), b.strip()) for b in branch.split(',')])
+
     # ── Fetch base and comparison periods from ClickHouse ─────────────────────
     df_b, b_inv = _fetch_period(ch, comp_type, base_val, base_year, brand, branch, cat, product)
     df_c, c_inv = _fetch_period(ch, comp_type, comp_val, comp_year, brand, branch, cat, product)
+
+    if not df_b.empty: df_b['branch'] = df_b['branch'].map(code_to_name).fillna(df_b['branch'])
+    if not df_c.empty: df_c['branch'] = df_c['branch'].map(code_to_name).fillna(df_c['branch'])
 
     # Apply category filter AFTER mapping (mapped categories like MOBILE, CE, ACC etc.)
     if cat:

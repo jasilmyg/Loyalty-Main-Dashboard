@@ -38,6 +38,8 @@ class ExecutiveDashboardView(LoginRequiredMixin, View):
         try:
             if _CH_AVAILABLE:
                 ch = _ch()
+                from dashboard.utils import get_branch_mappings
+                code_to_name, _ = get_branch_mappings(ch)
                 row = ch.query("""
                     SELECT sum(invoice_total), count(distinct customer_mobile),
                            count(distinct invoice_no),
@@ -114,6 +116,8 @@ class CustomerIntelligenceView(LoginRequiredMixin, View):
         try:
             if _CH_AVAILABLE:
                 ch = _ch()
+                from dashboard.utils import get_branch_mappings
+                code_to_name, _ = get_branch_mappings(ch)
                 row = ch.query("""
                     SELECT count(distinct customer_mobile),
                            countIf(distinct customer_mobile, toDate(date) >= today() - 90),
@@ -183,6 +187,8 @@ class CustomerSegmentationView(LoginRequiredMixin, View):
         try:
             if _CH_AVAILABLE:
                 ch = _ch()
+                from dashboard.utils import get_branch_mappings
+                code_to_name, _ = get_branch_mappings(ch)
                 rfm = ch.query("""
                     SELECT
                         countIf(recency <= 30 AND freq >= 5 AND spend >= 100000) as champions,
@@ -230,6 +236,8 @@ class SalesIntelligenceView(LoginRequiredMixin, View):
         try:
             if _CH_AVAILABLE:
                 ch = _ch()
+                from dashboard.utils import get_branch_mappings
+                code_to_name, _ = get_branch_mappings(ch)
                 row = ch.query("""
                     SELECT sum(invoice_total), count(distinct invoice_no),
                            sum(invoice_total)/count(distinct invoice_no),
@@ -280,7 +288,7 @@ class SalesIntelligenceView(LoginRequiredMixin, View):
                     GROUP BY branch ORDER BY rev DESC LIMIT 10
                 """).result_rows
                 ctx['branch_data'] = json.dumps([{
-                    'branch': r[0], 'rev': round(float(r[1] or 0), 2),
+                    'branch': code_to_name.get(r[0], r[0]), 'rev': round(float(r[1] or 0), 2),
                     'inv': int(r[2] or 0), 'custs': int(r[3] or 0)
                 } for r in branches])
         except Exception as e:
@@ -301,6 +309,8 @@ class ProductIntelligenceView(LoginRequiredMixin, View):
         try:
             if _CH_AVAILABLE:
                 ch = _ch()
+                from dashboard.utils import get_branch_mappings
+                code_to_name, _ = get_branch_mappings(ch)
                 top = ch.query("""
                     SELECT i.product, i.brand, sum(s.sold_price * s.qty) as rev,
                            sum(s.qty) as qty, count(distinct s.invoice_no) as inv_count
@@ -344,6 +354,8 @@ class BranchIntelligenceView(LoginRequiredMixin, View):
         try:
             if _CH_AVAILABLE:
                 ch = _ch()
+                from dashboard.utils import get_branch_mappings
+                code_to_name, _ = get_branch_mappings(ch)
                 branches = ch.query("""
                     SELECT branch, sum(invoice_total) as rev,
                            count(distinct invoice_no) as inv,
@@ -354,7 +366,7 @@ class BranchIntelligenceView(LoginRequiredMixin, View):
                     GROUP BY branch ORDER BY rev DESC
                 """).result_rows
                 ctx['branches'] = json.dumps([{
-                    'branch': r[0], 'rev': round(float(r[1] or 0), 2),
+                    'branch': code_to_name.get(r[0], r[0]), 'rev': round(float(r[1] or 0), 2),
                     'inv': int(r[2] or 0), 'custs': int(r[3] or 0),
                     'aov': round(float(r[4] or 0), 2)
                 } for r in branches])
@@ -369,7 +381,7 @@ class BranchIntelligenceView(LoginRequiredMixin, View):
                 """).result_rows
                 prev_map = {r[0]: float(r[1] or 0) for r in prev}
                 ctx['branches_with_growth'] = json.dumps([{
-                    'branch': r[0], 'rev': round(float(r[1] or 0), 2),
+                    'branch': code_to_name.get(r[0], r[0]), 'rev': round(float(r[1] or 0), 2),
                     'inv': int(r[2] or 0), 'custs': int(r[3] or 0),
                     'aov': round(float(r[4] or 0), 2),
                     'growth': round(((float(r[1] or 0) - prev_map.get(r[0], 0)) / prev_map.get(r[0], 1) * 100), 1) if prev_map.get(r[0]) else 0
@@ -392,6 +404,8 @@ class RecommendationEngineView(LoginRequiredMixin, View):
         try:
             if _CH_AVAILABLE:
                 ch = _ch()
+                from dashboard.utils import get_branch_mappings
+                code_to_name, _ = get_branch_mappings(ch)
                 pairs = ch.query("""
                     SELECT a.product as prod1, b.product as prod2, count(*) as pair_count
                     FROM (
@@ -436,6 +450,8 @@ class InventoryIntelligenceView(LoginRequiredMixin, View):
         try:
             if _CH_AVAILABLE:
                 ch = _ch()
+                from dashboard.utils import get_branch_mappings
+                code_to_name, _ = get_branch_mappings(ch)
                 inv = ch.query("""
                     SELECT i.product, i.brand,
                            sum(s.qty) as sold_30d,
@@ -490,6 +506,8 @@ class PromotionIntelligenceView(LoginRequiredMixin, View):
         try:
             if _CH_AVAILABLE:
                 ch = _ch()
+                from dashboard.utils import get_branch_mappings
+                code_to_name, _ = get_branch_mappings(ch)
                 promo = ch.query("""
                     SELECT
                         count(distinct invoice_no) as total_inv,
@@ -520,7 +538,7 @@ class PromotionIntelligenceView(LoginRequiredMixin, View):
                     GROUP BY branch ORDER BY total_disc DESC LIMIT 10
                 """).result_rows
                 ctx['disc_branches'] = json.dumps([{
-                    'branch': r[0], 'total_disc': round(float(r[1] or 0), 2),
+                    'branch': code_to_name.get(r[0], r[0]), 'total_disc': round(float(r[1] or 0), 2),
                     'inv_count': int(r[2] or 0), 'avg_disc': round(float(r[3] or 0), 2)
                 } for r in disc_branch])
 
@@ -548,6 +566,8 @@ class AIInsightsCenterView(LoginRequiredMixin, View):
         try:
             if _CH_AVAILABLE:
                 ch = _ch()
+                from dashboard.utils import get_branch_mappings
+                code_to_name, _ = get_branch_mappings(ch)
                 # Revenue anomalies
                 anomalies = ch.query("""
                     SELECT d, rev, avg_rev, round(rev / avg_rev, 2) as ratio
@@ -578,7 +598,7 @@ class AIInsightsCenterView(LoginRequiredMixin, View):
                     ) prev ON curr.branch = prev.branch
                     ORDER BY growth_pct DESC LIMIT 5
                 """).result_rows
-                ctx['growth_branches'] = json.dumps([{'branch': r[0], 'curr': round(float(r[1] or 0), 2),
+                ctx['growth_branches'] = json.dumps([{'branch': code_to_name.get(r[0], r[0]), 'curr': round(float(r[1] or 0), 2),
                     'prev': round(float(r[2] or 0), 2), 'growth': float(r[3] or 0)} for r in growth])
 
                 # Declining branches
@@ -596,7 +616,7 @@ class AIInsightsCenterView(LoginRequiredMixin, View):
                     ) prev ON curr.branch = prev.branch
                     ORDER BY growth_pct ASC LIMIT 5
                 """).result_rows
-                ctx['decline_branches'] = json.dumps([{'branch': r[0], 'curr': round(float(r[1] or 0), 2),
+                ctx['decline_branches'] = json.dumps([{'branch': code_to_name.get(r[0], r[0]), 'curr': round(float(r[1] or 0), 2),
                     'prev': round(float(r[2] or 0), 2), 'growth': float(r[3] or 0)} for r in decline])
 
                 # Overall summary KPIs for insights
@@ -622,6 +642,8 @@ class ReportsExportsView(LoginRequiredMixin, View):
         try:
             if _CH_AVAILABLE:
                 ch = _ch()
+                from dashboard.utils import get_branch_mappings
+                code_to_name, _ = get_branch_mappings(ch)
                 summary = ch.query("""
                     SELECT sum(invoice_total), count(distinct customer_mobile), count(distinct invoice_no),
                            count(distinct branch), min(toDate(date)), max(toDate(date))
@@ -659,6 +681,8 @@ class DataManagementView(LoginRequiredMixin, View):
         try:
             if _CH_AVAILABLE:
                 ch = _ch()
+                from dashboard.utils import get_branch_mappings
+                code_to_name, _ = get_branch_mappings(ch)
                 quality = ch.query("""
                     SELECT count(*) as total_rows, min(toDate(date)) as min_date,
                            max(toDate(date)) as max_date,

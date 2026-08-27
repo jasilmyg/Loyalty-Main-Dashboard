@@ -73,8 +73,10 @@ class SpecialFiltersAPIView(LoginRequiredMixin, View):
             ch = get_ch_client()
             
             # Fetch distinct branches
+            from dashboard.utils import get_branch_mappings
+            code_to_name, _ = get_branch_mappings(ch)
             branches = ch.query("SELECT distinct branch FROM azure_sales_report WHERE branch != '' ORDER BY branch").result_rows
-            branches = [b[0] for b in branches]
+            branches = sorted(list(set([code_to_name.get(b[0], b[0]) for b in branches])))
             
             # Fetch products and brands from item_master
             items = ch.query("SELECT distinct product, brand FROM item_master WHERE product != '' OR brand != ''").result_rows

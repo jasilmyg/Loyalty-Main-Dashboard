@@ -26,8 +26,15 @@ def fetch_period_data(ch, start_date, end_date, filters=None):
     
     where_clauses = [f"toDate(s.date) >= toDate('{start_date}')", f"toDate(s.date) <= toDate('{end_date}')"]
     
+    from .utils import get_branch_mappings
+    code_to_name, name_to_code = get_branch_mappings(ch)
+
+    branch_filter = filters.get('branch', '')
+    if branch_filter:
+        branch_filter = ','.join([name_to_code.get(b.strip(), b.strip()) for b in branch_filter.split(',')])
+
     for clause in [
-        _in_clause('s.branch',    filters.get('branch',   '')),
+        _in_clause('s.branch',    branch_filter),
         _in_clause('m.category',  filters.get('category', '')),
         _in_clause('m.product',   filters.get('product',  '')),
         _in_clause('m.brand',     filters.get('brand',    '')),
@@ -55,7 +62,9 @@ def fetch_period_data(ch, start_date, end_date, filters=None):
     
     data = []
     for r in rows:
-        data.append(dict(zip(keys, r)))
+        d = dict(zip(keys, r))
+        d['branch'] = code_to_name.get(d['branch'], d['branch'])
+        data.append(d)
         
     return data
 
