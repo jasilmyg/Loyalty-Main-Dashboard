@@ -138,7 +138,7 @@
   .kpi-badge.neu { background: rgba(100,116,139,.1); color: var(--text-2); }
 
   /* ── Scorecard table ── */
-  .sc-table { width: 100%; border-collapse: collapse; font-size: .72rem; }
+  .sc-table { width: 100%; border-collapse: collapse; font-size: .72rem; table-layout: fixed; }
   .sc-table thead th {
     background: #eef2ff;
     color: #3730a3;
@@ -169,7 +169,7 @@
   .badge-g.zer { background: #f1f5f9; color: var(--text-3); }
 
   /* ── Brand table ── */
-  .brand-table { width: 100%; border-collapse: collapse; font-size: .72rem; }
+  .brand-table { width: 100%; border-collapse: collapse; font-size: .72rem; table-layout: fixed; }
   .brand-table thead th {
     background: #f8fafc; color: var(--text-3);
     font-size: .63rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
@@ -201,7 +201,7 @@
   .text-mono  { font-family: 'Courier New', monospace; }
   /* Table scroll container — vertical scroll only, no horizontal scrollbar */
   .scrollable {
-    overflow-x: hidden;
+    overflow-x: auto;
     overflow-y: auto;
     max-height: 65vh;
     border-radius: 0 0 var(--radius) var(--radius);
@@ -417,6 +417,17 @@
     <div id="panel-cat" class="dash-panel" style="display:block;">
       <div class="scrollable">
         <table class="sc-table">
+          <colgroup>
+            <col style="width:14%">
+            <col style="width:9%">
+            <col style="width:9%">
+            <col style="width:8%">
+            <col style="width:11%">
+            <col style="width:9%">
+            <col style="width:9%">
+            <col style="width:8%">
+            <col style="width:10%">
+          </colgroup>
           <thead>
             <tr>
               <th rowspan="2" style="padding-left:1.25rem; vertical-align:middle; border-right: 2px solid #64748b;">PDT CAT</th>
@@ -447,6 +458,17 @@
     <div id="panel-product" class="dash-panel" style="display:none;">
       <div class="scrollable">
         <table class="sc-table">
+          <colgroup>
+            <col style="width:14%">
+            <col style="width:9%">
+            <col style="width:9%">
+            <col style="width:8%">
+            <col style="width:11%">
+            <col style="width:9%">
+            <col style="width:9%">
+            <col style="width:8%">
+            <col style="width:10%">
+          </colgroup>
           <thead>
             <tr>
               <th rowspan="2" style="padding-left:1.25rem; vertical-align:middle; border-right: 2px solid #64748b;">PRODUCT</th>
@@ -477,6 +499,17 @@
     <div id="panel-brand" class="dash-panel" style="display:none;">
       <div class="scrollable">
         <table class="sc-table">
+          <colgroup>
+            <col style="width:14%">
+            <col style="width:9%">
+            <col style="width:9%">
+            <col style="width:8%">
+            <col style="width:11%">
+            <col style="width:9%">
+            <col style="width:9%">
+            <col style="width:8%">
+            <col style="width:10%">
+          </colgroup>
           <thead>
             <tr>
               <th rowspan="2" style="padding-left:1.25rem; vertical-align:middle; border-right: 2px solid #64748b;">BRAND</th>
@@ -507,6 +540,17 @@
     <div id="panel-branch" class="dash-panel" style="display:none;">
       <div class="scrollable">
         <table class="sc-table">
+          <colgroup>
+            <col style="width:14%">
+            <col style="width:9%">
+            <col style="width:9%">
+            <col style="width:8%">
+            <col style="width:11%">
+            <col style="width:9%">
+            <col style="width:9%">
+            <col style="width:8%">
+            <col style="width:10%">
+          </colgroup>
           <thead>
             <tr>
               <th rowspan="2" style="padding-left:1.25rem; vertical-align:middle; border-right: 2px solid #64748b;">BRANCH</th>

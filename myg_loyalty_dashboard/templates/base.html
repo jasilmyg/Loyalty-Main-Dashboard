@@ -472,6 +472,17 @@
             </span>
         </div>
 
+        {% if request.user.username == 'mygusers' %}
+        <!-- Logout button for mygusers -->
+        <div style="padding: 0 1rem 1rem 1rem; text-align: center;">
+            <form method="post" action="{% url 'logout' %}" class="m-0 p-0">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm w-100" style="background: #fff0f0; color: #dc2626; border: 1px solid #fecaca; border-radius: 8px; font-size: 0.78rem; font-weight: 600; padding: 6px 10px;">
+                    <i class="bi bi-box-arrow-right me-1"></i> Logout
+                </button>
+            </form>
+        </div>
+        {% endif %}
 
         {% if request.user.username != 'shestart' and request.user.username != 'mygusers' %}
         <!-- === LEGACY MODULES === -->
