@@ -105,6 +105,7 @@
             padding: 1.25rem;
             margin-bottom: 2.5rem;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+            position: relative;
         }
         .form-control, .form-select {
             background-color: #f8fafc;
@@ -464,13 +465,11 @@
         <!-- Sidebar -->
     <nav class="sidebar py-4">
         <!-- Logo Area -->
-        <div class="mb-4 mt-4" style="padding-left: 2.5rem;">
-            <img src="{% static 'logo.png' %}" alt="myG FUTURE Logo" style="height: 65px; object-fit: contain; margin-bottom: 0.5rem;">
-            <div style="margin-top: 10px;">
-                <span class="badge bg-success-subtle text-success" style="font-size: 0.65rem; border: 1px solid #a7f3d0; padding: 4px 8px; border-radius: 6px;">
-                    <i class="bi bi-cloud-check-fill me-1"></i> Data Live (Sync Active)
-                </span>
-            </div>
+        <div class="mb-4 mt-4" style="padding-left: 1.5rem; text-align: center;">
+            <img src="{% static 'logo.png' %}" alt="myG FUTURE Logo" style="height: 65px; object-fit: contain; margin-bottom: 0.5rem; display: block; margin-left: auto; margin-right: auto;">
+            <span class="badge bg-success-subtle text-success mt-2" style="font-size: 0.63rem; border: 1px solid #a7f3d0; padding: 4px 10px; border-radius: 6px; display: inline-block;">
+                <i class="bi bi-cloud-check-fill me-1"></i> Data Live (Sync Active)
+            </span>
         </div>
 
 
@@ -900,39 +899,7 @@
     });
 </script>
 
-<!-- n8n AI Chat Widget -->
-<link href="https://cdn.jsdelivr.net/npm/@n8n/chat/dist/style.css" rel="stylesheet" />
-<script type="module">
-import { createChat } from 'https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js';
 
-createChat({
-    webhookUrl: 'https://jasil.app.n8n.cloud/webhook/67906e13-6f22-4e0a-bf2c-c09f02d8f79f/chat',
-    mode: 'window',
-    showWelcomeScreen: true,
-    initialMessages: [
-        'Hi there! 👋',
-        'My name is Jasu. How can I assist you today?'
-    ]
-});
-
-// Attach a click event to the sidebar button to show a hint or try to open the widget
-document.addEventListener('DOMContentLoaded', () => {
-    const aiButton = document.getElementById('n8n-sidebar-btn');
-    if (aiButton) {
-        aiButton.addEventListener('click', (e) => {
-            e.preventDefault();
-            // Since the n8n widget doesn't expose a simple toggle API in this bundle usually,
-            // we remind the user where the chat is.
-            const n8nButton = document.querySelector('.n8n-chat-widget-button');
-            if (n8nButton) {
-                n8nButton.click(); // Programmatically click the n8n chat bubble!
-            } else {
-                alert("The AI Chat widget is loading in the bottom right corner of your screen! Look for the floating icon.");
-            }
-        });
-    }
-});
-</script>
 
 {% block extra_js %}{% endblock %}
 
