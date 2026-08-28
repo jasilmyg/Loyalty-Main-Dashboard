@@ -289,8 +289,8 @@
   <!-- ══ FILTER BAR ══════════════════════════════════════════════════════════ -->
   <div class="filter-bar mb-3">
 
-    <!-- Row 1: Comparison Type + Filters (full-width 5-column grid) -->
-    <div style="display:grid; grid-template-columns: 170px 1fr 1fr 1fr 1fr; gap:0.75rem; align-items:end; width:100%;">
+    <!-- Row 1: Comparison Type + Filters -->
+    <div style="display:grid; grid-template-columns: 150px 1fr 1fr 1fr 1fr 1fr 1fr; gap:0.75rem; align-items:end; width:100%;">
       <div>
         <label><i class="bi bi-sliders text-primary me-1"></i> Comparison Type</label>
         <select class="form-select" id="comp-type" onchange="togglePeriods()" style="background-color:#f8fafc; font-size:0.83rem; width:100%;">
@@ -316,6 +316,14 @@
       <div>
         <label><i class="bi bi-building text-primary me-1"></i> Branch</label>
         <select id="dash-branch"></select>
+      </div>
+      <div>
+        <label><i class="bi bi-person-badge text-warning me-1"></i> RBM</label>
+        <select id="dash-rbm"></select>
+      </div>
+      <div>
+        <label><i class="bi bi-person-lines-fill text-info me-1"></i> BDM</label>
+        <select id="dash-bdm"></select>
       </div>
       <div>
         <label><i class="bi bi-award text-primary me-1"></i> Brand</label>
@@ -1133,13 +1141,15 @@ async function loadDashboardData() {
     by = document.getElementById('base-year').value;
     cy = document.getElementById('comp-year').value;
   }
+  const rbm     = window._dash_ts && window._dash_ts['dash-rbm']     ? window._dash_ts['dash-rbm'].getValue().join(',')     : '';
+  const bdm     = window._dash_ts && window._dash_ts['dash-bdm']     ? window._dash_ts['dash-bdm'].getValue().join(',')     : '';
   const cat     = window._dash_ts && window._dash_ts['dash-cat']     ? window._dash_ts['dash-cat'].getValue().join(',')     : '';
   const branch  = window._dash_ts && window._dash_ts['dash-branch']  ? window._dash_ts['dash-branch'].getValue().join(',')  : '';
   const brand   = window._dash_ts && window._dash_ts['dash-brand']   ? window._dash_ts['dash-brand'].getValue().join(',')   : '';
   const product = window._dash_ts && window._dash_ts['dash-product'] ? window._dash_ts['dash-product'].getValue().join(',') : '';
 
   try {
-    const res  = await fetch(`/api/v1/enterprise-dashboard/?type=${apiType}&base=${base}&comp=${comp}&base_year=${by}&comp_year=${cy}&category=${encodeURIComponent(cat)}&branch=${encodeURIComponent(branch)}&brand=${encodeURIComponent(brand)}&product=${encodeURIComponent(product)}`);
+    const res  = await fetch(`/api/v1/enterprise-dashboard/?type=${apiType}&base=${base}&comp=${comp}&base_year=${by}&comp_year=${cy}&category=${encodeURIComponent(cat)}&branch=${encodeURIComponent(branch)}&rbm=${encodeURIComponent(rbm)}&bdm=${encodeURIComponent(bdm)}&brand=${encodeURIComponent(brand)}&product=${encodeURIComponent(product)}`);
     const json = await res.json();
     if (json.status !== 'success') { alert('Error: '+json.message); return; }
 
@@ -1201,7 +1211,7 @@ document.addEventListener('DOMContentLoaded', () => {
     dropdownParent: 'body',
     placeholder: 'All...',
   };
-  ['dash-cat','dash-branch','dash-brand','dash-product'].forEach(id => {
+  ['dash-cat','dash-branch','dash-rbm','dash-bdm','dash-brand','dash-product'].forEach(id => {
       window._dash_ts[id] = new TomSelect('#'+id, {...tsOpts});
   });
 
@@ -1221,6 +1231,8 @@ document.addEventListener('DOMContentLoaded', () => {
         s.refreshOptions(false);
       };
       fill('dash-branch',  j.data.branches);
+      fill('dash-rbm',     j.data.rbms);
+      fill('dash-bdm',     j.data.bdms);
       fill('dash-brand',   j.data.brands);
       fill('dash-product', j.data.products);
     })

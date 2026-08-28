@@ -130,8 +130,10 @@ def build_api_response(request):
     product    = request.GET.get('product',  '')
     brand      = request.GET.get('brand',    '')
     branch     = request.GET.get('branch',   '')
+    rbm        = request.GET.get('rbm',      '')
+    bdm        = request.GET.get('bdm',      '')
 
-    cache_key = f"ent_ch_v2_{comp_type}_{base_val}_{comp_val}_{base_year}_{comp_year}_{cat}_{product}_{brand}_{branch}"
+    cache_key = f"ent_ch_v2_{comp_type}_{base_val}_{comp_val}_{base_year}_{comp_year}_{cat}_{product}_{brand}_{branch}_{rbm}_{bdm}"
     cached = cache.get(cache_key)
     if cached:
         return cached
@@ -141,8 +143,32 @@ def build_api_response(request):
     from .utils import get_branch_mappings
     code_to_name, name_to_code = get_branch_mappings(ch)
 
+    # Resolve branch names → codes (from Branch filter)
     if branch:
         branch = ','.join([name_to_code.get(b.strip(), b.strip()) for b in branch.split(',')])
+
+    # Resolve RBM filter → branch codes via branch_master
+    if rbm:
+        rbm_list = [r.strip() for r in rbm.split(',') if r.strip()]
+        rbm_escaped = "','".join(r.replace("'", "''") for r in rbm_list)
+        rbm_branches = ch.query(f"SELECT DISTINCT code FROM branch_master WHERE rbm IN ('{rbm_escaped}') AND code != ''").result_rows
+        rbm_codes = [r[0] for r in rbm_branches]
+        # Merge with existing branch filter
+        if rbm_codes:
+            existing = [b for b in branch.split(',') if b] if branch else []
+            merged = list(set(existing + rbm_codes)) if existing else rbm_codes
+            branch = ','.join(merged)
+
+    # Resolve BDM filter → branch codes via branch_master
+    if bdm:
+        bdm_list = [b.strip() for b in bdm.split(',') if b.strip()]
+        bdm_escaped = "','".join(b.replace("'", "''") for b in bdm_list)
+        bdm_branches = ch.query(f"SELECT DISTINCT code FROM branch_master WHERE bdm IN ('{bdm_escaped}') AND code != ''").result_rows
+        bdm_codes = [r[0] for r in bdm_branches]
+        if bdm_codes:
+            existing = [b for b in branch.split(',') if b] if branch else []
+            merged = list(set(existing + bdm_codes)) if existing else bdm_codes
+            branch = ','.join(merged)
 
     # ── Fetch base and comparison periods from ClickHouse ─────────────────────
     df_b, b_inv = _fetch_period(ch, comp_type, base_val, base_year, brand, branch, cat, product)

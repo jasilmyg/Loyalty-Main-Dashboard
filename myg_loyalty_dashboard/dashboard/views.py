@@ -78,6 +78,12 @@ class SpecialFiltersAPIView(LoginRequiredMixin, View):
             branches = ch.query("SELECT distinct branch FROM azure_sales_report WHERE branch != '' ORDER BY branch").result_rows
             branches = sorted(list(set([code_to_name.get(b[0], b[0]) for b in branches])))
             
+            # Fetch RBM and BDM from branch_master
+            rbm_rows = ch.query("SELECT DISTINCT rbm FROM branch_master WHERE rbm != '' ORDER BY rbm").result_rows
+            bdm_rows = ch.query("SELECT DISTINCT bdm FROM branch_master WHERE bdm != '' ORDER BY bdm").result_rows
+            rbms = [r[0] for r in rbm_rows]
+            bdms = [r[0] for r in bdm_rows]
+            
             # Fetch products and brands from item_master
             items = ch.query("SELECT distinct product, brand FROM item_master WHERE product != '' OR brand != ''").result_rows
             products = sorted(list(set([i[0] for i in items if i[0]])))
@@ -90,6 +96,8 @@ class SpecialFiltersAPIView(LoginRequiredMixin, View):
                 'status': 'success',
                 'data': {
                     'branches':   branches,
+                    'rbms':       rbms,
+                    'bdms':       bdms,
                     'categories': categories,
                     'products':   products,
                     'brands':     brands
