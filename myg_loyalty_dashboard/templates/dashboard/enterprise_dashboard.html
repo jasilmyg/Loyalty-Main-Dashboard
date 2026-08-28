@@ -138,7 +138,7 @@
   .kpi-badge.neu { background: rgba(100,116,139,.1); color: var(--text-2); }
 
   /* ── Scorecard table ── */
-  .sc-table { width: 100%; border-collapse: collapse; font-size: .72rem; table-layout: fixed; }
+  .sc-table { width: 100%; border-collapse: collapse; font-size: .72rem; }
   .sc-table thead th {
     background: #eef2ff;
     color: #3730a3;
@@ -156,8 +156,8 @@
   .sc-table tbody tr { border-bottom: 1px solid #f1f5f9; transition: background .12s; }
   .sc-table tbody tr:hover { background: #fafbff; }
   .sc-table tbody tr.grand-total { background: #f8fafc; font-weight: 700; border-top: 2px solid var(--border); }
-  .sc-table td { padding: .45rem .4rem; color: var(--text-1); vertical-align: middle; text-align: right; }
-  .sc-table td:first-child { text-align: left; }
+  .sc-table td { padding: .45rem .4rem; color: var(--text-1); vertical-align: middle; text-align: right; white-space: nowrap; }
+  .sc-table td:first-child { text-align: left; white-space: normal; }
   .cat-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
   .badge-g {
     display: inline-flex; align-items: center; gap: .2rem;
@@ -169,7 +169,7 @@
   .badge-g.zer { background: #f1f5f9; color: var(--text-3); }
 
   /* ── Brand table ── */
-  .brand-table { width: 100%; border-collapse: collapse; font-size: .72rem; table-layout: fixed; }
+  .brand-table { width: 100%; border-collapse: collapse; font-size: .72rem; }
   .brand-table thead th {
     background: #f8fafc; color: var(--text-3);
     font-size: .63rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
@@ -178,8 +178,8 @@
   }
   .brand-table tbody tr { border-bottom: 1px solid #f1f5f9; }
   .brand-table tbody tr:hover { background: #fafbff; }
-  .brand-table td { padding: .4rem .4rem; color: var(--text-1); text-align: right; }
-  .brand-table td:first-child { text-align: left; }
+  .brand-table td { padding: .4rem .4rem; color: var(--text-1); text-align: right; white-space: nowrap; }
+  .brand-table td:first-child { text-align: left; white-space: normal; }
 
   /* ── Tab nav ── */
   .tab-nav { display: flex; gap: 0; border-bottom: 1px solid var(--border); }
