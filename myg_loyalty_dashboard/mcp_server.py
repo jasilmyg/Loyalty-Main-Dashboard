@@ -1,18 +1,6 @@
 import os
 import sys
 
-# --- RENDER DEPLOYMENT FIX ---
-# Render dashboard build commands might be misconfigured.
-# We auto-install and re-launch the process to ensure dependencies are loaded cleanly.
-if not os.environ.get("AUTO_INSTALL_DONE"):
-    print("Ensuring dependencies are installed...")
-    import subprocess
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "mcp[cli]>=1.0.0", "clickhouse-connect>=0.7.0"])
-    print("Auto-install complete. Restarting process...")
-    env = os.environ.copy()
-    env["AUTO_INSTALL_DONE"] = "1"
-    os.execve(sys.executable, [sys.executable, __file__] + sys.argv[1:], env)
-
 import django
 from mcp.server.fastmcp import FastMCP
 from typing import List, Dict, Any, Optional
