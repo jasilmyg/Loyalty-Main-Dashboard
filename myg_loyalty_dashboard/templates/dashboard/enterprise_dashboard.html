@@ -217,19 +217,17 @@
     border-bottom: 1px solid var(--border);
     border-radius: var(--radius) var(--radius) 0 0;
   }
-  /* Row 1 of thead — sticks at the very top of the scroll container */
-  .sc-table thead tr:first-child th {
+  /* Sticky thead — stick the whole thead block, not individual th (fixes Render colgroup bug) */
+  .sc-table thead {
     position: sticky;
     top: 0;
     z-index: 30;
+  }
+  .sc-table thead tr:first-child th {
     background: #eef2ff;
     box-shadow: 0 1px 0 #c7d2fe;
   }
-  /* Row 2 of thead — sticks just below row 1 (~38px) */
   .sc-table thead tr:last-child th {
-    position: sticky;
-    top: 38px;
-    z-index: 30;
     background: #eef2ff;
     box-shadow: 0 2px 4px rgba(99,102,241,.12), 0 2px 0 #c7d2fe;
   }
