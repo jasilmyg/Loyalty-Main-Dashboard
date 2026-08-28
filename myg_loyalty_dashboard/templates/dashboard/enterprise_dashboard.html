@@ -12,12 +12,12 @@
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 
 <style>
-  /* Ensure dynamic date headers have enough width */
+  /* Dynamic date headers — no forced min-width, let table-layout:fixed distribute space */
   th[id$="-amt-h1"], th[id$="-qty-h1"] {
-    min-width: 170px;
+    /* min-width removed to prevent horizontal scrollbar */
   }
   th[id*="-share-"] {
-    min-width: 220px;
+    /* min-width removed to prevent horizontal scrollbar */
   }
   /* ── Hide ONLY the global base filter bar (date pickers / Apply Filters) ── */
   /* Target the filter-bar that contains the global form, not the dashboard's own */
@@ -138,22 +138,24 @@
   .kpi-badge.neu { background: rgba(100,116,139,.1); color: var(--text-2); }
 
   /* ── Scorecard table ── */
-  .sc-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  .sc-table { width: 100%; border-collapse: collapse; font-size: .72rem; table-layout: fixed; }
   .sc-table thead th {
     background: #eef2ff;
     color: #3730a3;
-    font-size: .78rem;
+    font-size: .67rem;
     font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: .07em;
-    padding: .75rem 1rem;
+    letter-spacing: .05em;
+    padding: .55rem .5rem;
     border-bottom: 2px solid #c7d2fe;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .sc-table tbody tr { border-bottom: 1px solid #f1f5f9; transition: background .12s; }
   .sc-table tbody tr:hover { background: #fafbff; }
   .sc-table tbody tr.grand-total { background: #f8fafc; font-weight: 700; border-top: 2px solid var(--border); }
-  .sc-table td { padding: .65rem 1rem; color: var(--text-1); vertical-align: middle; }
+  .sc-table td { padding: .45rem .5rem; color: var(--text-1); vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .cat-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
   .badge-g {
     display: inline-flex; align-items: center; gap: .2rem;
@@ -165,7 +167,7 @@
   .badge-g.zer { background: #f1f5f9; color: var(--text-3); }
 
   /* ── Brand table ── */
-  .brand-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+  .brand-table { width: 100%; border-collapse: collapse; font-size: .72rem; table-layout: fixed; }
   .brand-table thead th {
     background: #f8fafc; color: var(--text-3);
     font-size: .67rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
@@ -173,7 +175,7 @@
   }
   .brand-table tbody tr { border-bottom: 1px solid #f1f5f9; }
   .brand-table tbody tr:hover { background: #fafbff; }
-  .brand-table td { padding: .5rem .9rem; color: var(--text-1); }
+  .brand-table td { padding: .4rem .5rem; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   /* ── Tab nav ── */
   .tab-nav { display: flex; gap: 0; border-bottom: 1px solid var(--border); }
@@ -193,12 +195,13 @@
   .section-icon { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: .85rem; }
   .text-right { text-align: right; }
   .text-mono  { font-family: 'Courier New', monospace; }
-  /* Table scroll container — fixed height so sticky thead works perfectly */
+  /* Table scroll container — vertical scroll only, no horizontal scrollbar */
   .scrollable {
-    overflow-x: auto;
+    overflow-x: hidden;
     overflow-y: auto;
-    max-height: 65vh;   /* scrollable table body */
+    max-height: 65vh;
     border-radius: 0 0 var(--radius) var(--radius);
+    width: 100%;
   }
 
   /* ── Sticky tab bar + thead ── */
