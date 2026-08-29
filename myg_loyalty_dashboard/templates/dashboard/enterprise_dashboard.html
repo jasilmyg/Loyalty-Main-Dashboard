@@ -1171,12 +1171,15 @@ async function loadDashboardData() {
   const customTypes = ['custom', 'mtd', 'mtd_yoy', 'qtd', 'qtd_yoy', 'ytd', 'ytd_existing', 'ytd_fy'];
   if (customTypes.includes(type)) {
     apiType = 'custom';
+    // For quick-types (non-'custom'), ensure daterangepicker is populated first
+    if (type !== 'custom') { calculateQuickDates(type); }
     const drpB = $('#base-daterange').data('daterangepicker');
     const drpC = $('#comp-daterange').data('daterangepicker');
-    base = drpB ? drpB.startDate.format('YYYY-MM-DD') + '|' + drpB.endDate.format('YYYY-MM-DD') : '';
-    comp = drpC ? drpC.startDate.format('YYYY-MM-DD') + '|' + drpC.endDate.format('YYYY-MM-DD') : '';
-    by = drpB ? drpB.startDate.format('YYYY') : '2026';
-    cy = drpC ? drpC.startDate.format('YYYY') : '2026';
+    if (!drpB || !drpC) { alert('Date range not ready yet, please try again.'); return; }
+    base = drpB.startDate.format('YYYY-MM-DD') + '|' + drpB.endDate.format('YYYY-MM-DD');
+    comp = drpC.startDate.format('YYYY-MM-DD') + '|' + drpC.endDate.format('YYYY-MM-DD');
+    by = drpB.startDate.format('YYYY');
+    cy = drpC.startDate.format('YYYY');
   } else {
     base = document.getElementById('base-period').value;
     comp = document.getElementById('comp-period').value;
