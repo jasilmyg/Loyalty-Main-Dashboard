@@ -209,6 +209,23 @@ print("    [OK] Monthly Retention       - mv_monthly_retention_2026 rebuilt")
 print("    [OK] Yearly Cohort           - mv_yearly_cohort rebuilt")
 print("    [OK] All caches              - cleared")
 print()
-print("  Data latest: azure tables up to 27-Aug-2026")
-print("  NOTE: Loyalty Point Matrix uses sales_data (not updated here)")
+print("""
+  Data latest: azure tables up to latest load
+  NOTE: Loyalty Point Matrix uses sales_data (not updated here)
+""".strip())
+print("=" * 65)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 4. REGENERATE JAS CACHE (Target Analysis page)
+# ══════════════════════════════════════════════════════════════════════════════
+print("\n[4] Regenerating JAS 2026 cache (Target Analysis)...")
+import importlib, runpy
+try:
+    result = runpy.run_path('generate_jas_cache.py', run_name='__main__')
+    print("   [OK] JAS cache regenerated")
+except Exception as e:
+    print(f"   [WARN] JAS cache failed: {e}")
+
+print("\n" + "=" * 65)
+print("  SYNC + JAS CACHE COMPLETE!")
 print("=" * 65)
