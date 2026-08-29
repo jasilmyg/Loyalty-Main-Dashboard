@@ -139,11 +139,10 @@ def build_api_response(request):
         return cached
 
     # ── Guard: for custom date range, both base and comp must contain '|' ─────
-    # If empty, the query would scan ALL rows (no date filter) → Render timeout
+    # If empty, the query would scan ALL rows (no date filter) → OOM crash
     if comp_type == 'custom':
         if not base_val or '|' not in base_val or not comp_val or '|' not in comp_val:
-            from django.http import JsonResponse
-            return JsonResponse({'status': 'error', 'message': 'Date range not ready. Please wait for the date picker to initialize and try again.'})
+            raise ValueError('Date range not ready. Please wait for the date picker to initialize and try again.')
 
     ch = _get_ch()
 
