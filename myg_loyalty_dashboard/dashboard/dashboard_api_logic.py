@@ -65,25 +65,24 @@ def _date_filter_sql(comp_type, val, year=2026, alias='s'):
     return "1=1"
 
 
-# ── Main ClickHouse fetch ─────────────────────────────────────────────────────
+# ── Main ClickHouse fetch (aggregated — pushes work into CH to save RAM) ──────
 def _fetch_period(ch, comp_type, val, year, brand_filter='', branch_filter='', category_filter='', product_filter=''):
     """
-    Fetch from ClickHouse. Filters can be comma-separated multi-values.
-    Note: category_filter is applied AFTER the PRODUCT_CAT_MAPPING in Python,
-    since category is derived from product names, not the DB category column.
+    Fetch aggregated data from ClickHouse grouped by product/brand/branch.
+    Aggregation is done in ClickHouse to minimise rows returned to Python.
+    category_filter is applied post-fetch in Python (category is derived from product).
     """
     date_cond = _date_filter_sql(comp_type, val, year)
-    
+
     def _in(col, val):
         vals = [v.strip() for v in val.split(',') if v.strip()] if val else []
         if not vals: return None
         escaped = "','".join(v.replace("'", "''") for v in vals)
         return f"{col} IN ('{escaped}')"
-    
+
     extra = [c for c in [
         _in('m.brand',   brand_filter),
         _in('s.branch',  branch_filter),
-        # Note: category_filter applied post-fetch in Python
         _in('m.product', product_filter),
     ] if c]
 
@@ -91,32 +90,33 @@ def _fetch_period(ch, comp_type, val, year, brand_filter='', branch_filter='', c
     if extra:
         where += " AND " + " AND ".join(extra)
 
+    # Aggregate in ClickHouse — returns only ~hundreds of rows instead of millions
     sql = f"""
         SELECT
             if(isNull(m.product) OR m.product='', 'Unknown', m.product) AS product,
-            if(isNull(m.brand) OR m.brand='', 'Unknown', m.brand)       AS brand,
-            if(isNull(s.branch) OR s.branch='', 'Unknown', s.branch)    AS branch,
-            toDate(s.date)                     AS sale_date,
-            s.invoice_no                       AS invoice_no,
-            toFloat64(s.qty)                   AS qty,
-            toFloat64(s.sold_price)            AS sold_price
+            if(isNull(m.brand)   OR m.brand='',   'Unknown', m.brand)   AS brand,
+            if(isNull(s.branch)  OR s.branch='',  'Unknown', s.branch)  AS branch,
+            sum(toFloat64(s.qty))        AS qty,
+            sum(toFloat64(s.sold_price)) AS sold_price,
+            countDistinct(s.invoice_no)  AS inv_count
         FROM azure_sales_report s
         LEFT JOIN item_master m ON s.item_code = m.item_code
         WHERE {where}
+        GROUP BY product, brand, branch
     """
     rows = ch.query(sql).result_rows
-    # columns: product, brand, branch, sale_date, invoice_no, qty, sold_price
     if not rows:
-        return pd.DataFrame(columns=['category','product','brand','branch','sale_date','invoice_no','qty','sold_price']), 0
+        return pd.DataFrame(columns=['category', 'product', 'brand', 'branch', 'qty', 'sold_price', 'inv_count']), 0
 
-    df = pd.DataFrame(rows, columns=['product','brand','branch','sale_date','invoice_no','qty','sold_price'])
+    df = pd.DataFrame(rows, columns=['product', 'brand', 'branch', 'qty', 'sold_price', 'inv_count'])
     df['qty']        = pd.to_numeric(df['qty'],        errors='coerce').fillna(0).astype(float)
     df['sold_price'] = pd.to_numeric(df['sold_price'], errors='coerce').fillna(0).astype(float)
+    df['inv_count']  = pd.to_numeric(df['inv_count'],  errors='coerce').fillna(0).astype(int)
 
     # Apply product → display-category mapping
     df['category'] = df['product'].map(PRODUCT_CAT_MAPPING).fillna('OTHER')
 
-    inv_count = df['invoice_no'].nunique()
+    inv_count = int(df['inv_count'].sum())
     return df, inv_count
 
 
@@ -214,26 +214,8 @@ def build_api_response(request):
         "growth": {"sales": sales_growth, "qty": qty_growth, "vas": vas_growth, "asp": asp_growth},
     }
 
-    # ── 2. Trends ─────────────────────────────────────────────────────────────
-    is_monthly = (comp_type == 'monthly')
-    if is_monthly:
-        if not df_b.empty: df_b['t'] = pd.to_datetime(df_b['sale_date']).dt.day
-        if not df_c.empty: df_c['t'] = pd.to_datetime(df_c['sale_date']).dt.day
-    else:
-        if not df_b.empty: df_b['t'] = pd.to_datetime(df_b['sale_date']).dt.month
-        if not df_c.empty: df_c['t'] = pd.to_datetime(df_c['sale_date']).dt.month
-
+    # ── 2. Trends (skipped — aggregated query no longer has per-day sale_date) ──
     trends = {"base": [], "comp": []}
-    if not df_b.empty and 't' in df_b.columns:
-        trends['base'] = (df_b.groupby('t')[['sold_price','qty']]
-                           .sum().reset_index()
-                           .rename(columns={'sold_price':'sales'})
-                           .to_dict('records'))
-    if not df_c.empty and 't' in df_c.columns:
-        trends['comp'] = (df_c.groupby('t')[['sold_price','qty']]
-                           .sum().reset_index()
-                           .rename(columns={'sold_price':'sales'})
-                           .to_dict('records'))
 
     # ── 3. Categories ─────────────────────────────────────────────────────────
     cat_base_dict = {}
