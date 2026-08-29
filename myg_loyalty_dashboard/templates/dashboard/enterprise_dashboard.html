@@ -291,7 +291,7 @@
     <div style="display:grid; grid-template-columns: 150px 1fr 1fr 1fr 1fr 1fr 1fr; gap:0.75rem; align-items:end; width:100%;">
       <div>
         <label><i class="bi bi-sliders text-primary me-1"></i> Comparison Type</label>
-        <select class="form-select" id="comp-type" onchange="togglePeriods()" style="background-color:#f8fafc; font-size:0.83rem; width:100%;">
+        <select class="form-select" id="comp-type" onchange="togglePeriods(true)" style="background-color:#f8fafc; font-size:0.83rem; width:100%;">
           <option value="monthly">Monthly</option>
           <option value="quarterly">Quarterly</option>
           <option value="yearly">Yearly</option>
@@ -621,7 +621,7 @@ const gKpi = (g, id) => {
 /* ══════════════════════════════════════════════════════════════════════════════
    Period selectors
 ══════════════════════════════════════════════════════════════════════════════ */
-function initPeriods() {
+function initPeriods(triggerLoad=false) {
   const type = document.getElementById('comp-type').value;
   const b = document.getElementById('base-period');
   const c = document.getElementById('comp-period');
@@ -651,6 +651,7 @@ function initPeriods() {
     
     if (!isCustom) {
       calculateQuickDates(type);
+      if (triggerLoad) setTimeout(() => loadDashboardData(), 50);
     }
   } else {
     document.getElementById('base-selects').classList.remove('d-none');
@@ -725,8 +726,7 @@ function calculateQuickDates(type) {
   
   drpB.setStartDate(bStart); drpB.setEndDate(bEnd);
   drpC.setStartDate(cStart); drpC.setEndDate(cEnd);
-  
-  setTimeout(() => loadDashboardData(), 50);
+  // NOTE: Do NOT call loadDashboardData() here — caller decides whether to reload
 }
 window.togglePeriods = initPeriods;
 
@@ -1171,8 +1171,8 @@ async function loadDashboardData() {
   const customTypes = ['custom', 'mtd', 'mtd_yoy', 'qtd', 'qtd_yoy', 'ytd', 'ytd_existing', 'ytd_fy'];
   if (customTypes.includes(type)) {
     apiType = 'custom';
-    // For quick-types (non-'custom'), ensure daterangepicker is populated first
-    if (type !== 'custom') { calculateQuickDates(type); }
+    // For quick-types (non-'custom'), set the daterangepicker dates without triggering reload
+    if (type !== 'custom') calculateQuickDates(type);
     const drpB = $('#base-daterange').data('daterangepicker');
     const drpC = $('#comp-daterange').data('daterangepicker');
     if (!drpB || !drpC) { alert('Date range not ready yet, please try again.'); return; }
