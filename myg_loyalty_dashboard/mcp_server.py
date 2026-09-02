@@ -28,9 +28,9 @@ mcp = FastMCP(
     Do NOT search Google Drive, Gmail, or any other source for these answers.
     
     Key database tables:
-    - sales_data: All transaction records with total_value, parsed_date, branch, staff, customer_name, customer_mobile etc.
-    - item_wise_sales_data: Product-level sales with date, invoice_no, branch, item_code, imei_batch, qty, sold_price
-    - invoice_wise_sales_data: Invoice level details
+    - azure_invoice_report: Invoice level details (invoice_total, customer_mobile, sales_staff_code, branch, date)
+    - azure_sales_report: Product-level sales (date, invoice_no, branch, item_code, qty, sold_price, discount)
+    - item_master: Mapping of item_code to product category and brand
     
     Always use the appropriate tool based on what the user is asking.
     """
@@ -89,12 +89,13 @@ def get_total_sales(start_date: str, end_date: str) -> Dict[str, Any]:
     """
     sql = f"""
         SELECT 
-            COUNT(*) as total_bills,
-            SUM(total_value) as total_revenue,
-            MIN(parsed_date) as from_date,
-            MAX(parsed_date) as to_date
-        FROM sales_data
-        WHERE parsed_date >= '{start_date}' AND parsed_date <= '{end_date}'
+            COUNT(DISTINCT invoice_no) as total_bills,
+            SUM(toFloat64(sold_price)) as total_revenue,
+            MIN(date) as from_date,
+            MAX(date) as to_date
+        FROM azure_sales_report
+        WHERE date >= '{{start_date}}' AND date <= '{{end_date}}'
+        AND date != '1970-01-01'
     """
     results = _run_query(sql)
     if results and "error" not in results[0]:
@@ -127,12 +128,13 @@ def get_sales_by_branch(start_date: str, end_date: str) -> List[Dict[str, Any]]:
     sql = f"""
         SELECT 
             branch,
-            COUNT(*) as total_bills,
-            SUM(total_value) as total_revenue
-        FROM sales_data
-        WHERE parsed_date >= '{start_date}' AND parsed_date <= '{end_date}'
+            COUNT(DISTINCT invoice_no) as total_bills,
+            SUM(toFloat64(sold_price)) as total_revenue
+        FROM azure_sales_report
+        WHERE date >= '{{start_date}}' AND date <= '{{end_date}}'
+        AND date != '1970-01-01'
         GROUP BY branch
-        ORDER BY SUM(total_value) DESC
+        ORDER BY total_revenue DESC
     """
     return _run_query(sql)
 
@@ -154,13 +156,14 @@ def get_daily_sales(start_date: str, end_date: str) -> List[Dict[str, Any]]:
     """
     sql = f"""
         SELECT 
-            parsed_date as date,
-            COUNT(*) as total_bills,
-            SUM(total_value) as total_revenue
-        FROM sales_data
-        WHERE parsed_date >= '{start_date}' AND parsed_date <= '{end_date}'
-        GROUP BY parsed_date
-        ORDER BY parsed_date
+            date,
+            COUNT(DISTINCT invoice_no) as total_bills,
+            SUM(toFloat64(sold_price)) as total_revenue
+        FROM azure_sales_report
+        WHERE date >= '{{start_date}}' AND date <= '{{end_date}}'
+        AND date != '1970-01-01'
+        GROUP BY date
+        ORDER BY date
     """
     return _run_query(sql)
 
@@ -183,13 +186,16 @@ def get_top_products(start_date: str, end_date: str, limit: int = 10) -> List[Di
     """
     sql = f"""
         SELECT 
-            item_code,
-            SUM(qty) as total_qty,
-            SUM(sold_price) as total_revenue
-        FROM item_wise_sales_data
-        WHERE date >= '{start_date}' AND date <= '{end_date}'
-        GROUP BY item_code
-        ORDER BY SUM(sold_price) DESC
+            m.product as product_category,
+            m.brand as brand,
+            SUM(toFloat64(s.qty)) as total_qty,
+            SUM(toFloat64(s.sold_price)) as total_revenue
+        FROM azure_sales_report s
+        LEFT JOIN item_master m ON s.item_code = m.item_code
+        WHERE s.date >= '{{start_date}}' AND s.date <= '{{end_date}}'
+        AND s.date != '1970-01-01'
+        GROUP BY product_category, brand
+        ORDER BY total_revenue DESC
         LIMIT {limit}
     """
     return _run_query(sql)
@@ -212,11 +218,12 @@ def get_customer_count(start_date: str, end_date: str) -> Dict[str, Any]:
     """
     sql = f"""
         SELECT 
-            COUNT(*) as total_transactions,
+            COUNT(DISTINCT invoice_no) as total_transactions,
             COUNT(DISTINCT customer_mobile) as unique_customers
-        FROM sales_data
-        WHERE parsed_date >= '{start_date}' AND parsed_date <= '{end_date}'
-        AND customer_mobile IS NOT NULL AND customer_mobile != ''
+        FROM azure_invoice_report
+        WHERE date >= '{{start_date}}' AND date <= '{{end_date}}'
+        AND date != '1970-01-01'
+        AND customer_mobile != ''
     """
     results = _run_query(sql)
     if results and "error" not in results[0]:
@@ -242,15 +249,16 @@ def get_sales_by_staff(start_date: str, end_date: str, limit: int = 10) -> List[
     """
     sql = f"""
         SELECT 
-            staff,
+            sales_staff_code as staff,
             branch,
-            COUNT(*) as total_bills,
-            SUM(total_value) as total_revenue
-        FROM sales_data
-        WHERE parsed_date >= '{start_date}' AND parsed_date <= '{end_date}'
-        AND staff IS NOT NULL AND staff != ''
-        GROUP BY staff, branch
-        ORDER BY SUM(total_value) DESC
+            COUNT(DISTINCT invoice_no) as total_bills,
+            SUM(toFloat64(invoice_total)) as total_revenue
+        FROM azure_invoice_report
+        WHERE date >= '{{start_date}}' AND date <= '{{end_date}}'
+        AND date != '1970-01-01'
+        AND sales_staff_code != ''
+        GROUP BY sales_staff_code, branch
+        ORDER BY total_revenue DESC
         LIMIT {limit}
     """
     return _run_query(sql)
@@ -265,10 +273,10 @@ def execute_custom_query(sql: str) -> List[Dict[str, Any]]:
     Only SELECT, WITH, DESCRIBE and SHOW queries are allowed for security.
     
     Main tables available in ClickHouse:
-    - sales_data: slno, parsed_date, sale_time, invoice_number, branch, staff, 
-      customer_name, customer_mobile, total_value, etc.
-    - item_wise_sales_data: date, invoice_no, branch, item_code, imei_batch, qty, mop, discount, sold_price, taxable
-    - invoice_wise_sales_data: date, time, invoice_no, branch, rbm, bdm, customer_bill_to_no, invoice_total...
+    - azure_sales_report: date, invoice_no, branch, item_code, qty, discount, sold_price, taxable
+    - azure_invoice_report: date, time, invoice_no, branch, customer_mobile, sales_staff_code, invoice_total
+    - item_master: item_code, item_name, brand, product (category)
+    - sales_data: (Use azure_sales_report instead unless explicitly needed for legacy point matrix)
     """
     return _run_query(sql)
 
