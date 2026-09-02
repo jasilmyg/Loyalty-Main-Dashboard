@@ -30,7 +30,8 @@ mcp = FastMCP(
     Key database tables:
     - azure_invoice_report: Invoice level details (invoice_total, customer_mobile, sales_staff_code, branch, date)
     - azure_sales_report: Product-level sales (date, invoice_no, branch, item_code, qty, sold_price, discount)
-    - item_master: Mapping of item_code to product category and brand
+    - item_master: Mapping of item_code to product category and brand (columns: item_code, product, brand, category, item_name, item_group, item_category, hsn, tax_percent, mop, mrp)
+    - branch_master: Details of store branches (columns: code, branch_name, rbm, bdm, address, district, pincode, email, gst_no, store_type, phone_no, category, mapped_warehouse)
     
     Always use the appropriate tool based on what the user is asking.
     """
@@ -275,7 +276,8 @@ def execute_custom_query(sql: str) -> List[Dict[str, Any]]:
     Main tables available in ClickHouse:
     - azure_sales_report: date, invoice_no, branch, item_code, qty, discount, sold_price, taxable
     - azure_invoice_report: date, time, invoice_no, branch, customer_mobile, sales_staff_code, invoice_total
-    - item_master: item_code, item_name, brand, product (category)
+    - item_master: item_code, product, brand, category, item_name, item_group, item_category, hsn, tax_percent, mop, mrp
+    - branch_master: code, branch_name, rbm, bdm, address, district, pincode, email, gst_no, store_type, phone_no, category, mapped_warehouse
     - sales_data: (Use azure_sales_report instead unless explicitly needed for legacy point matrix)
     """
     return _run_query(sql)
