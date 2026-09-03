@@ -173,8 +173,12 @@ function fmtRev(n){
 function fmtDate(d){ return new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
 function fmtShort(d){ return new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short'}); }
 function getDefaults(){
-  var n=new Date(), y=n.getFullYear(), m=String(n.getMonth()+1).padStart(2,'0'), dy=String(n.getDate()).padStart(2,'0');
-  return {start:y+'-'+m+'-01', end:y+'-'+m+'-'+dy};
+  // end = yesterday (blob data for today arrives the next day)
+  // start = 1st of yesterday's month — guarantees start <= end always
+  var n=new Date();
+  var yest=new Date(n); yest.setDate(n.getDate()-1);
+  var ys=String(yest.getFullYear()), ym=String(yest.getMonth()+1).padStart(2,'0'), yd=String(yest.getDate()).padStart(2,'0');
+  return {start:ys+'-'+ym+'-01', end:ys+'-'+ym+'-'+yd};
 }
 
 function loadData(){

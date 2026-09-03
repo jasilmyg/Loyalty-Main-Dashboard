@@ -596,6 +596,24 @@
         {% endif %}
 
         {% if request.user.username != 'shestart' and request.user.username != 'mygusers' %}
+        <!-- Cross-Sell Intelligence Section -->
+        <div class="mb-2 mt-3" style="padding-left: 2.5rem;">
+            <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">Cross-Sell Intelligence</small>
+        </div>
+        <ul class="nav flex-column mb-4">
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'market_basket_dashboard' %}active{% endif %}"
+                   href="{% url 'market_basket_dashboard' %}"
+                   style="border-left: 4px solid #0891b2; color: #0e7490; background: rgba(8,145,178,0.05); font-weight: 600;">
+                    <i class="bi bi-basket3-fill" style="color: #0891b2; font-size: 1.1rem; margin-right: 10px !important;"></i>
+                    Market Basket Analysis
+                    <span class="badge ms-1" style="background: linear-gradient(135deg,#0891b2,#06b6d4); font-size: 8px; font-weight: 800; vertical-align: middle; box-shadow: 0 0 6px rgba(8,145,178,0.4);">NEW</span>
+                </a>
+            </li>
+        </ul>
+        {% endif %}
+
+        {% if request.user.username != 'shestart' and request.user.username != 'mygusers' %}
         <!-- Branch Customer Download Section -->
         <div class="mb-2 mt-3" style="padding-left: 2.5rem;">
             <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">Data Export</small>

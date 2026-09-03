@@ -288,8 +288,8 @@
   <div class="filter-bar mb-3">
 
     <!-- Row 1: Comparison Type + Filters -->
-    <div style="display:grid; grid-template-columns: 150px 1fr 1fr 1fr 1fr 1fr 1fr; gap:0.75rem; align-items:end; width:100%;">
-      <div>
+    <div style="display:flex; flex-wrap:wrap; gap:0.75rem; align-items:end; width:100%;">
+      <div style="flex: 1 1 140px;">
         <label><i class="bi bi-sliders text-primary me-1"></i> Comparison Type</label>
         <select class="form-select" id="comp-type" onchange="togglePeriods(true)" style="background-color:#f8fafc; font-size:0.83rem; width:100%;">
           <option value="monthly">Monthly</option>
@@ -307,27 +307,35 @@
           <option value="custom">Custom Date</option>
         </select>
       </div>
-      <div>
+      <div style="flex: 1 1 120px;">
         <label><i class="bi bi-tags text-primary me-1"></i> Category</label>
         <select id="dash-cat"></select>
       </div>
-      <div>
+      <div style="flex: 1 1 120px;">
+        <label><i class="bi bi-geo-alt text-success me-1"></i> State</label>
+        <select id="dash-state"></select>
+      </div>
+      <div style="flex: 1 1 120px;">
+        <label><i class="bi bi-pin-map text-danger me-1"></i> District</label>
+        <select id="dash-district"></select>
+      </div>
+      <div style="flex: 1 1 120px;">
         <label><i class="bi bi-building text-primary me-1"></i> Branch</label>
         <select id="dash-branch"></select>
       </div>
-      <div>
+      <div style="flex: 1 1 120px;">
         <label><i class="bi bi-person-badge text-warning me-1"></i> RBM</label>
         <select id="dash-rbm"></select>
       </div>
-      <div>
+      <div style="flex: 1 1 120px;">
         <label><i class="bi bi-person-lines-fill text-info me-1"></i> BDM</label>
         <select id="dash-bdm"></select>
       </div>
-      <div>
+      <div style="flex: 1 1 120px;">
         <label><i class="bi bi-award text-primary me-1"></i> Brand</label>
         <select id="dash-brand"></select>
       </div>
-      <div>
+      <div style="flex: 1 1 120px;">
         <label><i class="bi bi-box-seam text-primary me-1"></i> Product</label>
         <select id="dash-product"></select>
       </div>
@@ -536,6 +544,19 @@
 
     <!-- PANEL: Branch Report -->
     <div id="panel-branch" class="dash-panel" style="display:none;">
+      
+      <!-- Branch Metrics Controls -->
+      <div class="d-flex justify-content-end px-3 py-2 border-bottom align-items-center" style="background:#fafafa;">
+        
+        <div class="btn-group btn-group-sm shadow-sm" role="group" aria-label="Branch Metrics Toggle">
+          <input type="radio" class="btn-check" name="branchMetricsToggle" id="btnBranchShare" autocomplete="off" checked onchange="toggleBranchMetrics('share')">
+          <label class="btn btn-outline-primary fw-bold" for="btnBranchShare" style="font-size:0.75rem;">Share (Default)</label>
+
+          <input type="radio" class="btn-check" name="branchMetricsToggle" id="btnBranchDiscount" autocomplete="off" onchange="toggleBranchMetrics('discount')">
+          <label class="btn btn-outline-primary fw-bold" for="btnBranchDiscount" style="font-size:0.75rem;">Discount</label>
+        </div>
+      </div>
+
       <div class="scrollable">
         <table class="sc-table">
           <colgroup>
@@ -553,13 +574,17 @@
             <tr>
               <th rowspan="2" style="padding-left:1.25rem; vertical-align:middle; border-right: 2px solid #64748b;">BRANCH</th>
               <th class="text-center" id="branch-base-amt-h1">BASE AMT</th>
-              <th class="text-center" id="branch-comp-amt-h1">COMP AMT</th>
+              <th class="text-center" style="min-width:130px;">
+                <span id="branch-comp-amt-h1">COMP AMT</span>
+              </th>
               <th rowspan="2" class="text-center" style="vertical-align:middle;">GROWTH %</th>
-              <th rowspan="2" class="text-center" id="branch-share-amt-h1" style="vertical-align:middle; border-right: 2px solid #64748b;">SHARE COMP</th>
+              <th rowspan="2" class="text-center" style="vertical-align:middle; border-right: 2px solid #64748b;">
+                <span id="branch-share-amt-text">SHARE COMP</span>
+              </th>
               <th class="text-center" id="branch-base-qty-h1">BASE QTY</th>
               <th class="text-center" id="branch-comp-qty-h1">COMP QTY</th>
-              <th rowspan="2" class="text-center" style="vertical-align:middle;">GROWTH %</th>
-              <th rowspan="2" class="text-center" id="branch-share-qty-h1" style="padding-right:1.25rem; vertical-align:middle;">SHARE COMP</th>
+              <th rowspan="2" class="text-center" style="vertical-align:middle;" id="branch-metric1-h1">GROWTH %</th>
+              <th rowspan="2" class="text-center" id="branch-metric2-h1" style="padding-right:1.25rem; vertical-align:middle;">SHARE COMP</th>
             </tr>
             <tr>
               <th class="text-center" style="border-top:none;">AMT</th>
@@ -1151,8 +1176,133 @@ function renderBrandReport(table) {
   _renderFlatReport(table, 'brand', 'brand-tbody');
 }
 
-function renderBranchReport(table) {
-  _renderFlatReport(table, 'branch', 'branch-tbody');
+let currentBranchMetric = 'share';
+let currentBranchSortOrder = 'desc';
+
+function toggleBranchSort() {
+  const el = document.getElementById('branchSortOrder');
+  if (el) {
+    currentBranchSortOrder = el.value;
+    if (typeof _data !== 'undefined' && _data && _data.detailed_table) {
+      renderBranchReport(_data.detailed_table);
+    }
+  }
+}
+
+let isDiscountSortDesc = false;
+
+function sortDiscountByDesc() {
+  isDiscountSortDesc = true;
+  if (typeof _data !== 'undefined' && _data && _data.detailed_table) {
+    renderBranchReport(_data.detailed_table);
+  }
+}
+
+function toggleBranchMetrics(metric) {
+  currentBranchMetric = metric;
+  isDiscountSortDesc = false;
+  
+  const hAmt = document.getElementById('branch-share-amt-text');
+  const hQty = document.getElementById('branch-metric2-h1');
+  
+  if (metric === 'share') {
+    if (hAmt) hAmt.innerHTML = 'SHARE COMP';
+    if (hQty) hQty.innerHTML = 'SHARE COMP';
+  } else if (metric === 'discount') {
+    if (hAmt) hAmt.innerHTML = 'DISC % <i class="bi bi-sort-down cursor-pointer ms-1" style="font-size:0.9rem; color:var(--primary);" onclick="sortDiscountByDesc()" title="Sort by Disc %"></i>';
+    if (hQty) hQty.innerHTML = 'AVG SPEND';
+  }
+  
+  if (typeof _data !== 'undefined' && _data && _data.detailed_table) {
+    renderBranchReport(_data.detailed_table);
+  }
+}
+
+function renderBranchReport(rows) {
+  const tbody = document.getElementById('branch-tbody');
+  if (!tbody) return;
+  if (!rows || !rows.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-3);">No data available</td></tr>';
+    return;
+  }
+
+  // Aggregate by branch
+  const map = {};
+  rows.forEach(r => {
+    const key = r.branch || '—';
+    if (!map[key]) map[key] = { b_rev:0, c_rev:0, b_qty:0, c_qty:0, c_discount:0, c_disc_qty:0, c_unique_cust:0 };
+    map[key].b_rev += (r.b_rev || 0);
+    map[key].c_rev += (r.c_rev || 0);
+    map[key].b_qty += (r.b_qty || 0);
+    map[key].c_qty += (r.c_qty || 0);
+    map[key].c_discount += (r.c_discount || 0);
+    map[key].c_disc_qty += (r.c_disc_qty || 0);
+    map[key].c_unique_cust += (r.c_unique_cust || 0);
+  });
+
+  // Sort logic
+  const sorted = Object.entries(map).sort((a,b) => {
+    if (currentBranchMetric === 'discount' && isDiscountSortDesc) {
+      let valA = a[1].c_rev > 0 ? (a[1].c_discount / a[1].c_rev) : 0;
+      let valB = b[1].c_rev > 0 ? (b[1].c_discount / b[1].c_rev) : 0;
+      return valB - valA;
+    }
+    // Default sort: COMP AMT Descending
+    return b[1].c_rev - a[1].c_rev;
+  });
+
+  let tot_b_rev=0, tot_c_rev=0, tot_b_qty=0, tot_c_qty=0;
+  let tot_c_disc=0, tot_c_dqty=0, tot_c_cust=0;
+  sorted.forEach(([,v]) => { 
+    tot_b_rev+=v.b_rev; tot_c_rev+=v.c_rev; tot_b_qty+=v.b_qty; tot_c_qty+=v.c_qty; 
+    tot_c_disc+=v.c_discount; tot_c_dqty+=v.c_disc_qty; tot_c_cust+=v.c_unique_cust;
+  });
+
+  const buildRow = (label, v, isTotal) => {
+    const rev_g = v.b_rev > 0 ? (v.c_rev - v.b_rev) / v.b_rev * 100 : 0;
+    const qty_g = v.b_qty > 0 ? (v.c_qty - v.b_qty) / v.b_qty * 100 : 0;
+    
+    let amt_metric_html = '';
+    let qty_metric_html = '';
+    
+    if (currentBranchMetric === 'share') {
+      const rev_s = tot_c_rev > 0 ? v.c_rev / tot_c_rev * 100 : 0;
+      const qty_s = tot_c_qty > 0 ? v.c_qty / tot_c_qty * 100 : 0;
+      amt_metric_html = `<td class="text-right" style="border-right: 2px solid #64748b;">${rev_s.toFixed(2)}%</td>`;
+      qty_metric_html = `<td class="text-right" style="padding-right:1.25rem; font-weight:${isTotal?800:600}">${qty_s.toFixed(2)}%</td>`;
+    } else if (currentBranchMetric === 'discount') {
+      const disc_pct = v.c_rev > 0 ? (v.c_discount / v.c_rev) * 100 : 0;
+      const avg_spend = v.c_unique_cust > 0 ? v.c_rev / v.c_unique_cust : 0;
+      amt_metric_html = `<td class="text-right" style="border-right: 2px solid #64748b; color:var(--text-2); font-weight:${isTotal?800:600}">${disc_pct.toFixed(2)}%</td>`;
+      qty_metric_html = `<td class="text-right" style="padding-right:1.25rem; font-weight:${isTotal?800:600}">₹${Math.round(avg_spend).toLocaleString('en-IN')}</td>`;
+    }
+
+    const rowClass = isTotal ? 'grand-total' : '';
+    const labelHtml = isTotal
+      ? `<strong>${label}</strong>`
+      : `<span style="font-weight:600">${label}</span>`;
+      
+    return `<tr class="${rowClass}">
+      <td style="padding-left:1.25rem; min-width:180px; border-right: 2px solid #64748b;">${labelHtml}</td>
+      <td class="text-right">${fCr(v.b_rev)}</td>
+      <td class="text-right" style="font-weight:${isTotal?800:600}">${fCr(v.c_rev)}</td>
+      <td class="text-right">${gBadge(rev_g)}</td>
+      ${amt_metric_html}
+      <td class="text-right">${fN(v.b_qty)}</td>
+      <td class="text-right" style="font-weight:${isTotal?800:600}">${fN(v.c_qty)}</td>
+      <td class="text-right">${gBadge(qty_g)}</td>
+      ${qty_metric_html}
+    </tr>`;
+  };
+
+  const dataRows = sorted.map(([label, v]) => buildRow(label, v, false)).join('');
+  const totalRow = buildRow('Grand Total', {
+    b_rev:tot_b_rev, c_rev:tot_c_rev, 
+    b_qty:tot_b_qty, c_qty:tot_c_qty, 
+    c_discount:tot_c_disc, c_disc_qty:tot_c_dqty, c_unique_cust:tot_c_cust
+  }, true);
+
+  tbody.innerHTML = dataRows + totalRow;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════
@@ -1192,9 +1342,11 @@ async function loadDashboardData() {
   const branch  = window._dash_ts && window._dash_ts['dash-branch']  ? window._dash_ts['dash-branch'].getValue().join(',')  : '';
   const brand   = window._dash_ts && window._dash_ts['dash-brand']   ? window._dash_ts['dash-brand'].getValue().join(',')   : '';
   const product = window._dash_ts && window._dash_ts['dash-product'] ? window._dash_ts['dash-product'].getValue().join(',') : '';
+  const district= window._dash_ts && window._dash_ts['dash-district']? window._dash_ts['dash-district'].getValue().join(',') : '';
+  const state   = window._dash_ts && window._dash_ts['dash-state']   ? window._dash_ts['dash-state'].getValue().join(',')   : '';
 
   try {
-    const res  = await fetch(`/api/v1/enterprise-dashboard/?type=${apiType}&base=${base}&comp=${comp}&base_year=${by}&comp_year=${cy}&category=${encodeURIComponent(cat)}&branch=${encodeURIComponent(branch)}&rbm=${encodeURIComponent(rbm)}&bdm=${encodeURIComponent(bdm)}&brand=${encodeURIComponent(brand)}&product=${encodeURIComponent(product)}`);
+    const res  = await fetch(`/api/v1/enterprise-dashboard/?type=${apiType}&base=${base}&comp=${comp}&base_year=${by}&comp_year=${cy}&category=${encodeURIComponent(cat)}&branch=${encodeURIComponent(branch)}&rbm=${encodeURIComponent(rbm)}&bdm=${encodeURIComponent(bdm)}&brand=${encodeURIComponent(brand)}&product=${encodeURIComponent(product)}&district=${encodeURIComponent(district)}&state=${encodeURIComponent(state)}`);
     const json = await res.json();
     if (json.status !== 'success') { alert('Error: '+json.message); return; }
 
@@ -1256,7 +1408,7 @@ document.addEventListener('DOMContentLoaded', () => {
     dropdownParent: 'body',
     placeholder: 'All...',
   };
-  ['dash-cat','dash-branch','dash-rbm','dash-bdm','dash-brand','dash-product'].forEach(id => {
+  ['dash-cat','dash-branch','dash-rbm','dash-bdm','dash-brand','dash-product','dash-district','dash-state'].forEach(id => {
       window._dash_ts[id] = new TomSelect('#'+id, {...tsOpts});
   });
 
@@ -1265,7 +1417,7 @@ document.addEventListener('DOMContentLoaded', () => {
   cats.forEach(c => window._dash_ts['dash-cat'].addOption({value:c, text:c}));
   window._dash_ts['dash-cat'].refreshOptions(false);
 
-  // Load dynamic filters (branches, brands, products) from API
+  // Load dynamic filters (branches, brands, products, districts, states) from API
   fetch('/api/v1/special-event-reports/filters/')
     .then(r => r.json())
     .then(j => {
@@ -1280,6 +1432,8 @@ document.addEventListener('DOMContentLoaded', () => {
       fill('dash-bdm',     j.data.bdms);
       fill('dash-brand',   j.data.brands);
       fill('dash-product', j.data.products);
+      if(j.data.districts) fill('dash-district', j.data.districts);
+      if(j.data.states)    fill('dash-state',    j.data.states);
     })
     .catch(e => console.error('Filter load failed', e));
 

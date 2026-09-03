@@ -89,6 +89,14 @@ class SpecialFiltersAPIView(LoginRequiredMixin, View):
             products = sorted(list(set([i[0] for i in items if i[0]])))
             brands   = sorted(list(set([i[1] for i in items if i[1]])))
             
+            # Fetch districts and states from branch_master
+            district_rows = ch.query("SELECT DISTINCT district FROM branch_master WHERE district != '' ORDER BY district").result_rows
+            districts = [r[0] for r in district_rows]
+            
+            state_map = {'32': 'Kerala', '27': 'Maharashtra', '29': 'Karnataka', '34': 'Puducherry'}
+            gst_rows = ch.query("SELECT DISTINCT substring(gst_no, 1, 2) FROM branch_master WHERE gst_no != ''").result_rows
+            states = sorted(list(set([state_map.get(r[0], f"State Code {r[0]}") for r in gst_rows])))
+            
             # Use the fixed mapped category names (same as PRODUCT_CAT_MAPPING display categories)
             categories = ['MOBILE', 'CE', 'LAPTOP', 'ACC', 'TABLET', 'OTHER', 'VALUE ADDED SERVICE', 'RIG']
             
@@ -100,7 +108,9 @@ class SpecialFiltersAPIView(LoginRequiredMixin, View):
                     'bdms':       bdms,
                     'categories': categories,
                     'products':   products,
-                    'brands':     brands
+                    'brands':     brands,
+                    'districts':  districts,
+                    'states':     states
                 }
             })
         except Exception as e:
@@ -1323,41 +1333,39 @@ class RedemptionAnalysisAPIView(LoginRequiredMixin, View):
     def get(self, request):
         import traceback
         try:
-            # ── ClickHouse: sales_data — point_redemption column ─────────────
-            # Azure tables (azure_invoice_report / azure_sales_report) do NOT have
-            # a point_redemption column, so this section stays on sales_data.
+            # ── ClickHouse: azure_invoice_report — deductions column ─────────────
             from analytics.clickhouse_service import is_ch_available, ch_query
             if is_ch_available():
                 rows = ch_query("""
                     SELECT
-                        formatDateTime(toStartOfMonth(parsed_date), '%b-%y')  AS month_label,
-                        toStartOfMonth(parsed_date)                            AS month_start,
+                        formatDateTime(toStartOfMonth(toDate(date)), '%b-%y')  AS month_label,
+                        toStartOfMonth(toDate(date))                           AS month_start,
                         count(DISTINCT customer_mobile)                        AS redeemed_customer_count,
                         ifNull(round(sumIf(
-                            toFloat64OrZero(replaceRegexpAll(point_redemption,'[^0-9.]','')),
-                            toFloat64OrNull(replaceRegexpAll(point_redemption,'[^0-9.]','')) > 0
+                            deductions,
+                            deductions > 0
                         ), 2), 0)                                              AS redeemed_point_value,
                         ifNull(round(sumIf(
-                            total_value,
-                            toFloat64OrNull(replaceRegexpAll(point_redemption,'[^0-9.]','')) > 0
+                            invoice_total,
+                            deductions > 0
                         ), 2), 0)                                             AS redeemed_sale_value,
                         ifNull(round(
                             100.0 * sumIf(
-                                toFloat64OrZero(replaceRegexpAll(point_redemption,'[^0-9.]','')),
-                                toFloat64OrNull(replaceRegexpAll(point_redemption,'[^0-9.]','')) > 0
-                            ) / nullIf(sum(total_value), 0)
+                                deductions,
+                                deductions > 0
+                            ) / nullIf(sum(invoice_total), 0)
                         , 2), 0)                                              AS pct_loyalty_discount,
                         ifNull(round(
                             sumIf(
-                                total_value,
-                                toFloat64OrNull(replaceRegexpAll(point_redemption,'[^0-9.]','')) > 0
+                                invoice_total,
+                                deductions > 0
                             ) / nullIf(countIf(
-                                toFloat64OrNull(replaceRegexpAll(point_redemption,'[^0-9.]','')) > 0
+                                deductions > 0
                             ), 0)
                         , 2), 0)                                              AS asp
-                    FROM sales_data
-                    WHERE parsed_date >= '2020-01-01'
-                      AND parsed_date != toDate('1970-01-01')
+                    FROM azure_invoice_report
+                    WHERE toDate(date) >= '2020-01-01'
+                      AND toDate(date) != toDate('1970-01-01')
                       AND LENGTH(customer_mobile) = 10
                       AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
                       AND customer_mobile != ''
@@ -1750,13 +1758,14 @@ class BranchCustomerDownloadAPIView(LoginRequiredMixin, View):
         import io
         import traceback
         import xlsxwriter
-        from analytics.services import _q, _parse_date
+        from analytics.services import _parse_date
+        from analytics.clickhouse_service import get_ch_client
+        from datetime import datetime as _dt
 
         # ── Parse branches (comma-separated) ───────────────────────
         branches_raw = request.GET.get('branches', '').strip()
         if branches_raw:
             selected_branches = [b.strip() for b in branches_raw.split(',') if b.strip()]
-            # Filter out generic "all" values
             selected_branches = [
                 b for b in selected_branches
                 if b.lower() not in ('all branches', 'all', '')
@@ -1770,57 +1779,48 @@ class BranchCustomerDownloadAPIView(LoginRequiredMixin, View):
         end_date   = _parse_date(end_raw)   if end_raw   else None
 
         try:
-            # ── Build WHERE clause ──────────────────────────────────
-            conditions = [
-                "\"Customer Mobile\" IS NOT NULL",
-                "\"Customer Mobile\" ~ '^[0-9]{10}$'",
-                "\"Customer Mobile\" NOT IN ('1313131313','0000000000','9999999999')",
-            ]
-            params = []
+            ch = get_ch_client()
 
-            date_expr = """(CASE
-                WHEN SUBSTRING("Date"::text, 5, 1) = '-'
-                    THEN TO_DATE(SUBSTRING("Date"::text, 1, 10), 'YYYY-MM-DD')
-                WHEN SUBSTRING("Date"::text, 3, 1) = '-'
-                    THEN TO_DATE("Date"::text, 'DD-MM-YYYY')
-                ELSE NULL
-            END)"""
+            # ── Build ClickHouse WHERE conditions ──────────────────
+            ch_conditions = [
+                "length(customer_mobile) = 10",
+                "customer_mobile != ''",
+                "customer_mobile NOT IN ('1313131313','0000000000','9999999999')",
+                "toDate(date) != toDate('1970-01-01')",
+                "invoice_total > 0",
+            ]
 
             if start_date:
-                conditions.append(f'{date_expr} >= %s::DATE')
-                params.append(start_date)
+                ch_conditions.append(f"toDate(date) >= '{start_date}'")
             if end_date:
-                conditions.append(f'{date_expr} <= %s::DATE')
-                params.append(end_date)
+                ch_conditions.append(f"toDate(date) <= '{end_date}'")
             if selected_branches:
                 if len(selected_branches) == 1:
-                    conditions.append('UPPER("Branch") = UPPER(%s)')
-                    params.append(selected_branches[0])
+                    escaped = selected_branches[0].replace("'", "''").upper()
+                    ch_conditions.append(f"upper(branch) = '{escaped}'")
                 else:
-                    # Multiple branches → use IN clause
-                    placeholders = ','.join(['%s'] * len(selected_branches))
-                    conditions.append(f'UPPER("Branch") IN ({placeholders})')
-                    params.extend([b.upper() for b in selected_branches])
+                    branch_list = ', '.join(f"'{b.replace(chr(39), chr(39)*2).upper()}'" for b in selected_branches)
+                    ch_conditions.append(f"upper(branch) IN ({branch_list})")
 
-            where = ' AND '.join(conditions)
+            ch_where = ' AND '.join(ch_conditions)
 
-            # ── Query: one row per unique mobile ───────────────────
-            sql = f"""
+            # ── ClickHouse query: azure_invoice_report ─────────────
+            ch_rows = ch.query(f"""
                 SELECT
-                    "Customer Mobile"                        AS mobile,
-                    MAX("Customer Name")                     AS customer_name,
-                    MAX("Branch")                            AS branch,
-                    MIN({date_expr})                         AS first_visit,
-                    MAX({date_expr})                         AS last_visit,
-                    COUNT(*)                                 AS total_visits,
-                    SUM(COALESCE("Total Value"::NUMERIC, 0)) AS total_spend
-                FROM v_sales_data
-                WHERE {where}
-                GROUP BY "Customer Mobile"
-                ORDER BY total_spend DESC NULLS LAST
-            """
+                    customer_mobile                          AS mobile,
+                    any(branch)                              AS branch,
+                    min(toDate(date))                        AS first_visit,
+                    max(toDate(date))                        AS last_visit,
+                    count(distinct invoice_no)               AS total_visits,
+                    sum(invoice_total)                       AS total_spend
+                FROM azure_invoice_report
+                WHERE {ch_where}
+                GROUP BY customer_mobile
+                ORDER BY total_spend DESC
+            """).result_rows
 
-            rows = _q(sql, params)
+            # Normalise: (mobile, name, branch, first_visit, last_visit, total_visits, total_spend)
+            rows = [(r[0], 'N/A', r[1], r[2], r[3], r[4], r[5]) for r in ch_rows]
 
             # ── Build filename ──────────────────────────────────────
             from datetime import datetime
@@ -2006,8 +2006,8 @@ class DormantBillRangeDownloadAPIView(LoginRequiredMixin, View):
     def get(self, request):
         import csv, io, traceback
         from datetime import date, timedelta, datetime
-        from django.db import connection
         from django.http import StreamingHttpResponse
+        from analytics.clickhouse_service import get_ch_client
 
         # ── Parse params ───────────────────────────────────────────
         try:
@@ -2021,28 +2021,32 @@ class DormantBillRangeDownloadAPIView(LoginRequiredMixin, View):
         ts          = datetime.now().strftime('%Y%m%d_%H%M')
         filename    = f'Dormant_Customers_{int(min_amount)}-{int(max_amount)}_Last{dormant_days}d_{ts}.csv'
 
-        sql = """
+        # ── ClickHouse query on azure_invoice_report ───────────────
+        ch_sql = f"""
             SELECT
-                "Customer Mobile"                                                        AS mobile,
-                MAX("Customer Name")                                                     AS customer_name,
-                MAX("Branch")                                                            AS branch,
-                MAX(parsed_date)                                                         AS last_visit,
-                MAX("Total Value") FILTER (WHERE "Total Value" BETWEEN %s AND %s)        AS max_bill_in_range,
-                COUNT(*)                                                                 AS total_bills,
-                SUM(COALESCE("Total Value"::NUMERIC, 0))                                AS total_spend
-            FROM sales_data
-            WHERE "Customer Mobile" ~ '^[0-9]{10}$'
-              AND "Customer Mobile" NOT IN ('1313131313','0000000000','9999999999')
-            GROUP BY "Customer Mobile"
+                customer_mobile                                                   AS mobile,
+                any(branch)                                                       AS branch,
+                max(toDate(date))                                                 AS last_visit,
+                maxIf(invoice_total,
+                    invoice_total >= {min_amount} AND invoice_total <= {max_amount}
+                )                                                                 AS max_bill_in_range,
+                count(distinct invoice_no)                                        AS total_bills,
+                sum(invoice_total)                                                AS total_spend
+            FROM azure_invoice_report
+            WHERE length(customer_mobile) = 10
+              AND customer_mobile != ''
+              AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+              AND toDate(date) != toDate('1970-01-01')
+              AND invoice_total > 0
+            GROUP BY customer_mobile
             HAVING
-                MAX("Total Value") FILTER (WHERE "Total Value" BETWEEN %s AND %s) IS NOT NULL
-                AND MAX(parsed_date) < %s
-            ORDER BY max_bill_in_range DESC NULLS LAST
+                max_bill_in_range > 0
+                AND last_visit < toDate('{cutoff_date}')
+            ORDER BY max_bill_in_range DESC
         """
-        params_list = [min_amount, max_amount, min_amount, max_amount, cutoff_date]
 
         def csv_stream():
-            """Generator that yields CSV rows — streams directly to browser."""
+            """Generator that yields CSV rows — fetches from ClickHouse in chunks."""
             buf = io.StringIO()
             writer = csv.writer(buf)
 
@@ -2055,33 +2059,29 @@ class DormantBillRangeDownloadAPIView(LoginRequiredMixin, View):
             yield buf.getvalue()
             buf.truncate(0); buf.seek(0)
 
-            # Open a server-side cursor for memory-efficient streaming
             try:
-                with connection.cursor() as cur:
-                    cur.execute("SET LOCAL statement_timeout = '600000'")  # 10 min
-                    cur.execute(sql, params_list)
-
-                    sr = 1
-                    while True:
-                        chunk = cur.fetchmany(2000)   # fetch 2000 rows at a time
-                        if not chunk:
-                            break
-                        for row in chunk:
-                            mobile, name, branch, last_visit, max_bill, total_bills, total_spend = row
-                            last_visit_str = last_visit.strftime('%d-%b-%Y') if last_visit and hasattr(last_visit, 'strftime') else str(last_visit or '')
-                            writer.writerow([
-                                sr,
-                                str(mobile or ''),
-                                str(name or 'N/A'),
-                                str(branch or ''),
-                                last_visit_str,
-                                round(float(max_bill or 0), 2),
-                                int(total_bills or 0),
-                                round(float(total_spend or 0), 2),
-                            ])
-                            sr += 1
+                ch = get_ch_client()
+                all_rows = ch.query(ch_sql).result_rows
+                sr = 1
+                for row in all_rows:
+                    mobile, branch, last_visit, max_bill, total_bills, total_spend = row
+                    last_visit_str = str(last_visit) if last_visit else ''
+                    writer.writerow([
+                        sr,
+                        str(mobile or ''),
+                        'N/A',         # azure_invoice_report has no customer name column
+                        str(branch or ''),
+                        last_visit_str,
+                        round(float(max_bill or 0), 2),
+                        int(total_bills or 0),
+                        round(float(total_spend or 0), 2),
+                    ])
+                    sr += 1
+                    # Flush every 2000 rows
+                    if sr % 2000 == 1:
                         yield buf.getvalue()
                         buf.truncate(0); buf.seek(0)
+                yield buf.getvalue()
             except Exception as e:
                 writer.writerow([f'ERROR: {e}'])
                 yield buf.getvalue()
@@ -2470,12 +2470,15 @@ class DailyNewRepeatAPIView(LoginRequiredMixin, View):
     BASE_DATE = '2026-07-01'
 
     def get(self, request):
-        from datetime import date
+        from datetime import date, timedelta
         from analytics.clickhouse_service import get_ch_client
 
-        today = date.today()
-        default_start = self.BASE_DATE          # default view: Jul 2026 onwards
-        default_end   = today.isoformat()
+        today     = date.today()
+        yesterday = today - timedelta(days=1)
+        # Default: start = 1st of yesterday's month, end = yesterday
+        # This guarantees start <= end even when today is the 1st of a new month
+        default_start = yesterday.replace(day=1).isoformat()
+        default_end   = yesterday.isoformat()
 
         start_date = request.GET.get('start_date', default_start)
         end_date   = request.GET.get('end_date',   default_end)
@@ -2533,6 +2536,53 @@ class DailyNewRepeatAPIView(LoginRequiredMixin, View):
                 GROUP BY sale_date
                 ORDER BY sale_date ASC
             """).result_rows
+
+            # Auto-fallback: if no rows (e.g. today has no data yet), use latest date in CH
+            if not rows:
+                latest_row = client.query("""
+                    SELECT toString(max(toDate(date)))
+                    FROM azure_invoice_report
+                    WHERE toDate(date) != toDate('1970-01-01') AND invoice_total > 0
+                """).result_rows
+                if latest_row and latest_row[0][0]:
+                    end_date = latest_row[0][0]
+                    rows = client.query(f"""
+                        SELECT
+                            sale_date,
+                            countIf(is_new = 1)          AS new_customers,
+                            countIf(is_new = 0)          AS repeat_customers,
+                            count()                      AS total_unique_customers,
+                            sumIf(rev, is_new = 1)       AS new_revenue,
+                            sumIf(rev, is_new = 0)       AS repeat_revenue,
+                            sum(rev)                     AS total_revenue
+                        FROM (
+                            SELECT
+                                i.customer_mobile        AS customer_mobile,
+                                toDate(i.date)           AS sale_date,
+                                sum(i.invoice_total)     AS rev,
+                                if(i.customer_mobile NOT IN (
+                                    SELECT DISTINCT customer_mobile
+                                    FROM azure_invoice_report
+                                    WHERE length(customer_mobile) = 10
+                                      AND customer_mobile != ''
+                                      AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                                      AND toDate(date) < toDate('{self.BASE_DATE}')
+                                      AND toDate(date) != toDate('1970-01-01')
+                                      AND invoice_total > 0
+                                ), 1, 0)                 AS is_new
+                            FROM azure_invoice_report i
+                            WHERE length(i.customer_mobile) = 10
+                              AND i.customer_mobile != ''
+                              AND i.customer_mobile NOT IN ('1313131313','0000000000','9999999999')
+                              AND toDate(i.date) BETWEEN toDate('{start_date}') AND toDate('{end_date}')
+                              AND toDate(i.date) != toDate('1970-01-01')
+                              AND i.invoice_total > 0
+                              {branch_clause_where.replace('s.branch', 'i.branch').replace('branch', 'i.branch') if branch_clause_where else ''}
+                            GROUP BY i.customer_mobile, toDate(i.date)
+                        )
+                        GROUP BY sale_date
+                        ORDER BY sale_date ASC
+                    """).result_rows
 
             # ── Period-level UNIQUE customers ─────────────────────────────────
             # Source: azure_invoice_report only (no sales_report join needed)

@@ -1,0 +1,1065 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+/* ── Market Basket Dashboard ─────────────────────────────── */
+:root {
+  --mb-primary:   #0891b2;
+  --mb-primary-d: #0e7490;
+  --mb-accent:    #06b6d4;
+  --mb-green:     #059669;
+  --mb-red:       #dc2626;
+  --mb-amber:     #d97706;
+  --mb-purple:    #7c3aed;
+  --mb-bg:        #f0f9ff;
+}
+
+.mb-hero {
+  background: linear-gradient(135deg, #0891b2 0%, #0e7490 40%, #164e63 100%);
+  border-radius: 20px;
+  padding: 2rem 2.5rem;
+  color: #fff;
+  margin-bottom: 2rem;
+  position: relative;
+  overflow: hidden;
+}
+.mb-hero::after {
+  content: '';
+  position: absolute;
+  right: -60px; top: -60px;
+  width: 280px; height: 280px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 50%;
+}
+.mb-hero::before {
+  content: '';
+  position: absolute;
+  right: 80px; bottom: -40px;
+  width: 160px; height: 160px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 50%;
+}
+
+/* KPI Cards */
+.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem; }
+.kpi-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 1.25rem 1.4rem;
+  border: 1px solid #e0f2fe;
+  box-shadow: 0 4px 20px rgba(8,145,178,0.06);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+.kpi-card:hover { transform: translateY(-3px); box-shadow: 0 10px 32px rgba(8,145,178,0.12); }
+.kpi-card::before {
+  content: '';
+  position: absolute; left: 0; top: 0; bottom: 0;
+  width: 4px;
+  background: var(--mb-primary);
+  border-radius: 16px 0 0 16px;
+}
+.kpi-card.red::before    { background: var(--mb-red); }
+.kpi-card.green::before  { background: var(--mb-green); }
+.kpi-card.amber::before  { background: var(--mb-amber); }
+.kpi-card.purple::before { background: var(--mb-purple); }
+.kpi-icon {
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem;
+  margin-bottom: 0.75rem;
+  background: linear-gradient(135deg, #e0f2fe, #bae6fd);
+  color: var(--mb-primary);
+}
+.kpi-card.red .kpi-icon    { background: linear-gradient(135deg,#fee2e2,#fecaca); color: var(--mb-red); }
+.kpi-card.green .kpi-icon  { background: linear-gradient(135deg,#d1fae5,#a7f3d0); color: var(--mb-green); }
+.kpi-card.amber .kpi-icon  { background: linear-gradient(135deg,#fef3c7,#fde68a); color: var(--mb-amber); }
+.kpi-card.purple .kpi-icon { background: linear-gradient(135deg,#ede9fe,#ddd6fe); color: var(--mb-purple); }
+.kpi-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; margin-bottom: 4px; }
+.kpi-value { font-size: 1.6rem; font-weight: 800; color: #0f172a; line-height: 1.2; }
+.kpi-sub   { font-size: 0.72rem; color: #94a3b8; margin-top: 2px; }
+
+/* Section cards */
+.section-card {
+  background: #fff;
+  border-radius: 18px;
+  border: 1px solid #f1f5f9;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.04);
+  margin-bottom: 1.5rem;
+  overflow: hidden;
+}
+.section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+.section-title {
+  font-size: 1rem; font-weight: 700; color: #1e293b;
+  display: flex; align-items: center; gap: 10px;
+}
+.section-title .sec-icon {
+  width: 34px; height: 34px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem;
+  background: linear-gradient(135deg, #e0f2fe, #bae6fd);
+  color: var(--mb-primary);
+  flex-shrink: 0;
+}
+.section-body { padding: 1.25rem 1.5rem; }
+
+/* Tables */
+.mb-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.mb-table th {
+  background: #f8fafc;
+  font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: #64748b;
+  padding: 0.7rem 1rem; border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+.mb-table td {
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+  vertical-align: middle;
+}
+.mb-table tr:hover td { background: #f8fafc; }
+.mb-table tr:last-child td { border-bottom: none; }
+
+/* Lift badge */
+.lift-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.lift-badge.high   { background: #d1fae5; color: #065f46; }
+.lift-badge.medium { background: #fef3c7; color: #92400e; }
+.lift-badge.low    { background: #f1f5f9; color: #475569; }
+
+/* Opportunity bar */
+.opp-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: #e2e8f0;
+  margin-top: 4px;
+  overflow: hidden;
+}
+.opp-bar-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #0891b2, #06b6d4); }
+.opp-bar-fill.red { background: linear-gradient(90deg, #dc2626, #f87171); }
+
+/* Network chart */
+#network-chart { width: 100%; height: 480px; }
+
+/* Algorithm tabs */
+.algo-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.algo-tab {
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1.5px solid #e2e8f0;
+  background: #fff;
+  color: #64748b;
+  transition: all 0.2s;
+}
+.algo-tab.active { background: var(--mb-primary); color: #fff; border-color: var(--mb-primary); }
+.algo-tab:hover:not(.active) { border-color: var(--mb-primary); color: var(--mb-primary); }
+
+/* Insight cards */
+.insight-card {
+  border-radius: 14px;
+  padding: 1.1rem 1.2rem;
+  border: 1px solid #e0f2fe;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  margin-bottom: 0.85rem;
+  display: flex; gap: 1rem; align-items: flex-start;
+}
+.insight-icon-wrap {
+  width: 40px; height: 40px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.insight-title { font-size: 0.82rem; font-weight: 700; color: #0f172a; margin-bottom: 4px; }
+.insight-text  { font-size: 0.79rem; color: #475569; line-height: 1.55; }
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 3rem 2rem;
+  color: #94a3b8;
+}
+.empty-state i { font-size: 3rem; margin-bottom: 1rem; display: block; }
+
+/* Precompute banner */
+.precompute-banner {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border: 1px solid #fcd34d;
+  border-radius: 14px;
+  padding: 1rem 1.5rem;
+  margin-bottom: 1.5rem;
+  display: flex; align-items: center; gap: 1rem;
+}
+
+/* Heatmap cell */
+.heatmap-cell {
+  display: inline-block;
+  width: 100%; height: 32px;
+  border-radius: 6px;
+  text-align: center;
+  line-height: 32px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  transition: transform 0.1s;
+  cursor: default;
+}
+
+/* Loading skeleton */
+.skeleton {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 8px;
+  height: 20px;
+}
+@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+/* Window tabs */
+.window-tabs { display: flex; gap: 4px; }
+.window-tab {
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 0.72rem; font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+}
+.window-tab.active { background: var(--mb-purple); color: #fff; border-color: var(--mb-purple); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-0">
+
+  <!-- ── Hero ───────────────────────────────────────────── -->
+  <div class="mb-hero">
+    <div class="d-flex justify-content-between align-items-start">
+      <div>
+        <div class="d-flex align-items-center gap-3 mb-2">
+          <div style="width:48px;height:48px;background:rgba(255,255,255,0.15);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.6rem;">
+            <i class="bi bi-basket3-fill"></i>
+          </div>
+          <div>
+            <h1 class="mb-0" style="font-size:1.6rem;font-weight:800;">Market Basket & Cross-Sell Analysis</h1>
+            <p class="mb-0" style="opacity:0.75;font-size:0.88rem;">AI-powered product association mining · Hybrid recommendation engine · Cross-sell opportunity scoring</p>
+          </div>
+        </div>
+      </div>
+      <div class="d-flex align-items-center gap-2 flex-shrink-0">
+        {% if last_computed %}
+        <span style="font-size:0.75rem;opacity:0.7;">Last computed: {{ last_computed|date:"d M Y H:i" }}</span>
+        {% endif %}
+        {% if user.is_superuser or user.username == 'mygadmin' %}
+        <button class="btn btn-sm" id="precompute-btn"
+          onclick="triggerPrecompute(false)"
+          style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:10px;font-weight:600;font-size:0.8rem;">
+          <i class="bi bi-cpu me-1"></i> Run Analysis
+        </button>
+        <button class="btn btn-sm" onclick="triggerPrecompute(true)"
+          style="background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:10px;font-size:0.8rem;">
+          <i class="bi bi-lightning-charge me-1"></i> Quick Run
+        </button>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Data pills -->
+    <div class="d-flex gap-2 mt-3 flex-wrap">
+      <span style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:20px;padding:4px 14px;font-size:0.73rem;font-weight:600;">
+        <i class="bi bi-table me-1"></i> azure_sales_report · 35M+ rows
+      </span>
+      <span style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:20px;padding:4px 14px;font-size:0.73rem;font-weight:600;">
+        <i class="bi bi-receipt me-1"></i> azure_invoice_report · 14M+ rows
+      </span>
+      <span style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:20px;padding:4px 14px;font-size:0.73rem;font-weight:600;">
+        <i class="bi bi-box-seam me-1"></i> item_master · 219K products
+      </span>
+      <span style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:20px;padding:4px 14px;font-size:0.73rem;font-weight:600;">
+        <i class="bi bi-shop me-1"></i> branch_master · 245 branches
+      </span>
+    </div>
+  </div>
+
+  <!-- ── Not-ready banner ──────────────────────────────── -->
+  <div id="not-ready-banner" style="display:none;">
+    <div class="precompute-banner">
+      <i class="bi bi-exclamation-triangle-fill" style="font-size:1.5rem;color:#d97706;flex-shrink:0;"></i>
+      <div>
+        <div style="font-weight:700;color:#92400e;margin-bottom:2px;">Analysis not yet computed</div>
+        <div style="font-size:0.82rem;color:#78350f;">
+          Click <strong>Run Analysis</strong> (above) to precompute all market basket models.
+          This runs in the background and takes ~10–20 minutes on 35M rows.
+          Alternatively, use <strong>Quick Run</strong> for a 180-day test (~3–5 min).
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── KPI Cards ─────────────────────────────────────── -->
+  <div class="kpi-grid" id="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-icon"><i class="bi bi-receipt"></i></div>
+      <div class="kpi-label">Total Transactions</div>
+      <div class="kpi-value" id="kpi-txn">—</div>
+      <div class="kpi-sub">Invoices analyzed</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-icon"><i class="bi bi-currency-rupee"></i></div>
+      <div class="kpi-label">Avg Basket Value</div>
+      <div class="kpi-value" id="kpi-basket">—</div>
+      <div class="kpi-sub">Average invoice amount</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon"><i class="bi bi-boxes"></i></div>
+      <div class="kpi-label">Avg Items / Basket</div>
+      <div class="kpi-value" id="kpi-items">—</div>
+      <div class="kpi-sub" id="kpi-multi">Multi-item: —%</div>
+    </div>
+    <div class="kpi-card purple">
+      <div class="kpi-icon"><i class="bi bi-link-45deg"></i></div>
+      <div class="kpi-label">Accessory Attach Rate</div>
+      <div class="kpi-value" id="kpi-attach">—</div>
+      <div class="kpi-sub" id="kpi-rules">— association rules</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-icon"><i class="bi bi-graph-up-arrow"></i></div>
+      <div class="kpi-label">Cross-Sell Revenue</div>
+      <div class="kpi-value" id="kpi-cs-rev">—</div>
+      <div class="kpi-sub">Multi-item basket revenue</div>
+    </div>
+    <div class="kpi-card red">
+      <div class="kpi-icon"><i class="bi bi-exclamation-triangle"></i></div>
+      <div class="kpi-label">Missed Revenue</div>
+      <div class="kpi-value" id="kpi-missed-rev">—</div>
+      <div class="kpi-sub">Unrealised opportunity</div>
+    </div>
+    <div class="kpi-card red">
+      <div class="kpi-icon"><i class="bi bi-cash-stack"></i></div>
+      <div class="kpi-label">Missed Margin</div>
+      <div class="kpi-value" id="kpi-missed-mgn">—</div>
+      <div class="kpi-sub">@12% margin assumption</div>
+    </div>
+    <div class="kpi-card amber">
+      <div class="kpi-icon"><i class="bi bi-bullseye"></i></div>
+      <div class="kpi-label">Opportunities Found</div>
+      <div class="kpi-value" id="kpi-opps">—</div>
+      <div class="kpi-sub">Product pair opportunities</div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- ── Left column ──────────────────────────────────── -->
+    <div class="col-lg-8">
+
+      <!-- Section 1: Top Product Associations -->
+      <div class="section-card">
+        <div class="section-header">
+          <div class="section-title">
+            <div class="sec-icon"><i class="bi bi-link-45deg"></i></div>
+            Top Product Associations
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <div class="algo-tabs" id="algo-tabs">
+              <div class="algo-tab active" onclick="loadAssociations('')" data-algo="">All</div>
+              <div class="algo-tab" onclick="loadAssociations('apriori')" data-algo="apriori">Apriori</div>
+              <div class="algo-tab" onclick="loadAssociations('fpgrowth')" data-algo="fpgrowth">FP-Growth</div>
+              <div class="algo-tab" onclick="loadAssociations('eclat')" data-algo="eclat">ECLAT</div>
+            </div>
+          </div>
+        </div>
+        <div class="section-body p-0">
+          <div style="overflow-x:auto;max-height:380px;overflow-y:auto;">
+            <table class="mb-table" id="assoc-table">
+              <thead>
+                <tr>
+                  <th>Product A</th>
+                  <th>→ Product B</th>
+                  <th>Category</th>
+                  <th>Support</th>
+                  <th>Confidence</th>
+                  <th>Lift ↓</th>
+                  <th>Algorithm</th>
+                </tr>
+              </thead>
+              <tbody id="assoc-tbody">
+                <tr><td colspan="7" class="text-center py-4 text-muted">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 2: Cross-Sell Opportunities -->
+      <div class="section-card">
+        <div class="section-header">
+          <div class="section-title">
+            <div class="sec-icon" style="background:linear-gradient(135deg,#fee2e2,#fecaca);color:#dc2626;"><i class="bi bi-cash-coin"></i></div>
+            Top Cross-Sell Opportunities
+          </div>
+          <select id="opp-category-filter" class="form-select form-select-sm" style="width:160px;" onchange="loadOpportunities()">
+            <option value="">All Categories</option>
+          </select>
+        </div>
+        <div class="section-body p-0">
+          <div style="overflow-x:auto;max-height:380px;overflow-y:auto;">
+            <table class="mb-table" id="opp-table">
+              <thead>
+                <tr>
+                  <th>Anchor Product</th>
+                  <th>→ Cross-Sell</th>
+                  <th>Actual %</th>
+                  <th>Expected %</th>
+                  <th>Gap</th>
+                  <th>Missed Units</th>
+                  <th>Missed Revenue</th>
+                  <th>Opp. Score ↓</th>
+                </tr>
+              </thead>
+              <tbody id="opp-tbody">
+                <tr><td colspan="8" class="text-center py-4 text-muted">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 3: Product Relationship Network -->
+      <div class="section-card">
+        <div class="section-header">
+          <div class="section-title">
+            <div class="sec-icon" style="background:linear-gradient(135deg,#ede9fe,#ddd6fe);color:#7c3aed;"><i class="bi bi-diagram-3"></i></div>
+            Product Relationship Network
+          </div>
+          <span style="font-size:0.75rem;color:#94a3b8;">Node size = rule count · Edge thickness = lift</span>
+        </div>
+        <div class="section-body p-0">
+          <div id="network-chart"></div>
+        </div>
+      </div>
+
+      <!-- Section 4: Category Cross-Sell Matrix -->
+      <div class="section-card">
+        <div class="section-header">
+          <div class="section-title">
+            <div class="sec-icon" style="background:linear-gradient(135deg,#fef3c7,#fde68a);color:#d97706;"><i class="bi bi-grid-3x3-gap"></i></div>
+            Category Cross-Sell Matrix
+          </div>
+          <span style="font-size:0.75rem;color:#94a3b8;">Average confidence (%) between categories</span>
+        </div>
+        <div class="section-body">
+          <div id="category-matrix-chart" style="height:400px;"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── Right column ─────────────────────────────────── -->
+    <div class="col-lg-4">
+
+      <!-- Section 5: Branch Performance -->
+      <div class="section-card">
+        <div class="section-header">
+          <div class="section-title">
+            <div class="sec-icon" style="background:linear-gradient(135deg,#d1fae5,#a7f3d0);color:#059669;"><i class="bi bi-shop"></i></div>
+            Branch Cross-Sell Performance
+          </div>
+        </div>
+        <div class="section-body p-0">
+          <div style="max-height:340px;overflow-y:auto;">
+            <table class="mb-table" id="branch-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Branch</th>
+                  <th>Attach %</th>
+                  <th>CS Revenue</th>
+                </tr>
+              </thead>
+              <tbody id="branch-tbody">
+                <tr><td colspan="4" class="text-center py-3 text-muted">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 6: Salesperson Performance -->
+      <div class="section-card">
+        <div class="section-header">
+          <div class="section-title">
+            <div class="sec-icon" style="background:linear-gradient(135deg,#e0e7ff,#c7d2fe);color:#4f46e5;"><i class="bi bi-person-badge"></i></div>
+            Salesperson Cross-Sell
+          </div>
+        </div>
+        <div class="section-body p-0">
+          <div style="max-height:300px;overflow-y:auto;">
+            <table class="mb-table" id="staff-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Staff</th>
+                  <th>Branch</th>
+                  <th>Attach %</th>
+                </tr>
+              </thead>
+              <tbody id="staff-tbody">
+                <tr><td colspan="4" class="text-center py-3 text-muted">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 7: Customer Recommendations -->
+      <div class="section-card">
+        <div class="section-header">
+          <div class="section-title">
+            <div class="sec-icon"><i class="bi bi-person-heart"></i></div>
+            Customer Recommendations
+          </div>
+        </div>
+        <div class="section-body">
+          <div class="input-group mb-3">
+            <input type="text" id="cust-mobile-input" class="form-control"
+              placeholder="Enter customer mobile…" maxlength="10"
+              onkeydown="if(event.key==='Enter') searchCustomer()">
+            <button class="btn btn-primary" onclick="searchCustomer()">
+              <i class="bi bi-search"></i>
+            </button>
+          </div>
+          <div id="cust-rec-result"></div>
+        </div>
+      </div>
+
+      <!-- Section 8: Next Best Product -->
+      <div class="section-card">
+        <div class="section-header">
+          <div class="section-title">
+            <div class="sec-icon" style="background:linear-gradient(135deg,#ede9fe,#ddd6fe);color:#7c3aed;"><i class="bi bi-arrow-right-circle"></i></div>
+            Next Best Product
+          </div>
+        </div>
+        <div class="section-body">
+          <input type="text" id="product-search-input" class="form-control mb-2"
+            placeholder="Enter item code…"
+            onkeydown="if(event.key==='Enter') searchProduct()">
+          <button class="btn btn-primary w-100 mb-3" onclick="searchProduct()">
+            <i class="bi bi-search me-1"></i> Find Recommendations
+          </button>
+          <div id="product-rec-result"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Full-width sections ──────────────────────────── -->
+
+  <!-- Section 9: Algorithm Performance Comparison -->
+  <div class="section-card">
+    <div class="section-header">
+      <div class="section-title">
+        <div class="sec-icon" style="background:linear-gradient(135deg,#fef3c7,#fde68a);color:#d97706;"><i class="bi bi-bar-chart-steps"></i></div>
+        Algorithm Performance Comparison
+      </div>
+    </div>
+    <div class="section-body">
+      <div id="algo-comparison-chart" style="height:300px;"></div>
+    </div>
+  </div>
+
+  <!-- Section 10: AI Business Insights -->
+  <div class="section-card">
+    <div class="section-header">
+      <div class="section-title">
+        <div class="sec-icon" style="background:linear-gradient(135deg,#d1fae5,#a7f3d0);color:#059669;"><i class="bi bi-lightbulb"></i></div>
+        AI Business Insights
+      </div>
+      <span class="badge" style="background:linear-gradient(135deg,#059669,#34d399);font-size:0.7rem;">Auto-generated</span>
+    </div>
+    <div class="section-body">
+      <div id="insights-container">
+        <div class="text-center py-4 text-muted">Loading insights…</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end mb-0 -->
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const INR = (v) => '₹' + Number(v).toLocaleString('en-IN', {maximumFractionDigits:0});
+const PCT = (v) => (Number(v)).toFixed(1) + '%';
+
+// ── KPIs ───────────────────────────────────────────────────────────────────
+async function loadKPIs() {
+  const res = await fetch('/market-basket/api/kpis/');
+  const d = await res.json();
+  if (!d.ready) {
+    document.getElementById('not-ready-banner').style.display = 'block';
+    return;
+  }
+  document.getElementById('kpi-txn').textContent    = Number(d.total_transactions).toLocaleString('en-IN');
+  document.getElementById('kpi-basket').textContent  = INR(d.avg_basket_value);
+  document.getElementById('kpi-items').textContent   = d.avg_items_per_basket.toFixed(2);
+  document.getElementById('kpi-multi').textContent   = `Multi-item: ${PCT(d.multi_item_pct)}`;
+  document.getElementById('kpi-attach').textContent  = PCT(d.accessory_attach_rate);
+  document.getElementById('kpi-rules').textContent   = `${Number(d.total_rules).toLocaleString()} rules`;
+  document.getElementById('kpi-cs-rev').textContent  = INR(d.crosssell_revenue);
+  document.getElementById('kpi-missed-rev').textContent = INR(d.missed_revenue);
+  document.getElementById('kpi-missed-mgn').textContent = INR(d.missed_margin);
+  document.getElementById('kpi-opps').textContent    = Number(d.total_opportunities).toLocaleString('en-IN');
+}
+
+// ── Association Rules ──────────────────────────────────────────────────────
+async function loadAssociations(algo = '') {
+  // Update tab highlight
+  document.querySelectorAll('.algo-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.algo === algo);
+  });
+  const tbody = document.getElementById('assoc-tbody');
+  tbody.innerHTML = '<tr><td colspan="7" class="text-center py-3"><div class="skeleton" style="width:60%;margin:auto;"></div></td></tr>';
+
+  const res  = await fetch(`/market-basket/api/associations/?algorithm=${algo}&limit=50`);
+  const data = await res.json();
+
+  if (!data.associations || data.associations.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted"><i class="bi bi-inbox" style="font-size:2rem;display:block;margin-bottom:8px;"></i>No rules yet — run analysis first</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.associations.map(r => {
+    const liftClass = r.lift >= 3 ? 'high' : r.lift >= 1.5 ? 'medium' : 'low';
+    const algoColor = {'apriori':'#0891b2','fpgrowth':'#7c3aed','eclat':'#059669'}[r.algorithm] || '#64748b';
+    return `<tr>
+      <td><span style="font-weight:600;">${r.item_a_name}</span><br><small class="text-muted">${r.item_a}</small></td>
+      <td><i class="bi bi-arrow-right text-muted me-1"></i><span style="font-weight:600;">${r.item_b_name}</span><br><small class="text-muted">${r.item_b}</small></td>
+      <td><span style="font-size:0.72rem;">${r.category_a}<br><i class="bi bi-arrow-right" style="font-size:0.6rem;"></i> ${r.category_b}</span></td>
+      <td>${r.support.toFixed(3)}%</td>
+      <td>${r.confidence.toFixed(1)}%</td>
+      <td><span class="lift-badge ${liftClass}">${r.lift.toFixed(2)}x</span></td>
+      <td><span style="background:${algoColor}22;color:${algoColor};padding:2px 8px;border-radius:20px;font-size:0.7rem;font-weight:700;">${r.algorithm}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Cross-Sell Opportunities ───────────────────────────────────────────────
+async function loadOpportunities() {
+  const cat   = document.getElementById('opp-category-filter').value;
+  const tbody = document.getElementById('opp-tbody');
+  tbody.innerHTML = '<tr><td colspan="8" class="text-center py-3">Loading…</td></tr>';
+
+  const res  = await fetch(`/market-basket/api/opportunities/?category=${encodeURIComponent(cat)}&limit=50`);
+  const data = await res.json();
+
+  if (!data.opportunities || data.opportunities.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">No opportunities yet</td></tr>';
+    return;
+  }
+
+  // Populate category filter (first time only)
+  const catSel = document.getElementById('opp-category-filter');
+  if (catSel.options.length <= 1) {
+    const cats = [...new Set(data.opportunities.map(o => o.category_a).filter(Boolean))].sort();
+    cats.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; catSel.appendChild(o); });
+  }
+
+  const maxOpp = Math.max(...data.opportunities.map(o => o.opportunity_score));
+  tbody.innerHTML = data.opportunities.map(r => {
+    const barW = Math.round(r.opportunity_score / maxOpp * 100);
+    return `<tr>
+      <td><span style="font-weight:600;font-size:0.8rem;">${r.product_a_name.substring(0,35)}</span>
+          <br><small class="text-muted">${r.category_a}</small></td>
+      <td><i class="bi bi-arrow-right text-muted me-1"></i>
+          <span style="font-weight:600;font-size:0.8rem;">${r.product_b_name.substring(0,35)}</span>
+          <br><small class="text-muted">${r.category_b}</small></td>
+      <td><strong>${PCT(r.actual_attach_rate)}</strong></td>
+      <td><span style="color:#059669;font-weight:600;">${PCT(r.expected_attach_rate)}</span></td>
+      <td><span class="lift-badge high">${PCT(r.gap)}</span></td>
+      <td>${Number(r.missed_units).toLocaleString('en-IN')}</td>
+      <td style="color:#dc2626;font-weight:700;">${INR(r.missed_revenue)}</td>
+      <td>
+        <div style="font-weight:700;font-size:0.8rem;">${r.opportunity_score.toFixed(1)}</div>
+        <div class="opp-bar"><div class="opp-bar-fill" style="width:${barW}%"></div></div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Network Graph ──────────────────────────────────────────────────────────
+async function loadNetwork() {
+  const res  = await fetch('/market-basket/api/network/?limit=60');
+  const data = await res.json();
+
+  if (!data.nodes || data.nodes.length === 0) {
+    document.getElementById('network-chart').innerHTML =
+      '<div class="empty-state"><i class="bi bi-diagram-3"></i>No network data yet</div>';
+    return;
+  }
+
+  // Build Plotly network
+  const catColors = {};
+  const palette = ['#0891b2','#dc2626','#059669','#d97706','#7c3aed','#db2777','#ea580c','#0284c7'];
+  let ci = 0;
+  data.nodes.forEach(n => { if (!catColors[n.category]) { catColors[n.category] = palette[ci++ % palette.length]; } });
+
+  // Simple circular layout
+  const n = data.nodes.length;
+  const pos = {};
+  data.nodes.forEach((node, i) => {
+    const angle = (2 * Math.PI * i) / n;
+    pos[node.id] = { x: Math.cos(angle), y: Math.sin(angle) };
+  });
+
+  // Edge traces
+  const edgeX = [], edgeY = [], edgeText = [];
+  data.edges.forEach(e => {
+    const src = pos[e.from], tgt = pos[e.to];
+    if (src && tgt) {
+      edgeX.push(src.x, tgt.x, null);
+      edgeY.push(src.y, tgt.y, null);
+    }
+  });
+
+  const edgeTrace = {
+    x: edgeX, y: edgeY,
+    mode: 'lines',
+    line: { width: 1.5, color: '#cbd5e1' },
+    hoverinfo: 'none', type: 'scatter',
+  };
+
+  const nodeTrace = {
+    x: data.nodes.map(n => pos[n.id]?.x ?? 0),
+    y: data.nodes.map(n => pos[n.id]?.y ?? 0),
+    mode: 'markers+text',
+    text: data.nodes.map(n => n.id.length > 20 ? n.id.substring(0,20)+'…' : n.id),
+    textposition: 'top center',
+    textfont: { size: 9, color: '#334155' },
+    marker: {
+      size: data.nodes.map(n => Math.min(8 + n.size * 4, 32)),
+      color: data.nodes.map(n => catColors[n.category] || '#64748b'),
+      line: { width: 2, color: '#fff' },
+    },
+    hovertemplate: '<b>%{text}</b><br>Category: %{customdata}<extra></extra>',
+    customdata: data.nodes.map(n => n.category),
+    type: 'scatter',
+  };
+
+  Plotly.newPlot('network-chart', [edgeTrace, nodeTrace], {
+    showlegend: false,
+    hovermode: 'closest',
+    margin: { t: 10, b: 10, l: 10, r: 10 },
+    xaxis: { showgrid: false, zeroline: false, showticklabels: false },
+    yaxis: { showgrid: false, zeroline: false, showticklabels: false },
+    plot_bgcolor: '#fafafa',
+    paper_bgcolor: '#fafafa',
+  }, { responsive: true, displayModeBar: false });
+}
+
+// ── Category Matrix ────────────────────────────────────────────────────────
+async function loadCategoryMatrix() {
+  const res  = await fetch('/market-basket/api/category-matrix/');
+  const data = await res.json();
+
+  if (!data.categories || data.categories.length === 0) {
+    document.getElementById('category-matrix-chart').innerHTML =
+      '<div class="empty-state"><i class="bi bi-grid-3x3-gap"></i>No matrix data yet</div>';
+    return;
+  }
+
+  Plotly.newPlot('category-matrix-chart', [{
+    z: data.matrix,
+    x: data.categories,
+    y: data.categories,
+    type: 'heatmap',
+    colorscale: [[0,'#f0f9ff'],[0.5,'#0891b2'],[1,'#0e7490']],
+    hovertemplate: '%{y} → %{x}<br>Confidence: %{z:.1f}%<extra></extra>',
+    showscale: true,
+  }], {
+    margin: { t: 20, b: 80, l: 80, r: 20 },
+    xaxis: { tickangle: -45, tickfont: { size: 10 } },
+    yaxis: { tickfont: { size: 10 } },
+    paper_bgcolor: '#fff', plot_bgcolor: '#fff',
+  }, { responsive: true, displayModeBar: false });
+}
+
+// ── Branch Performance ─────────────────────────────────────────────────────
+async function loadBranchPerf() {
+  const res  = await fetch('/market-basket/api/branch-performance/');
+  const data = await res.json();
+  const tbody = document.getElementById('branch-tbody');
+
+  if (!data.branches || data.branches.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-3 text-muted">No data yet</td></tr>';
+    return;
+  }
+
+  const maxRate = Math.max(...data.branches.map(b => b.attach_rate));
+  tbody.innerHTML = data.branches.slice(0, 30).map((b, i) => {
+    const pct = Math.round(b.attach_rate / maxRate * 100);
+    const col  = b.attach_rate >= maxRate * 0.8 ? '#059669' : b.attach_rate >= maxRate * 0.5 ? '#d97706' : '#dc2626';
+    return `<tr>
+      <td style="font-weight:700;color:#64748b;">${i+1}</td>
+      <td>
+        <div style="font-weight:600;font-size:0.82rem;">${b.branch_name}</div>
+        <div style="font-size:0.7rem;color:#94a3b8;">${b.branch}</div>
+        <div class="opp-bar"><div class="opp-bar-fill" style="width:${pct}%;background:${col};"></div></div>
+      </td>
+      <td><span style="color:${col};font-weight:700;">${PCT(b.attach_rate)}</span></td>
+      <td style="font-size:0.8rem;">${INR(b.crosssell_revenue)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Salesperson Performance ────────────────────────────────────────────────
+async function loadStaffPerf() {
+  const res  = await fetch('/market-basket/api/salesperson-performance/');
+  const data = await res.json();
+  const tbody = document.getElementById('staff-tbody');
+
+  if (!data.salespersons || data.salespersons.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-3 text-muted">No data yet</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.salespersons.slice(0, 30).map((s, i) => {
+    const col = s.attach_rate >= 50 ? '#059669' : s.attach_rate >= 30 ? '#d97706' : '#dc2626';
+    return `<tr>
+      <td style="font-weight:700;color:#64748b;">${i+1}</td>
+      <td style="font-size:0.8rem;font-weight:600;">${s.staff_code}</td>
+      <td style="font-size:0.75rem;color:#64748b;">${s.branch_name}</td>
+      <td><span style="color:${col};font-weight:700;">${PCT(s.attach_rate)}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Customer Recommendations ───────────────────────────────────────────────
+async function searchCustomer() {
+  const mobile = document.getElementById('cust-mobile-input').value.trim();
+  if (mobile.length < 10) {
+    alert('Enter a 10-digit mobile number'); return;
+  }
+  const container = document.getElementById('cust-rec-result');
+  container.innerHTML = '<div class="text-center py-3 text-muted"><div class="spinner-border spinner-border-sm" role="status"></div> Searching…</div>';
+
+  const res  = await fetch(`/market-basket/api/customer-recommendations/?mobile=${mobile}`);
+  const data = await res.json();
+
+  if (data.error || !data.found) {
+    container.innerHTML = `<div class="empty-state"><i class="bi bi-person-x"></i><div>No recommendations found for ${mobile}</div><div style="font-size:0.75rem;margin-top:4px;">Customer may not be in training data</div></div>`;
+    return;
+  }
+
+  const histHtml = data.history.slice(0,5).map(h =>
+    `<span style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:20px;padding:3px 10px;font-size:0.72rem;font-weight:600;color:#0e7490;">${h.item_name.substring(0,20)}</span>`
+  ).join('');
+
+  const recHtml = data.recommendations.map(r => `
+    <div style="background:#f8fafc;border-radius:10px;padding:0.75rem;margin-bottom:6px;border:1px solid #e2e8f0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-weight:700;font-size:0.82rem;">${r.item_name.substring(0,35)}</div>
+          <div style="font-size:0.7rem;color:#64748b;">${r.category} · ${r.brand}</div>
+        </div>
+        <span style="background:#d1fae5;color:#065f46;padding:3px 10px;border-radius:20px;font-size:0.72rem;font-weight:700;">${r.purchase_probability.toFixed(0)}%</span>
+      </div>
+      <div style="font-size:0.72rem;color:#0891b2;margin-top:4px;"><i class="bi bi-info-circle me-1"></i>${r.reason}</div>
+      <div style="font-size:0.7rem;color:#059669;margin-top:2px;">Expected margin: ${INR(r.expected_margin)}</div>
+    </div>
+  `).join('');
+
+  container.innerHTML = `
+    <div style="margin-bottom:10px;">
+      <div style="font-size:0.7rem;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Recent Purchases</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;">${histHtml || '<span class="text-muted" style="font-size:0.75rem;">No history found</span>'}</div>
+    </div>
+    <div style="font-size:0.7rem;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Top Recommendations</div>
+    ${recHtml}
+  `;
+}
+
+// ── Product Recommendations ────────────────────────────────────────────────
+async function searchProduct() {
+  const code = document.getElementById('product-search-input').value.trim();
+  if (!code) { alert('Enter an item code'); return; }
+  const container = document.getElementById('product-rec-result');
+  container.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm" role="status"></div></div>';
+
+  const res  = await fetch(`/market-basket/api/product-recommendations/?item_code=${encodeURIComponent(code)}`);
+  const data = await res.json();
+
+  if (!data.item_info || !data.item_info.item_code) {
+    container.innerHTML = '<div class="empty-state" style="padding:1rem;"><i class="bi bi-box-seam"></i>Product not found</div>';
+    return;
+  }
+
+  const info = data.item_info;
+  const fbtHtml = data.frequently_bought_together.slice(0,5).map(r => `
+    <div style="padding:6px 0;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;">
+      <div>
+        <div style="font-size:0.8rem;font-weight:600;">${r.item_name.substring(0,30)}</div>
+        <div style="font-size:0.7rem;color:#64748b;">${r.category} · ${r.brand}</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:0.75rem;font-weight:700;color:#0891b2;">${r.lift.toFixed(1)}x</div>
+        <div style="font-size:0.68rem;color:#64748b;">${r.confidence.toFixed(0)}% conf.</div>
+      </div>
+    </div>`).join('');
+
+  // Sequential by window
+  const windows = [7, 30, 90];
+  const seqGroups = {};
+  windows.forEach(w => { seqGroups[w] = data.sequential.filter(s => s.days_window === w); });
+
+  const seqHtml = windows.map(w => {
+    const items = seqGroups[w].slice(0,3);
+    if (!items.length) return '';
+    return `<div style="margin-bottom:8px;">
+      <div style="font-size:0.7rem;font-weight:700;color:#7c3aed;margin-bottom:4px;">Within ${w} days</div>
+      ${items.map(s => `
+        <div style="display:flex;justify-content:space-between;font-size:0.78rem;padding:3px 0;">
+          <span>${s.next_item_name.substring(0,25)}</span>
+          <span style="color:#7c3aed;font-weight:700;">${s.probability.toFixed(0)}%</span>
+        </div>`).join('')}
+    </div>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div style="background:linear-gradient(135deg,#f0f9ff,#e0f2fe);border-radius:12px;padding:0.9rem;margin-bottom:10px;">
+      <div style="font-weight:700;font-size:0.88rem;">${info.item_name}</div>
+      <div style="font-size:0.75rem;color:#0e7490;">${info.category} · ${info.brand}</div>
+      <div style="font-size:0.73rem;color:#64748b;margin-top:4px;">MOP: ${INR(info.mop)} · MRP: ${INR(info.mrp)}</div>
+    </div>
+    <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:6px;">Frequently Bought Together</div>
+    ${fbtHtml || '<div class="text-muted" style="font-size:0.78rem;">No association data</div>'}
+    ${seqHtml ? `<div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;color:#64748b;margin:10px 0 6px;">Next-Product Timeline</div>${seqHtml}` : ''}
+  `;
+}
+
+// ── Algorithm Comparison Chart ─────────────────────────────────────────────
+async function loadAlgoComparison() {
+  const res  = await fetch('/market-basket/api/associations/?limit=500');
+  const data = await res.json();
+
+  if (!data.associations || !data.associations.length) {
+    document.getElementById('algo-comparison-chart').innerHTML =
+      '<div class="empty-state"><i class="bi bi-bar-chart-steps"></i>No algorithm data yet</div>';
+    return;
+  }
+
+  const algos = ['apriori', 'fpgrowth', 'eclat'];
+  const algoData = {};
+  algos.forEach(a => {
+    const subset = data.associations.filter(r => r.algorithm === a);
+    algoData[a] = {
+      count: subset.length,
+      avgLift: subset.length ? (subset.reduce((s,r) => s+r.lift,0)/subset.length).toFixed(2) : 0,
+      maxLift: subset.length ? Math.max(...subset.map(r=>r.lift)).toFixed(2) : 0,
+      avgConf: subset.length ? (subset.reduce((s,r) => s+r.confidence,0)/subset.length).toFixed(1) : 0,
+    };
+  });
+
+  const traces = [
+    {
+      x: algos, y: algos.map(a => algoData[a].count),
+      name: 'Rules Found', type: 'bar',
+      marker: { color: ['#0891b2','#7c3aed','#059669'] },
+      yaxis: 'y',
+    },
+    {
+      x: algos, y: algos.map(a => parseFloat(algoData[a].avgLift)),
+      name: 'Avg Lift', type: 'scatter', mode: 'markers+lines',
+      marker: { size: 12, color: '#d97706' },
+      line: { color: '#d97706', width: 2 },
+      yaxis: 'y2',
+    },
+  ];
+
+  Plotly.newPlot('algo-comparison-chart', traces, {
+    barmode: 'group',
+    legend: { orientation: 'h', y: 1.1 },
+    margin: { t: 30, b: 40, l: 60, r: 60 },
+    yaxis:  { title: 'Rules Count', gridcolor: '#f1f5f9' },
+    yaxis2: { title: 'Avg Lift', overlaying: 'y', side: 'right' },
+    paper_bgcolor: '#fff', plot_bgcolor: '#fff',
+  }, { responsive: true, displayModeBar: false });
+}
+
+// ── AI Insights ────────────────────────────────────────────────────────────
+async function loadInsights() {
+  const res  = await fetch('/market-basket/api/ai-insights/');
+  const data = await res.json();
+  const container = document.getElementById('insights-container');
+
+  if (!data.insights || !data.insights.length) {
+    container.innerHTML = '<div class="text-center py-4 text-muted"><i class="bi bi-lightbulb" style="font-size:2rem;display:block;margin-bottom:8px;"></i>No insights yet — run analysis first</div>';
+    return;
+  }
+
+  container.innerHTML = data.insights.map(ins => `
+    <div class="insight-card">
+      <div class="insight-icon-wrap"><i class="${ins.icon}" style="color:${ins.color};"></i></div>
+      <div>
+        <div class="insight-title">${ins.title}</div>
+        <div class="insight-text">${ins.text}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── Precompute trigger ─────────────────────────────────────────────────────
+async function triggerPrecompute(quick) {
+  const btn = document.getElementById('precompute-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<div class="spinner-border spinner-border-sm me-1" role="status"></div> Starting…'; }
+
+  const res  = await fetch(`/market-basket/api/precompute/?quick=${quick}`, { method: 'POST', headers: {'X-CSRFToken': getCookie('csrftoken')} });
+  const data = await res.json();
+
+  if (data.status === 'started') {
+    alert('✅ ' + data.message);
+  } else if (data.error) {
+    alert('❌ ' + data.error);
+  }
+  if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-cpu me-1"></i> Run Analysis'; }
+}
+
+function getCookie(name) {
+  const v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
+  return v ? v[2] : null;
+}
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadKPIs();
+  loadAssociations('');
+  loadOpportunities();
+  loadNetwork();
+  loadCategoryMatrix();
+  loadBranchPerf();
+  loadStaffPerf();
+  loadAlgoComparison();
+  loadInsights();
+});
+</script>
+{% endblock %}

@@ -98,20 +98,27 @@ def _fetch_period(ch, comp_type, val, year, brand_filter='', branch_filter='', c
             if(isNull(s.branch)  OR s.branch='',  'Unknown', s.branch)  AS branch,
             sum(toFloat64(s.qty))        AS qty,
             sum(toFloat64(s.sold_price)) AS sold_price,
-            countDistinct(s.invoice_no)  AS inv_count
+            countDistinct(s.invoice_no)  AS inv_count,
+            sum(toFloat64(s.discount))   AS discount_amt,
+            countIf(s.discount > 0)      AS disc_qty,
+            countDistinct(i.customer_mobile) AS unique_customers
         FROM azure_sales_report s
         LEFT JOIN item_master m ON s.item_code = m.item_code
+        LEFT JOIN azure_invoice_report i ON s.invoice_no = i.invoice_no
         WHERE {where}
         GROUP BY product, brand, branch
     """
     rows = ch.query(sql).result_rows
     if not rows:
-        return pd.DataFrame(columns=['category', 'product', 'brand', 'branch', 'qty', 'sold_price', 'inv_count']), 0
+        return pd.DataFrame(columns=['category', 'product', 'brand', 'branch', 'qty', 'sold_price', 'inv_count', 'discount_amt', 'disc_qty', 'unique_customers']), 0
 
-    df = pd.DataFrame(rows, columns=['product', 'brand', 'branch', 'qty', 'sold_price', 'inv_count'])
-    df['qty']        = pd.to_numeric(df['qty'],        errors='coerce').fillna(0).astype(float)
-    df['sold_price'] = pd.to_numeric(df['sold_price'], errors='coerce').fillna(0).astype(float)
-    df['inv_count']  = pd.to_numeric(df['inv_count'],  errors='coerce').fillna(0).astype(int)
+    df = pd.DataFrame(rows, columns=['product', 'brand', 'branch', 'qty', 'sold_price', 'inv_count', 'discount_amt', 'disc_qty', 'unique_customers'])
+    df['qty']              = pd.to_numeric(df['qty'],              errors='coerce').fillna(0).astype(float)
+    df['sold_price']       = pd.to_numeric(df['sold_price'],       errors='coerce').fillna(0).astype(float)
+    df['inv_count']        = pd.to_numeric(df['inv_count'],        errors='coerce').fillna(0).astype(int)
+    df['discount_amt']     = pd.to_numeric(df['discount_amt'],     errors='coerce').fillna(0).astype(float)
+    df['disc_qty']         = pd.to_numeric(df['disc_qty'],         errors='coerce').fillna(0).astype(int)
+    df['unique_customers'] = pd.to_numeric(df['unique_customers'], errors='coerce').fillna(0).astype(int)
 
     # Apply product → display-category mapping
     df['category'] = df['product'].map(PRODUCT_CAT_MAPPING).fillna('OTHER')
@@ -132,8 +139,10 @@ def build_api_response(request):
     branch     = request.GET.get('branch',   '')
     rbm        = request.GET.get('rbm',      '')
     bdm        = request.GET.get('bdm',      '')
+    district   = request.GET.get('district', '')
+    state      = request.GET.get('state',    '')
 
-    cache_key = f"ent_ch_v2_{comp_type}_{base_val}_{comp_val}_{base_year}_{comp_year}_{cat}_{product}_{brand}_{branch}_{rbm}_{bdm}"
+    cache_key = f"ent_ch_v2_{comp_type}_{base_val}_{comp_val}_{base_year}_{comp_year}_{cat}_{product}_{brand}_{branch}_{rbm}_{bdm}_{district}_{state}"
     cached = cache.get(cache_key)
     if cached:
         return cached
@@ -174,6 +183,30 @@ def build_api_response(request):
         if bdm_codes:
             existing = [b for b in branch.split(',') if b] if branch else []
             merged = list(set(existing + bdm_codes)) if existing else bdm_codes
+            branch = ','.join(merged)
+
+    # Resolve District filter → branch codes via branch_master
+    if district:
+        dist_list = [d.strip() for d in district.split(',') if d.strip()]
+        dist_escaped = "','".join(d.replace("'", "''") for d in dist_list)
+        dist_branches = ch.query(f"SELECT DISTINCT code FROM branch_master WHERE district IN ('{dist_escaped}') AND code != ''").result_rows
+        dist_codes = [r[0] for r in dist_branches]
+        if dist_codes:
+            existing = [b for b in branch.split(',') if b] if branch else []
+            merged = list(set(existing + dist_codes)) if existing else dist_codes
+            branch = ','.join(merged)
+
+    # Resolve State filter → branch codes via branch_master gst_no
+    if state:
+        state_map_inv = {'Kerala': '32', 'Maharashtra': '27', 'Karnataka': '29', 'Puducherry': '34'}
+        state_list = [s.strip() for s in state.split(',') if s.strip()]
+        state_codes = [state_map_inv.get(s, s) for s in state_list]
+        state_escaped = "','".join(s.replace("'", "''") for s in state_codes)
+        state_branches = ch.query(f"SELECT DISTINCT code FROM branch_master WHERE substring(gst_no, 1, 2) IN ('{state_escaped}') AND code != ''").result_rows
+        st_codes = [r[0] for r in state_branches]
+        if st_codes:
+            existing = [b for b in branch.split(',') if b] if branch else []
+            merged = list(set(existing + st_codes)) if existing else st_codes
             branch = ','.join(merged)
 
     # ── Fetch base and comparison periods from ClickHouse ─────────────────────
@@ -267,11 +300,10 @@ def build_api_response(request):
     if not b_cat_tbl.empty or not c_cat_tbl.empty:
         merged_cat = pd.merge(b_cat_tbl, c_cat_tbl, on='category', how='outer').fillna(0)
         
-        # Enforce exact category list and order as requested by user
-        exact_order = ['MOBILE', 'CE', 'LAPTOP', 'ACC', 'TABLET', 'OTHER', 'VALUE ADDED SERVICE', 'RIG']
-        merged_cat = merged_cat[merged_cat['category'].isin(exact_order)]
-        merged_cat['cat_order'] = pd.Categorical(merged_cat['category'], categories=exact_order, ordered=True)
-        merged_cat = merged_cat.sort_values('cat_order').drop(columns=['cat_order'])
+        # Enforce exact category list but sort descending by c_rev (COMP AMT) as requested
+        exact_categories = ['MOBILE', 'CE', 'LAPTOP', 'ACC', 'TABLET', 'OTHER', 'VALUE ADDED SERVICE', 'RIG']
+        merged_cat = merged_cat[merged_cat['category'].isin(exact_categories)]
+        merged_cat = merged_cat.sort_values('c_rev', ascending=False)
 
         merged_cat['rev_growth'] = merged_cat.apply(
             lambda r: ((r['c_rev']-r['b_rev'])/r['b_rev']*100) if r['b_rev'] > 0 else 0, axis=1)
@@ -303,12 +335,12 @@ def build_api_response(request):
             scorecard.append(grand)
 
     # ── 7. Detailed product-brand-branch table (for Custom Report and Excel) ──────
-    b_dtbl = (df_b.groupby(['category','product','brand','branch'])[['sold_price','qty']].sum().reset_index()
-               .rename(columns={'sold_price':'b_rev','qty':'b_qty'})
-              if not df_b.empty else pd.DataFrame(columns=['category','product','brand','branch','b_rev','b_qty']))
-    c_dtbl = (df_c.groupby(['category','product','brand','branch'])[['sold_price','qty']].sum().reset_index()
-               .rename(columns={'sold_price':'c_rev','qty':'c_qty'})
-              if not df_c.empty else pd.DataFrame(columns=['category','product','brand','branch','c_rev','c_qty']))
+    b_dtbl = (df_b.groupby(['category','product','brand','branch'])[['sold_price','qty','discount_amt','disc_qty','unique_customers']].sum().reset_index()
+               .rename(columns={'sold_price':'b_rev','qty':'b_qty', 'discount_amt':'b_discount', 'disc_qty':'b_disc_qty', 'unique_customers':'b_unique_cust'})
+              if not df_b.empty else pd.DataFrame(columns=['category','product','brand','branch','b_rev','b_qty','b_discount','b_disc_qty','b_unique_cust']))
+    c_dtbl = (df_c.groupby(['category','product','brand','branch'])[['sold_price','qty','discount_amt','disc_qty','unique_customers']].sum().reset_index()
+               .rename(columns={'sold_price':'c_rev','qty':'c_qty', 'discount_amt':'c_discount', 'disc_qty':'c_disc_qty', 'unique_customers':'c_unique_cust'})
+              if not df_c.empty else pd.DataFrame(columns=['category','product','brand','branch','c_rev','c_qty','c_discount','c_disc_qty','c_unique_cust']))
     detailed_table = (pd.merge(b_dtbl, c_dtbl, on=['category','product','brand','branch'], how='outer')
                         .fillna(0).to_dict('records'))
 

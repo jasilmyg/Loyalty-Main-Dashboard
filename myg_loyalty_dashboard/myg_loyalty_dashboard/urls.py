@@ -9,6 +9,7 @@ urlpatterns = [
     path('accounts/', include('django.contrib.auth.urls')),
     path('api/v1/', include('analytics.urls')),
     path('ai/', include('ai_agent.urls')),
+    path('market-basket/', include('market_basket.urls')),
     path('', include('dashboard.urls')),
 ]
 

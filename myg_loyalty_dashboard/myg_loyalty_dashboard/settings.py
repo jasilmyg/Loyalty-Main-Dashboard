@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'users',
     'django.contrib.humanize',
     'ai_agent',
+    'market_basket',
 ]
 
 MIDDLEWARE = [

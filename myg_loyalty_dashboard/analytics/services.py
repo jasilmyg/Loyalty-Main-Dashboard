@@ -1318,33 +1318,71 @@ class AnalyticsService:
 
     # ── Unique Branches ──────────────────────────────────────────────────────
     def get_unique_branches(self):
-        rows = _q(f'SELECT DISTINCT "Branch" FROM {TABLE} WHERE "Branch" IS NOT NULL AND "Branch"!=\'\' ORDER BY "Branch"')
-        return [r[0] for r in rows]
+        """Return sorted list of unique branch names from ClickHouse azure_invoice_report."""
+        try:
+            rows = _ch_q("""
+                SELECT DISTINCT branch FROM azure_invoice_report
+                WHERE branch != '' AND branch IS NOT NULL
+                ORDER BY branch ASC
+            """)
+            return [r[0] for r in rows if r[0]]
+        except Exception as e:
+            print(f"[CH] get_unique_branches error: {e}")
+            # Fallback to azure_sales_report if invoice table fails
+            try:
+                rows = _ch_q("""
+                    SELECT DISTINCT branch FROM azure_sales_report
+                    WHERE branch != '' AND branch IS NOT NULL
+                    ORDER BY branch ASC
+                """)
+                return [r[0] for r in rows if r[0]]
+            except Exception:
+                return []
 
     # ── Invalid Mobiles ──────────────────────────────────────────────────────
     def get_invalid_mobiles(self):
-        mob_invalid = """
-            "Customer Mobile" IS NULL
-            OR "Customer Mobile" = ''
-            OR "Customer Mobile" !~ '^[0-9]{{10}}$'
         """
-        total = (_q1(f'SELECT COUNT(*) FROM {TABLE} WHERE {mob_invalid}') or (0,))[0] or 0
-        rows = _q(f"""
-            SELECT
-                COALESCE("Customer Mobile",'') AS raw_mobile,
-                COALESCE("Customer Name",'')   AS customer_name,
-                COALESCE("Branch",'')          AS branch,
-                "Date"                         AS sale_date,
-                COALESCE("Invoice Number",'')  AS invoice_number
-            FROM {TABLE}
-            WHERE {mob_invalid}
-            ORDER BY sale_date DESC LIMIT 50000
-        """)
-        return {'total': total, 'rows': [
-            {'raw_mobile':r[0],'customer_name':r[1],'branch':r[2],
-             'sale_date':str(r[3]) if r[3] else '','invoice_number':r[4]}
-            for r in rows
-        ]}
+        Return count + sample rows where customer_mobile is invalid
+        (not 10 digits, empty, or NULL) from ClickHouse azure_invoice_report.
+        """
+        try:
+            total_row = _ch_q1("""
+                SELECT count() FROM azure_invoice_report
+                WHERE length(customer_mobile) != 10
+                   OR customer_mobile = ''
+                   OR customer_mobile IS NULL
+            """)
+            total = int(total_row[0] or 0) if total_row else 0
+
+            rows = _ch_q("""
+                SELECT
+                    customer_mobile                          AS raw_mobile,
+                    branch                                   AS branch,
+                    toString(toDate(date))                   AS sale_date,
+                    invoice_no                               AS invoice_number
+                FROM azure_invoice_report
+                WHERE length(customer_mobile) != 10
+                   OR customer_mobile = ''
+                   OR customer_mobile IS NULL
+                ORDER BY toDate(date) DESC
+                LIMIT 50000
+            """)
+            return {
+                'total': total,
+                'rows': [
+                    {
+                        'raw_mobile':     r[0] or '',
+                        'customer_name':  '',        # not available in azure tables
+                        'branch':         r[1] or '',
+                        'sale_date':      r[2] or '',
+                        'invoice_number': r[3] or '',
+                    }
+                    for r in rows
+                ]
+            }
+        except Exception as e:
+            print(f"[CH] get_invalid_mobiles error: {e}")
+            return {'total': 0, 'rows': []}
 
     def _retail_sale_date_expr(self, alias='s'):
         a = f'{alias}.' if alias else ''
