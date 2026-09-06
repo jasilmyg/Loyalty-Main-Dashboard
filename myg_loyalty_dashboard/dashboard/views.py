@@ -63,6 +63,7 @@ from django.db.models import Sum
 
 from .dashboard_api_logic import build_api_response, generate_dashboard_excel
 from .special_report_logic import generate_3_period_excel, generate_custom_4_period_excel
+from .growth_degrowth_logic import build_growth_degrowth_response
 from django.core.serializers.json import DjangoJSONEncoder
 from datetime import datetime
 
@@ -151,15 +152,637 @@ class EnterpriseDashboardAPIView(LoginRequiredMixin, View):
         except Exception as e:
             return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
-class EnterpriseDashboardExportAPIView(LoginRequiredMixin, View):
+class GrowthDegrowthAPIView(LoginRequiredMixin, View):
     def get(self, request):
         try:
-            excel_io, filename = generate_dashboard_excel(request)
-            response = HttpResponse(excel_io.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-            response['Content-Disposition'] = f'attachment; filename="{filename}"'
-            return response
+            data = build_growth_degrowth_response(request)
+            return JsonResponse({"status": "success", "data": data}, encoder=DjangoJSONEncoder)
         except Exception as e:
             return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+
+class GrowthDegrowthExportAPIView(LoginRequiredMixin, View):
+    """Export Growth & Degrowth report as Excel with 4 separate sheets -
+    one for each view: Sale Value, Quantity, Unique Customers, New & Repeat."""
+
+    def get(self, request):
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            from openpyxl.utils import get_column_letter
+            import io
+
+            data = build_growth_degrowth_response(request)
+            branches = data.get('branches', [])
+
+            comp_type = request.GET.get('type', 'monthly')
+            base_val  = request.GET.get('base', '')
+            comp_val  = request.GET.get('comp', '')
+            base_year = request.GET.get('base_year', '')
+            comp_year = request.GET.get('comp_year', '')
+
+            def _label(val, year, ctype):
+                if ctype == 'custom' and '|' in val:
+                    s, e = val.split('|', 1)
+                    return f"{s} to {e}"
+                if ctype == 'monthly':
+                    m = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'May',6:'Jun',
+                         7:'Jul',8:'Aug',9:'Sep',10:'Oct',11:'Nov',12:'Dec'}
+                    try:
+                        return f"{m.get(int(val), val)} {year}"
+                    except Exception:
+                        return f"{val} {year}"
+                return f"{val} {year}" if year else str(val)
+
+            b_label = _label(base_val, base_year, comp_type)
+            c_label = _label(comp_val, comp_year, comp_type)
+
+            thin_s   = Side(style='thin', color='D1D5DB')
+            border   = Border(left=thin_s, right=thin_s, top=thin_s, bottom=thin_s)
+            center   = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            right_al = Alignment(horizontal='right',  vertical='center')
+            left_al  = Alignment(horizontal='left',   vertical='center')
+
+            f_branch = PatternFill('solid', fgColor='374151')
+            f_blue   = PatternFill('solid', fgColor='1E3A5F')
+            f_green  = PatternFill('solid', fgColor='065F46')
+            f_sub    = PatternFill('solid', fgColor='1D4ED8')
+            f_total  = PatternFill('solid', fgColor='FFF3CD')
+
+            hdr_font   = Font(bold=True, color='FFFFFF', size=10)
+            sub_font   = Font(bold=True, color='FFFFFF', size=9)
+            data_font  = Font(size=9)
+            total_font = Font(bold=True, size=9)
+
+            def pct(a, b):
+                try:
+                    return round((a - b) / b * 100, 2) if b and b > 0 else None
+                except Exception:
+                    return None
+
+            def to_cr(v):
+                return round((v or 0) / 1e7, 4)
+
+            def g_font(val):
+                if val is None:
+                    return data_font
+                return Font(size=9, bold=True, color='0D6B3E' if val >= 0 else 'B91C1C')
+
+            def write_title(ws, title, ncols):
+                ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=ncols)
+                c = ws.cell(row=1, column=1, value=title)
+                c.font      = Font(bold=True, size=12, color='1E3A5F')
+                c.alignment = center
+                ws.row_dimensions[1].height = 22
+                ws.row_dimensions[2].height = 5
+
+            def write_groups(ws, row, groups):
+                for fill, sc, ec, label in groups:
+                    if sc != ec:
+                        ws.merge_cells(start_row=row, start_column=sc,
+                                       end_row=row, end_column=ec)
+                    c = ws.cell(row=row, column=sc, value=label)
+                    c.font = hdr_font; c.fill = fill
+                    c.alignment = center; c.border = border
+                ws.row_dimensions[row].height = 18
+
+            def write_subs(ws, row, cols):
+                for ci, h in enumerate(cols, start=1):
+                    c = ws.cell(row=row, column=ci, value=h)
+                    c.font = sub_font; c.fill = f_sub
+                    c.alignment = center; c.border = border
+                ws.row_dimensions[row].height = 16
+
+            def write_data(ws, start, rows_data, gcols=()):
+                for ri, rv in enumerate(rows_data, start=start):
+                    for ci, val in enumerate(rv, start=1):
+                        c = ws.cell(row=ri, column=ci, value=val)
+                        c.border = border
+                        c.alignment = left_al if ci == 1 else right_al
+                        c.font = g_font(val) if ci in gcols else data_font
+
+            def write_total(ws, row, vals, gcols=()):
+                for ci, val in enumerate(vals, start=1):
+                    c = ws.cell(row=row, column=ci, value=val)
+                    c.fill = f_total; c.border = border
+                    c.alignment = left_al if ci == 1 else right_al
+                    if ci in gcols and val is not None:
+                        c.font = Font(bold=True, size=9,
+                                      color='0D6B3E' if val >= 0 else 'B91C1C')
+                    else:
+                        c.font = total_font
+
+            def set_widths(ws, widths):
+                for ci, w in enumerate(widths, start=1):
+                    ws.column_dimensions[get_column_letter(ci)].width = w
+
+            tot  = dict(b_rev=0, c_rev=0, b_qty=0, c_qty=0,
+                        b_cust=0, c_cust=0,
+                        c_new=0, c_rep=0, b_new=0, b_rep=0)
+            rows = []
+            for r in branches:
+                b_rev  = r.get('b_rev', 0) or 0
+                c_rev  = r.get('c_rev', 0) or 0
+                b_qty  = r.get('b_qty', 0) or 0
+                c_qty  = r.get('c_qty', 0) or 0
+                b_cust = r.get('b_unique_cust', 0) or 0
+                c_cust = r.get('c_unique_cust', 0) or 0
+                c_new  = r.get('new_customers', 0) or 0
+                c_rep  = r.get('repeat_customers', 0) or 0
+                b_new  = r.get('b_new_customers', 0) or 0
+                b_rep  = r.get('b_repeat_customers', 0) or 0
+                tot['b_rev']  += b_rev;  tot['c_rev']  += c_rev
+                tot['b_qty']  += b_qty;  tot['c_qty']  += c_qty
+                tot['b_cust'] += b_cust; tot['c_cust'] += c_cust
+                tot['c_new']  += c_new;  tot['c_rep']  += c_rep
+                tot['b_new']  += b_new;  tot['b_rep']  += b_rep
+                rows.append(dict(
+                    branch=r.get('branch', ''),
+                    b_rev=b_rev,  c_rev=c_rev,
+                    b_qty=int(b_qty), c_qty=int(c_qty),
+                    b_cust=int(b_cust), c_cust=int(c_cust),
+                    c_new=int(c_new), c_rep=int(c_rep),
+                    b_new=int(b_new), b_rep=int(b_rep),
+                ))
+
+            wb = Workbook()
+            wb.remove(wb.active)
+
+            # ── SHEET 1: SALE VALUE ────────────────────────────────────────────
+            ws1 = wb.create_sheet('1. Sale Value')
+            write_title(ws1, f"Sale Value  |  Base: {b_label}  vs  Comp: {c_label}", 4)
+            write_groups(ws1, 3, [
+                (f_branch, 1, 1, 'BRANCH'),
+                (f_blue,   2, 4, 'SALE VALUE (Rs. Crore)'),
+            ])
+            write_subs(ws1, 4, ['Branch', f'{b_label} (Cr)', f'{c_label} (Cr)', 'Growth %'])
+            s1 = sorted(rows, key=lambda x: x['c_rev'], reverse=True)
+            write_data(ws1, 5,
+                       [(p['branch'], to_cr(p['b_rev']), to_cr(p['c_rev']),
+                         pct(p['c_rev'], p['b_rev'])) for p in s1], gcols=(4,))
+            write_total(ws1, 5 + len(rows),
+                        ['Grand Total', to_cr(tot['b_rev']), to_cr(tot['c_rev']),
+                         pct(tot['c_rev'], tot['b_rev'])], gcols=(4,))
+            set_widths(ws1, [32, 16, 16, 14])
+            ws1.freeze_panes = 'B5'
+
+            # ── SHEET 2: QUANTITY ──────────────────────────────────────────────
+            ws2 = wb.create_sheet('2. Quantity')
+            write_title(ws2, f"Quantity  |  Base: {b_label}  vs  Comp: {c_label}", 4)
+            write_groups(ws2, 3, [
+                (f_branch, 1, 1, 'BRANCH'),
+                (f_blue,   2, 4, 'QUANTITY (Units)'),
+            ])
+            write_subs(ws2, 4, ['Branch', f'{b_label} Qty', f'{c_label} Qty', 'Growth %'])
+            s2 = sorted(rows, key=lambda x: x['c_qty'], reverse=True)
+            write_data(ws2, 5,
+                       [(p['branch'], p['b_qty'], p['c_qty'],
+                         pct(p['c_qty'], p['b_qty'])) for p in s2], gcols=(4,))
+            write_total(ws2, 5 + len(rows),
+                        ['Grand Total', int(tot['b_qty']), int(tot['c_qty']),
+                         pct(tot['c_qty'], tot['b_qty'])], gcols=(4,))
+            set_widths(ws2, [32, 14, 14, 14])
+            ws2.freeze_panes = 'B5'
+
+            # ── SHEET 3: UNIQUE CUSTOMERS ──────────────────────────────────────
+            ws3 = wb.create_sheet('3. Unique Customers')
+            write_title(ws3, f"Unique Customers  |  Base: {b_label}  vs  Comp: {c_label}", 4)
+            write_groups(ws3, 3, [
+                (f_branch, 1, 1, 'BRANCH'),
+                (f_blue,   2, 4, 'UNIQUE CUSTOMERS'),
+            ])
+            write_subs(ws3, 4, ['Branch', f'{b_label} Customers',
+                                 f'{c_label} Customers', 'Growth %'])
+            s3 = sorted(rows, key=lambda x: x['c_cust'], reverse=True)
+            write_data(ws3, 5,
+                       [(p['branch'], p['b_cust'], p['c_cust'],
+                         pct(p['c_cust'], p['b_cust'])) for p in s3], gcols=(4,))
+            write_total(ws3, 5 + len(rows),
+                        ['Grand Total', int(tot['b_cust']), int(tot['c_cust']),
+                         pct(tot['c_cust'], tot['b_cust'])], gcols=(4,))
+            set_widths(ws3, [32, 18, 18, 14])
+            ws3.freeze_panes = 'B5'
+
+            # ── SHEET 4: NEW & REPEAT ──────────────────────────────────────────
+            # Exactly 4 columns: Branch | Total | Repeat | New (Comp period only)
+            ws4 = wb.create_sheet('4. New & Repeat')
+            write_title(ws4, f"New & Repeat  |  {c_label}", 4)
+            write_groups(ws4, 3, [
+                (f_branch, 1, 1, 'BRANCH'),
+                (f_green,  2, 4, f'COMPARISON PERIOD  ({c_label})'),
+            ])
+            write_subs(ws4, 4, [
+                'Branch', 'Total', 'Repeat', 'New',
+            ])
+            s4 = sorted(rows, key=lambda x: x['c_new'] + x['c_rep'], reverse=True)
+            data4 = []
+            for p in s4:
+                ct = p['c_new'] + p['c_rep']
+                data4.append((p['branch'], ct, p['c_rep'], p['c_new']))
+            write_data(ws4, 5, data4)
+
+            tc = tot['c_new'] + tot['c_rep']
+            write_total(ws4, 5 + len(rows), [
+                'Grand Total', int(tc), int(tot['c_rep']), int(tot['c_new']),
+            ])
+            set_widths(ws4, [32, 14, 14, 14])
+            ws4.freeze_panes = 'B5'
+
+            buf = io.BytesIO()
+            wb.save(buf)
+            buf.seek(0)
+
+            safe_b   = b_label.replace(' ', '_').replace('/', '-').replace('|', '-')
+            safe_c   = c_label.replace(' ', '_').replace('/', '-').replace('|', '-')
+            filename = f"GrowthDegrowth_{safe_b}_vs_{safe_c}.xlsx"
+            response = HttpResponse(
+                buf.getvalue(),
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+
+        except Exception as e:
+            import traceback
+            return JsonResponse({'status': 'error', 'message': str(e),
+                                 'trace': traceback.format_exc()}, status=500)
+
+class EnterpriseDashboardExportAPIView(LoginRequiredMixin, View):
+    """Tab-aware Excel export.
+    - Category tab  → original full multi-sheet report (generate_dashboard_excel)
+    - Product/Brand/Branch tabs → 2 separate sheets: AMT + QTY for that dimension
+    """
+
+    def get(self, request):
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            from openpyxl.utils import get_column_letter
+            import io
+            from .dashboard_api_logic import build_api_response
+
+            tab = request.GET.get('tab', 'cat')   # cat | product | brand | branch
+
+            # ── Category tab: use the original comprehensive multi-sheet report ─
+            if tab == 'cat':
+                from .dashboard_api_logic import generate_dashboard_excel
+                excel_io, filename = generate_dashboard_excel(request)
+                response = HttpResponse(
+                    excel_io.getvalue(),
+                    content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                )
+                response['Content-Disposition'] = f'attachment; filename="{filename}"'
+                return response
+
+            data        = build_api_response(request)
+            det_table   = data.get('detailed_table', [])
+            scorecard   = data.get('scorecard', [])
+
+            comp_type = request.GET.get('type', 'monthly')
+            base_val  = request.GET.get('base', '')
+            comp_val  = request.GET.get('comp', '')
+            base_year = request.GET.get('base_year', '')
+            comp_year = request.GET.get('comp_year', '')
+
+            def _label(val, year, ctype):
+                if ctype == 'custom' and '|' in val:
+                    s, e = val.split('|', 1)
+                    return f"{s} to {e}"
+                if ctype == 'monthly':
+                    m = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'May',6:'Jun',
+                         7:'Jul',8:'Aug',9:'Sep',10:'Oct',11:'Nov',12:'Dec'}
+                    try:
+                        return f"{m.get(int(val), val)} {year}"
+                    except Exception:
+                        return f"{val} {year}"
+                return f"{val} {year}" if year else str(val)
+
+            b_label = _label(base_val, base_year, comp_type)
+            c_label = _label(comp_val, comp_year, comp_type)
+
+            # ── Shared style helpers ───────────────────────────────────────────
+            thin_s   = Side(style='thin',   color='D1D5DB')
+            border   = Border(left=thin_s, right=thin_s, top=thin_s, bottom=thin_s)
+            center   = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            right_al = Alignment(horizontal='right',  vertical='center')
+            left_al  = Alignment(horizontal='left',   vertical='center')
+
+            f_branch = PatternFill('solid', fgColor='374151')   # dark gray — group label
+            f_blue   = PatternFill('solid', fgColor='1E3A5F')   # navy  — AMT header
+            f_teal   = PatternFill('solid', fgColor='065F46')   # teal  — QTY header
+            f_sub    = PatternFill('solid', fgColor='1D4ED8')   # blue  — sub-header
+            f_total  = PatternFill('solid', fgColor='FFF3CD')   # amber — grand total
+
+            hdr_font   = Font(bold=True, color='FFFFFF', size=10)
+            sub_font   = Font(bold=True, color='FFFFFF', size=9)
+            data_font  = Font(size=9)
+            total_font = Font(bold=True, size=9)
+
+            def pct(a, b):
+                try:
+                    return round((a - b) / b * 100, 2) if b and b > 0 else None
+                except Exception:
+                    return None
+
+            def to_cr(v):
+                return round((v or 0) / 1e7, 4)
+
+            def g_font(val):
+                if val is None:
+                    return data_font
+                return Font(size=9, bold=True, color='0D6B3E' if val >= 0 else 'B91C1C')
+
+            def write_title(ws, title, ncols):
+                ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=ncols)
+                c = ws.cell(row=1, column=1, value=title)
+                c.font = Font(bold=True, size=12, color='1E3A5F')
+                c.alignment = center
+                ws.row_dimensions[1].height = 22
+                ws.row_dimensions[2].height = 5
+
+            def write_group_hdr(ws, row, groups):
+                for fill, sc, ec, label in groups:
+                    if sc != ec:
+                        ws.merge_cells(start_row=row, start_column=sc,
+                                       end_row=row, end_column=ec)
+                    c = ws.cell(row=row, column=sc, value=label)
+                    c.font = hdr_font; c.fill = fill
+                    c.alignment = center; c.border = border
+                ws.row_dimensions[row].height = 18
+
+            def write_sub_hdr(ws, row, cols):
+                for ci, h in enumerate(cols, start=1):
+                    c = ws.cell(row=row, column=ci, value=h)
+                    c.font = sub_font; c.fill = f_sub
+                    c.alignment = center; c.border = border
+                ws.row_dimensions[row].height = 16
+
+            def write_data(ws, start, rows_data, gcols=()):
+                for ri, rv in enumerate(rows_data, start=start):
+                    for ci, val in enumerate(rv, start=1):
+                        c = ws.cell(row=ri, column=ci, value=val)
+                        c.border = border
+                        c.alignment = left_al if ci == 1 else right_al
+                        c.font = g_font(val) if ci in gcols else data_font
+
+            def write_total(ws, row, vals, gcols=()):
+                for ci, val in enumerate(vals, start=1):
+                    c = ws.cell(row=row, column=ci, value=val)
+                    c.fill = f_total; c.border = border
+                    c.alignment = left_al if ci == 1 else right_al
+                    if ci in gcols and val is not None:
+                        c.font = Font(bold=True, size=9,
+                                      color='0D6B3E' if val >= 0 else 'B91C1C')
+                    else:
+                        c.font = total_font
+
+            def set_widths(ws, widths):
+                for ci, w in enumerate(widths, start=1):
+                    ws.column_dimensions[get_column_letter(ci)].width = w
+
+            # ── Aggregate det_table by the requested dimension ─────────────────
+            # det_table rows: category, product, brand, branch, b_rev, c_rev, b_qty, c_qty
+            dim_map = {
+                'cat':     'category',
+                'product': 'product',
+                'brand':   'brand',
+                'branch':  'branch',
+            }
+            dim_key   = dim_map.get(tab, 'category')
+            tab_names = {
+                'cat':     'Category',
+                'product': 'Product',
+                'brand':   'Brand',
+                'branch':  'Branch',
+            }
+            dim_label = tab_names.get(tab, 'Category')
+
+            grouped = {}
+            for r in det_table:
+                key = r.get(dim_key) or 'Unknown'
+                if key not in grouped:
+                    grouped[key] = dict(b_rev=0, c_rev=0, b_qty=0, c_qty=0,
+                                        b_disc=0, c_disc=0, b_disc_qty=0, c_disc_qty=0,
+                                        b_ucust=0, c_ucust=0)
+                grouped[key]['b_rev']      += r.get('b_rev', 0) or 0
+                grouped[key]['c_rev']      += r.get('c_rev', 0) or 0
+                grouped[key]['b_qty']      += r.get('b_qty', 0) or 0
+                grouped[key]['c_qty']      += r.get('c_qty', 0) or 0
+                grouped[key]['b_disc']     += r.get('b_discount', 0) or 0
+                grouped[key]['c_disc']     += r.get('c_discount', 0) or 0
+                grouped[key]['b_disc_qty'] += r.get('b_disc_qty', 0) or 0
+                grouped[key]['c_disc_qty'] += r.get('c_disc_qty', 0) or 0
+                grouped[key]['b_ucust']    += r.get('b_unique_cust', 0) or 0
+                grouped[key]['c_ucust']    += r.get('c_unique_cust', 0) or 0
+
+            tot_b_rev      = sum(v['b_rev']      for v in grouped.values())
+            tot_c_rev      = sum(v['c_rev']      for v in grouped.values())
+            tot_b_qty      = sum(v['b_qty']      for v in grouped.values())
+            tot_c_qty      = sum(v['c_qty']      for v in grouped.values())
+            tot_b_disc     = sum(v['b_disc']     for v in grouped.values())
+            tot_c_disc     = sum(v['c_disc']     for v in grouped.values())
+            tot_b_disc_qty = sum(v['b_disc_qty'] for v in grouped.values())
+            tot_c_disc_qty = sum(v['c_disc_qty'] for v in grouped.values())
+            tot_b_ucust    = sum(v['b_ucust']    for v in grouped.values())
+            tot_c_ucust    = sum(v['c_ucust']    for v in grouped.values())
+
+            # Sort by comp revenue descending
+            sorted_rows = sorted(grouped.items(), key=lambda x: x[1]['c_rev'], reverse=True)
+
+            wb = Workbook()
+            wb.remove(wb.active)
+
+            def clear_gap(ws, row, col):
+                """Clear styling from gap column cell."""
+                c = ws.cell(row=row, column=col, value='')
+                c.fill   = PatternFill('solid', fgColor='FFFFFF')
+                c.border = Border()
+
+            if tab == 'branch':
+                # ══════════════════════════════════════════════════════════════
+                # SHEET 1 — SHARE (DEFAULT): AMT | (gap) | QTY
+                # Cols: Branch | B_AMT | C_AMT | AMT_GRW | DISC% | (gap)
+                #              | B_QTY | C_QTY | QTY_GRW | AVG SPEND
+                # ══════════════════════════════════════════════════════════════
+                ws1 = wb.create_sheet('1. Share (Default)')
+                write_title(ws1, f"Branch Share (Default)  |  Base: {b_label}  vs  Comp: {c_label}", 10)
+                write_group_hdr(ws1, 3, [
+                    (f_branch, 1, 1,  'BRANCH'),
+                    (f_blue,   2, 5,  'SALE VALUE (Rs. Crore)'),
+                    (f_teal,   7, 10, 'QUANTITY (Units)'),
+                ])
+                write_sub_hdr(ws1, 4, [
+                    'Branch',
+                    f'{b_label} AMT (Cr)', f'{c_label} AMT (Cr)', 'Growth %', 'Disc %',
+                    '',
+                    f'{b_label} Qty', f'{c_label} Qty', 'Growth %', 'Avg Spend (Rs)',
+                ])
+                clear_gap(ws1, 3, 6)
+                clear_gap(ws1, 4, 6)
+                ws1.column_dimensions[get_column_letter(6)].width = 2
+
+                data_start = 5
+                for ri, (key, v) in enumerate(sorted_rows, start=data_start):
+                    disc_pct   = round(v['c_disc'] / v['c_rev'] * 100, 2) if v['c_rev'] > 0 else None
+                    avg_spend  = round(v['c_rev'] / v['c_ucust'], 2) if v['c_ucust'] > 0 else None
+                    row_vals = [
+                        key,
+                        to_cr(v['b_rev']), to_cr(v['c_rev']), pct(v['c_rev'], v['b_rev']), disc_pct,
+                        None,
+                        int(v['b_qty']), int(v['c_qty']), pct(v['c_qty'], v['b_qty']), avg_spend,
+                    ]
+                    for ci, val in enumerate(row_vals, start=1):
+                        if ci == 6: clear_gap(ws1, ri, 6); continue
+                        c = ws1.cell(row=ri, column=ci, value=val)
+                        c.border = border
+                        c.alignment = left_al if ci == 1 else right_al
+                        c.font = g_font(val) if ci in (4, 9) else data_font
+
+                # Grand Total
+                tot_row1 = data_start + len(sorted_rows)
+                tot_disc_pct  = round(tot_c_disc / tot_c_rev * 100, 2) if tot_c_rev > 0 else None
+                tot_avg_spend = round(tot_c_rev / tot_c_ucust, 2) if tot_c_ucust > 0 else None
+                write_total(ws1, tot_row1, [
+                    'Grand Total',
+                    to_cr(tot_b_rev), to_cr(tot_c_rev), pct(tot_c_rev, tot_b_rev), tot_disc_pct,
+                    None,
+                    int(tot_b_qty), int(tot_c_qty), pct(tot_c_qty, tot_b_qty), tot_avg_spend,
+                ], gcols=(4, 9))
+                clear_gap(ws1, tot_row1, 6)
+                set_widths(ws1, [32, 14, 14, 12, 10, 2, 12, 12, 12, 14])
+                ws1.freeze_panes = 'B5'
+
+                # ══════════════════════════════════════════════════════════════
+                # SHEET 2 — DISCOUNT: Disc Amt | Disc Qty | Disc%
+                # Cols: Branch | B_DISC_AMT | C_DISC_AMT | DISC_AMT_GRW | B_DISC% | C_DISC% | (gap)
+                #              | B_DISC_QTY | C_DISC_QTY | DISC_QTY_GRW
+                # ══════════════════════════════════════════════════════════════
+                ws2 = wb.create_sheet('2. Discount')
+                write_title(ws2, f"Branch Discount  |  Base: {b_label}  vs  Comp: {c_label}", 10)
+                f_orange = PatternFill('solid', fgColor='92400E')
+                write_group_hdr(ws2, 3, [
+                    (f_branch, 1, 1,  'BRANCH'),
+                    (f_orange, 2, 6,  'DISCOUNT AMOUNT (Rs. Crore)'),
+                    (f_teal,   8, 10, 'DISCOUNT QUANTITY'),
+                ])
+                write_sub_hdr(ws2, 4, [
+                    'Branch',
+                    f'{b_label} Disc (Cr)', f'{c_label} Disc (Cr)', 'Growth %',
+                    f'Disc% ({b_label})', f'Disc% ({c_label})',
+                    '',
+                    f'{b_label} Disc Qty', f'{c_label} Disc Qty', 'Growth %',
+                ])
+                clear_gap(ws2, 3, 7)
+                clear_gap(ws2, 4, 7)
+                ws2.column_dimensions[get_column_letter(7)].width = 2
+
+                for ri, (key, v) in enumerate(sorted_rows, start=data_start):
+                    b_disc_pct = round(v['b_disc'] / v['b_rev'] * 100, 2) if v['b_rev'] > 0 else None
+                    c_disc_pct = round(v['c_disc'] / v['c_rev'] * 100, 2) if v['c_rev'] > 0 else None
+                    row_vals = [
+                        key,
+                        to_cr(v['b_disc']), to_cr(v['c_disc']),
+                        pct(v['c_disc'], v['b_disc']),
+                        b_disc_pct, c_disc_pct,
+                        None,
+                        int(v['b_disc_qty']), int(v['c_disc_qty']),
+                        pct(v['c_disc_qty'], v['b_disc_qty']),
+                    ]
+                    for ci, val in enumerate(row_vals, start=1):
+                        if ci == 7: clear_gap(ws2, ri, 7); continue
+                        c = ws2.cell(row=ri, column=ci, value=val)
+                        c.border = border
+                        c.alignment = left_al if ci == 1 else right_al
+                        c.font = g_font(val) if ci in (4, 10) else data_font
+
+                tot_row2 = data_start + len(sorted_rows)
+                tot_b_dp = round(tot_b_disc / tot_b_rev * 100, 2) if tot_b_rev > 0 else None
+                tot_c_dp = round(tot_c_disc / tot_c_rev * 100, 2) if tot_c_rev > 0 else None
+                write_total(ws2, tot_row2, [
+                    'Grand Total',
+                    to_cr(tot_b_disc), to_cr(tot_c_disc),
+                    pct(tot_c_disc, tot_b_disc),
+                    tot_b_dp, tot_c_dp,
+                    None,
+                    int(tot_b_disc_qty), int(tot_c_disc_qty),
+                    pct(tot_c_disc_qty, tot_b_disc_qty),
+                ], gcols=(4, 10))
+                clear_gap(ws2, tot_row2, 7)
+                set_widths(ws2, [32, 14, 14, 12, 12, 12, 2, 14, 14, 12])
+                ws2.freeze_panes = 'B5'
+
+            else:
+                # ══════════════════════════════════════════════════════════════
+                # SINGLE SHEET — AMT + QTY combined (Product / Brand)
+                # ══════════════════════════════════════════════════════════════
+                ws = wb.create_sheet(dim_label)
+                write_title(ws, f"{dim_label}  |  Base: {b_label}  vs  Comp: {c_label}", 10)
+                write_group_hdr(ws, 3, [
+                    (f_branch, 1, 1,  dim_label.upper()),
+                    (f_blue,   2, 5,  'SALE VALUE (Rs. Crore)'),
+                    (f_teal,   7, 10, 'QUANTITY (Units)'),
+                ])
+                write_sub_hdr(ws, 4, [
+                    dim_label,
+                    f'{b_label} (Cr)', f'{c_label} (Cr)', 'Growth %', f'Share {c_label}',
+                    '',
+                    f'{b_label} Qty', f'{c_label} Qty', 'Growth %', f'Share {c_label}',
+                ])
+                clear_gap(ws, 3, 6)
+                clear_gap(ws, 4, 6)
+                ws.column_dimensions[get_column_letter(6)].width = 2
+
+                data_start = 5
+                for ri, (key, v) in enumerate(sorted_rows, start=data_start):
+                    amt_share = round(v['c_rev'] / tot_c_rev * 100, 2) if tot_c_rev > 0 else None
+                    qty_share = round(v['c_qty'] / tot_c_qty * 100, 2) if tot_c_qty > 0 else None
+                    row_vals = [
+                        key,
+                        to_cr(v['b_rev']), to_cr(v['c_rev']),
+                        pct(v['c_rev'], v['b_rev']), amt_share,
+                        None,
+                        int(v['b_qty']), int(v['c_qty']),
+                        pct(v['c_qty'], v['b_qty']), qty_share,
+                    ]
+                    for ci, val in enumerate(row_vals, start=1):
+                        if ci == 6: clear_gap(ws, ri, 6); continue
+                        c = ws.cell(row=ri, column=ci, value=val)
+                        c.border = border
+                        c.alignment = left_al if ci == 1 else right_al
+                        c.font = g_font(val) if ci in (4, 9) else data_font
+
+                tot_row = data_start + len(sorted_rows)
+                write_total(ws, tot_row, [
+                    'Grand Total',
+                    to_cr(tot_b_rev), to_cr(tot_c_rev),
+                    pct(tot_c_rev, tot_b_rev), 100.0,
+                    None,
+                    int(tot_b_qty), int(tot_c_qty),
+                    pct(tot_c_qty, tot_b_qty), 100.0,
+                ], gcols=(4, 9))
+                clear_gap(ws, tot_row, 6)
+                set_widths(ws, [32, 14, 14, 12, 12, 2, 12, 12, 12, 12])
+                ws.freeze_panes = 'B5'
+                        # ── Save & respond ─────────────────────────────────────────────────
+            buf = io.BytesIO()
+            wb.save(buf)
+            buf.seek(0)
+
+            safe_b   = b_label.replace(' ', '_').replace('/', '-').replace('|', '-')
+            safe_c   = c_label.replace(' ', '_').replace('/', '-').replace('|', '-')
+            filename = f"{dim_label}_{safe_b}_vs_{safe_c}.xlsx"
+
+            response = HttpResponse(
+                buf.getvalue(),
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+
+        except Exception as e:
+            import traceback
+            return JsonResponse({'status': 'error', 'message': str(e),
+                                 'trace': traceback.format_exc()}, status=500)
 
 import pandas as pd
 import numpy as np
@@ -3529,3 +4152,98 @@ class ProductPenetrationAPIView(LoginRequiredMixin, View):
                 'trace':   traceback.format_exc()
             }, status=500)
 
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🔮 SMART NEXT-VISIT PREDICTOR
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class SmartNextVisitView(LoginRequiredMixin, TemplateView):
+    """Page view — renders the Smart Next-Visit Predictor dashboard."""
+    template_name = 'dashboard/next_visit_predictor.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        try:
+            from analytics.clickhouse_service import get_ch_client
+            ch = get_ch_client()
+            if ch:
+                branches  = ch.query("SELECT DISTINCT code, branch_name FROM branch_master WHERE code != '' ORDER BY branch_name").result_rows
+                districts = ch.query("SELECT DISTINCT district FROM branch_master WHERE district != '' ORDER BY district").result_rows
+                rbms      = ch.query("SELECT DISTINCT rbm FROM branch_master WHERE rbm != '' ORDER BY rbm").result_rows
+                context['branches']  = [{"code": r[0], "name": r[1]} for r in branches]
+                context['districts'] = [r[0] for r in districts]
+                context['rbms']      = [r[0] for r in rbms]
+            else:
+                context['branches'] = context['districts'] = context['rbms'] = []
+        except Exception as e:
+            context['branches'] = context['districts'] = context['rbms'] = []
+            context['filter_error'] = str(e)
+        return context
+
+
+class SmartNextVisitAPIView(LoginRequiredMixin, View):
+    """
+    GET /api/v1/smart-next-visit/
+    Query params: branch, district, rbm, due_in (days), limit, download (1=Excel)
+    """
+    def get(self, request):
+        try:
+            from .next_visit_service import get_next_visit_predictions, get_next_visit_excel
+
+            branch    = request.GET.get('branch', '').strip() or None
+            district  = request.GET.get('district', '').strip() or None
+            rbm       = request.GET.get('rbm', '').strip() or None
+            due_in    = int(request.GET.get('due_in', 7))
+            limit     = min(int(request.GET.get('limit', 500)), 2000)
+            download  = request.GET.get('download', '0') == '1'
+
+            result = get_next_visit_predictions(
+                branch=branch, district=district, rbm=rbm,
+                due_in_days=due_in, limit=limit,
+            )
+
+            if result.get('error') and not result.get('rows'):
+                return JsonResponse({'status': 'error', 'message': result['error']}, status=500)
+
+            if download:
+                excel_bytes = get_next_visit_excel(result['rows'])
+                from datetime import datetime as _dt
+                fname = f"SmartNextVisit_{_dt.now().strftime('%Y%m%d_%H%M')}.xlsx"
+                resp = HttpResponse(
+                    excel_bytes,
+                    content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                )
+                resp['Content-Disposition'] = f'attachment; filename="{fname}"'
+                return resp
+
+            return JsonResponse({'status': 'success', 'kpis': result['kpis'], 'rows': result['rows']})
+
+        except Exception as e:
+            import traceback
+            return JsonResponse({'status': 'error', 'message': str(e), 'trace': traceback.format_exc()}, status=500)
+
+
+class SmartNextVisitSearchAPIView(LoginRequiredMixin, View):
+    """
+    GET /api/v1/smart-next-visit/search/?mobile=9876543210
+    Full prediction card for a single customer.
+    Joins azure_invoice_report + azure_sales_report + item_master + branch_master.
+    """
+    def get(self, request):
+        try:
+            mobile = request.GET.get('mobile', '').strip()
+            if not mobile or len(mobile) != 10 or not mobile.isdigit():
+                return JsonResponse({'status': 'error', 'message': 'Please enter a valid 10-digit mobile number.'}, status=400)
+
+            from .next_visit_service import get_single_customer_prediction
+            result = get_single_customer_prediction(mobile)
+
+            if result.get('error'):
+                return JsonResponse({'status': 'error', 'message': result['error']}, status=404)
+
+            return JsonResponse({'status': 'success', 'data': result})
+
+        except Exception as e:
+            import traceback
+            return JsonResponse({'status': 'error', 'message': str(e), 'trace': traceback.format_exc()}, status=500)

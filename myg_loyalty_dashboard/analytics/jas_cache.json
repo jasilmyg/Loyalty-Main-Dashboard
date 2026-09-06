@@ -1,14 +1,14 @@
 {
   "jas_target": 529245,
-  "jas_achieved": 320330,
-  "jas_achieved_pct": 60.5,
-  "jas_gap": 208915,
-  "jas_days_done": 64,
-  "jas_days_rem": 28,
+  "jas_achieved": 340315,
+  "jas_achieved_pct": 64.3,
+  "jas_gap": 188930,
+  "jas_days_done": 68,
+  "jas_days_rem": 24,
   "jas_days_total": 92,
   "jas_daily_rate": 5005.0,
-  "jas_req_daily": 7461,
-  "jas_forecast_final": 482903,
+  "jas_req_daily": 7872,
+  "jas_forecast_final": 487565,
   "jas_status_badge": "AT RISK",
   "jas_risk_color": "#F59E0B",
   "jas_daily_json": [
@@ -326,129 +326,133 @@
       "date": "2026-09-01",
       "cum": 320330,
       "daily_new": 4233
+    },
+    {
+      "date": "2026-09-02",
+      "cum": 324325,
+      "daily_new": 3995
+    },
+    {
+      "date": "2026-09-03",
+      "cum": 329308,
+      "daily_new": 4983
+    },
+    {
+      "date": "2026-09-04",
+      "cum": 334589,
+      "daily_new": 5281
+    },
+    {
+      "date": "2026-09-05",
+      "cum": 340315,
+      "daily_new": 5726
     }
   ],
   "jas_lstm_json": [
     {
-      "date": "2026-09-02",
-      "cum": 324231
-    },
-    {
-      "date": "2026-09-03",
-      "cum": 329593
-    },
-    {
-      "date": "2026-09-04",
-      "cum": 335184
-    },
-    {
-      "date": "2026-09-05",
-      "cum": 340737
-    },
-    {
       "date": "2026-09-06",
-      "cum": 346014
+      "cum": 345897
     },
     {
       "date": "2026-09-07",
-      "cum": 351245
+      "cum": 351434
     },
     {
       "date": "2026-09-08",
-      "cum": 356540
+      "cum": 356956
     },
     {
       "date": "2026-09-09",
-      "cum": 361180
+      "cum": 361848
     },
     {
       "date": "2026-09-10",
-      "cum": 366522
+      "cum": 367454
     },
     {
       "date": "2026-09-11",
-      "cum": 371826
+      "cum": 373009
     },
     {
       "date": "2026-09-12",
-      "cum": 377217
+      "cum": 378773
     },
     {
       "date": "2026-09-13",
-      "cum": 381989
+      "cum": 384011
     },
     {
       "date": "2026-09-14",
-      "cum": 386786
+      "cum": 389411
     },
     {
       "date": "2026-09-15",
-      "cum": 392435
+      "cum": 395586
     },
     {
       "date": "2026-09-16",
-      "cum": 398428
+      "cum": 402086
     },
     {
       "date": "2026-09-17",
-      "cum": 404382
+      "cum": 408261
     },
     {
       "date": "2026-09-18",
-      "cum": 410656
+      "cum": 414761
     },
     {
       "date": "2026-09-19",
-      "cum": 416913
+      "cum": 421261
     },
     {
       "date": "2026-09-20",
-      "cum": 422845
+      "cum": 427436
     },
     {
       "date": "2026-09-21",
-      "cum": 428293
+      "cum": 432961
     },
     {
       "date": "2026-09-22",
-      "cum": 434468
+      "cum": 439136
     },
     {
       "date": "2026-09-23",
-      "cum": 439993
+      "cum": 444661
     },
     {
       "date": "2026-09-24",
-      "cum": 446168
+      "cum": 450836
     },
     {
       "date": "2026-09-25",
-      "cum": 452668
+      "cum": 457336
     },
     {
       "date": "2026-09-26",
-      "cum": 458843
+      "cum": 463511
     },
     {
       "date": "2026-09-27",
-      "cum": 464368
+      "cum": 469036
     },
     {
       "date": "2026-09-28",
-      "cum": 470543
+      "cum": 475211
     },
     {
       "date": "2026-09-29",
-      "cum": 476718
+      "cum": 481386
     },
     {
       "date": "2026-09-30",
-      "cum": 482893
+      "cum": 487561
     }
   ],
   "jas_target_json": 529245,
   "base_customers": 5292454,
   "avg_hist_rate": "Deep Learning BiLSTM",
-  "computed_at": "2026-09-02",
+  "computed_at": "2026-09-06",
   "data_source": "azure_invoice_report"
 }

@@ -524,6 +524,12 @@
                 </a>
             </li>
             <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'smart_next_visit' %}active{% endif %}" href="{% url 'smart_next_visit' %}" style="border-left: 4px solid #7c3aed; color: #5b21b6; background: rgba(124, 58, 237, 0.05); font-weight: 600;">
+                    <i class="bi bi-calendar-check" style="color: #7c3aed; font-size: 1.1rem; margin-right: 12px !important;"></i> Next-Visit Predictor
+                    <span class="badge ms-1" style="background:linear-gradient(135deg,#7c3aed,#4c1d95);font-size:8px;font-weight:800;vertical-align:middle;box-shadow:0 0 6px rgba(124,58,237,0.4);">NEW</span>
+                </a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'ai_intelligence' %}active{% endif %}" href="{% url 'ai_intelligence' %}" style="border-left: 4px solid #0ea5e9; color: #0369a1; background: rgba(14, 165, 233, 0.05); font-weight: 600;">
                     <i class="bi bi-robot" style="color: #0ea5e9; font-size: 1.25rem; margin-right: 12px !important;"></i> AI Intelligence Engine
                     <span class="badge ms-1" style="background:linear-gradient(135deg,#0ea5e9,#6366f1);font-size:8px;font-weight:800;vertical-align:middle;box-shadow:0 0 6px rgba(14,165,233,0.4);">4-MODEL</span>

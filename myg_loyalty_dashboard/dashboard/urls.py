@@ -55,6 +55,8 @@ urlpatterns = [
     path('api/v1/special-event-reports/export-custom-4/', views.SpecialCustom4PeriodExportView.as_view(), name='special_custom_4_export'),
     path('api/v1/enterprise-dashboard/', views.EnterpriseDashboardAPIView.as_view(), name='enterprise_dashboard_api'),
     path('api/v1/enterprise-dashboard/export/', views.EnterpriseDashboardExportAPIView.as_view(), name='enterprise_dashboard_export'),
+    path('api/v1/enterprise-dashboard/growth-degrowth/', views.GrowthDegrowthAPIView.as_view(), name='growth_degrowth_api'),
+    path('api/v1/enterprise-dashboard/growth-degrowth/export/', views.GrowthDegrowthExportAPIView.as_view(), name='growth_degrowth_export'),
     path('monthly-retention/', views.MonthlyRetentionView.as_view(), name='monthly_retention'),
     path('api/v1/monthly-retention/', views.MonthlyRetentionAPIView.as_view(), name='monthly_retention_api'),
     path('campaign-analysis/', views.CampaignAnalysisView.as_view(), name='campaign_analysis'),
@@ -74,7 +76,7 @@ urlpatterns = [
     path('api/v1/she-start-detailed/data/', views.SheStartDetailedDataAPIView.as_view(), name='she_start_detailed_data_api'),
     path('api/v1/branch-customer-download/', views.BranchCustomerDownloadAPIView.as_view(), name='branch_customer_download'),
     path('api/v1/dormant-bill-range-download/', views.DormantBillRangeDownloadAPIView.as_view(), name='dormant_bill_range_download'),
-    
+
     # Store Excel Analysis
     path('store-analysis/upload/', views.StoreAnalysisUploadView.as_view(), name='store_analysis_upload'),
     path('store-analysis/results/', views.StoreAnalysisResultsView.as_view(), name='store_analysis_results'),
@@ -99,12 +101,16 @@ urlpatterns = [
     # MY PARF Perfume Data Download
     path('my-parf/', views.MyParfDownloadView.as_view(), name='my_parf_download'),
     path('download/my-parf/<str:data_type>/', views.MyParfDataAPIView.as_view(), name='my_parf_data_api'),
-    
+
     # Dormant Customers Download
     path('download/dormant-customers/', views.DormantCustomersDownloadView.as_view(), name='dormant_customers_download'),
 
     # Product Penetration Report
     path('product-penetration/', views.ProductPenetrationView.as_view(), name='product_penetration'),
     path('api/v1/product-penetration/', views.ProductPenetrationAPIView.as_view(), name='product_penetration_api'),
-]
 
+    # 🔮 Smart Next-Visit Predictor
+    path('smart-next-visit/', views.SmartNextVisitView.as_view(), name='smart_next_visit'),
+    path('api/v1/smart-next-visit/', views.SmartNextVisitAPIView.as_view(), name='smart_next_visit_api'),
+    path('api/v1/smart-next-visit/search/', views.SmartNextVisitSearchAPIView.as_view(), name='smart_next_visit_search'),
+]

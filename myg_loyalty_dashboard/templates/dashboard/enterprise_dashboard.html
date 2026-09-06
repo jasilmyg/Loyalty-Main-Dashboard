@@ -413,14 +413,27 @@
         <i class="bi bi-award me-1"></i> Brand
       </button>
       <button id="tab-branch" onclick="switchTab('branch')" class="dash-tab"
-              style="padding:.65rem 1.1rem; font-size:.78rem; font-weight:700; background:none; border:none; border-bottom:2px solid transparent; color:var(--text-3); cursor:pointer; letter-spacing:.04em; text-transform:uppercase;">
+              style="padding:.65rem 1.1rem; font-size:.78rem; font-weight:700; background:none; border:none; border-bottom:2px solid transparent; color:var(--text-3); cursor:pointer; letter-spacing:.04em; text-transform:uppercase; margin-right:.5rem;">
         <i class="bi bi-shop me-1"></i> Branch
+      </button>
+      <button id="tab-growth" onclick="switchTab('growth')" class="dash-tab"
+              style="padding:.65rem 1.1rem; font-size:.78rem; font-weight:700; background:none; border:none; border-bottom:2px solid transparent; color:var(--text-3); cursor:pointer; letter-spacing:.04em; text-transform:uppercase;">
+        <i class="bi bi-graph-up-arrow me-1"></i> Growth &amp; Degrowth
       </button>
       <span style="margin-left:auto; font-size:.7rem; color:var(--text-3);" id="sc-period-label"></span>
     </div>
 
     <!-- PANEL: Category Scorecard -->
     <div id="panel-cat" class="dash-panel" style="display:block;">
+      <!-- Category Metrics Toggle -->
+      <div class="d-flex justify-content-end px-3 py-2 border-bottom align-items-center" style="background:#fafafa;">
+        <div class="btn-group btn-group-sm shadow-sm" role="group">
+          <input type="radio" class="btn-check" name="catMetricsToggle" id="btnCatShare" autocomplete="off" checked onchange="toggleFlatMetrics('cat','share')">
+          <label class="btn btn-outline-primary fw-bold" for="btnCatShare" style="font-size:0.75rem;">Share (Default)</label>
+          <input type="radio" class="btn-check" name="catMetricsToggle" id="btnCatDiscount" autocomplete="off" onchange="toggleFlatMetrics('cat','discount')">
+          <label class="btn btn-outline-primary fw-bold" for="btnCatDiscount" style="font-size:0.75rem;">Discount</label>
+        </div>
+      </div>
       <div class="scrollable">
         <table class="sc-table">
           <colgroup>
@@ -462,6 +475,15 @@
 
     <!-- PANEL: Product Report -->
     <div id="panel-product" class="dash-panel" style="display:none;">
+      <!-- Product Metrics Toggle -->
+      <div class="d-flex justify-content-end px-3 py-2 border-bottom align-items-center" style="background:#fafafa;">
+        <div class="btn-group btn-group-sm shadow-sm" role="group">
+          <input type="radio" class="btn-check" name="prodMetricsToggle" id="btnProdShare" autocomplete="off" checked onchange="toggleFlatMetrics('product','share')">
+          <label class="btn btn-outline-primary fw-bold" for="btnProdShare" style="font-size:0.75rem;">Share (Default)</label>
+          <input type="radio" class="btn-check" name="prodMetricsToggle" id="btnProdDiscount" autocomplete="off" onchange="toggleFlatMetrics('product','discount')">
+          <label class="btn btn-outline-primary fw-bold" for="btnProdDiscount" style="font-size:0.75rem;">Discount</label>
+        </div>
+      </div>
       <div class="scrollable">
         <table class="sc-table">
           <colgroup>
@@ -503,6 +525,15 @@
 
     <!-- PANEL: Brand Report -->
     <div id="panel-brand" class="dash-panel" style="display:none;">
+      <!-- Brand Metrics Toggle -->
+      <div class="d-flex justify-content-end px-3 py-2 border-bottom align-items-center" style="background:#fafafa;">
+        <div class="btn-group btn-group-sm shadow-sm" role="group">
+          <input type="radio" class="btn-check" name="brandMetricsToggle" id="btnBrandShare" autocomplete="off" checked onchange="toggleFlatMetrics('brand','share')">
+          <label class="btn btn-outline-primary fw-bold" for="btnBrandShare" style="font-size:0.75rem;">Share (Default)</label>
+          <input type="radio" class="btn-check" name="brandMetricsToggle" id="btnBrandDiscount" autocomplete="off" onchange="toggleFlatMetrics('brand','discount')">
+          <label class="btn btn-outline-primary fw-bold" for="btnBrandDiscount" style="font-size:0.75rem;">Discount</label>
+        </div>
+      </div>
       <div class="scrollable">
         <table class="sc-table">
           <colgroup>
@@ -577,13 +608,19 @@
               <th class="text-center" style="min-width:130px;">
                 <span id="branch-comp-amt-h1">COMP AMT</span>
               </th>
-              <th rowspan="2" class="text-center" style="vertical-align:middle;">GROWTH %</th>
+              <th rowspan="2" class="text-center" style="vertical-align:middle; cursor:pointer; user-select:none;"
+                  id="branch-amt-growth-th" onclick="branchSortToggle('amt')">
+                GROWTH % <span id="branch-amt-sort-icon" style="font-size:0.85rem; opacity:0.4;">⇅</span>
+              </th>
               <th rowspan="2" class="text-center" style="vertical-align:middle; border-right: 2px solid #64748b;">
                 <span id="branch-share-amt-text">SHARE COMP</span>
               </th>
               <th class="text-center" id="branch-base-qty-h1">BASE QTY</th>
               <th class="text-center" id="branch-comp-qty-h1">COMP QTY</th>
-              <th rowspan="2" class="text-center" style="vertical-align:middle;" id="branch-metric1-h1">GROWTH %</th>
+              <th rowspan="2" class="text-center" style="vertical-align:middle; cursor:pointer; user-select:none;"
+                  id="branch-qty-growth-th" onclick="branchSortToggle('qty')">
+                GROWTH % <span id="branch-qty-sort-icon" style="font-size:0.85rem; opacity:0.4;">⇅</span>
+              </th>
               <th rowspan="2" class="text-center" id="branch-metric2-h1" style="padding-right:1.25rem; vertical-align:middle;">SHARE COMP</th>
             </tr>
             <tr>
@@ -597,6 +634,143 @@
             <tr class="loading-row"><td colspan="9"><div class="skeleton" style="height:14px;width:60%"></div></td></tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- PANEL: Growth & Degrowth -->
+    <div id="panel-growth" class="dash-panel" style="display:none;">
+
+      <!-- Sub-metric tabs -->
+      <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom" style="background:#fafafa; flex-wrap:wrap;">
+        <span style="font-size:0.72rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.05em;">View:</span>
+        <div class="btn-group btn-group-sm shadow-sm" role="group">
+          <input type="radio" class="btn-check" name="gdMetricToggle" id="btnGdSale" autocomplete="off" checked onchange="switchGdMetric('sale')">
+          <label class="btn btn-outline-primary fw-bold" for="btnGdSale" style="font-size:0.74rem;"><i class="bi bi-currency-rupee"></i> Sale Value</label>
+
+          <input type="radio" class="btn-check" name="gdMetricToggle" id="btnGdQty" autocomplete="off" onchange="switchGdMetric('qty')">
+          <label class="btn btn-outline-primary fw-bold" for="btnGdQty" style="font-size:0.74rem;"><i class="bi bi-boxes"></i> Quantity</label>
+
+          <input type="radio" class="btn-check" name="gdMetricToggle" id="btnGdUnique" autocomplete="off" onchange="switchGdMetric('unique')">
+          <label class="btn btn-outline-primary fw-bold" for="btnGdUnique" style="font-size:0.74rem;"><i class="bi bi-people"></i> Customers</label>
+
+          <input type="radio" class="btn-check" name="gdMetricToggle" id="btnGdNewRepeat" autocomplete="off" onchange="switchGdMetric('newrepeat')">
+          <label class="btn btn-outline-primary fw-bold" for="btnGdNewRepeat" style="font-size:0.74rem;"><i class="bi bi-person-plus"></i> New &amp; Repeat</label>
+        </div>
+        <span class="ms-auto" id="gd-loading-badge" style="display:none;"><div class="spinner-border spinner-border-sm text-primary"></div></span>
+      </div>
+
+      <!-- Table container -->
+      <div class="scrollable" id="gd-table-wrapper">
+        <!-- Sale Value Table -->
+        <div id="gd-sale-section">
+          <table class="sc-table">
+            <colgroup>
+              <col style="width:30%">
+              <col style="width:23%">
+              <col style="width:23%">
+              <col style="width:24%">
+            </colgroup>
+            <thead>
+              <tr>
+                <th rowspan="2" style="padding-left:1.25rem; vertical-align:middle; border-right: 2px solid #64748b;">BRANCH</th>
+                <th class="text-center" id="gd-sale-base-h">BASE</th>
+                <th class="text-center" id="gd-sale-comp-h">COMP</th>
+                <th rowspan="2" class="text-center" style="vertical-align:middle; padding-right:1.25rem; cursor:pointer; user-select:none;" id="gd-sale-growth-th" onclick="gdSortToggle('sale')">
+                  GROWTH % <span id="gd-sale-sort-icon" style="font-size:0.85rem; opacity:0.7;">↓</span>
+                </th>
+              </tr>
+              <tr>
+                <th class="text-center" style="border-top:none;">AMT (Cr)</th>
+                <th class="text-center" style="border-top:none;">AMT (Cr)</th>
+              </tr>
+            </thead>
+            <tbody id="gd-sale-tbody">
+              <tr class="loading-row"><td colspan="4"><div class="skeleton" style="height:14px;width:60%"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Quantity Table -->
+        <div id="gd-qty-section" style="display:none;">
+          <table class="sc-table">
+            <colgroup>
+              <col style="width:30%">
+              <col style="width:23%">
+              <col style="width:23%">
+              <col style="width:24%">
+            </colgroup>
+            <thead>
+              <tr>
+                <th rowspan="2" style="padding-left:1.25rem; vertical-align:middle; border-right: 2px solid #64748b;">BRANCH</th>
+                <th class="text-center" id="gd-qty-base-h">BASE</th>
+                <th class="text-center" id="gd-qty-comp-h">COMP</th>
+                <th rowspan="2" class="text-center" style="vertical-align:middle; padding-right:1.25rem; cursor:pointer; user-select:none;" id="gd-qty-growth-th" onclick="gdSortToggle('qty')">
+                  GROWTH % <span id="gd-qty-sort-icon" style="font-size:0.85rem; opacity:0.7;">↓</span>
+                </th>
+              </tr>
+              <tr>
+                <th class="text-center" style="border-top:none;">QTY</th>
+                <th class="text-center" style="border-top:none;">QTY</th>
+              </tr>
+            </thead>
+            <tbody id="gd-qty-tbody">
+              <tr class="loading-row"><td colspan="4"><div class="skeleton" style="height:14px;width:60%"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Unique Customers Table -->
+        <div id="gd-unique-section" style="display:none;">
+          <table class="sc-table">
+            <colgroup>
+              <col style="width:30%">
+              <col style="width:23%">
+              <col style="width:23%">
+              <col style="width:24%">
+            </colgroup>
+            <thead>
+              <tr>
+                <th rowspan="2" style="padding-left:1.25rem; vertical-align:middle; border-right: 2px solid #64748b;">BRANCH</th>
+                <th class="text-center" id="gd-uniq-base-h">BASE</th>
+                <th class="text-center" id="gd-uniq-comp-h">COMP</th>
+                <th rowspan="2" class="text-center" style="vertical-align:middle; padding-right:1.25rem; cursor:pointer; user-select:none;" id="gd-uniq-growth-th" onclick="gdSortToggle('uniq')">
+                  GROWTH % <span id="gd-uniq-sort-icon" style="font-size:0.85rem; opacity:0.7;">↓</span>
+                </th>
+              </tr>
+              <tr>
+                <th class="text-center" style="border-top:none;">CUSTOMERS</th>
+                <th class="text-center" style="border-top:none;">CUSTOMERS</th>
+              </tr>
+            </thead>
+            <tbody id="gd-unique-tbody">
+              <tr class="loading-row"><td colspan="4"><div class="skeleton" style="height:14px;width:60%"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- New & Repeat Table -->
+        <div id="gd-newrepeat-section" style="display:none;">
+          <table class="sc-table">
+            <colgroup>
+              <col style="width:30%">
+              <col style="width:23%">
+              <col style="width:23%">
+              <col style="width:24%">
+            </colgroup>
+            <thead>
+              <tr>
+                <th style="padding-left:1.25rem; vertical-align:middle; border-right:2px solid #64748b;">BRANCH</th>
+                <th class="text-center" id="gd-nr-comp-h">TOTAL</th>
+                <th class="text-center">REPEAT</th>
+                <th class="text-center" style="padding-right:1.25rem;">NEW</th>
+              </tr>
+            </thead>
+            <tbody id="gd-newrepeat-tbody">
+              <tr class="loading-row"><td colspan="4"><div class="skeleton" style="height:14px;width:60%"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+
       </div>
     </div>
 
@@ -630,10 +804,12 @@ const gBadge = (g, narrow=false) => {
   const w = narrow ? '62px' : '72px';
   if (!g && g!==0) return `<span class="badge-g zer" style="min-width:${w}">—</span>`;
   if (Math.abs(g) < 0.005) return `<span class="badge-g zer" style="min-width:${w}">0.00%</span>`;
+  if (Math.abs(g) > 9999) return `<span class="badge-g pos" style="min-width:${w}; font-size:0.68rem;">N/A</span>`;
   const cls = g > 0 ? 'pos' : 'neg';
   const arr = g > 0 ? '▲' : '▼';
   return `<span class="badge-g ${cls}" style="min-width:${w}">${arr} ${Math.abs(g).toFixed(2)}%</span>`;
 };
+
 const gKpi = (g, id) => {
   const el = document.getElementById(id);
   if (!el) return;
@@ -716,37 +892,40 @@ function calculateQuickDates(type) {
   const drpC = $('#comp-daterange').data('daterangepicker');
   if (!drpB || !drpC) return;
 
+  // Cap to last available data date (not today if data hasn't loaded yet)
+  const maxDate = window._maxDataDate ? moment(window._maxDataDate) : moment().subtract(1, 'day');
+
   let bStart = moment(), bEnd = moment(), cStart = moment(), cEnd = moment();
   
   if (type === 'mtd') {
-    cStart = moment().startOf('month'); cEnd = moment();
-    bStart = moment().subtract(1, 'month').startOf('month');
-    bEnd = moment().subtract(1, 'month').date(Math.min(moment().date(), moment().subtract(1, 'month').daysInMonth()));
+    cStart = moment(maxDate).startOf('month'); cEnd = moment(maxDate);
+    bStart = moment(maxDate).subtract(1, 'month').startOf('month');
+    bEnd   = moment(maxDate).subtract(1, 'month').date(Math.min(maxDate.date(), moment(maxDate).subtract(1, 'month').daysInMonth()));
   } else if (type === 'mtd_yoy') {
-    cStart = moment().startOf('month'); cEnd = moment();
-    bStart = moment().subtract(1, 'year').startOf('month');
-    bEnd = moment().subtract(1, 'year').date(moment().date());
+    cStart = moment(maxDate).startOf('month'); cEnd = moment(maxDate);
+    bStart = moment(maxDate).subtract(1, 'year').startOf('month');
+    bEnd   = moment(maxDate).subtract(1, 'year').date(maxDate.date());
   } else if (type === 'qtd') {
-    cStart = moment().startOf('quarter'); cEnd = moment();
-    bStart = moment().subtract(1, 'quarter').startOf('quarter');
-    const daysInQ = moment().diff(moment().startOf('quarter'), 'days');
-    bEnd = moment(bStart).add(daysInQ, 'days');
+    cStart = moment(maxDate).startOf('quarter'); cEnd = moment(maxDate);
+    bStart = moment(maxDate).subtract(1, 'quarter').startOf('quarter');
+    const daysInQ = moment(maxDate).diff(moment(maxDate).startOf('quarter'), 'days');
+    bEnd   = moment(bStart).add(daysInQ, 'days');
   } else if (type === 'qtd_yoy') {
-    cStart = moment().startOf('quarter'); cEnd = moment();
-    bStart = moment().subtract(1, 'year').startOf('quarter');
-    const daysInQ = moment().diff(moment().startOf('quarter'), 'days');
-    bEnd = moment(bStart).add(daysInQ, 'days');
+    cStart = moment(maxDate).startOf('quarter'); cEnd = moment(maxDate);
+    bStart = moment(maxDate).subtract(1, 'year').startOf('quarter');
+    const daysInQ = moment(maxDate).diff(moment(maxDate).startOf('quarter'), 'days');
+    bEnd   = moment(bStart).add(daysInQ, 'days');
   } else if (type === 'ytd' || type === 'ytd_existing') {
-    cStart = moment().startOf('year'); cEnd = moment();
-    bStart = moment().subtract(1, 'year').startOf('year');
-    bEnd = moment().subtract(1, 'year').date(moment().date()).month(moment().month());
+    cStart = moment(maxDate).startOf('year'); cEnd = moment(maxDate);
+    bStart = moment(maxDate).subtract(1, 'year').startOf('year');
+    bEnd   = moment(maxDate).subtract(1, 'year').date(maxDate.date()).month(maxDate.month());
   } else if (type === 'ytd_fy') {
-    const fyStartMonth = 3; 
-    let fyStart = moment().month(fyStartMonth).startOf('month');
-    if (moment().isBefore(fyStart)) fyStart.subtract(1, 'year');
-    cStart = moment(fyStart); cEnd = moment();
+    const fyStartMonth = 3;
+    let fyStart = moment(maxDate).month(fyStartMonth).startOf('month');
+    if (moment(maxDate).isBefore(fyStart)) fyStart.subtract(1, 'year');
+    cStart = moment(fyStart); cEnd = moment(maxDate);
     bStart = moment(fyStart).subtract(1, 'year');
-    bEnd = moment().subtract(1, 'year');
+    bEnd   = moment(maxDate).subtract(1, 'year');
   }
   
   drpB.setStartDate(bStart); drpB.setEndDate(bEnd);
@@ -801,11 +980,30 @@ function renderScorecard(scorecard) {
   
   const _set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
   _set('sc-base-amt-h1',  bLabelShort);
+  const catMetric = window._flatMetric?.cat || 'share';
+
+  // Build category-level discount/cust aggregates from detailed_table
+  const catDiscMap = {};
+  (_data?.detailed_table || []).forEach(row => {
+    const k = row.category || '';
+    if (!catDiscMap[k]) catDiscMap[k] = { c_discount: 0, c_unique_cust: 0, c_rev: 0 };
+    catDiscMap[k].c_discount    += (row.c_discount || 0);
+    catDiscMap[k].c_unique_cust += (row.c_unique_cust || 0);
+    catDiscMap[k].c_rev         += (row.c_rev || 0);
+  });
+
+  // Grand total disc aggregates
+  let grandDisc = 0, grandCust = 0, grandCRev = 0;
+  Object.values(catDiscMap).forEach(v => { grandDisc += v.c_discount; grandCust += v.c_unique_cust; grandCRev += v.c_rev; });
+
   _set('sc-comp-amt-h1',  cLabelShort);
-  _set('sc-share-amt-h1', 'SHARE ' + cLabelShort);
-  _set('sc-base-qty-h1',  bLabelShort);
-  _set('sc-comp-qty-h1',  cLabelShort);
-  _set('sc-share-qty-h1', 'SHARE ' + cLabelShort);
+  if (catMetric === 'discount') {
+    _set('sc-share-amt-h1', 'DISC %');
+    _set('sc-share-qty-h1', 'AVG SPEND');
+  } else {
+    _set('sc-share-amt-h1', 'SHARE ' + cLabelShort);
+    _set('sc-share-qty-h1', 'SHARE ' + cLabelShort);
+  }
   
   _set('prod-base-amt-h1',  bLabelShort);
   _set('prod-comp-amt-h1',  cLabelShort);
@@ -841,10 +1039,56 @@ _set('branch-base-amt-h1',  bLabelShort);
     const isGrand = r.category==='Grand Total';
     const color   = CAT_COLORS[r.category]||'#94a3b8';
     const qtyShare = isGrand ? 100 : ((r.c_qty||0) / totalCQty * 100);
+
+    // Compute discount/avg for this category row
+    const discData    = isGrand
+      ? { c_discount: grandDisc, c_unique_cust: grandCust, c_rev: grandCRev }
+      : (catDiscMap[r.category] || { c_discount: 0, c_unique_cust: 0, c_rev: r.c_rev || 0 });
+    const disc_pct    = discData.c_rev > 0 ? (discData.c_discount / discData.c_rev) * 100 : 0;
+    const avg_spend   = discData.c_unique_cust > 0 ? discData.c_rev / discData.c_unique_cust : 0;
+
+    // Col 5 & 9: share OR discount
+    let col5, col9;
+    if (catMetric === 'discount') {
+      col5 = `<td class="text-right" style="border-right:2px solid #64748b; color:var(--text-2);">${disc_pct.toFixed(2)}%</td>`;
+      col9 = `<td class="text-right" style="padding-right:1.25rem;font-weight:700">&#8377;${Math.round(avg_spend).toLocaleString('en-IN')}</td>`;
+    } else {
+      col5 = `<td class="text-right" style="border-right:2px solid #64748b;">${(r.share||0).toFixed(2)}%</td>`;
+      col9 = `<td class="text-right" style="padding-right:1.25rem;font-weight:700">${qtyShare.toFixed(2)}%</td>`;
+    }
     
     let brandHtml = '';
     if (!isGrand) {
       const cat = r.category;
+      const brandDiscMap = {};
+      (_data.detailed_table||[]).filter(x => x.category === cat).forEach(row => {
+        const k = row.brand || '';
+        if (!brandDiscMap[k]) brandDiscMap[k] = { c_discount:0, c_unique_cust:0, c_rev:0 };
+        brandDiscMap[k].c_discount    += (row.c_discount || 0);
+        brandDiscMap[k].c_unique_cust += (row.c_unique_cust || 0);
+        brandDiscMap[k].c_rev         += (row.c_rev || 0);
+      });
+
+      // Helper to compute col5/col9 for a brand sub-row
+      const brandCol = (brandName, c_rev_val, c_qty_val, parent_c_rev, parent_c_qty) => {
+        if (catMetric === 'discount') {
+          const bd = brandDiscMap[brandName] || { c_discount:0, c_unique_cust:0, c_rev: c_rev_val };
+          const dp = bd.c_rev > 0 ? (bd.c_discount / bd.c_rev) * 100 : 0;
+          const as = bd.c_unique_cust > 0 ? bd.c_rev / bd.c_unique_cust : 0;
+          return {
+            col5: `<td class="text-right" style="border-right:2px solid #64748b; color:var(--text-2);">${dp.toFixed(2)}%</td>`,
+            col9: `<td class="text-right" style="padding-right:1.25rem; font-weight:600; color:var(--text-2);">&#8377;${Math.round(as).toLocaleString('en-IN')}</td>`
+          };
+        } else {
+          const rs = parent_c_rev > 0 ? (c_rev_val / parent_c_rev * 100) : 0;
+          const qs = parent_c_qty > 0 ? (c_qty_val / parent_c_qty * 100) : 0;
+          return {
+            col5: `<td class="text-right" style="border-right:2px solid #64748b; color:var(--text-2);">${rs.toFixed(2)}%</td>`,
+            col9: `<td class="text-right" style="padding-right:1.25rem; font-weight:600; color:var(--text-2);">${qs.toFixed(2)}%</td>`
+          };
+        }
+      };
+
       if (cat === 'CE' || cat === 'ACC') {
         const ceRows = (_data.detailed_table||[]).filter(x => x.category === cat);
         const productMap = {};
@@ -882,12 +1126,9 @@ _set('branch-base-amt-h1',  bLabelShort);
             const bRow = bRowsMap[br.brand]||{};
             const b_rev = bRow.b_rev||0;
             const b_qty = bRow.b_qty||0;
-            
             const rev_growth = b_rev > 0 ? ((br.sales - b_rev)/b_rev*100) : 0;
             const qty_growth = b_qty > 0 ? ((br.qty - b_qty)/b_qty*100) : 0;
-            const rev_share  = r.c_rev > 0 ? (br.sales / r.c_rev * 100) : 0;
-            const qty_share  = r.c_qty > 0 ? (br.qty / r.c_qty * 100) : 0;
-            
+            const bc = brandCol(br.brand, br.sales, br.qty, r.c_rev, r.c_qty);
             return `<tr class="brand-row-${cat.replace(/[\s\W]+/g,'-')}" style="display:none; background-color:#fafafa; font-size:0.75rem;">
               <td style="padding-left:2.5rem; min-width:160px; border-right: 2px solid #64748b; color:var(--text-2);">
                 <span class="rank-badge" style="background:#e2e8f0;color:#64748b;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.65rem;margin-right:0.5rem;">${bi+1}</span>
@@ -896,11 +1137,11 @@ _set('branch-base-amt-h1',  bLabelShort);
               <td class="text-right" style="color:var(--text-2);">${fCr(b_rev)}</td>
               <td class="text-right" style="font-weight:600; color:var(--text-1);">${fCr(br.sales)}</td>
               <td class="text-right">${gBadge(rev_growth)}</td>
-              <td class="text-right" style="border-right: 2px solid #64748b; color:var(--text-2);">${rev_share.toFixed(2)}%</td>
+              ${bc.col5}
               <td class="text-right" style="color:var(--text-2);">${fN(b_qty)}</td>
               <td class="text-right" style="font-weight:600; color:var(--text-1);">${fN(br.qty)}</td>
               <td class="text-right">${gBadge(qty_growth)}</td>
-              <td class="text-right" style="padding-right:1.25rem; font-weight:600; color:var(--text-2);">${qty_share.toFixed(2)}%</td>
+              ${bc.col9}
             </tr>`;
           }).join('');
         }
@@ -910,8 +1151,21 @@ _set('branch-base-amt-h1',  bLabelShort);
           brandHtml = ceBrandHtml + sortedProducts.map((pRow, pi) => {
             const p_rev_growth = pRow.b_rev > 0 ? ((pRow.c_rev - pRow.b_rev)/pRow.b_rev*100) : 0;
             const p_qty_growth = pRow.b_qty > 0 ? ((pRow.c_qty - pRow.b_qty)/pRow.b_qty*100) : 0;
-            const p_rev_share  = r.c_rev > 0 ? (pRow.c_rev / r.c_rev * 100) : 0;
-            const p_qty_share  = r.c_qty > 0 ? (pRow.c_qty / r.c_qty * 100) : 0;
+            const pc = brandCol('__product__', pRow.c_rev, pRow.c_qty, r.c_rev, r.c_qty);
+            // For product row in discount mode: compute from all its brands
+            let prodDisc = 0, prodCust = 0, prodCRev = 0;
+            Object.keys(pRow.brands).forEach(bn => {
+              const bd = brandDiscMap[bn] || {};
+              prodDisc += (bd.c_discount||0); prodCust += (bd.c_unique_cust||0); prodCRev += (bd.c_rev||0);
+            });
+            const pDiscPct  = catMetric === 'discount' && prodCRev > 0 ? (prodDisc / prodCRev * 100) : (r.c_rev > 0 ? pRow.c_rev / r.c_rev * 100 : 0);
+            const pAvgSpend = catMetric === 'discount' && prodCust > 0 ? prodCRev / prodCust : (r.c_qty > 0 ? pRow.c_qty / r.c_qty * 100 : 0);
+            const pCol5 = catMetric === 'discount'
+              ? `<td class="text-right" style="border-right:2px solid #64748b; color:var(--text-2);">${pDiscPct.toFixed(2)}%</td>`
+              : `<td class="text-right" style="border-right:2px solid #64748b; color:var(--text-2);">${pDiscPct.toFixed(2)}%</td>`;
+            const pCol9 = catMetric === 'discount'
+              ? `<td class="text-right" style="color:var(--text-2); padding-right:1.25rem;">&#8377;${Math.round(pAvgSpend).toLocaleString('en-IN')}</td>`
+              : `<td class="text-right" style="color:var(--text-2); padding-right:1.25rem;">${pAvgSpend.toFixed(2)}%</td>`;
             
             let sortedBrands = Object.values(pRow.brands).sort((a,b) => (b.c_rev||0) - (a.c_rev||0)).slice(0,10);
             let innerBrandHtml = sortedBrands.map((br, bi) => {
@@ -919,9 +1173,7 @@ _set('branch-base-amt-h1',  bLabelShort);
               const b_qty = br.b_qty||0, c_qty = br.c_qty||0;
               const b_rev_growth = b_rev > 0 ? ((c_rev - b_rev)/b_rev*100) : 0;
               const b_qty_growth = b_qty > 0 ? ((c_qty - b_qty)/b_qty*100) : 0;
-              const b_rev_share  = pRow.c_rev > 0 ? (c_rev / pRow.c_rev * 100) : 0;
-              const b_qty_share  = pRow.c_qty > 0 ? (c_qty / pRow.c_qty * 100) : 0;
-              
+              const ibc = brandCol(br.brand, c_rev, c_qty, pRow.c_rev, pRow.c_qty);
               let pId = (pRow.product||'unknown').replace(/[\s\W]+/g, '-');
               let prefix = cat.replace(/[\s\W]+/g, '-').toLowerCase();
               return `<tr class="brand-row-${prefix}-${pId} brand-row-${cat.replace(/[\s\W]+/g,'-')}-child" style="display:none; background-color:#ffffff; font-size:0.7rem;">
@@ -932,11 +1184,11 @@ _set('branch-base-amt-h1',  bLabelShort);
                 <td class="text-right" style="color:var(--text-3);">${fCr(b_rev)}</td>
                 <td class="text-right" style="font-weight:600; color:var(--text-2);">${fCr(c_rev)}</td>
                 <td class="text-right">${gBadge(b_rev_growth)}</td>
-                <td class="text-right" style="border-right: 2px solid #64748b; color:var(--text-3);">${b_rev_share.toFixed(2)}%</td>
+                ${ibc.col5}
                 <td class="text-right" style="color:var(--text-3);">${fN(b_qty)}</td>
                 <td class="text-right" style="font-weight:600; color:var(--text-2);">${fN(c_qty)}</td>
                 <td class="text-right">${gBadge(b_qty_growth)}</td>
-                <td class="text-right" style="color:var(--text-3); padding-right:1.25rem;">${b_qty_share.toFixed(2)}%</td>
+                ${ibc.col9}
               </tr>`;
             }).join('');
             
@@ -950,11 +1202,11 @@ _set('branch-base-amt-h1',  bLabelShort);
               <td class="text-right" style="color:var(--text-2);">${fCr(pRow.b_rev)}</td>
               <td class="text-right" style="font-weight:600; color:var(--text-1);">${fCr(pRow.c_rev)}</td>
               <td class="text-right">${gBadge(p_rev_growth)}</td>
-              <td class="text-right" style="border-right: 2px solid #64748b; color:var(--text-2);">${p_rev_share.toFixed(2)}%</td>
+              ${pCol5}
               <td class="text-right" style="color:var(--text-2);">${fN(pRow.b_qty)}</td>
               <td class="text-right" style="font-weight:600; color:var(--text-1);">${fN(pRow.c_qty)}</td>
               <td class="text-right">${gBadge(p_qty_growth)}</td>
-              <td class="text-right" style="color:var(--text-2); padding-right:1.25rem;">${p_qty_share.toFixed(2)}%</td>
+              ${pCol9}
             </tr>` + innerBrandHtml;
           }).join('');
         } else {
@@ -971,12 +1223,9 @@ _set('branch-base-amt-h1',  bLabelShort);
             const bRow = bRowsMap[br.brand]||{};
             const b_rev = bRow.b_rev||0;
             const b_qty = bRow.b_qty||0;
-            
             const rev_growth = b_rev > 0 ? ((br.sales - b_rev)/b_rev*100) : 0;
             const qty_growth = b_qty > 0 ? ((br.qty - b_qty)/b_qty*100) : 0;
-            const rev_share  = r.c_rev > 0 ? (br.sales / r.c_rev * 100) : 0;
-            const qty_share  = r.c_qty > 0 ? (br.qty / r.c_qty * 100) : 0;
-            
+            const bc = brandCol(br.brand, br.sales, br.qty, r.c_rev, r.c_qty);
             return `<tr class="brand-row-${cat.replace(/[\s\W]+/g,'-')}" style="display:none; background-color:#fafafa; font-size:0.75rem;">
               <td style="padding-left:2.5rem; min-width:160px; border-right: 2px solid #64748b; color:var(--text-2);">
                 <span class="rank-badge" style="background:#e2e8f0;color:#64748b;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.65rem;margin-right:0.5rem;">${bi+1}</span>
@@ -985,11 +1234,11 @@ _set('branch-base-amt-h1',  bLabelShort);
               <td class="text-right" style="color:var(--text-2);">${fCr(b_rev)}</td>
               <td class="text-right" style="font-weight:600; color:var(--text-1);">${fCr(br.sales)}</td>
               <td class="text-right">${gBadge(rev_growth)}</td>
-              <td class="text-right" style="border-right: 2px solid #64748b; color:var(--text-2);">${rev_share.toFixed(2)}%</td>
+              ${bc.col5}
               <td class="text-right" style="color:var(--text-2);">${fN(b_qty)}</td>
               <td class="text-right" style="font-weight:600; color:var(--text-1);">${fN(br.qty)}</td>
               <td class="text-right">${gBadge(qty_growth)}</td>
-              <td class="text-right" style="padding-right:1.25rem; font-weight:600; color:var(--text-2);">${qty_share.toFixed(2)}%</td>
+              ${bc.col9}
             </tr>`;
           }).join('');
         } else {
@@ -999,6 +1248,7 @@ _set('branch-base-amt-h1',  bLabelShort);
         }
       }
     }
+
 
     return `
     <tr class="${isGrand?'grand-total':''}">
@@ -1014,11 +1264,11 @@ _set('branch-base-amt-h1',  bLabelShort);
       <td class="text-right">${fCr(r.b_rev)}</td>
       <td class="text-right" style="font-weight:600">${fCr(r.c_rev)}</td>
       <td class="text-right">${gBadge(r.rev_growth)}</td>
-      <td class="text-right" style="border-right: 2px solid #64748b;">${(r.share||0).toFixed(2)}%</td>
+      ${col5}
       <td class="text-right">${fN(r.b_qty)}</td>
       <td class="text-right" style="font-weight:600">${fN(r.c_qty)}</td>
       <td class="text-right">${gBadge(r.qty_growth)}</td>
-      <td class="text-right" style="padding-right:1.25rem;font-weight:700">${qtyShare.toFixed(2)}%</td>
+      ${col9}
     </tr>
     ${brandHtml}`;
   }).join('');
@@ -1088,16 +1338,33 @@ function exportExcel() {
   const branch  = window._dash_ts && window._dash_ts['dash-branch']  ? window._dash_ts['dash-branch'].getValue().join(',')  : '';
   const brand   = window._dash_ts && window._dash_ts['dash-brand']   ? window._dash_ts['dash-brand'].getValue().join(',')   : '';
   const product = window._dash_ts && window._dash_ts['dash-product'] ? window._dash_ts['dash-product'].getValue().join(',') : '';
-  window.location.href = `/api/v1/enterprise-dashboard/export/?type=${apiType}&base=${base}&comp=${comp}&base_year=${by}&comp_year=${cy}&category=${encodeURIComponent(cat)}&branch=${encodeURIComponent(branch)}&brand=${encodeURIComponent(brand)}&product=${encodeURIComponent(product)}`;
+  const rbm     = window._dash_ts && window._dash_ts['dash-rbm']     ? window._dash_ts['dash-rbm'].getValue().join(',')     : '';
+  const bdm     = window._dash_ts && window._dash_ts['dash-bdm']     ? window._dash_ts['dash-bdm'].getValue().join(',')     : '';
+  const district= window._dash_ts && window._dash_ts['dash-district']? window._dash_ts['dash-district'].getValue().join(','): '';
+  const state   = window._dash_ts && window._dash_ts['dash-state']   ? window._dash_ts['dash-state'].getValue().join(',')   : '';
+
+  const commonParams = `type=${apiType}&base=${encodeURIComponent(base)}&comp=${encodeURIComponent(comp)}&base_year=${by}&comp_year=${cy}&category=${encodeURIComponent(cat)}&branch=${encodeURIComponent(branch)}&brand=${encodeURIComponent(brand)}&product=${encodeURIComponent(product)}&rbm=${encodeURIComponent(rbm)}&bdm=${encodeURIComponent(bdm)}&district=${encodeURIComponent(district)}&state=${encodeURIComponent(state)}`;
+
+  // Route to the correct export based on the currently visible tab
+  if (_activeTab === 'growth') {
+    // Growth & Degrowth tab — dedicated export with 4 sheets
+    window.location.href = `/api/v1/enterprise-dashboard/growth-degrowth/export/?${commonParams}`;
+  } else {
+    // Category / Product / Brand / Branch tabs — pass active tab so backend
+    // generates separate AMT and QTY sheets for just that section
+    window.location.href = `/api/v1/enterprise-dashboard/export/?${commonParams}&tab=${_activeTab}`;
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════
    Tab Switching
 ══════════════════════════════════════════════════════════════════════════════ */
 function switchTab(tab) {
-  ['cat','product','brand','branch'].forEach(t => {
+  _activeTab = tab;  // Track the active tab
+  ['cat','product','brand','branch','growth'].forEach(t => {
     const btn   = document.getElementById('tab-'+t);
     const panel = document.getElementById('panel-'+t);
+    if (!btn || !panel) return;
     const active = (t === tab);
     btn.style.borderBottom   = active ? '2px solid var(--blue)' : '2px solid transparent';
     btn.style.color          = active ? 'var(--blue)' : 'var(--text-3)';
@@ -1109,12 +1376,40 @@ function switchTab(tab) {
     if (tab === 'brand')   renderBrandReport(_data.detailed_table);
     renderBranchReport(_data.detailed_table);
   }
+  if (tab === 'growth' && !_gdData) {
+    loadGrowthDegrowthData();
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Flat metric toggle state (Category / Product / Brand)
+══════════════════════════════════════════════════════════════════════════════ */
+window._flatMetric = { cat: 'share', product: 'share', brand: 'share' };
+
+function toggleFlatMetrics(panel, metric) {
+  window._flatMetric[panel] = metric;
+  // Update header labels to reflect mode
+  const prefix = { cat: 'sc', product: 'prod', brand: 'brand' }[panel];
+  const shareAmtEl = document.getElementById(`${prefix}-share-amt-h1`);
+  const shareQtyEl = document.getElementById(`${prefix}-share-qty-h1`);
+  if (shareAmtEl) shareAmtEl.textContent = metric === 'discount' ? 'DISC %'    : (shareAmtEl.dataset.shareLabel || 'SHARE COMP');
+  if (shareQtyEl) shareQtyEl.textContent = metric === 'discount' ? 'AVG SPEND' : (shareQtyEl.dataset.shareLabel || 'SHARE COMP');
+  // Store share label for restoration
+  if (metric === 'share') {
+    if (shareAmtEl) shareAmtEl.dataset.shareLabel = shareAmtEl.textContent;
+    if (shareQtyEl) shareQtyEl.dataset.shareLabel = shareQtyEl.textContent;
+  }
+  if (!_data) return;
+  if (panel === 'cat')     renderScorecard(_data.scorecard);
+  if (panel === 'product') renderProductReport(_data.detailed_table);
+  if (panel === 'brand')   renderBrandReport(_data.detailed_table);
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════
    Generic flat report renderer (for Product and Brand)
 ══════════════════════════════════════════════════════════════════════════════ */
-function _renderFlatReport(rows, groupKey, tbodyId) {
+function _renderFlatReport(rows, groupKey, tbodyId, metric) {
+  metric = metric || 'share';
   const tbody = document.getElementById(tbodyId);
   if (!tbody) return;
   if (!rows || !rows.length) {
@@ -1122,59 +1417,345 @@ function _renderFlatReport(rows, groupKey, tbodyId) {
     return;
   }
 
-  // Aggregate by groupKey (product or brand)
+  // Aggregate by groupKey (product or brand) — exclude HEAD OFFICE branch
   const map = {};
-  rows.forEach(r => {
+  rows.filter(r => (r.branch || '').toUpperCase() !== 'HEAD OFFICE').forEach(r => {
     const key = r[groupKey] || '—';
-    if (!map[key]) map[key] = { b_rev:0, c_rev:0, b_qty:0, c_qty:0 };
-    map[key].b_rev += (r.b_rev || 0);
-    map[key].c_rev += (r.c_rev || 0);
-    map[key].b_qty += (r.b_qty || 0);
-    map[key].c_qty += (r.c_qty || 0);
+    if (!map[key]) map[key] = { b_rev:0, c_rev:0, b_qty:0, c_qty:0, c_discount:0, c_unique_cust:0 };
+    map[key].b_rev         += (r.b_rev || 0);
+    map[key].c_rev         += (r.c_rev || 0);
+    map[key].b_qty         += (r.b_qty || 0);
+    map[key].c_qty         += (r.c_qty || 0);
+    map[key].c_discount    += (r.c_discount || 0);
+    map[key].c_unique_cust += (r.c_unique_cust || 0);
   });
 
   // Sort by comp revenue desc
   const sorted = Object.entries(map).sort((a,b) => b[1].c_rev - a[1].c_rev);
 
   // Grand total
-  let tot_b_rev=0, tot_c_rev=0, tot_b_qty=0, tot_c_qty=0;
-  sorted.forEach(([,v]) => { tot_b_rev+=v.b_rev; tot_c_rev+=v.c_rev; tot_b_qty+=v.b_qty; tot_c_qty+=v.c_qty; });
+  let tot_b_rev=0, tot_c_rev=0, tot_b_qty=0, tot_c_qty=0, tot_disc=0, tot_cust=0;
+  sorted.forEach(([,v]) => {
+    tot_b_rev+=v.b_rev; tot_c_rev+=v.c_rev;
+    tot_b_qty+=v.b_qty; tot_c_qty+=v.c_qty;
+    tot_disc+=v.c_discount; tot_cust+=v.c_unique_cust;
+  });
 
   const buildRow = (label, v, isTotal) => {
     const rev_g = v.b_rev > 0 ? (v.c_rev - v.b_rev) / v.b_rev * 100 : 0;
     const qty_g = v.b_qty > 0 ? (v.c_qty - v.b_qty) / v.b_qty * 100 : 0;
-    const rev_s = tot_c_rev > 0 ? v.c_rev / tot_c_rev * 100 : 0;
-    const qty_s = tot_c_qty > 0 ? v.c_qty / tot_c_qty * 100 : 0;
-    const rowClass = isTotal ? 'grand-total' : '';
+    const rowClass  = isTotal ? 'grand-total' : '';
     const labelHtml = isTotal
       ? `<strong>${label}</strong>`
       : `<span style="font-weight:600">${label}</span>`;
+
+    let col5, col9;
+    if (metric === 'discount') {
+      const disc_pct  = v.c_rev > 0 ? (v.c_discount / v.c_rev) * 100 : 0;
+      const avg_spend = v.c_unique_cust > 0 ? v.c_rev / v.c_unique_cust : 0;
+      col5 = `<td class="text-right" style="border-right:2px solid #64748b; color:var(--text-2); font-weight:${isTotal?800:600}">${disc_pct.toFixed(2)}%</td>`;
+      col9 = `<td class="text-right" style="padding-right:1.25rem; font-weight:${isTotal?800:600}">&#8377;${Math.round(avg_spend).toLocaleString('en-IN')}</td>`;
+    } else {
+      const rev_s = tot_c_rev > 0 ? v.c_rev / tot_c_rev * 100 : 0;
+      const qty_s = tot_c_qty > 0 ? v.c_qty / tot_c_qty * 100 : 0;
+      col5 = `<td class="text-right" style="border-right:2px solid #64748b;">${rev_s.toFixed(2)}%</td>`;
+      col9 = `<td class="text-right" style="padding-right:1.25rem; font-weight:${isTotal?800:600}">${qty_s.toFixed(2)}%</td>`;
+    }
+
     return `<tr class="${rowClass}">
-      <td style="padding-left:1.25rem; min-width:180px; border-right: 2px solid #64748b;">${labelHtml}</td>
+      <td style="padding-left:1.25rem; min-width:180px; border-right:2px solid #64748b;">${labelHtml}</td>
       <td class="text-right">${fCr(v.b_rev)}</td>
       <td class="text-right" style="font-weight:${isTotal?800:600}">${fCr(v.c_rev)}</td>
       <td class="text-right">${gBadge(rev_g)}</td>
-      <td class="text-right" style="border-right: 2px solid #64748b;">${rev_s.toFixed(2)}%</td>
+      ${col5}
       <td class="text-right">${fN(v.b_qty)}</td>
       <td class="text-right" style="font-weight:${isTotal?800:600}">${fN(v.c_qty)}</td>
       <td class="text-right">${gBadge(qty_g)}</td>
-      <td class="text-right" style="padding-right:1.25rem; font-weight:${isTotal?800:600}">${qty_s.toFixed(2)}%</td>
+      ${col9}
     </tr>`;
   };
 
   const dataRows = sorted.map(([label, v]) => buildRow(label, v, false)).join('');
-  const totalRow = buildRow('Grand Total', {b_rev:tot_b_rev,c_rev:tot_c_rev,b_qty:tot_b_qty,c_qty:tot_c_qty}, true);
+  const totalRow = buildRow('Grand Total', {
+    b_rev:tot_b_rev, c_rev:tot_c_rev,
+    b_qty:tot_b_qty, c_qty:tot_c_qty,
+    c_discount:tot_disc, c_unique_cust:tot_cust
+  }, true);
 
   tbody.innerHTML = dataRows + totalRow;
 }
 
 function renderProductReport(table) {
-  _renderFlatReport(table, 'product', 'product-tbody');
+  const metric = window._flatMetric?.product || 'share';
+  const tbody  = document.getElementById('product-tbody');
+  if (!tbody) return;
+  const rows = (table || []).filter(r => (r.branch || '').toUpperCase() !== 'HEAD OFFICE');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-3);">No data available</td></tr>';
+    return;
+  }
+
+  // Aggregate by product → brand
+  const prodMap = {};
+  rows.forEach(r => {
+    const pKey = r.product || '—';
+    const bKey = r.brand   || '—';
+    if (!prodMap[pKey]) prodMap[pKey] = { b_rev:0, c_rev:0, b_qty:0, c_qty:0, c_discount:0, c_unique_cust:0, brands:{} };
+    const p = prodMap[pKey];
+    p.b_rev         += (r.b_rev || 0);
+    p.c_rev         += (r.c_rev || 0);
+    p.b_qty         += (r.b_qty || 0);
+    p.c_qty         += (r.c_qty || 0);
+    p.c_discount    += (r.c_discount || 0);
+    p.c_unique_cust += (r.c_unique_cust || 0);
+    if (!p.brands[bKey]) p.brands[bKey] = { b_rev:0, c_rev:0, b_qty:0, c_qty:0, c_discount:0, c_unique_cust:0 };
+    const b = p.brands[bKey];
+    b.b_rev         += (r.b_rev || 0);
+    b.c_rev         += (r.c_rev || 0);
+    b.b_qty         += (r.b_qty || 0);
+    b.c_qty         += (r.c_qty || 0);
+    b.c_discount    += (r.c_discount || 0);
+    b.c_unique_cust += (r.c_unique_cust || 0);
+  });
+
+  const sorted = Object.entries(prodMap).sort((a,b) => b[1].c_rev - a[1].c_rev);
+
+  // Grand total
+  let tot_b_rev=0, tot_c_rev=0, tot_b_qty=0, tot_c_qty=0, tot_disc=0, tot_cust=0;
+  sorted.forEach(([,v]) => {
+    tot_b_rev+=v.b_rev; tot_c_rev+=v.c_rev;
+    tot_b_qty+=v.b_qty; tot_c_qty+=v.c_qty;
+    tot_disc+=v.c_discount; tot_cust+=v.c_unique_cust;
+  });
+
+  const _col59 = (v, parentRev, parentQty, isTotal, indent) => {
+    if (metric === 'discount') {
+      const dp = v.c_rev > 0 ? (v.c_discount / v.c_rev) * 100 : 0;
+      const as = v.c_unique_cust > 0 ? v.c_rev / v.c_unique_cust : 0;
+      return {
+        col5: `<td class="text-right" style="border-right:2px solid #64748b; color:var(--text-2); font-weight:${isTotal?800:600}">${dp.toFixed(2)}%</td>`,
+        col9: `<td class="text-right" style="padding-right:1.25rem; font-weight:${isTotal?800:600}">&#8377;${Math.round(as).toLocaleString('en-IN')}</td>`
+      };
+    } else {
+      const rs = (parentRev||tot_c_rev) > 0 ? v.c_rev / (parentRev||tot_c_rev) * 100 : 0;
+      const qs = (parentQty||tot_c_qty) > 0 ? v.c_qty / (parentQty||tot_c_qty) * 100 : 0;
+      return {
+        col5: `<td class="text-right" style="border-right:2px solid #64748b;">${rs.toFixed(2)}%</td>`,
+        col9: `<td class="text-right" style="padding-right:1.25rem; font-weight:${isTotal?800:600}">${qs.toFixed(2)}%</td>`
+      };
+    }
+  };
+
+  let html = '';
+  sorted.forEach(([prod, pv]) => {
+    const pId     = prod.replace(/[\s\W]+/g, '-');
+    const rev_g   = pv.b_rev > 0 ? (pv.c_rev - pv.b_rev) / pv.b_rev * 100 : 0;
+    const qty_g   = pv.b_qty > 0 ? (pv.c_qty - pv.b_qty) / pv.b_qty * 100 : 0;
+    const { col5, col9 } = _col59(pv, tot_c_rev, tot_c_qty, false, 0);
+
+    // Product row (clickable)
+    html += `<tr style="cursor:pointer;" onclick="toggleProdBrandRow('${pId}', this)">
+      <td style="padding-left:1.25rem; min-width:180px; border-right:2px solid #64748b; font-weight:600;">
+        <i class="bi bi-chevron-down" id="prod-icon-${pId}" style="font-size:0.7rem; color:var(--text-3); margin-right:0.35rem;"></i>${prod}
+      </td>
+      <td class="text-right">${fCr(pv.b_rev)}</td>
+      <td class="text-right" style="font-weight:600">${fCr(pv.c_rev)}</td>
+      <td class="text-right">${gBadge(rev_g)}</td>
+      ${col5}
+      <td class="text-right">${fN(pv.b_qty)}</td>
+      <td class="text-right" style="font-weight:600">${fN(pv.c_qty)}</td>
+      <td class="text-right">${gBadge(qty_g)}</td>
+      ${col9}
+    </tr>`;
+
+    // Brand sub-rows — top 10 only (hidden by default)
+    const sortedBrands = Object.entries(pv.brands).sort((a,b) => b[1].c_rev - a[1].c_rev).slice(0, 10);
+    sortedBrands.forEach(([brand, bv], bi) => {
+      const b_rev_g = bv.b_rev > 0 ? (bv.c_rev - bv.b_rev) / bv.b_rev * 100 : 0;
+      const b_qty_g = bv.b_qty > 0 ? (bv.c_qty - bv.b_qty) / bv.b_qty * 100 : 0;
+      const { col5: bc5, col9: bc9 } = _col59(bv, pv.c_rev, pv.c_qty, false, 1);
+      html += `<tr class="prod-brand-row-${pId}" style="display:none; background:#fafafa; font-size:0.75rem;">
+        <td style="padding-left:2.75rem; min-width:180px; border-right:2px solid #64748b; color:var(--text-2);">
+          <span class="rank-badge" style="background:#e2e8f0;color:#64748b;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.65rem;margin-right:0.5rem;">${bi+1}</span>
+          <span style="font-weight:600;">${brand}</span>
+        </td>
+        <td class="text-right" style="color:var(--text-2);">${fCr(bv.b_rev)}</td>
+        <td class="text-right" style="font-weight:600; color:var(--text-1);">${fCr(bv.c_rev)}</td>
+        <td class="text-right">${gBadge(b_rev_g)}</td>
+        ${bc5}
+        <td class="text-right" style="color:var(--text-2);">${fN(bv.b_qty)}</td>
+        <td class="text-right" style="font-weight:600; color:var(--text-1);">${fN(bv.c_qty)}</td>
+        <td class="text-right">${gBadge(b_qty_g)}</td>
+        ${bc9}
+      </tr>`;
+    });
+  });
+
+  // Grand Total row
+  const { col5: tc5, col9: tc9 } = _col59({ b_rev:tot_b_rev, c_rev:tot_c_rev, b_qty:tot_b_qty, c_qty:tot_c_qty, c_discount:tot_disc, c_unique_cust:tot_cust }, tot_c_rev, tot_c_qty, true, 0);
+  const tot_rev_g = tot_b_rev > 0 ? (tot_c_rev - tot_b_rev) / tot_b_rev * 100 : 0;
+  const tot_qty_g = tot_b_qty > 0 ? (tot_c_qty - tot_b_qty) / tot_b_qty * 100 : 0;
+  html += `<tr class="grand-total">
+    <td style="padding-left:1.25rem; min-width:180px; border-right:2px solid #64748b;"><strong>Grand Total</strong></td>
+    <td class="text-right">${fCr(tot_b_rev)}</td>
+    <td class="text-right" style="font-weight:800">${fCr(tot_c_rev)}</td>
+    <td class="text-right">${gBadge(tot_rev_g)}</td>
+    ${tc5}
+    <td class="text-right">${fN(tot_b_qty)}</td>
+    <td class="text-right" style="font-weight:800">${fN(tot_c_qty)}</td>
+    <td class="text-right">${gBadge(tot_qty_g)}</td>
+    ${tc9}
+  </tr>`;
+
+  tbody.innerHTML = html;
 }
 
+window.toggleProdBrandRow = function(pId, rowEl) {
+  const subRows = document.querySelectorAll(`.prod-brand-row-${pId}`);
+  const icon    = document.getElementById(`prod-icon-${pId}`);
+  const isHidden = subRows.length > 0 && subRows[0].style.display === 'none';
+  subRows.forEach(r => r.style.display = isHidden ? 'table-row' : 'none');
+  if (icon) {
+    icon.classList.toggle('bi-chevron-down', !isHidden);
+    icon.classList.toggle('bi-chevron-up',    isHidden);
+  }
+};
+
 function renderBrandReport(table) {
-  _renderFlatReport(table, 'brand', 'brand-tbody');
+  const metric = window._flatMetric?.brand || 'share';
+  const tbody  = document.getElementById('brand-tbody');
+  if (!tbody) return;
+  const rows = (table || []).filter(r => (r.branch || '').toUpperCase() !== 'HEAD OFFICE');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-3);">No data available</td></tr>';
+    return;
+  }
+
+  // Aggregate by brand → product
+  const brandMap = {};
+  rows.forEach(r => {
+    const bKey = r.brand   || '—';
+    const pKey = r.product || '—';
+    if (!brandMap[bKey]) brandMap[bKey] = { b_rev:0, c_rev:0, b_qty:0, c_qty:0, c_discount:0, c_unique_cust:0, products:{} };
+    const bv = brandMap[bKey];
+    bv.b_rev         += (r.b_rev || 0);
+    bv.c_rev         += (r.c_rev || 0);
+    bv.b_qty         += (r.b_qty || 0);
+    bv.c_qty         += (r.c_qty || 0);
+    bv.c_discount    += (r.c_discount || 0);
+    bv.c_unique_cust += (r.c_unique_cust || 0);
+    if (!bv.products[pKey]) bv.products[pKey] = { b_rev:0, c_rev:0, b_qty:0, c_qty:0, c_discount:0, c_unique_cust:0 };
+    const pv = bv.products[pKey];
+    pv.b_rev         += (r.b_rev || 0);
+    pv.c_rev         += (r.c_rev || 0);
+    pv.b_qty         += (r.b_qty || 0);
+    pv.c_qty         += (r.c_qty || 0);
+    pv.c_discount    += (r.c_discount || 0);
+    pv.c_unique_cust += (r.c_unique_cust || 0);
+  });
+
+  const sorted = Object.entries(brandMap).sort((a,b) => b[1].c_rev - a[1].c_rev);
+
+  // Grand total
+  let tot_b_rev=0, tot_c_rev=0, tot_b_qty=0, tot_c_qty=0, tot_disc=0, tot_cust=0;
+  sorted.forEach(([,v]) => {
+    tot_b_rev+=v.b_rev; tot_c_rev+=v.c_rev;
+    tot_b_qty+=v.b_qty; tot_c_qty+=v.c_qty;
+    tot_disc+=v.c_discount; tot_cust+=v.c_unique_cust;
+  });
+
+  const _col59 = (v, parentRev, parentQty, isTotal) => {
+    if (metric === 'discount') {
+      const dp = v.c_rev > 0 ? (v.c_discount / v.c_rev) * 100 : 0;
+      const as = v.c_unique_cust > 0 ? v.c_rev / v.c_unique_cust : 0;
+      return {
+        col5: `<td class="text-right" style="border-right:2px solid #64748b; color:var(--text-2); font-weight:${isTotal?800:600}">${dp.toFixed(2)}%</td>`,
+        col9: `<td class="text-right" style="padding-right:1.25rem; font-weight:${isTotal?800:600}">&#8377;${Math.round(as).toLocaleString('en-IN')}</td>`
+      };
+    } else {
+      const rs = (parentRev||tot_c_rev) > 0 ? v.c_rev / (parentRev||tot_c_rev) * 100 : 0;
+      const qs = (parentQty||tot_c_qty) > 0 ? v.c_qty / (parentQty||tot_c_qty) * 100 : 0;
+      return {
+        col5: `<td class="text-right" style="border-right:2px solid #64748b;">${rs.toFixed(2)}%</td>`,
+        col9: `<td class="text-right" style="padding-right:1.25rem; font-weight:${isTotal?800:600}">${qs.toFixed(2)}%</td>`
+      };
+    }
+  };
+
+  let html = '';
+  sorted.forEach(([brand, bv]) => {
+    const bId   = brand.replace(/[\s\W]+/g, '-');
+    const rev_g = bv.b_rev > 0 ? (bv.c_rev - bv.b_rev) / bv.b_rev * 100 : 0;
+    const qty_g = bv.b_qty > 0 ? (bv.c_qty - bv.b_qty) / bv.b_qty * 100 : 0;
+    const { col5, col9 } = _col59(bv, tot_c_rev, tot_c_qty, false);
+
+    // Brand row (clickable)
+    html += `<tr style="cursor:pointer;" onclick="toggleBrandProdRow('${bId}', this)">
+      <td style="padding-left:1.25rem; min-width:180px; border-right:2px solid #64748b; font-weight:600;">
+        <i class="bi bi-chevron-down" id="brand-prod-icon-${bId}" style="font-size:0.7rem; color:var(--text-3); margin-right:0.35rem;"></i>${brand}
+      </td>
+      <td class="text-right">${fCr(bv.b_rev)}</td>
+      <td class="text-right" style="font-weight:600">${fCr(bv.c_rev)}</td>
+      <td class="text-right">${gBadge(rev_g)}</td>
+      ${col5}
+      <td class="text-right">${fN(bv.b_qty)}</td>
+      <td class="text-right" style="font-weight:600">${fN(bv.c_qty)}</td>
+      <td class="text-right">${gBadge(qty_g)}</td>
+      ${col9}
+    </tr>`;
+
+    // Product sub-rows — top 10 only (hidden by default)
+    const sortedProds = Object.entries(bv.products).sort((a,b) => b[1].c_rev - a[1].c_rev).slice(0, 10);
+    sortedProds.forEach(([prod, pv], pi) => {
+      const p_rev_g = pv.b_rev > 0 ? (pv.c_rev - pv.b_rev) / pv.b_rev * 100 : 0;
+      const p_qty_g = pv.b_qty > 0 ? (pv.c_qty - pv.b_qty) / pv.b_qty * 100 : 0;
+      const { col5: pc5, col9: pc9 } = _col59(pv, bv.c_rev, bv.c_qty, false);
+      html += `<tr class="brand-prod-row-${bId}" style="display:none; background:#fafafa; font-size:0.75rem;">
+        <td style="padding-left:2.75rem; min-width:180px; border-right:2px solid #64748b; color:var(--text-2);">
+          <span class="rank-badge" style="background:#e2e8f0;color:#64748b;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.65rem;margin-right:0.5rem;">${pi+1}</span>
+          <span style="font-weight:600;">${prod}</span>
+        </td>
+        <td class="text-right" style="color:var(--text-2);">${fCr(pv.b_rev)}</td>
+        <td class="text-right" style="font-weight:600; color:var(--text-1);">${fCr(pv.c_rev)}</td>
+        <td class="text-right">${gBadge(p_rev_g)}</td>
+        ${pc5}
+        <td class="text-right" style="color:var(--text-2);">${fN(pv.b_qty)}</td>
+        <td class="text-right" style="font-weight:600; color:var(--text-1);">${fN(pv.c_qty)}</td>
+        <td class="text-right">${gBadge(p_qty_g)}</td>
+        ${pc9}
+      </tr>`;
+    });
+  });
+
+  // Grand Total row
+  const { col5: tc5, col9: tc9 } = _col59({ b_rev:tot_b_rev, c_rev:tot_c_rev, b_qty:tot_b_qty, c_qty:tot_c_qty, c_discount:tot_disc, c_unique_cust:tot_cust }, tot_c_rev, tot_c_qty, true);
+  const tot_rev_g = tot_b_rev > 0 ? (tot_c_rev - tot_b_rev) / tot_b_rev * 100 : 0;
+  const tot_qty_g = tot_b_qty > 0 ? (tot_c_qty - tot_b_qty) / tot_b_qty * 100 : 0;
+  html += `<tr class="grand-total">
+    <td style="padding-left:1.25rem; min-width:180px; border-right:2px solid #64748b;"><strong>Grand Total</strong></td>
+    <td class="text-right">${fCr(tot_b_rev)}</td>
+    <td class="text-right" style="font-weight:800">${fCr(tot_c_rev)}</td>
+    <td class="text-right">${gBadge(tot_rev_g)}</td>
+    ${tc5}
+    <td class="text-right">${fN(tot_b_qty)}</td>
+    <td class="text-right" style="font-weight:800">${fN(tot_c_qty)}</td>
+    <td class="text-right">${gBadge(tot_qty_g)}</td>
+    ${tc9}
+  </tr>`;
+
+  tbody.innerHTML = html;
 }
+
+window.toggleBrandProdRow = function(bId, rowEl) {
+  const subRows = document.querySelectorAll(`.brand-prod-row-${bId}`);
+  const icon    = document.getElementById(`brand-prod-icon-${bId}`);
+  const isHidden = subRows.length > 0 && subRows[0].style.display === 'none';
+  subRows.forEach(r => r.style.display = isHidden ? 'table-row' : 'none');
+  if (icon) {
+    icon.classList.toggle('bi-chevron-down', !isHidden);
+    icon.classList.toggle('bi-chevron-up',    isHidden);
+  }
+};
 
 let currentBranchMetric = 'share';
 let currentBranchSortOrder = 'desc';
@@ -1190,29 +1771,69 @@ function toggleBranchSort() {
 }
 
 let isDiscountSortDesc = false;
+window._branchDiscSortDir = 'comp'; // 'comp' | 'disc_desc' | 'disc_asc'
+window._branchAvgSortDir  = 'comp'; // 'comp' | 'avg_desc'  | 'avg_asc'
 
-function sortDiscountByDesc() {
-  isDiscountSortDesc = true;
-  if (typeof _data !== 'undefined' && _data && _data.detailed_table) {
-    renderBranchReport(_data.detailed_table);
-  }
+function _updateDiscIcon(dir) {
+  const el = document.getElementById('branch-disc-sort-icon');
+  if (!el) return;
+  el.textContent = dir === 'comp' ? '⇅' : dir === 'disc_desc' ? '↓' : '↑';
+  el.style.opacity = dir === 'comp' ? '0.4' : '1';
+  el.style.color   = dir === 'comp' ? '' : '#3b82f6';
 }
+function _updateAvgIcon(dir) {
+  const el = document.getElementById('branch-avg-sort-icon');
+  if (!el) return;
+  el.textContent = dir === 'comp' ? '⇅' : dir === 'avg_desc' ? '↓' : '↑';
+  el.style.opacity = dir === 'comp' ? '0.4' : '1';
+  el.style.color   = dir === 'comp' ? '' : '#3b82f6';
+}
+
+window.branchDiscSortToggle = function() {
+  const next = { comp: 'disc_desc', disc_desc: 'disc_asc', disc_asc: 'comp' };
+  window._branchDiscSortDir = next[window._branchDiscSortDir] || 'comp';
+  window._branchAvgSortDir  = 'comp';  // reset avg sort
+  _updateDiscIcon(window._branchDiscSortDir);
+  _updateAvgIcon('comp');
+  if (_data) renderBranchReport(_data.detailed_table);
+};
+window.branchAvgSortToggle = function() {
+  const next = { comp: 'avg_desc', avg_desc: 'avg_asc', avg_asc: 'comp' };
+  window._branchAvgSortDir  = next[window._branchAvgSortDir] || 'comp';
+  window._branchDiscSortDir = 'comp';  // reset disc sort
+  _updateAvgIcon(window._branchAvgSortDir);
+  _updateDiscIcon('comp');
+  if (_data) renderBranchReport(_data.detailed_table);
+};
 
 function toggleBranchMetrics(metric) {
   currentBranchMetric = metric;
   isDiscountSortDesc = false;
-  
+  // Reset disc/avg sort when switching tabs
+  window._branchDiscSortDir = 'comp';
+  window._branchAvgSortDir  = 'comp';
+
   const hAmt = document.getElementById('branch-share-amt-text');
-  const hQty = document.getElementById('branch-metric2-h1');
-  
+  const hQtyTh = document.getElementById('branch-metric2-h1');
+
   if (metric === 'share') {
-    if (hAmt) hAmt.innerHTML = 'SHARE COMP';
-    if (hQty) hQty.innerHTML = 'SHARE COMP';
+    if (hAmt)   hAmt.innerHTML = 'SHARE COMP';
+    if (hQtyTh) hQtyTh.innerHTML = 'SHARE COMP';
+    // Remove click from parent TH
+    const discTh = hAmt ? hAmt.closest('th') : null;
+    if (discTh) { discTh.onclick = null; discTh.style.cursor = ''; }
+    if (hQtyTh) { hQtyTh.onclick = null; hQtyTh.style.cursor = ''; }
   } else if (metric === 'discount') {
-    if (hAmt) hAmt.innerHTML = 'DISC % <i class="bi bi-sort-down cursor-pointer ms-1" style="font-size:0.9rem; color:var(--primary);" onclick="sortDiscountByDesc()" title="Sort by Disc %"></i>';
-    if (hQty) hQty.innerHTML = 'AVG SPEND';
+    if (hAmt) hAmt.innerHTML =
+      `DISC % <span id="branch-disc-sort-icon" style="font-size:0.85rem; opacity:0.4; cursor:pointer;">&#8645;</span>`;
+    if (hQtyTh) hQtyTh.innerHTML =
+      `AVG SPEND <span id="branch-avg-sort-icon" style="font-size:0.85rem; opacity:0.4; cursor:pointer;">&#8645;</span>`;
+    // Attach click to parent TH
+    const discTh = hAmt ? hAmt.closest('th') : null;
+    if (discTh) { discTh.onclick = branchDiscSortToggle; discTh.style.cursor = 'pointer'; discTh.style.userSelect = 'none'; }
+    if (hQtyTh) { hQtyTh.onclick = branchAvgSortToggle; hQtyTh.style.cursor = 'pointer'; hQtyTh.style.userSelect = 'none'; }
   }
-  
+
   if (typeof _data !== 'undefined' && _data && _data.detailed_table) {
     renderBranchReport(_data.detailed_table);
   }
@@ -1226,9 +1847,9 @@ function renderBranchReport(rows) {
     return;
   }
 
-  // Aggregate by branch
+  // Aggregate by branch — exclude HEAD OFFICE
   const map = {};
-  rows.forEach(r => {
+  rows.filter(r => (r.branch || '').toUpperCase() !== 'HEAD OFFICE').forEach(r => {
     const key = r.branch || '—';
     if (!map[key]) map[key] = { b_rev:0, c_rev:0, b_qty:0, c_qty:0, c_discount:0, c_disc_qty:0, c_unique_cust:0 };
     map[key].b_rev += (r.b_rev || 0);
@@ -1240,14 +1861,53 @@ function renderBranchReport(rows) {
     map[key].c_unique_cust += (r.c_unique_cust || 0);
   });
 
-  // Sort logic
-  const sorted = Object.entries(map).sort((a,b) => {
-    if (currentBranchMetric === 'discount' && isDiscountSortDesc) {
-      let valA = a[1].c_rev > 0 ? (a[1].c_discount / a[1].c_rev) : 0;
-      let valB = b[1].c_rev > 0 ? (b[1].c_discount / b[1].c_rev) : 0;
-      return valB - valA;
+  // Sort state: growth sort OR discount/avg sort
+  window._branchSortDir    = window._branchSortDir    || 'comp';
+  window._branchDiscSortDir = window._branchDiscSortDir || 'comp';
+  window._branchAvgSortDir  = window._branchAvgSortDir  || 'comp';
+
+  window.branchSortToggle = function(axis) {
+    const next = { comp: 'growth_desc', growth_desc: 'growth_asc', growth_asc: 'comp' };
+    window._branchSortDir = next[window._branchSortDir] || 'comp';
+    ['amt','qty'].forEach(a => {
+      const el = document.getElementById(`branch-${a}-sort-icon`);
+      if (!el) return;
+      el.textContent = window._branchSortDir === 'comp' ? '⇅' : window._branchSortDir === 'growth_desc' ? '↓' : '↑';
+      el.style.opacity = window._branchSortDir === 'comp' ? '0.4' : '1';
+      el.style.color   = window._branchSortDir === 'comp' ? '' : '#3b82f6';
+    });
+    if (_data) renderBranchReport(_data.detailed_table);
+  };
+
+  const sortDir     = window._branchSortDir    || 'comp';
+  const discSortDir = window._branchDiscSortDir || 'comp';
+  const avgSortDir  = window._branchAvgSortDir  || 'comp';
+
+  const sorted = Object.entries(map).sort((a, b) => {
+    // Disc % sort (only in discount view)
+    if (discSortDir !== 'comp') {
+      const da = a[1].c_rev > 0 ? a[1].c_discount / a[1].c_rev : 0;
+      const db = b[1].c_rev > 0 ? b[1].c_discount / b[1].c_rev : 0;
+      return discSortDir === 'disc_desc' ? db - da : da - db;
     }
-    // Default sort: COMP AMT Descending
+    // Avg Spend sort (only in discount view)
+    if (avgSortDir !== 'comp') {
+      const aa = a[1].c_unique_cust > 0 ? a[1].c_rev / a[1].c_unique_cust : 0;
+      const ab = b[1].c_unique_cust > 0 ? b[1].c_rev / b[1].c_unique_cust : 0;
+      return avgSortDir === 'avg_desc' ? ab - aa : aa - ab;
+    }
+    // Growth % sort
+    if (sortDir === 'growth_desc') {
+      const ga = a[1].b_rev > 0 ? (a[1].c_rev - a[1].b_rev) / a[1].b_rev : 0;
+      const gb = b[1].b_rev > 0 ? (b[1].c_rev - b[1].b_rev) / b[1].b_rev : 0;
+      return gb - ga;
+    }
+    if (sortDir === 'growth_asc') {
+      const ga = a[1].b_rev > 0 ? (a[1].c_rev - a[1].b_rev) / a[1].b_rev : 0;
+      const gb = b[1].b_rev > 0 ? (b[1].c_rev - b[1].b_rev) / b[1].b_rev : 0;
+      return ga - gb;
+    }
+    // Default: comp AMT descending
     return b[1].c_rev - a[1].c_rev;
   });
 
@@ -1306,6 +1966,282 @@ function renderBranchReport(rows) {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════
+   Growth & Degrowth Tab
+══════════════════════════════════════════════════════════════════════════════ */
+let _gdData = null;
+let _gdMetric = 'sale';
+let _activeTab = 'cat';  // Track which tab is currently visible
+
+function switchGdMetric(metric) {
+  _gdMetric = metric;
+  const sections = ['sale', 'qty', 'unique', 'newrepeat'];
+  sections.forEach(s => {
+    const el = document.getElementById('gd-' + s + '-section');
+    if (el) el.style.display = (s === metric) ? 'block' : 'none';
+  });
+  if (_gdData) renderGrowthDegrowth(_gdData);
+}
+
+function _gdBLabel() {
+  try {
+    const type = document.getElementById('comp-type').value;
+    const customTypes = ['custom', 'mtd', 'mtd_yoy', 'qtd', 'qtd_yoy', 'ytd', 'ytd_existing', 'ytd_fy'];
+    if (customTypes.includes(type)) {
+      const drpB = $('#base-daterange').data('daterangepicker');
+      return drpB ? drpB.startDate.format('DD MMM') + ' - ' + drpB.endDate.format('DD MMM YY') : 'BASE';
+    }
+    const bp = document.getElementById('base-period');
+    const by = document.getElementById('base-year');
+    if (bp && by) return (bp.options[bp.selectedIndex]?.text||'Base').substring(0,3).toUpperCase() + ' ' + by.value;
+    return 'BASE';
+  } catch(e) { return 'BASE'; }
+}
+
+function _gdCLabel() {
+  try {
+    const type = document.getElementById('comp-type').value;
+    const customTypes = ['custom', 'mtd', 'mtd_yoy', 'qtd', 'qtd_yoy', 'ytd', 'ytd_existing', 'ytd_fy'];
+    if (customTypes.includes(type)) {
+      const drpC = $('#comp-daterange').data('daterangepicker');
+      return drpC ? drpC.startDate.format('DD MMM') + ' - ' + drpC.endDate.format('DD MMM YY') : 'COMP';
+    }
+    const cp = document.getElementById('comp-period');
+    const cy = document.getElementById('comp-year');
+    if (cp && cy) return (cp.options[cp.selectedIndex]?.text||'Comp').substring(0,3).toUpperCase() + ' ' + cy.value;
+    return 'COMP';
+  } catch(e) { return 'COMP'; }
+}
+
+function renderGrowthDegrowth(data) {
+  if (!data || !data.branches) return;
+  // Exclude HEAD OFFICE from all Growth & Degrowth sections
+  const rows = data.branches.filter(r => (r.branch || '').toUpperCase() !== 'HEAD OFFICE');
+  const bLabel = _gdBLabel();
+  const cLabel = _gdCLabel();
+
+  // Update header labels
+  ['gd-sale-base-h','gd-qty-base-h','gd-uniq-base-h'].forEach(id => { const el=document.getElementById(id); if(el) el.textContent = bLabel; });
+  ['gd-sale-comp-h','gd-qty-comp-h','gd-uniq-comp-h'].forEach(id => { const el=document.getElementById(id); if(el) el.textContent = cLabel; });
+  ['gd-sale-share-h','gd-qty-share-h','gd-uniq-share-h'].forEach(id => { const el=document.getElementById(id); if(el) el.textContent = 'SHARE ' + cLabel; });
+  const nrH = document.getElementById('gd-nr-comp-h'); if(nrH) nrH.textContent = cLabel;
+
+  // ── Grand Totals ──
+  let tot_b_rev=0, tot_c_rev=0, tot_b_qty=0, tot_c_qty=0, tot_b_cust=0, tot_c_cust=0;
+  let tot_new=0, tot_repeat=0, tot_b_new=0, tot_b_repeat=0;
+  rows.forEach(r => {
+    tot_b_rev    += (r.b_rev||0);
+    tot_c_rev    += (r.c_rev||0);
+    tot_b_qty    += (r.b_qty||0);
+    tot_c_qty    += (r.c_qty||0);
+    tot_b_cust   += (r.b_unique_cust||0);
+    tot_c_cust   += (r.c_unique_cust||0);
+    tot_new      += (r.new_customers||0);
+    tot_repeat   += (r.repeat_customers||0);
+    tot_b_new    += (r.b_new_customers||0);
+    tot_b_repeat += (r.b_repeat_customers||0);
+  });
+
+  // Rank helpers
+  const sortedByBase_rev  = [...rows].sort((a,b)=>(b.b_rev||0)-(a.b_rev||0));
+  const sortedByComp_rev  = [...rows].sort((a,b)=>(b.c_rev||0)-(a.c_rev||0));
+  const sortedByBase_qty  = [...rows].sort((a,b)=>(b.b_qty||0)-(a.b_qty||0));
+  const sortedByComp_qty  = [...rows].sort((a,b)=>(b.c_qty||0)-(a.c_qty||0));
+  const sortedByBase_cust = [...rows].sort((a,b)=>(b.b_unique_cust||0)-(a.b_unique_cust||0));
+  const sortedByComp_cust = [...rows].sort((a,b)=>(b.c_unique_cust||0)-(a.c_unique_cust||0));
+
+  const rankOf = (arr, branch) => arr.findIndex(r=>r.branch===branch) + 1;
+
+  // ── Growth sort state: 'comp' (default) → 'growth_desc' → 'growth_asc' → 'comp' ──
+  window._gdSortDir = { sale: 'comp', qty: 'comp', uniq: 'comp' };
+  window._gdRows    = rows;   // keep reference for re-sort on icon click
+
+  function _compVal(r, type) {
+    if (type === 'sale') return r.c_rev || 0;
+    if (type === 'qty')  return r.c_qty || 0;
+    return r.c_unique_cust || 0;
+  }
+
+  function _gVal(r, type) {
+    if (type === 'sale')  return r.b_rev > 1000 ? (r.c_rev - r.b_rev) / r.b_rev * 100 : (r.c_rev > 0 ? -Infinity : 0);
+    if (type === 'qty')   return r.b_qty > 0    ? (r.c_qty - r.b_qty) / r.b_qty * 100 : (r.c_qty > 0 ? -Infinity : 0);
+    return r.b_unique_cust > 0 ? (r.c_unique_cust - r.b_unique_cust) / r.b_unique_cust * 100 : (r.c_unique_cust > 0 ? -Infinity : 0);
+  }
+
+  function renderGDSection(type, dir) {
+    const tbodyId = { sale:'gd-sale-tbody', qty:'gd-qty-tbody', uniq:'gd-unique-tbody' }[type];
+    const iconId  = { sale:'gd-sale-sort-icon', qty:'gd-qty-sort-icon', uniq:'gd-uniq-sort-icon' }[type];
+    const tbody   = document.getElementById(tbodyId);
+    const iconEl  = document.getElementById(iconId);
+    if (!tbody) return;
+
+    // Icon: ⇅ = default comp order, ↓ = growth desc, ↑ = growth asc
+    if (iconEl) {
+      iconEl.textContent = dir === 'comp' ? '⇅' : dir === 'growth_desc' ? '↓' : '↑';
+      iconEl.style.opacity = dir === 'comp' ? '0.4' : '1';
+      iconEl.style.color   = dir === 'comp' ? '' : '#3b82f6';
+    }
+
+    const allRows = (window._gdRows || []).filter(r => (r.branch || '').toUpperCase() !== 'HEAD OFFICE');
+    const sorted = [...allRows].sort((a, b) => {
+      if (dir === 'comp')        return _compVal(b, type) - _compVal(a, type);
+      if (dir === 'growth_desc') return _gVal(b, type) - _gVal(a, type);
+      return _gVal(a, type) - _gVal(b, type);   // growth_asc
+    });
+
+    let html = sorted.map(r => {
+      if (type === 'sale') {
+        const g = r.b_rev > 1000 ? (r.c_rev - r.b_rev) / r.b_rev * 100 : (r.c_rev > 0 ? null : 0);
+        return `<tr onmouseover="this.style.background='rgba(59,130,246,0.04)'" onmouseout="this.style.background=''">
+          <td style="padding-left:1.25rem; font-weight:600; border-right:2px solid #64748b;">${r.branch}</td>
+          <td class="text-right">${fCr(r.b_rev||0)}</td>
+          <td class="text-right fw-bold">${fCr(r.c_rev||0)}</td>
+          <td class="text-right" style="padding-right:1.25rem;">${gBadge(g)}</td>
+        </tr>`;
+      } else if (type === 'qty') {
+        const g = r.b_qty > 0 ? (r.c_qty - r.b_qty) / r.b_qty * 100 : (r.c_qty > 0 ? null : 0);
+        return `<tr onmouseover="this.style.background='rgba(59,130,246,0.04)'" onmouseout="this.style.background=''">
+          <td style="padding-left:1.25rem; font-weight:600; border-right:2px solid #64748b;">${r.branch}</td>
+          <td class="text-right">${fN(r.b_qty||0)}</td>
+          <td class="text-right fw-bold">${fN(r.c_qty||0)}</td>
+          <td class="text-right" style="padding-right:1.25rem;">${gBadge(g)}</td>
+        </tr>`;
+      } else {
+        const g = r.b_unique_cust > 0 ? (r.c_unique_cust - r.b_unique_cust) / r.b_unique_cust * 100 : (r.c_unique_cust > 0 ? null : 0);
+        return `<tr onmouseover="this.style.background='rgba(59,130,246,0.04)'" onmouseout="this.style.background=''">
+          <td style="padding-left:1.25rem; font-weight:600; border-right:2px solid #64748b;">${r.branch}</td>
+          <td class="text-right">${fN(r.b_unique_cust||0)}</td>
+          <td class="text-right fw-bold">${fN(r.c_unique_cust||0)}</td>
+          <td class="text-right" style="padding-right:1.25rem;">${gBadge(g)}</td>
+        </tr>`;
+      }
+    }).join('');
+
+    // Grand Total always at bottom
+    if (type === 'sale') {
+      const g_tot = tot_b_rev > 1000 ? (tot_c_rev - tot_b_rev) / tot_b_rev * 100 : null;
+      html += `<tr class="grand-total"><td style="padding-left:1.25rem; border-right:2px solid #64748b;"><strong>Grand Total</strong></td>
+        <td class="text-right">${fCr(tot_b_rev)}</td><td class="text-right fw-bold">${fCr(tot_c_rev)}</td>
+        <td class="text-right" style="padding-right:1.25rem;">${gBadge(g_tot)}</td></tr>`;
+    } else if (type === 'qty') {
+      const g_tot = tot_b_qty > 0 ? (tot_c_qty - tot_b_qty) / tot_b_qty * 100 : null;
+      html += `<tr class="grand-total"><td style="padding-left:1.25rem; border-right:2px solid #64748b;"><strong>Grand Total</strong></td>
+        <td class="text-right">${fN(tot_b_qty)}</td><td class="text-right fw-bold">${fN(tot_c_qty)}</td>
+        <td class="text-right" style="padding-right:1.25rem;">${gBadge(g_tot)}</td></tr>`;
+    } else {
+      const g_tot = tot_b_cust > 0 ? (tot_c_cust - tot_b_cust) / tot_b_cust * 100 : null;
+      html += `<tr class="grand-total"><td style="padding-left:1.25rem; border-right:2px solid #64748b;"><strong>Grand Total</strong></td>
+        <td class="text-right">${fN(tot_b_cust)}</td><td class="text-right fw-bold">${fN(tot_c_cust)}</td>
+        <td class="text-right" style="padding-right:1.25rem;">${gBadge(g_tot)}</td></tr>`;
+    }
+    tbody.innerHTML = html;
+  }
+
+  // Toggle: comp → growth_desc → growth_asc → comp
+  window.gdSortToggle = function(type) {
+    const next = { comp: 'growth_desc', growth_desc: 'growth_asc', growth_asc: 'comp' };
+    window._gdSortDir[type] = next[window._gdSortDir[type]] || 'comp';
+    renderGDSection(type, window._gdSortDir[type]);
+  };
+
+  // Initial render — default: comp period descending
+  renderGDSection('sale', 'comp');
+  renderGDSection('qty',  'comp');
+  renderGDSection('uniq', 'comp');
+
+  // ── New & Repeat Table ──
+  // ── New & Repeat Table ──
+  const nrTbody = document.getElementById('gd-newrepeat-tbody');
+  if (nrTbody) {
+    // Sort by Total (Comp) descending
+    const sorted = [...rows].sort((a,b) => {
+      const at = (a.new_customers||0) + (a.repeat_customers||0);
+      const bt2 = (b.new_customers||0) + (b.repeat_customers||0);
+      return bt2 - at;
+    });
+    let html = sorted.map(r => {
+      const cNew   = (r.new_customers||0);
+      const cRep   = (r.repeat_customers||0);
+      const cTotal = cNew + cRep;
+      return `<tr onmouseover="this.style.background='rgba(59,130,246,0.04)'" onmouseout="this.style.background=''">
+        <td style="padding-left:1.25rem; font-weight:600; border-right:2px solid #64748b;">${r.branch}</td>
+        <td class="text-right fw-bold">${fN(cTotal)}</td>
+        <td class="text-right text-primary fw-bold">${fN(cRep)}</td>
+        <td class="text-right text-success fw-bold" style="padding-right:1.25rem;">${fN(cNew)}</td>
+      </tr>`;
+    }).join('');
+    // Grand Total row
+    const totCNew   = tot_new;
+    const totCRep   = tot_repeat;
+    const totCTotal = totCNew + totCRep;
+    html += `<tr class="grand-total">
+      <td style="padding-left:1.25rem; border-right:2px solid #64748b;"><strong>Grand Total</strong></td>
+      <td class="text-right"><strong>${fN(totCTotal)}</strong></td>
+      <td class="text-right text-primary fw-bold">${fN(totCRep)}</td>
+      <td class="text-right text-success fw-bold" style="padding-right:1.25rem;">${fN(totCNew)}</td>
+    </tr>`;
+    nrTbody.innerHTML = html;
+  }
+}
+
+async function loadGrowthDegrowthData() {
+  const badge = document.getElementById('gd-loading-badge');
+  if (badge) badge.style.display = 'inline-block';
+
+  // Show skeleton in all tbodys
+  ['gd-sale-tbody','gd-qty-tbody','gd-unique-tbody','gd-newrepeat-tbody'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = `<tr class="loading-row"><td colspan="10"><div class="skeleton" style="height:14px;width:60%"></div></td></tr>`;
+  });
+
+  try {
+    const type = document.getElementById('comp-type').value;
+    let apiType = type, base, comp, by, cy;
+    const customTypes = ['custom','mtd','mtd_yoy','qtd','qtd_yoy','ytd','ytd_existing','ytd_fy'];
+    if (customTypes.includes(type)) {
+      apiType = 'custom';
+      if (type !== 'custom') calculateQuickDates(type);
+      const drpB = $('#base-daterange').data('daterangepicker');
+      const drpC = $('#comp-daterange').data('daterangepicker');
+      if (!drpB || !drpC) { if(badge) badge.style.display='none'; return; }
+      base = drpB.startDate.format('YYYY-MM-DD')+'|'+drpB.endDate.format('YYYY-MM-DD');
+      comp = drpC.startDate.format('YYYY-MM-DD')+'|'+drpC.endDate.format('YYYY-MM-DD');
+      by = drpB.startDate.format('YYYY');
+      cy = drpC.startDate.format('YYYY');
+    } else {
+      base = document.getElementById('base-period').value;
+      comp = document.getElementById('comp-period').value;
+      by   = document.getElementById('base-year').value;
+      cy   = document.getElementById('comp-year').value;
+    }
+    const rbm     = window._dash_ts?.['dash-rbm']?.getValue().join(',')     || '';
+    const bdm     = window._dash_ts?.['dash-bdm']?.getValue().join(',')     || '';
+    const cat     = window._dash_ts?.['dash-cat']?.getValue().join(',')     || '';
+    const branch  = window._dash_ts?.['dash-branch']?.getValue().join(',')  || '';
+    const brand   = window._dash_ts?.['dash-brand']?.getValue().join(',')   || '';
+    const product = window._dash_ts?.['dash-product']?.getValue().join(',') || '';
+    const district= window._dash_ts?.['dash-district']?.getValue().join(',')|| '';
+    const state   = window._dash_ts?.['dash-state']?.getValue().join(',')   || '';
+
+    const url = `/api/v1/enterprise-dashboard/growth-degrowth/?type=${apiType}&base=${encodeURIComponent(base)}&comp=${encodeURIComponent(comp)}&base_year=${by}&comp_year=${cy}&category=${encodeURIComponent(cat)}&branch=${encodeURIComponent(branch)}&rbm=${encodeURIComponent(rbm)}&bdm=${encodeURIComponent(bdm)}&brand=${encodeURIComponent(brand)}&product=${encodeURIComponent(product)}&district=${encodeURIComponent(district)}&state=${encodeURIComponent(state)}`;
+    const res  = await fetch(url);
+    const json = await res.json();
+    if (json.status !== 'success') { console.error('GD API Error:', json.message); return; }
+
+    _gdData = json.data;
+    renderGrowthDegrowth(_gdData);
+
+  } catch(e) {
+    console.error('Growth & Degrowth load error:', e);
+    ['gd-sale-tbody','gd-qty-tbody','gd-unique-tbody','gd-newrepeat-tbody'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-danger">Failed to load data: ${e.message}</td></tr>`;
+    });
+  } finally {
+    if (badge) badge.style.display = 'none';
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
    Main load
 ══════════════════════════════════════════════════════════════════════════════ */
 async function loadDashboardData() {
@@ -1352,11 +2288,19 @@ async function loadDashboardData() {
 
     _data = json.data;
 
-    // ── Render all three panels ──
+    // ── Render all four panels ──
     renderScorecard(_data.scorecard);
     renderProductReport(_data.detailed_table);
     renderBrandReport(_data.detailed_table);
     renderBranchReport(_data.detailed_table);
+
+    // Reset GD cache so it reloads fresh with new filters
+    _gdData = null;
+    // If growth tab is active, reload it now
+    const growthPanel = document.getElementById('panel-growth');
+    if (growthPanel && growthPanel.style.display !== 'none') {
+      loadGrowthDegrowthData();
+    }
 
   } catch(e) {
     console.error(e);
@@ -1385,8 +2329,24 @@ document.addEventListener('DOMContentLoaded', () => {
       locale: { format: 'DD-MM-YYYY' },
       ranges: ranges,
       alwaysShowCalendars: true,
-      opens: 'left'
+      opens: 'left',
+      showDropdowns: true
     });
+
+    // Force year dropdown to always show 2020 → currentYear+1
+    const _drpMinYear = 2020;
+    const _drpMaxYear = new Date().getFullYear() + 1;
+    $('.daterange-picker').on('show.daterangepicker', function(ev, picker) {
+      $(picker.container).find('select.yearselect').each(function() {
+        const curVal = parseInt($(this).val()) || new Date().getFullYear();
+        let opts = '';
+        for (let y = _drpMinYear; y <= _drpMaxYear; y++) {
+          opts += `<option value="${y}"${y === curVal ? ' selected' : ''}>${y}</option>`;
+        }
+        $(this).html(opts);
+      });
+    });
+
     // Set some defaults just in case
     $('#base-daterange').data('daterangepicker').setStartDate(moment().subtract(1, 'month').startOf('month'));
     $('#base-daterange').data('daterangepicker').setEndDate(moment().subtract(1, 'month').endOf('month'));
@@ -1434,6 +2394,12 @@ document.addEventListener('DOMContentLoaded', () => {
       fill('dash-product', j.data.products);
       if(j.data.districts) fill('dash-district', j.data.districts);
       if(j.data.states)    fill('dash-state',    j.data.states);
+      // Store last data date and recalculate date pickers so they cap to real data
+      if (j.data.max_data_date) {
+        window._maxDataDate = j.data.max_data_date;
+        const cType = document.getElementById('comparison-type-select')?.value || 'mtd';
+        calculateQuickDates(cType);
+      }
     })
     .catch(e => console.error('Filter load failed', e));
 
