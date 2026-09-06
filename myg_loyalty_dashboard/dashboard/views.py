@@ -4247,3 +4247,329 @@ class SmartNextVisitSearchAPIView(LoginRequiredMixin, View):
         except Exception as e:
             import traceback
             return JsonResponse({'status': 'error', 'message': str(e), 'trace': traceback.format_exc()}, status=500)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Future Stores Sale Analysis  (Falnir / Balussery / Kottayam Future)
+# Data source: ClickHouse  azure_sales_report  (branch codes: FLF, BLF, KAF)
+# ─────────────────────────────────────────────────────────────────────────────
+
+FUTURE_STORE_BRANCHES = ['FLF', 'BLF', 'KAF']
+FUTURE_STORE_NAMES = {
+    'FLF': 'Falnir Future',
+    'BLF': 'Balussery Future',
+    'KAF': 'Kottayam Future',
+}
+
+
+class FutureSaleAnalysisView(LoginRequiredMixin, TemplateView):
+    """Page view — renders the Future Stores Sale Analysis dashboard."""
+    template_name = 'dashboard/future_sale_analysis.html'
+
+
+class FutureSaleAnalysisAPIView(LoginRequiredMixin, View):
+    """
+    GET /api/v1/future-sale-analysis/
+    Query params:
+        start          – YYYY-MM-DD  (optional)
+        end            – YYYY-MM-DD  (optional)
+        store          – branch code: FLF | BLF | KAF  (optional, omit = all 3)
+        compare_start  – YYYY-MM-DD  comparison period start (optional)
+        compare_end    – YYYY-MM-DD  comparison period end   (optional)
+
+    Returns JSON with:
+        totals          – aggregate for selected period
+        compare_totals  – aggregate for comparison period (if provided)
+        growth_pct      – % change dict {sale_value, invoices, unique_customers, avg_spend_cust, qty}
+        store_totals    – per-store aggregate
+        daily           – [{date, store, sale_value, invoices, qty, unique_customers}]
+        max_date        – latest date in the result set
+    """
+
+    def get(self, request):
+        try:
+            from analytics.clickhouse_service import get_ch_client
+            ch = get_ch_client()
+
+            start         = request.GET.get('start',         '').strip()
+            end           = request.GET.get('end',           '').strip()
+            store         = request.GET.get('store',         '').strip().upper()
+            compare_start = request.GET.get('compare_start', '').strip()
+            compare_end   = request.GET.get('compare_end',   '').strip()
+
+            # Build branch filter
+            if store and store in FUTURE_STORE_BRANCHES:
+                branch_list = [store]
+            else:
+                branch_list = FUTURE_STORE_BRANCHES
+
+            escaped = "','".join(b.replace("'", "''") for b in branch_list)
+            branch_cond = f"s.branch IN ('{escaped}')"
+
+            # Build date condition
+            date_cond_parts = ["toDate(s.date) != toDate('1970-01-01')", branch_cond]
+            if start:
+                date_cond_parts.append(f"toDate(s.date) >= toDate('{start}')")
+            if end:
+                date_cond_parts.append(f"toDate(s.date) <= toDate('{end}')")
+            where_clause = ' AND '.join(date_cond_parts)
+
+            # ── 1. Daily aggregation ───────────────────────────────────────────
+            daily_sql = f"""
+                SELECT
+                    toString(toDate(s.date))              AS sale_date,
+                    s.branch                               AS store,
+                    sum(toFloat64(s.sold_price))           AS sale_value,
+                    countDistinct(s.invoice_no)            AS invoices,
+                    sum(toInt64(s.qty))                    AS qty,
+                    countDistinct(i.customer_mobile)       AS unique_customers
+                FROM azure_sales_report s
+                LEFT JOIN azure_invoice_report i ON s.invoice_no = i.invoice_no
+                WHERE {where_clause}
+                GROUP BY sale_date, store
+                ORDER BY sale_date, store
+            """
+            daily_rows = ch.query(daily_sql).result_rows
+
+            daily = []
+            for row in daily_rows:
+                sale_date, store_code, sale_value, invoices, qty, unique_customers = row
+                daily.append({
+                    'date':             str(sale_date),
+                    'store':            store_code,
+                    'sale_value':       float(sale_value or 0),
+                    'invoices':         int(invoices or 0),
+                    'qty':              int(qty or 0),
+                    'unique_customers': int(unique_customers or 0),
+                })
+
+            # ── 2. Store-level totals ──────────────────────────────────────────
+            store_sql = f"""
+                SELECT
+                    s.branch                               AS store,
+                    sum(toFloat64(s.sold_price))           AS sale_value,
+                    countDistinct(s.invoice_no)            AS invoices,
+                    sum(toInt64(s.qty))                    AS qty,
+                    countDistinct(i.customer_mobile)       AS unique_customers,
+                    countDistinct(toDate(s.date))          AS active_days
+                FROM azure_sales_report s
+                LEFT JOIN azure_invoice_report i ON s.invoice_no = i.invoice_no
+                WHERE {where_clause}
+                GROUP BY store
+                ORDER BY store
+            """
+            store_rows = ch.query(store_sql).result_rows
+
+            store_totals = []
+            grand_sale = 0.0
+            grand_inv  = 0
+            grand_qty  = 0
+            grand_cust = 0
+            for row in store_rows:
+                sc, sv, inv, qty, cust, days = row
+                sv   = float(sv or 0)
+                inv  = int(inv or 0)
+                qty  = int(qty or 0)
+                cust = int(cust or 0)
+                days = int(days or 0)
+                grand_sale += sv
+                grand_inv  += inv
+                grand_qty  += qty
+                grand_cust += cust
+                store_totals.append({
+                    'store':            sc,
+                    'sale_value':       sv,
+                    'invoices':         inv,
+                    'qty':              qty,
+                    'unique_customers': cust,
+                    'active_days':      days,
+                    'avg_spend_cust':   round(sv / cust, 2) if cust else 0,
+                })
+
+            # ── Unique active days across ALL selected stores combined ──────────
+            # (do NOT sum per-store days — that inflates for multi-store view)
+            act_sql = f"""
+                SELECT countDistinct(toDate(s.date)) AS active_days
+                FROM azure_sales_report s
+                WHERE {where_clause}
+            """
+            act_row = ch.query(act_sql).result_rows
+            grand_days = int(act_row[0][0]) if act_row else 0
+
+            grand_avg_cust = round(grand_sale / grand_cust, 2) if grand_cust else 0
+            store_label = FUTURE_STORE_NAMES.get(store, 'All 3 Future Stores') if store else 'All 3 Future Stores'
+            totals = {
+                'sale_value':       grand_sale,
+                'invoices':         grand_inv,
+                'qty':              grand_qty,
+                'unique_customers': grand_cust,
+                'active_days':      grand_days,
+                'avg_spend_cust':   grand_avg_cust,
+                'store_label':      store_label,
+            }
+
+            # ── 3. Monthly aggregation ─────────────────────────────────────────
+            monthly_sql = f"""
+                SELECT
+                    formatDateTime(toStartOfMonth(toDate(s.date)), '%Y-%m') AS month,
+                    s.branch                                                  AS store,
+                    sum(toFloat64(s.sold_price))                              AS sale_value,
+                    countDistinct(s.invoice_no)                               AS invoices
+                FROM azure_sales_report s
+                WHERE {where_clause}
+                GROUP BY month, store
+                ORDER BY month, store
+            """
+            monthly_rows = ch.query(monthly_sql).result_rows
+            monthly = [
+                {'month': str(r[0]), 'store': r[1], 'sale_value': float(r[2] or 0), 'invoices': int(r[3] or 0)}
+                for r in monthly_rows
+            ]
+
+            # ── 4. Weekly ATV ──────────────────────────────────────────────────
+            weekly_sql = f"""
+                SELECT
+                    formatDateTime(toMonday(toDate(s.date)), '%Y-%m-%d')  AS week,
+                    s.branch                                                AS store,
+                    sum(toFloat64(s.sold_price)) /
+                        countDistinctIf(s.invoice_no, s.invoice_no != '') AS avg_bill
+                FROM azure_sales_report s
+                WHERE {where_clause}
+                GROUP BY week, store
+                ORDER BY week, store
+            """
+            weekly_rows = ch.query(weekly_sql).result_rows
+            weekly = [
+                {'week': str(r[0]), 'store': r[1], 'avg_bill': round(float(r[2] or 0), 2)}
+                for r in weekly_rows
+            ]
+
+            # ── 5. Max date ────────────────────────────────────────────────────
+            max_date = max((d['date'] for d in daily), default='')
+
+            # ── 5b. Product-wise breakdown ─────────────────────────────────────
+            product_sql = f"""
+                SELECT
+                    coalesce(nullIf(trim(m.product), ''), 'OTHERS') AS product,
+                    sum(toFloat64(s.sold_price))                      AS sale_value,
+                    sum(toInt64(s.qty))                               AS qty,
+                    countDistinct(s.invoice_no)                       AS invoices
+                FROM azure_sales_report s
+                LEFT JOIN item_master m ON s.item_code = m.item_code
+                WHERE {where_clause}
+                GROUP BY product
+                ORDER BY sale_value DESC
+                LIMIT 50
+            """
+            product_rows = ch.query(product_sql).result_rows
+            product_breakdown = [
+                {
+                    'product':    str(r[0]),
+                    'sale_value': float(r[1] or 0),
+                    'qty':        int(r[2] or 0),
+                    'invoices':   int(r[3] or 0),
+                }
+                for r in product_rows
+            ]
+
+            # ── 6. Comparison period (optional) ───────────────────────────────
+            compare_totals    = None
+            growth_pct        = {}
+            compare_products  = []
+            if compare_start or compare_end:
+                cmp_cond_parts = ["toDate(s.date) != toDate('1970-01-01')", branch_cond]
+                if compare_start:
+                    cmp_cond_parts.append(f"toDate(s.date) >= toDate('{compare_start}')")
+                if compare_end:
+                    cmp_cond_parts.append(f"toDate(s.date) <= toDate('{compare_end}')")
+                cmp_where = ' AND '.join(cmp_cond_parts)
+
+                cmp_sql = f"""
+                    SELECT
+                        sum(toFloat64(s.sold_price))        AS sale_value,
+                        countDistinct(s.invoice_no)         AS invoices,
+                        sum(toInt64(s.qty))                 AS qty,
+                        countDistinct(i.customer_mobile)    AS unique_customers
+                    FROM azure_sales_report s
+                    LEFT JOIN azure_invoice_report i ON s.invoice_no = i.invoice_no
+                    WHERE {cmp_where}
+                """
+                cmp_rows = ch.query(cmp_sql).result_rows
+                if cmp_rows:
+                    csv, cinv, cqty, ccust = cmp_rows[0]
+                    csv   = float(csv   or 0)
+                    cinv  = int(cinv  or 0)
+                    cqty  = int(cqty  or 0)
+                    ccust = int(ccust or 0)
+                    cavg  = round(csv / ccust, 2) if ccust else 0
+
+                    compare_totals = {
+                        'sale_value':       csv,
+                        'invoices':         cinv,
+                        'qty':              cqty,
+                        'unique_customers': ccust,
+                        'avg_spend_cust':   cavg,
+                    }
+
+                    def _pct(cur, prev):
+                        if not prev: return None
+                        return round((cur - prev) / prev * 100, 1)
+
+                    # grand_sale/grand_inv/etc = Comparison (This Period) = start/end
+                    # csv/cinv/etc             = Base (Previous)          = compare_start/compare_end
+                    # Growth = (This - Previous) / Previous
+                    growth_pct = {
+                        'sale_value':       _pct(grand_sale,     csv),
+                        'invoices':         _pct(grand_inv,      cinv),
+                        'qty':              _pct(grand_qty,      cqty),
+                        'unique_customers': _pct(grand_cust,     ccust),
+                        'avg_spend_cust':   _pct(grand_avg_cust, cavg),
+                    }
+
+                # Compare product-wise breakdown
+                cmp_product_sql = f"""
+                    SELECT
+                        coalesce(nullIf(trim(m.product), ''), 'OTHERS') AS product,
+                        sum(toFloat64(s.sold_price))                      AS sale_value,
+                        sum(toInt64(s.qty))                               AS qty,
+                        countDistinct(s.invoice_no)                       AS invoices
+                    FROM azure_sales_report s
+                    LEFT JOIN item_master m ON s.item_code = m.item_code
+                    WHERE {cmp_where}
+                    GROUP BY product
+                    ORDER BY sale_value DESC
+                    LIMIT 50
+                """
+                cmp_prod_rows = ch.query(cmp_product_sql).result_rows
+                compare_products = [
+                    {
+                        'product':    str(r[0]),
+                        'sale_value': float(r[1] or 0),
+                        'qty':        int(r[2] or 0),
+                        'invoices':   int(r[3] or 0),
+                    }
+                    for r in cmp_prod_rows
+                ]
+
+            return JsonResponse({
+                'status':            'success',
+                'totals':            totals,
+                'compare_totals':    compare_totals,
+                'growth_pct':        growth_pct,
+                'store_totals':      store_totals,
+                'daily':             daily,
+                'monthly':           monthly,
+                'weekly':            weekly,
+                'max_date':          max_date,
+                'product_breakdown': product_breakdown,
+                'compare_products':  compare_products,
+            })
+
+        except Exception as e:
+            import traceback
+            return JsonResponse({
+                'status':  'error',
+                'message': str(e),
+                'trace':   traceback.format_exc(),
+            }, status=500)
+

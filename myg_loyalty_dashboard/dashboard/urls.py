@@ -113,4 +113,9 @@ urlpatterns = [
     path('smart-next-visit/', views.SmartNextVisitView.as_view(), name='smart_next_visit'),
     path('api/v1/smart-next-visit/', views.SmartNextVisitAPIView.as_view(), name='smart_next_visit_api'),
     path('api/v1/smart-next-visit/search/', views.SmartNextVisitSearchAPIView.as_view(), name='smart_next_visit_search'),
+
+    # 🏪 Future Stores Sale Analysis  (Falnir / Balussery / Kottayam)
+    path('future-sale-analysis/', views.FutureSaleAnalysisView.as_view(), name='future_sale_analysis'),
+    path('api/v1/future-sale-analysis/', views.FutureSaleAnalysisAPIView.as_view(), name='future_sale_analysis_api'),
 ]
+

@@ -578,9 +578,28 @@
         {% endif %}
 
         {% if request.user.username != 'shestart' and request.user.username != 'mygusers' %}
+        <!-- Future Stores Sale Analysis -->
+        <div class="mb-2 mt-3" style="padding-left: 2.5rem;">
+            <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">Future Stores</small>
+        </div>
+        <ul class="nav flex-column mb-4">
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'future_sale_analysis' %}active{% endif %}"
+                   href="{% url 'future_sale_analysis' %}"
+                   style="border-left: 4px solid #6366f1; color: #4338ca; background: rgba(99,102,241,0.06); font-weight: 600;">
+                    <i class="bi bi-shop-window" style="color: #6366f1; font-size: 1.1rem; margin-right: 10px !important;"></i>
+                    Future Sale Analysis
+                    <span class="badge ms-1" style="background: linear-gradient(135deg,#6366f1,#8b5cf6); font-size: 8px; font-weight: 800; vertical-align: middle; box-shadow: 0 0 6px rgba(99,102,241,.4);">NEW</span>
+                </a>
+            </li>
+        </ul>
+        {% endif %}
+
+        {% if request.user.username != 'shestart' and request.user.username != 'mygusers' %}
         <div class="mb-2 mt-3" style="padding-left: 2.5rem;">
             <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">Store Analytics</small>
         </div>
+
         <ul class="nav flex-column mb-4">
             <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'store_analysis_upload' %}active{% endif %}" href="{% url 'store_analysis_upload' %}">
