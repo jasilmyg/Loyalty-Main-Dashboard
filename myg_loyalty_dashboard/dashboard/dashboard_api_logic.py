@@ -155,6 +155,12 @@ def build_api_response(request):
 
     ch = _get_ch()
 
+    if ch is None:
+        raise ConnectionError(
+            "ClickHouse is currently unavailable. Please try again in a few seconds "
+            "or contact your administrator if the issue persists."
+        )
+
     from .utils import get_branch_mappings
     code_to_name, name_to_code = get_branch_mappings(ch)
 

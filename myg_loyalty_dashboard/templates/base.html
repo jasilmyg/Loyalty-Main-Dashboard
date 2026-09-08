@@ -616,6 +616,11 @@
                     <i class="bi bi-layers-fill" style="color: #f59e0b; font-size: 1.1rem; margin-right: 10px !important;"></i> Product Penetration
                 </a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'mobile_ce_crosssell' %}active{% endif %}" href="{% url 'mobile_ce_crosssell' %}" style="border-left: 4px solid #2563eb; color: #1d4ed8; background: rgba(37,99,235,0.05); font-weight: 600;">
+                    <i class="bi bi-phone-fill" style="color: #2563eb; font-size: 1.1rem; margin-right: 10px !important;"></i> Mobile CE Reports
+                </a>
+            </li>
 
         </ul>
         {% endif %}

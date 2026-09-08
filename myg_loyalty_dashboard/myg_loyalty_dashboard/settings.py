@@ -177,6 +177,13 @@ LOGOUT_REDIRECT_URL = 'login'
 SESSION_COOKIE_AGE = 43200
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
+# CSRF: keep cookie lifetime in sync with session to avoid stale-token 403s
+CSRF_COOKIE_AGE = 43200
+
+# Custom CSRF failure handler — redirects to login with a friendly message
+# instead of showing Django's raw 403 page
+CSRF_FAILURE_VIEW = 'dashboard.views.csrf_failure'
+
 AUTHENTICATION_BACKENDS = [
     'users.backends.EnvAuthBackend',
     'django.contrib.auth.backends.ModelBackend',

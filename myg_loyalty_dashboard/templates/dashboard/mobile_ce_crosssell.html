@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Mobile CE Reports | myG Loyalty{% endblock %}
+{% block content %}
+<style>
+.rpt-page { max-width: 700px; margin: 3rem auto; }
+.rpt-hero {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 60%, #1d4ed8 100%);
+    border-radius: 20px; padding: 2rem 2.5rem; color: #fff; margin-bottom: 2rem;
+}
+.rpt-hero h1 { font-size: 1.5rem; font-weight: 800; margin-bottom: .3rem; }
+.rpt-hero p  { font-size: .88rem; opacity: .7; margin: 0; }
+.rpt-card {
+    background: #fff; border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(15,23,42,.08);
+    padding: 1.8rem 2rem; margin-bottom: 1.25rem;
+}
+.rpt-card.r1 { border-left: 5px solid #2563eb; }
+.rpt-card.r2 { border-left: 5px solid #059669; }
+.rpt-card-title { font-size: 1.05rem; font-weight: 700; color: #0f172a; margin-bottom: .3rem; }
+.rpt-card-sub   { font-size: .85rem; color: #64748b; margin-bottom: 1.1rem; }
+.rpt-card ul    { font-size: .84rem; color: #475569; margin: 0 0 1.2rem; padding-left: 1.3rem; }
+.rpt-card ul li { margin-bottom: .3rem; }
+.rpt-btn-blue {
+    display: inline-flex; align-items: center; gap: .5rem;
+    background: #2563eb; color: #fff;
+    font-size: .9rem; font-weight: 600;
+    padding: .65rem 1.5rem; border-radius: 10px;
+    text-decoration: none; transition: opacity .2s, transform .15s;
+}
+.rpt-btn-blue:hover { opacity: .88; transform: translateY(-1px); color: #fff; }
+.rpt-btn-green {
+    display: inline-flex; align-items: center; gap: .5rem;
+    background: #059669; color: #fff;
+    font-size: .9rem; font-weight: 600;
+    padding: .65rem 1.5rem; border-radius: 10px;
+    text-decoration: none; transition: opacity .2s, transform .15s;
+}
+.rpt-btn-green:hover { opacity: .88; transform: translateY(-1px); color: #fff; }
+.badge-blue  { font-size:.72rem;font-weight:700;padding:3px 10px;border-radius:20px;background:#eff6ff;color:#2563eb;display:inline-block;margin-bottom:.8rem; }
+.badge-green { font-size:.72rem;font-weight:700;padding:3px 10px;border-radius:20px;background:#d1fae5;color:#059669;display:inline-block;margin-bottom:.8rem; }
+.info-note-blue  { background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:.9rem 1.2rem;font-size:.83rem;color:#0369a1;margin-top:.8rem;display:flex;align-items:flex-start;gap:.5rem; }
+.info-note-green { background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:.9rem 1.2rem;font-size:.83rem;color:#166534;margin-top:.8rem;display:flex;align-items:flex-start;gap:.5rem; }
+@keyframes mce-spin { to { transform: rotate(360deg); } }
+.mce-spin { animation: mce-spin 1s linear infinite; display:inline-block; }
+</style>
+
+<div class="rpt-page">
+  <!-- Hero -->
+  <div class="rpt-hero">
+    <div class="d-flex align-items-center gap-3">
+      <i class="bi bi-file-earmark-excel-fill" style="font-size:2.2rem;opacity:.9;"></i>
+      <div>
+        <h1>Mobile CE Cross-Sell Reports</h1>
+        <p>Direct Excel download &mdash; no dashboard, data from ClickHouse</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Report 1 -->
+  <div class="rpt-card r1">
+    <span class="badge-blue">Report 1 &nbsp;&middot;&nbsp; Mobile &rarr; CE Cross-Sell</span>
+    <div class="rpt-card-title">Mobile Customers &mdash; Purchased / Not Purchased</div>
+    <div class="rpt-card-sub">
+      Mobile cut-off: <strong>30 June 2026</strong> &nbsp;&bull;&nbsp; CE purchase: any date
+    </div>
+    <ul>
+      <li>All customers who purchased <strong>Mobile</strong> on or before <strong>30 June 2026</strong></li>
+      <li>Shows each customer&rsquo;s status for: <strong>Television, Air Conditioner, Washing Machine, Refrigerator</strong></li>
+      <li><em>Sheet 1:</em> Customer-level list (Purchased / Not Purchased per product)</li>
+      <li><em>Sheet 2:</em> Summary &mdash; counts and penetration % per CE product</li>
+    </ul>
+    <a href="{% url 'mobile_ce_report1' %}" class="rpt-btn-blue" id="btn-rpt1">
+      <i class="bi bi-file-earmark-excel"></i>&nbsp; Download Excel &mdash; Report 1
+    </a>
+    <div class="info-note-blue">
+      <i class="bi bi-clock" style="flex-shrink:0;margin-top:1px;"></i>
+      <span>Queries ClickHouse live. Allow 30&ndash;90 seconds depending on dataset size.</span>
+    </div>
+  </div>
+
+  <!-- Report 2 -->
+  <div class="rpt-card r2">
+    <span class="badge-green">Report 2 &nbsp;&middot;&nbsp; CE Sales Jul 1 &ndash; Sep 5, 2026</span>
+    <div class="rpt-card-title">CE Customers &mdash; July 1 to September 5, 2026</div>
+    <div class="rpt-card-sub">
+      Products: Television &bull; Air Conditioner &bull; Washing Machine &bull; Refrigerator
+    </div>
+    <ul>
+      <li>Total unique customer count and total sale value (all 4 CE products combined)</li>
+      <li>Product-wise: unique customers, % of total, sale value in Rs.</li>
+      <li><em>Sheet 1:</em> Product-wise summary table with grand totals</li>
+      <li><em>Sheet 2:</em> Customer-level detail (mobile, product, sale value, date)</li>
+    </ul>
+    <a href="{% url 'mobile_ce_report2' %}" class="rpt-btn-green" id="btn-rpt2">
+      <i class="bi bi-file-earmark-excel"></i>&nbsp; Download Excel &mdash; Report 2
+    </a>
+    <div class="info-note-green">
+      <i class="bi bi-clock" style="flex-shrink:0;margin-top:1px;"></i>
+      <span>Queries ClickHouse live. Allow 30&ndash;90 seconds depending on dataset size.</span>
+    </div>
+  </div>
+
+</div><!-- /rpt-page -->
+
+<script>
+['btn-rpt1','btn-rpt2'].forEach(function(id) {
+    var btn = document.getElementById(id);
+    if (!btn) return;
+    btn.addEventListener('click', function() {
+        var orig = this.innerHTML;
+        this.innerHTML = '<span class="mce-spin"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10" stroke-opacity=".3"/><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/></svg></span>&nbsp; Generating...';
+        this.style.opacity = '0.7';
+        this.style.pointerEvents = 'none';
+        var self = this;
+        setTimeout(function() {
+            self.innerHTML = orig;
+            self.style.opacity = '';
+            self.style.pointerEvents = '';
+        }, 120000);
+    });
+});
+</script>
+{% endblock %}

@@ -276,6 +276,13 @@ def build_growth_degrowth_response(request):
         return cached
 
     ch = _get_ch()
+
+    if ch is None:
+        raise ConnectionError(
+            "ClickHouse is currently unavailable. Please try again in a few seconds "
+            "or contact your administrator if the issue persists."
+        )
+
     code_to_name, resolved_branch = _resolve_branch_filter(ch, branch, rbm, bdm, district, state)
 
     # Fetch branch metrics for base and comp periods

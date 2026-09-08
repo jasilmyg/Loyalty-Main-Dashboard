@@ -4,6 +4,22 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
 from django.utils.decorators import method_decorator
 from analytics.report_generator import generate_monthly_report_zip
+from django.contrib import messages
+
+
+def csrf_failure(request, reason=""):
+    """
+    Custom CSRF failure handler.
+    Instead of showing Django's raw 403 page, redirect the user to the login
+    page with a friendly message explaining their session expired.
+    """
+    messages.warning(
+        request,
+        "Your session has expired or the page is outdated. "
+        "Please log in again to continue."
+    )
+    return redirect('login')
+
 
 class AzureAnalyticsDashboardView(LoginRequiredMixin, TemplateView):
     template_name = 'dashboard/azure_analytics.html'
@@ -910,6 +926,59 @@ class TargetExecutiveView(LoginRequiredMixin, TemplateView):
             'jas_target_json':    jas_target,
             'base_customers':     base_customers,
             'avg_hist_rate':      avg_hist_rate,
+        })
+
+        # ── 3. JAS 26 quarter data (Revenue 2500 Cr & Customers 9 Lakhs) ────
+        jas26_cache_path = os.path.join(settings.BASE_DIR, 'analytics', 'jas26_cache.json')
+        jas26_data = {}
+        try:
+            with open(jas26_cache_path, 'r', encoding='utf-8') as f:
+                jas26_data = json.load(f)
+        except Exception:
+            pass
+
+        jas26_rev_target       = jas26_data.get('jas26_rev_target', 2500.0)
+        jas26_rev_achieved     = jas26_data.get('jas26_rev_achieved', 1794.78)
+        jas26_rev_pct          = jas26_data.get('jas26_rev_pct', 71.8)
+        jas26_rev_forecast     = jas26_data.get('jas26_rev_forecast', 2564.8)
+        jas26_rev_gap          = jas26_data.get('jas26_rev_gap', 705.22)
+        jas26_rev_status_badge = jas26_data.get('jas26_rev_status_badge', 'ON TRACK')
+        jas26_rev_risk_color   = jas26_data.get('jas26_rev_risk_color', '#10B981')
+
+        jas26_cust_target       = jas26_data.get('jas26_cust_target', 900000)
+        jas26_cust_achieved     = jas26_data.get('jas26_cust_achieved', 626900)
+        jas26_cust_pct          = jas26_data.get('jas26_cust_pct', 69.7)
+        jas26_cust_forecast     = jas26_data.get('jas26_cust_forecast', 890958)
+        jas26_cust_gap          = jas26_data.get('jas26_cust_gap', 273100)
+        jas26_cust_status_badge = jas26_data.get('jas26_cust_status_badge', 'AT RISK')
+        jas26_cust_risk_color   = jas26_data.get('jas26_cust_risk_color', '#F59E0B')
+
+        jas26_rev_daily_json  = json.dumps(jas26_data.get('jas26_rev_daily_json', []))
+        jas26_rev_lstm_json   = json.dumps(jas26_data.get('jas26_rev_lstm_json', []))
+        jas26_cust_daily_json = json.dumps(jas26_data.get('jas26_cust_daily_json', []))
+        jas26_cust_lstm_json  = json.dumps(jas26_data.get('jas26_cust_lstm_json', []))
+
+        context.update({
+            'jas26_rev_target':       jas26_rev_target,
+            'jas26_rev_achieved':     jas26_rev_achieved,
+            'jas26_rev_pct':          jas26_rev_pct,
+            'jas26_rev_forecast':     jas26_rev_forecast,
+            'jas26_rev_gap':          jas26_rev_gap,
+            'jas26_rev_status_badge': jas26_rev_status_badge,
+            'jas26_rev_risk_color':   jas26_rev_risk_color,
+
+            'jas26_cust_target':       jas26_cust_target,
+            'jas26_cust_achieved':     jas26_cust_achieved,
+            'jas26_cust_pct':          jas26_cust_pct,
+            'jas26_cust_forecast':     jas26_cust_forecast,
+            'jas26_cust_gap':          jas26_cust_gap,
+            'jas26_cust_status_badge': jas26_cust_status_badge,
+            'jas26_cust_risk_color':   jas26_cust_risk_color,
+
+            'jas26_rev_daily_json':  jas26_rev_daily_json,
+            'jas26_rev_lstm_json':   jas26_rev_lstm_json,
+            'jas26_cust_daily_json': jas26_cust_daily_json,
+            'jas26_cust_lstm_json':  jas26_cust_lstm_json,
         })
 
         return context
@@ -4573,3 +4642,19 @@ class FutureSaleAnalysisAPIView(LoginRequiredMixin, View):
                 'trace':   traceback.format_exc(),
             }, status=500)
 
+
+
+# ─── Mobile CE Cross-Sell stub views (referenced in urls.py, not yet implemented) ───
+
+class MobileCECrossSellView(LoginRequiredMixin, TemplateView):
+    template_name = 'dashboard/index.html'  # placeholder until real template is built
+
+class MobileCECrossSellReport1View(LoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        from django.http import HttpResponse
+        return HttpResponse('Mobile CE Cross-Sell Report 1 – Coming Soon', content_type='text/plain')
+
+class MobileCECrossSellReport2View(LoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        from django.http import HttpResponse
+        return HttpResponse('Mobile CE Cross-Sell Report 2 – Coming Soon', content_type='text/plain')

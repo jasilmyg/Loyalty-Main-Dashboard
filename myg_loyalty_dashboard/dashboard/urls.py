@@ -117,5 +117,10 @@ urlpatterns = [
     # 🏪 Future Stores Sale Analysis  (Falnir / Balussery / Kottayam)
     path('future-sale-analysis/', views.FutureSaleAnalysisView.as_view(), name='future_sale_analysis'),
     path('api/v1/future-sale-analysis/', views.FutureSaleAnalysisAPIView.as_view(), name='future_sale_analysis_api'),
+
+    # 📱 Mobile CE Cross-Sell Reports (download only)
+    path('mobile-ce-crosssell/', views.MobileCECrossSellView.as_view(), name='mobile_ce_crosssell'),
+    path('download/mobile-ce-report1/', views.MobileCECrossSellReport1View.as_view(), name='mobile_ce_report1'),
+    path('download/mobile-ce-report2/', views.MobileCECrossSellReport2View.as_view(), name='mobile_ce_report2'),
 ]
 
