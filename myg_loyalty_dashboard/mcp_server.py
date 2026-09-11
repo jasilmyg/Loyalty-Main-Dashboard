@@ -1,5 +1,10 @@
 import os
 import sys
+import hmac
+import hashlib
+import time
+import json
+import base64
 
 import django
 from mcp.server.fastmcp import FastMCP
@@ -14,6 +19,40 @@ django.setup()
 
 # Determine port from Render environment variables
 port = int(os.environ.get("PORT", 8001))
+
+# ── OAuth 2.0 Credentials (set these as Render env vars) ─────────────────────
+# MCP_CLIENT_ID   = e.g. "myg-loyalty-portal"
+# MCP_CLIENT_SECRET = e.g. "your-strong-secret-here"
+# MCP_TOKEN_SECRET  = random 32+ char string used to sign tokens
+CLIENT_ID     = os.environ.get("MCP_CLIENT_ID",     "myg-loyalty-portal")
+CLIENT_SECRET = os.environ.get("MCP_CLIENT_SECRET", "myg-secret-2026!")
+TOKEN_SECRET  = os.environ.get("MCP_TOKEN_SECRET",  "myg-token-signing-secret-2026")
+TOKEN_TTL_SEC = int(os.environ.get("MCP_TOKEN_TTL", 3600))  # 1 hour default
+
+
+def _make_token(client_id: str) -> str:
+    """Create a signed HMAC-SHA256 bearer token."""
+    payload = json.dumps({"sub": client_id, "iat": int(time.time()), "exp": int(time.time()) + TOKEN_TTL_SEC})
+    payload_b64 = base64.urlsafe_b64encode(payload.encode()).decode().rstrip("=")
+    sig = hmac.new(TOKEN_SECRET.encode(), payload_b64.encode(), hashlib.sha256).hexdigest()
+    return f"{payload_b64}.{sig}"
+
+
+def _verify_token(token: str) -> bool:
+    """Verify a signed HMAC-SHA256 bearer token."""
+    try:
+        payload_b64, sig = token.rsplit(".", 1)
+        expected_sig = hmac.new(TOKEN_SECRET.encode(), payload_b64.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expected_sig):
+            return False
+        # Add padding back
+        padded = payload_b64 + "=" * (4 - len(payload_b64) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(padded).decode())
+        if payload.get("exp", 0) < int(time.time()):
+            return False  # expired
+        return True
+    except Exception:
+        return False
 
 # Create FastMCP server
 mcp = FastMCP(
@@ -284,18 +323,102 @@ def execute_custom_query(sql: str) -> List[Dict[str, Any]]:
 
 
 from starlette.middleware.cors import CORSMiddleware
-from starlette.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
+from starlette.requests import Request
 
-# Streamable HTTP is the modern MCP transport (Claude recommends this over SSE)
+# Streamable HTTP is the modern MCP transport
 app = mcp.streamable_http_app()
 
-async def health_check(request):
-    return JSONResponse({"status": "ok", "mcp": "myg-portal"})
-    
-app.routes.insert(0, Route("/", health_check, methods=["GET"]))
 
-# Add CORS middleware so Gemini UI can connect from gemini.google.com
+# ── Public routes (no auth needed) ───────────────────────────────────────────
+PUBLIC_PATHS = {"/", "/health", "/.well-known/oauth-authorization-server", "/oauth/token"}
+
+
+class BearerAuthMiddleware(BaseHTTPMiddleware):
+    """Validate Bearer token on all /mcp and protected routes."""
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path in PUBLIC_PATHS:
+            return await call_next(request)
+        auth = request.headers.get("Authorization", "")
+        if not auth.startswith("Bearer "):
+            return JSONResponse({"error": "unauthorized", "error_description": "Bearer token required"}, status_code=401)
+        token = auth[7:].strip()
+        if not _verify_token(token):
+            return JSONResponse({"error": "invalid_token", "error_description": "Token is invalid or expired"}, status_code=401)
+        return await call_next(request)
+
+
+# ── Endpoint: OAuth metadata ─────────────────────────────────────────────────
+async def oauth_metadata(request: Request):
+    base = str(request.base_url).rstrip("/")
+    return JSONResponse({
+        "issuer": base,
+        "token_endpoint": f"{base}/oauth/token",
+        "grant_types_supported": ["client_credentials"],
+        "token_endpoint_auth_methods_supported": ["client_secret_post", "client_secret_basic"],
+        "response_types_supported": ["token"],
+        "scopes_supported": ["mcp:read"],
+    })
+
+
+# ── Endpoint: Token issuance ──────────────────────────────────────────────────
+async def token_endpoint(request: Request):
+    content_type = request.headers.get("content-type", "")
+    if "application/x-www-form-urlencoded" in content_type or "multipart" in content_type:
+        form = await request.form()
+        grant_type   = form.get("grant_type", "")
+        client_id    = form.get("client_id", "")
+        client_secret = form.get("client_secret", "")
+    else:
+        try:
+            body = await request.json()
+            grant_type    = body.get("grant_type", "")
+            client_id     = body.get("client_id", "")
+            client_secret = body.get("client_secret", "")
+        except Exception:
+            return JSONResponse({"error": "invalid_request"}, status_code=400)
+
+    # Also check HTTP Basic auth
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Basic "):
+        try:
+            decoded = base64.b64decode(auth_header[6:]).decode()
+            client_id, client_secret = decoded.split(":", 1)
+        except Exception:
+            pass
+
+    if grant_type != "client_credentials":
+        return JSONResponse({"error": "unsupported_grant_type"}, status_code=400)
+
+    if client_id != CLIENT_ID or client_secret != CLIENT_SECRET:
+        return JSONResponse({"error": "invalid_client", "error_description": "Invalid client_id or client_secret"}, status_code=401)
+
+    token = _make_token(client_id)
+    return JSONResponse({
+        "access_token": token,
+        "token_type": "Bearer",
+        "expires_in": TOKEN_TTL_SEC,
+        "scope": "mcp:read",
+    })
+
+
+# ── Health check ──────────────────────────────────────────────────────────────
+async def health_check(request: Request):
+    return JSONResponse({"status": "ok", "mcp": "myg-portal", "auth": "oauth2-client-credentials"})
+
+
+# Insert routes BEFORE the MCP routes
+app.routes.insert(0, Route("/",                                      health_check,   methods=["GET"]))
+app.routes.insert(1, Route("/health",                                health_check,   methods=["GET"]))
+app.routes.insert(2, Route("/.well-known/oauth-authorization-server", oauth_metadata, methods=["GET"]))
+app.routes.insert(3, Route("/oauth/token",                           token_endpoint, methods=["POST"]))
+
+# Add auth middleware AFTER route insertion
+app.add_middleware(BearerAuthMiddleware)
+
+# Add CORS so Claude UI can reach the server
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -305,6 +428,4 @@ app.add_middleware(
 
 if __name__ == "__main__":
     import uvicorn
-    # Run the server — Render injects PORT automatically
     uvicorn.run(app, host="0.0.0.0", port=port)
-
