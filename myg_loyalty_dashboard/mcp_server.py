@@ -1,4 +1,4 @@
-import os
+﻿import os
 import sys
 import hmac
 import hashlib
@@ -324,16 +324,25 @@ def execute_custom_query(sql: str) -> List[Dict[str, Any]]:
 
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import JSONResponse, Response
+from starlette.responses import JSONResponse, Response, HTMLResponse, RedirectResponse
 from starlette.routing import Route
 from starlette.requests import Request
+import secrets
+import urllib.parse
 
 # Streamable HTTP is the modern MCP transport
 app = mcp.streamable_http_app()
 
+# ── In-memory auth code store: {code: {client_id, redirect_uri, code_challenge, exp}} ──
+_auth_codes: dict = {}
 
 # ── Public routes (no auth needed) ───────────────────────────────────────────
-PUBLIC_PATHS = {"/", "/health", "/.well-known/oauth-authorization-server", "/oauth/token"}
+PUBLIC_PATHS = {
+    "/", "/health",
+    "/.well-known/oauth-authorization-server",
+    "/oauth/token",
+    "/authorize",
+}
 
 
 class BearerAuthMiddleware(BaseHTTPMiddleware):
@@ -343,44 +352,157 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         auth = request.headers.get("Authorization", "")
         if not auth.startswith("Bearer "):
-            return JSONResponse({"error": "unauthorized", "error_description": "Bearer token required"}, status_code=401)
+            return JSONResponse(
+                {"error": "unauthorized", "error_description": "Bearer token required"},
+                status_code=401,
+            )
         token = auth[7:].strip()
         if not _verify_token(token):
-            return JSONResponse({"error": "invalid_token", "error_description": "Token is invalid or expired"}, status_code=401)
+            return JSONResponse(
+                {"error": "invalid_token", "error_description": "Token is invalid or expired"},
+                status_code=401,
+            )
         return await call_next(request)
 
 
-# ── Endpoint: OAuth metadata ─────────────────────────────────────────────────
+# ── Endpoint: OAuth metadata ──────────────────────────────────────────────────
 async def oauth_metadata(request: Request):
     base = str(request.base_url).rstrip("/")
     return JSONResponse({
         "issuer": base,
+        "authorization_endpoint": f"{base}/authorize",
         "token_endpoint": f"{base}/oauth/token",
-        "grant_types_supported": ["client_credentials"],
-        "token_endpoint_auth_methods_supported": ["client_secret_post", "client_secret_basic"],
-        "response_types_supported": ["token"],
+        "grant_types_supported": ["authorization_code", "client_credentials"],
+        "response_types_supported": ["code"],
+        "code_challenge_methods_supported": ["S256", "plain"],
+        "token_endpoint_auth_methods_supported": ["client_secret_post", "client_secret_basic", "none"],
         "scopes_supported": ["mcp:read"],
     })
 
 
-# ── Endpoint: Token issuance ──────────────────────────────────────────────────
+# ── Endpoint: Authorization page (GET = show page, POST = approve) ────────────
+async def authorize_endpoint(request: Request):
+    params = dict(request.query_params)
+    client_id      = params.get("client_id", "")
+    redirect_uri   = params.get("redirect_uri", "")
+    state          = params.get("state", "")
+    code_challenge = params.get("code_challenge", "")
+    code_challenge_method = params.get("code_challenge_method", "S256")
+
+    if request.method == "GET":
+        # Show a styled authorization approval page
+        html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Authorize — myG Loyalty Portal</title>
+  <style>
+    * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+    body {{ background: #0b1120; font-family: 'Segoe UI', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; }}
+    .card {{ background: #1e293b; border: 1px solid rgba(245,158,11,.25); border-radius: 16px; padding: 40px 36px; width: 420px; box-shadow: 0 25px 60px rgba(0,0,0,.5); }}
+    .logo {{ font-size: 1.5rem; font-weight: 800; color: #f59e0b; letter-spacing: -0.5px; margin-bottom: 6px; }}
+    .logo span {{ color: #f1f5f9; }}
+    .subtitle {{ color: #64748b; font-size: .85rem; margin-bottom: 28px; }}
+    h2 {{ color: #f1f5f9; font-size: 1.1rem; margin-bottom: 8px; }}
+    .app-badge {{ background: rgba(99,102,241,.15); border: 1px solid rgba(99,102,241,.3); border-radius: 8px; padding: 10px 14px; margin: 16px 0 24px; display: flex; align-items: center; gap: 10px; }}
+    .app-icon {{ width: 36px; height: 36px; background: #6366f1; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: .9rem; flex-shrink: 0; }}
+    .app-name {{ color: #a5b4fc; font-weight: 600; }}
+    .app-desc {{ color: #64748b; font-size: .75rem; }}
+    .perms {{ background: rgba(255,255,255,.03); border-radius: 10px; padding: 14px 16px; margin-bottom: 24px; }}
+    .perm {{ display: flex; align-items: center; gap: 10px; color: #94a3b8; font-size: .82rem; padding: 5px 0; }}
+    .perm::before {{ content: "✓"; color: #10b981; font-weight: 700; }}
+    .btn-approve {{ width: 100%; background: linear-gradient(135deg, #f59e0b, #d97706); color: #1a1a1a; font-weight: 700; font-size: .95rem; border: none; border-radius: 10px; padding: 13px; cursor: pointer; margin-bottom: 10px; transition: opacity .2s; }}
+    .btn-approve:hover {{ opacity: .9; }}
+    .btn-deny {{ width: 100%; background: transparent; color: #64748b; font-size: .85rem; border: 1px solid rgba(255,255,255,.08); border-radius: 10px; padding: 11px; cursor: pointer; transition: border-color .2s; }}
+    .btn-deny:hover {{ border-color: #f87171; color: #f87171; }}
+    .footer {{ text-align: center; color: #475569; font-size: .72rem; margin-top: 20px; }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">myG <span>Loyalty Portal</span></div>
+    <div class="subtitle">MCP Data Connector</div>
+    <h2>Authorize Access</h2>
+    <div class="app-badge">
+      <div class="app-icon">C</div>
+      <div>
+        <div class="app-name">Claude (Anthropic)</div>
+        <div class="app-desc">{client_id}</div>
+      </div>
+    </div>
+    <div class="perms">
+      <div class="perm">Read sales & revenue data</div>
+      <div class="perm">Query branch & store performance</div>
+      <div class="perm">Access customer analytics</div>
+      <div class="perm">Run read-only ClickHouse queries</div>
+    </div>
+    <form method="POST">
+      <input type="hidden" name="client_id" value="{client_id}">
+      <input type="hidden" name="redirect_uri" value="{redirect_uri}">
+      <input type="hidden" name="state" value="{state}">
+      <input type="hidden" name="code_challenge" value="{code_challenge}">
+      <input type="hidden" name="code_challenge_method" value="{code_challenge_method}">
+      <button type="submit" name="action" value="approve" class="btn-approve">✓ Allow Access</button>
+      <button type="submit" name="action" value="deny" class="btn-deny">Deny</button>
+    </form>
+    <div class="footer">myG Loyalty Portal · Kerala, India · Read-only access</div>
+  </div>
+</body>
+</html>"""
+        return HTMLResponse(html)
+
+    # POST: process approval
+    form = await request.form()
+    action         = form.get("action", "deny")
+    client_id      = form.get("client_id", "")
+    redirect_uri   = form.get("redirect_uri", "")
+    state          = form.get("state", "")
+    code_challenge = form.get("code_challenge", "")
+    code_challenge_method = form.get("code_challenge_method", "S256")
+
+    if action != "approve":
+        qs = urllib.parse.urlencode({"error": "access_denied", "state": state})
+        return RedirectResponse(f"{redirect_uri}?{qs}", status_code=302)
+
+    # Generate auth code
+    code = secrets.token_urlsafe(32)
+    _auth_codes[code] = {
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "code_challenge": code_challenge,
+        "code_challenge_method": code_challenge_method,
+        "exp": int(time.time()) + 300,  # 5 min TTL
+    }
+
+    qs = urllib.parse.urlencode({"code": code, "state": state})
+    return RedirectResponse(f"{redirect_uri}?{qs}", status_code=302)
+
+
+# ── Endpoint: Token issuance (client_credentials + authorization_code) ────────
 async def token_endpoint(request: Request):
     content_type = request.headers.get("content-type", "")
     if "application/x-www-form-urlencoded" in content_type or "multipart" in content_type:
         form = await request.form()
-        grant_type   = form.get("grant_type", "")
-        client_id    = form.get("client_id", "")
-        client_secret = form.get("client_secret", "")
+        grant_type     = form.get("grant_type", "")
+        client_id      = form.get("client_id", "")
+        client_secret  = form.get("client_secret", "")
+        code           = form.get("code", "")
+        redirect_uri   = form.get("redirect_uri", "")
+        code_verifier  = form.get("code_verifier", "")
     else:
         try:
             body = await request.json()
-            grant_type    = body.get("grant_type", "")
-            client_id     = body.get("client_id", "")
-            client_secret = body.get("client_secret", "")
+            grant_type     = body.get("grant_type", "")
+            client_id      = body.get("client_id", "")
+            client_secret  = body.get("client_secret", "")
+            code           = body.get("code", "")
+            redirect_uri   = body.get("redirect_uri", "")
+            code_verifier  = body.get("code_verifier", "")
         except Exception:
             return JSONResponse({"error": "invalid_request"}, status_code=400)
 
-    # Also check HTTP Basic auth
+    # HTTP Basic auth fallback
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Basic "):
         try:
@@ -389,36 +511,70 @@ async def token_endpoint(request: Request):
         except Exception:
             pass
 
-    if grant_type != "client_credentials":
-        return JSONResponse({"error": "unsupported_grant_type"}, status_code=400)
+    # ── Grant: authorization_code ──────────────────────────────────────────
+    if grant_type == "authorization_code":
+        entry = _auth_codes.pop(code, None)
+        if not entry:
+            return JSONResponse({"error": "invalid_grant", "error_description": "Code not found or expired"}, status_code=400)
+        if entry["exp"] < int(time.time()):
+            return JSONResponse({"error": "invalid_grant", "error_description": "Code expired"}, status_code=400)
+        if entry["client_id"] and client_id and entry["client_id"] != client_id:
+            return JSONResponse({"error": "invalid_client"}, status_code=401)
+        if entry["redirect_uri"] and entry["redirect_uri"] != redirect_uri:
+            return JSONResponse({"error": "invalid_grant", "error_description": "redirect_uri mismatch"}, status_code=400)
 
-    if client_id != CLIENT_ID or client_secret != CLIENT_SECRET:
-        return JSONResponse({"error": "invalid_client", "error_description": "Invalid client_id or client_secret"}, status_code=401)
+        # PKCE verification
+        if entry.get("code_challenge"):
+            if not code_verifier:
+                return JSONResponse({"error": "invalid_grant", "error_description": "code_verifier required"}, status_code=400)
+            method = entry.get("code_challenge_method", "S256")
+            if method == "S256":
+                digest = hashlib.sha256(code_verifier.encode()).digest()
+                computed = base64.urlsafe_b64encode(digest).decode().rstrip("=")
+            else:
+                computed = code_verifier
+            if not hmac.compare_digest(computed, entry["code_challenge"]):
+                return JSONResponse({"error": "invalid_grant", "error_description": "PKCE verification failed"}, status_code=400)
 
-    token = _make_token(client_id)
-    return JSONResponse({
-        "access_token": token,
-        "token_type": "Bearer",
-        "expires_in": TOKEN_TTL_SEC,
-        "scope": "mcp:read",
-    })
+        token = _make_token(client_id or entry["client_id"])
+        return JSONResponse({
+            "access_token": token,
+            "token_type": "Bearer",
+            "expires_in": TOKEN_TTL_SEC,
+            "scope": "mcp:read",
+        })
+
+    # ── Grant: client_credentials ──────────────────────────────────────────
+    if grant_type == "client_credentials":
+        if client_id != CLIENT_ID or client_secret != CLIENT_SECRET:
+            return JSONResponse({"error": "invalid_client", "error_description": "Invalid credentials"}, status_code=401)
+        token = _make_token(client_id)
+        return JSONResponse({
+            "access_token": token,
+            "token_type": "Bearer",
+            "expires_in": TOKEN_TTL_SEC,
+            "scope": "mcp:read",
+        })
+
+    return JSONResponse({"error": "unsupported_grant_type"}, status_code=400)
 
 
 # ── Health check ──────────────────────────────────────────────────────────────
 async def health_check(request: Request):
-    return JSONResponse({"status": "ok", "mcp": "myg-portal", "auth": "oauth2-client-credentials"})
+    return JSONResponse({"status": "ok", "mcp": "myg-portal", "auth": "oauth2"})
 
 
 # Insert routes BEFORE the MCP routes
-app.routes.insert(0, Route("/",                                      health_check,   methods=["GET"]))
-app.routes.insert(1, Route("/health",                                health_check,   methods=["GET"]))
-app.routes.insert(2, Route("/.well-known/oauth-authorization-server", oauth_metadata, methods=["GET"]))
-app.routes.insert(3, Route("/oauth/token",                           token_endpoint, methods=["POST"]))
+app.routes.insert(0, Route("/",                                      health_check,       methods=["GET"]))
+app.routes.insert(1, Route("/health",                                health_check,       methods=["GET"]))
+app.routes.insert(2, Route("/.well-known/oauth-authorization-server", oauth_metadata,   methods=["GET"]))
+app.routes.insert(3, Route("/oauth/token",                           token_endpoint,     methods=["POST"]))
+app.routes.insert(4, Route("/authorize",                             authorize_endpoint, methods=["GET", "POST"]))
 
-# Add auth middleware AFTER route insertion
+# Bearer auth middleware
 app.add_middleware(BearerAuthMiddleware)
 
-# Add CORS so Claude UI can reach the server
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -429,3 +585,4 @@ app.add_middleware(
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=port)
+
