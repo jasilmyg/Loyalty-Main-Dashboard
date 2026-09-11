@@ -1,60 +1,49 @@
 import os
 import time
-import requests
 import json
+from openai import OpenAI
 
 # ───────────────────────────────────────────────────────────────────────────
-# CONFIRMED WORKING: nvidia/nemotron-3-ultra-550b-a55b:free on OpenRouter
-# Tested: 7.4s response time. Only working model on this OpenRouter account.
-# NVIDIA NIM (integrate.api.nvidia.com) is NOT reachable from this network.
+# EXPERIENTIAL LABS API: gpt-6-astra
 # ───────────────────────────────────────────────────────────────────────────
 
-OPENROUTER_KEY = os.environ.get("OPENROUTER_API_KEY", "")
-OPENROUTER_URL   = "https://openrouter.ai/api/v1/chat/completions"
-WORKING_MODEL    = "nvidia/nemotron-3-ultra-550b-a55b:free"   # confirmed 7.4s response
-OR_HEADERS = {
-    "Authorization": "Bearer " + OPENROUTER_KEY,
-    "Content-Type":  "application/json",
-    "HTTP-Referer":  "https://myg-loyalty.com",
-    "X-Title":       "myG Loyalty AI",
-}
-
+XPL_API_KEY = "xpl_3f8ef2aa59f0cae1539e2118782e5f6dd34c993f"
+WORKING_MODEL = "gpt-6-astra"
 
 class AnalystAgent:
-    """Uses nvidia/nemotron-3-ultra-550b-a55b:free via OpenRouter (confirmed working, ~7-40s)."""
+    """Uses gpt-6-astra via Experiential Labs API."""
 
     def __init__(self):
-        pass
+        self.client = OpenAI(
+            base_url="https://api.experientiallabs.ai/v1",
+            api_key=XPL_API_KEY
+        )
 
     # ─────────────────────────────────────────────────────────────────────────
-    # CORE: Single API call with reasoning enabled + retry + fallback
+    # CORE: Single API call
     # ─────────────────────────────────────────────────────────────────────────
     def _call_api(self, messages: list, timeout: int = 90) -> dict:
         """
-        Calls nvidia/nemotron-3-ultra-550b-a55b:free via OpenRouter.
-        This is the only confirmed-working model on this account (~7-40s).
+        Calls gpt-6-astra via Experiential Labs API.
         """
-        payload = {
-            "model":      WORKING_MODEL,
-            "messages":   messages,
-            "max_tokens": 4096,
-        }
         try:
-            r = requests.post(
-                OPENROUTER_URL,
-                headers=OR_HEADERS,
-                json=payload,
+            response = self.client.chat.completions.create(
+                model=WORKING_MODEL,
+                messages=messages,
                 timeout=timeout
             )
-            r.raise_for_status()
-            msg = r.json()["choices"][0]["message"]
-            content = msg.get("content", "").strip()
+            content = response.choices[0].message.content.strip()
+            
             if content:
-                msg["_model_used"] = WORKING_MODEL
-                return msg
-            raise ValueError("Empty response from Nemotron")
+                # Return dict matching expected structure
+                return {
+                    "content": content,
+                    "_model_used": WORKING_MODEL,
+                    "reasoning_details": None # gpt-6-astra might not have reasoning details field by default
+                }
+            raise ValueError("Empty response from gpt-6-astra")
         except Exception as e:
-            raise RuntimeError(f"Nemotron unavailable: {e}")
+            raise RuntimeError(f"Experiential Labs API unavailable: {e}")
 
 
 

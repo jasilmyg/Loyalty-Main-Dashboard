@@ -155,12 +155,12 @@ class AnalyticsService:
     # ── Category Analysis ──────────────────────────────────────────────────────
     def get_category_analysis(self, filters):
         ch_where, params = self._build_ch_where_clause(filters)
-        
-        # Replace 'parsed_date' with our string date parsing for item_wise table
-        ch_where = ch_where.replace("parsed_date", "toDate(parseDateTimeBestEffort(date))")
-        
+
+        # azure_sales_report uses DateTime 'date' column — remap parsed_date filter
+        ch_where = ch_where.replace("parsed_date", "toDate(date)")
+
         sql = f"""
-        SELECT 
+        SELECT
             multiIf(
                 prefix = 'MOB', 'Mobile',
                 prefix = 'STY', 'Stationery',
@@ -188,19 +188,21 @@ class AnalyticsService:
             SUM(sold_price) AS revenue,
             SUM(qty) AS quantity
         FROM (
-            SELECT 
+            SELECT
                 extract(item_code, '^([A-Za-z]+)') AS prefix,
                 sold_price,
                 qty
-            FROM item_wise_sales_data
+            FROM azure_sales_report
             WHERE {ch_where}
+              AND toDate(date) != toDate('1970-01-01')
+              AND sold_price > 0
         )
         GROUP BY category
         ORDER BY revenue DESC
         """
-        
+
         rows = _ch_q(sql, params)
-        
+
         # Format for charts
         data = []
         for r in rows:
@@ -209,7 +211,7 @@ class AnalyticsService:
                 'revenue': float(r[1]) if r[1] else 0,
                 'quantity': int(r[2]) if r[2] else 0
             })
-            
+
         return data
 
     # ── Sales Overview ─────────────────────────────────────────────────────────

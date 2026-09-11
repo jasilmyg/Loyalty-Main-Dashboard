@@ -141,26 +141,9 @@ class EnterpriseAIAgentAPIView(APIView):
         from .agents.router import RouterAgent
 
         try:
-            # ── 1. Visualization Pipeline ────────────────────────────────────
-            if any(w in prompt_lower for w in ["chart", "graph", "plot", "trend", "distribution"]):
-                matched_agent_name = "VisualizationAgent"
-                from .agents.visualization_agent import VisualizationAgent
-                from .agents.sql_agent import SQLAgent
-                v_agent  = VisualizationAgent()
-                sql_agent = SQLAgent()
-                chart_json = v_agent.generate_dynamic_chart(prompt, sql_agent, user_context)
-                if "error" in chart_json:
-                    response_data = {"message": f"❌ {chart_json['error']}", "charts": [], "kpis": []}
-                else:
-                    response_data = {
-                        "message": "📊 Chart generated from live data.",
-                        "charts": [chart_json], "kpis": []
-                    }
-                cache.set(task_id, response_data, timeout=600)
-                return
 
             # ── 2. Forecast Pipeline ─────────────────────────────────────────
-            elif any(w in prompt_lower for w in ["forecast", "predict", "expected", "will we achieve"]):
+            if any(w in prompt_lower for w in ["forecast", "predict", "expected", "will we achieve"]):
                 matched_agent_name = "ForecastAgent + Nemotron"
 
                 # ── Store Phase 1: "working on it" message immediately ────────
@@ -377,22 +360,15 @@ BENCHMARKS:
             # ── 4. Standard SQL Pipeline ─────────────────────────────────────
             from .agents.sql_agent import SQLAgent
             from .agents.analyst_agent import AnalystAgent
-            from .agents.sql_template_engine import SQLTemplateEngine
 
             sql_agent     = SQLAgent()
             analyst_agent = AnalystAgent()
 
-            # Fast SQL: Template Engine (sub-second from MVs)
-            fast_sql = SQLTemplateEngine.match_template(prompt)
-            if fast_sql:
-                matched_agent_name = "FastPath + Nemotron"
-                generated_sql      = fast_sql
-                generated_sql_str  = fast_sql
-                error_msg          = None
-            else:
-                generated_sql, error_msg = sql_agent.generate_query(prompt, user_context)
-                matched_agent_name = "LLM-SQL + Nemotron"
-                generated_sql_str  = generated_sql or ""
+            # NOTE: SQLTemplateEngine (PostgreSQL MVs) is disabled — all queries
+            # go through gpt-6-astra which generates ClickHouse-compatible SQL.
+            generated_sql, error_msg = sql_agent.generate_query(prompt, user_context)
+            matched_agent_name = "ClickHouse-AI"
+            generated_sql_str  = generated_sql or ""
 
             if error_msg:
                 cache.set(task_id, {
@@ -414,7 +390,9 @@ BENCHMARKS:
                 results = cached_db
             else:
                 results = sql_agent.execute_query(generated_sql)
-                cache.set(db_cache_key, results, timeout=900)
+                # Only cache successful results — never cache errors
+                if results and "error" not in results[0]:
+                    cache.set(db_cache_key, results, timeout=900)
 
             if not results:
                 cache.set(task_id, {
@@ -443,16 +421,19 @@ BENCHMARKS:
             # ═══════════════════════════════════════════════════════════════
             sql_time = round(time.time() - start_time, 2)
 
-            # Run Nemotron analysis via OpenRouter (only confirmed-working model, ~20-40s)
+            # Run analysis via Experiential Labs API (gpt-6-astra)
             try:
                 import json as _json
-                import requests as _req
                 import datetime
-
                 import os as _os
-                _or_key  = _os.environ.get("OPENROUTER_API_KEY", "")
-                _or_url  = "https://openrouter.ai/api/v1/chat/completions"
-                _model   = "nvidia/nemotron-3-ultra-550b-a55b:free"
+                from openai import OpenAI
+                
+                _xpl_key = "xpl_3f8ef2aa59f0cae1539e2118782e5f6dd34c993f"
+                _client = OpenAI(
+                    base_url="https://api.experientiallabs.ai/v1",
+                    api_key=_xpl_key
+                )
+                _model = "gpt-6-astra"
 
                 _today = datetime.date.today().strftime("%d %B %Y")
                 _n     = len(results)
@@ -487,22 +468,16 @@ BENCHMARKS:
                     "RULES: Use ONLY the data above. Bold ALL key numbers. Use Indian number format. No SQL."
                 )
 
-                _r = _req.post(
-                    _or_url,
-                    headers={
-                        "Authorization": "Bearer " + _or_key,
-                        "Content-Type":  "application/json",
-                        "HTTP-Referer":  "https://myg-loyalty.com",
-                        "X-Title":       "myG Loyalty AI",
-                    },
-                    json={"model": _model, "messages": [{"role": "user", "content": _fast_prompt}], "max_tokens": 2048},
-                    timeout=30
+                _response = _client.chat.completions.create(
+                    model=_model,
+                    messages=[{"role": "user", "content": _fast_prompt}],
+                    max_tokens=2048,
+                    timeout=45
                 )
-                _r.raise_for_status()
-                phase1_ai_text = (_r.json()["choices"][0]["message"].get("content") or "").strip()
+                phase1_ai_text = _response.choices[0].message.content.strip()
                 if not phase1_ai_text:
-                    raise ValueError("Empty response from Nemotron")
-                phase1_model = "Nemotron"
+                    raise ValueError("Empty response from gpt-6-astra")
+                phase1_model = "gpt-6-astra"
 
             except Exception as _err:
                 # Fallback: show formatted raw data with clear numbers
@@ -522,23 +497,33 @@ BENCHMARKS:
                 phase1_model = "raw-data"
 
             total_time = round(time.time() - start_time, 2)
+            
+            # If a chart was requested, generate it now that results are available
+            charts_out = []
+            if any(w in prompt_lower for w in ["chart", "graph", "plot", "trend", "distribution"]):
+                from .agents.visualization_agent import VisualizationAgent
+                v_agent = VisualizationAgent()
+                chart_json = v_agent.generate_dynamic_chart(prompt, results)
+                if "error" not in chart_json:
+                    charts_out = [chart_json]
+
             phase1_answer = {
-                "message":          phase1_ai_text + f"\n\n---\n*\U0001f4ca Data: {sql_time}s | \U0001f9e0 Nemotron analysis: {total_time}s*",
+                "message":          phase1_ai_text + f"\n\n---\n*\U0001f4ca Data: {sql_time}s | \U0001f9e0 Analysis: {total_time}s*",
                 "nemotron_pending": False,   # analysis already complete in Phase 1
                 "task_id":          task_id,
                 "conversation_id":  str(conversation.id),
-                "charts": [], "kpis": []
+                "charts": charts_out, "kpis": []
             }
 
             cache.set(task_id, phase1_answer, timeout=600)
 
-            # Phase 1 already ran Nemotron — cache under nemotron_{task_id} too
+            # Phase 1 already ran gpt-6-astra — cache under nemotron_{task_id} too
             # so frontend polling finds the complete answer immediately
-            if phase1_model == "Nemotron":
+            if phase1_model == "gpt-6-astra":
                 cache.set(f"nemotron_{task_id}", {
-                    "message":          phase1_ai_text + f"\n\n---\n*\U0001f4ca Data: {sql_time}s | \U0001f9e0 Nemotron Ultra analysis complete*",
+                    "message":          phase1_ai_text + f"\n\n---\n*\U0001f4ca Data: {sql_time}s | \U0001f9e0 gpt-6-astra analysis complete*",
                     "reasoning_details": None,
-                    "charts": [], "kpis": []
+                    "charts": charts_out, "kpis": []
                 }, timeout=600)
 
             # Save answer to conversation memory

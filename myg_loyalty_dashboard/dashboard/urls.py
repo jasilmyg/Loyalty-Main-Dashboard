@@ -122,5 +122,10 @@ urlpatterns = [
     path('mobile-ce-crosssell/', views.MobileCECrossSellView.as_view(), name='mobile_ce_crosssell'),
     path('download/mobile-ce-report1/', views.MobileCECrossSellReport1View.as_view(), name='mobile_ce_report1'),
     path('download/mobile-ce-report2/', views.MobileCECrossSellReport2View.as_view(), name='mobile_ce_report2'),
+
+    # 📊 OSG Daily Sale Report
+    path('osg-sale-report/', views.OsgSaleReportView.as_view(), name='osg_sale_report'),
+    path('api/v1/osg-sale-report/', views.OsgSaleReportAPIView.as_view(), name='osg_sale_report_api'),
+    path('api/v1/osg-sale-report/download/', views.OsgSaleReportDownloadView.as_view(), name='osg_sale_report_download'),
 ]
 

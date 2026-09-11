@@ -4,21 +4,13 @@ class VisualizationAgent:
     def __init__(self):
         self.model = "gpt-4"
 
-    def generate_dynamic_chart(self, user_prompt: str, sql_agent, user_context) -> dict:
+    def generate_dynamic_chart(self, user_prompt: str, results: list) -> dict:
         """
-        Dynamically generates a real chart by letting SQLAgent fetch the data first,
-        then converting the results into Plotly JSON.
+        Dynamically generates a real chart by converting the results into Plotly JSON.
         """
         import time
         import uuid
         
-        # 1. Let SQLAgent generate the query
-        generated_sql, error_msg = sql_agent.generate_query(user_prompt, user_context, model_name="nvidia/nemotron-3-ultra-550b-a55b:free")
-        if error_msg:
-            return {"error": error_msg}
-            
-        # 2. Execute SQL
-        results = sql_agent.execute_query(generated_sql)
         if not results or "error" in results[0]:
             return {"error": "Failed to retrieve chart data from database."}
             
@@ -49,6 +41,20 @@ class VisualizationAgent:
         x_data = [item[0] for item in sorted_items]
         y_data = [item[1] for item in sorted_items]
         
+        # Convert large values to Crores (Cr) or Lakhs (L)
+        max_y = max(y_data) if y_data else 0
+        y_title = str(y_col).capitalize()
+        y_suffix = ""
+        
+        if max_y >= 10000000:
+            y_data = [y / 10000000 for y in y_data]
+            y_title += " (in Crores)"
+            y_suffix = " Cr"
+        elif max_y >= 100000:
+            y_data = [y / 100000 for y in y_data]
+            y_title += " (in Lakhs)"
+            y_suffix = " L"
+        
         prompt_lower = user_prompt.lower()
         chart_id = f"chart_{uuid.uuid4().hex[:8]}"
         
@@ -68,7 +74,7 @@ class VisualizationAgent:
                 "layout": {
                     "title": "Dynamic Trend Analysis",
                     "xaxis": {"title": str(x_col).capitalize()},
-                    "yaxis": {"title": str(y_col).capitalize()},
+                    "yaxis": {"title": y_title, "ticksuffix": y_suffix},
                     "template": "plotly_white",
                     "margin": {"l": 50, "r": 20, "t": 50, "b": 50}
                 }
@@ -84,7 +90,9 @@ class VisualizationAgent:
                     "hole": 0.4,
                     "marker": {
                         "colors": ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#64748b"]
-                    }
+                    },
+                    "textinfo": "label+percent",
+                    "hovertemplate": f"%{{label}}: %{{value}}{y_suffix} (%{{percent}})<extra></extra>"
                 }],
                 "layout": {
                     "title": "Dynamic Distribution",
@@ -105,7 +113,7 @@ class VisualizationAgent:
                 "layout": {
                     "title": "Dynamic Comparison",
                     "xaxis": {"title": str(x_col).capitalize()},
-                    "yaxis": {"title": str(y_col).capitalize()},
+                    "yaxis": {"title": y_title, "ticksuffix": y_suffix},
                     "template": "plotly_white",
                     "margin": {"l": 50, "r": 20, "t": 50, "b": 50}
                 }

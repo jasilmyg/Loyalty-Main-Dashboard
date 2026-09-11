@@ -1,0 +1,553 @@
+{% extends 'base.html' %}
+{% block title %}OSG Warranty Report — myG Loyalty{% endblock %}
+
+{% block content %}
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+* { font-family: 'Inter', sans-serif; }
+
+.osg-page { background: #0b1120; min-height: 100vh; padding: 20px; }
+
+/* ─── Header Banner ─────────────────────────────────────────────── */
+.osg-banner {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border: 1px solid rgba(245,158,11,.25);
+  border-radius: 14px;
+  padding: 22px 28px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.osg-banner h1 {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #f1f5f9;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.osg-banner .sub { font-size: .8rem; color: #64748b; margin-top: 4px; }
+
+/* ─── Date Controls ─────────────────────────────────────────────── */
+.ctrl-bar {
+  background: #1e293b;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 12px;
+  padding: 14px 20px;
+  margin-bottom: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-end;
+}
+.ctrl-bar label { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: #64748b; display: block; margin-bottom: 5px; }
+.ctrl-bar input {
+  background: #0f172a;
+  border: 1px solid rgba(255,255,255,.1);
+  color: #f1f5f9;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: .82rem;
+}
+.btn-refresh {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: 700;
+  font-size: .82rem;
+  padding: 9px 20px;
+  cursor: pointer;
+  transition: all .2s;
+}
+.btn-refresh:hover { opacity: .9; transform: translateY(-1px); }
+.btn-dl {
+  background: linear-gradient(135deg, #10b981, #059669);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: 700;
+  font-size: .82rem;
+  padding: 9px 20px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all .2s;
+}
+.btn-dl:hover { opacity: .9; color: #fff; }
+
+/* ─── Summary KPIs ─────────────────────────────────────────────── */
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap: 12px; margin-bottom: 18px; }
+.kpi {
+  background: #1e293b;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 11px;
+  padding: 14px 16px;
+  text-align: center;
+}
+.kpi .k-label { font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: #64748b; margin-bottom: 6px; }
+.kpi .k-val   { font-size: 1.3rem; font-weight: 800; color: #f1f5f9; }
+.kpi .k-sub   { font-size: .7rem; color: #94a3b8; margin-top: 3px; }
+.kpi.amber    { border-color: rgba(245,158,11,.3); }
+.kpi.green    { border-color: rgba(52,211,153,.25); }
+.kpi.red      { border-color: rgba(248,113,113,.2); }
+.kpi.blue     { border-color: rgba(99,102,241,.3); }
+
+/* ─── Insight Bar ─────────────────────────────────────────────── */
+.insight {
+  background: linear-gradient(90deg, rgba(245,158,11,.1), rgba(253,230,138,.05));
+  border: 1px solid rgba(245,158,11,.25);
+  border-radius: 10px;
+  padding: 11px 18px;
+  font-size: .8rem;
+  color: #fde68a;
+  margin-bottom: 16px;
+  line-height: 1.7;
+}
+
+/* ─── RBM Tabs ─────────────────────────────────────────────────── */
+.tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.tab {
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: .77rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1.5px solid rgba(245,158,11,.25);
+  color: #94a3b8;
+  background: rgba(245,158,11,.05);
+  transition: all .15s;
+}
+.tab.active   { background: #f59e0b; color: #1a1a1a; border-color: #f59e0b; }
+.tab:hover:not(.active) { border-color: #f59e0b; color: #fde68a; }
+
+/* ─── Report Block ─────────────────────────────────────────────── */
+.report-block {
+  background: #1e293b;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.report-header {
+  background: #0f172a;
+  padding: 16px 22px 0;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.report-header .rh-title { font-size: 1rem; font-weight: 800; color: #f1f5f9; margin-bottom: 2px; }
+.report-header .rh-sub   { font-size: .74rem; color: #64748b; margin-bottom: 10px; }
+.report-header .rh-summary {
+  background: rgba(245,158,11,.08);
+  border: 1px solid rgba(245,158,11,.15);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: .76rem;
+  color: #fde68a;
+  margin-bottom: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+.rh-summary span { color: #94a3b8; }
+.rh-summary strong { color: #f1f5f9; }
+.rh-best { font-size: .75rem; color: #34d399; padding-bottom: 12px; }
+
+/* ─── Table ─────────────────────────────────────────────────────── */
+.tbl-wrap { overflow-x: auto; }
+table.osg { width: 100%; border-collapse: collapse; font-size: .8rem; }
+table.osg thead th {
+  background: #0f172a;
+  color: #64748b;
+  font-weight: 700;
+  font-size: .68rem;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  padding: 11px 14px;
+  white-space: nowrap;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  position: sticky; top: 0; z-index: 2;
+}
+table.osg thead th.num { text-align: right; }
+table.osg tbody tr { border-bottom: 1px solid rgba(255,255,255,.04); transition: background .12s; }
+table.osg tbody tr:hover { background: rgba(245,158,11,.04); }
+table.osg tbody td { padding: 10px 14px; color: #e2e8f0; vertical-align: middle; }
+table.osg tbody td.store { font-weight: 600; color: #f1f5f9; min-width: 200px; }
+table.osg tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
+table.osg tbody tr.inactive td { opacity: .45; }
+table.osg tfoot td {
+  background: #0f172a;
+  color: #f1f5f9;
+  font-weight: 800;
+  padding: 12px 14px;
+  border-top: 2px solid rgba(245,158,11,.4);
+  font-size: .81rem;
+}
+table.osg tfoot td.num { text-align: right; }
+
+/* badges */
+.badge-act { background: rgba(52,211,153,.12); color: #34d399; font-size: .63rem; padding: 1px 7px; border-radius: 8px; font-weight: 700; margin-left: 6px; }
+.badge-ina { background: rgba(248,113,113,.1);  color: #f87171; font-size: .63rem; padding: 1px 7px; border-radius: 8px; font-weight: 700; margin-left: 6px; }
+.pos { color: #34d399; font-weight: 700; }
+.neg { color: #f87171; font-weight: 700; }
+.neu { color: #94a3b8; }
+
+/* rank medal */
+.medal { font-size: .9rem; margin-right: 4px; }
+
+/* footer note in block */
+.report-footer {
+  padding: 12px 20px;
+  border-top: 1px solid rgba(255,255,255,.05);
+  font-size: .74rem;
+}
+
+/* spinner */
+.spin-wrap { display: flex; align-items: center; justify-content: center; min-height: 180px; }
+.spin { width: 36px; height: 36px; border: 4px solid rgba(245,158,11,.2); border-top-color: #f59e0b; border-radius: 50%; animation: sp .7s linear infinite; }
+@keyframes sp { to { transform: rotate(360deg); } }
+</style>
+
+<div class="osg-page">
+
+  <!-- ── Banner ────────────────────────────────────────────────── -->
+  <div class="osg-banner">
+    <div>
+      <h1>🛡️ OSG (ONSITEGO) Warranty Report</h1>
+      <div class="sub" id="gen-line">Loading…</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a id="dl-btn" href="#" class="btn-dl"><i class="bi bi-file-earmark-excel me-1"></i> Download Excel</a>
+    </div>
+  </div>
+
+  <!-- ── Controls ──────────────────────────────────────────────── -->
+  <div class="ctrl-bar">
+    <div>
+      <label>Report Date (FTD)</label>
+      <input type="date" id="inp-date" value="{{ today }}">
+    </div>
+    <div>
+      <label>Month (MTD)</label>
+      <input type="month" id="inp-month" value="{{ this_month }}">
+    </div>
+    <button class="btn-refresh" onclick="loadReport()">
+      <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+    </button>
+  </div>
+
+  <!-- ── KPIs ─────────────────────────────────────────────────── -->
+  <div class="kpi-row" id="kpi-row">
+    <div class="kpi amber"><div class="k-label">Total Stores</div><div class="k-val" id="k-total">—</div><div class="k-sub" id="k-active-sub">—</div></div>
+    <div class="kpi green"><div class="k-label">FTD Invoices</div><div class="k-val" id="k-ftd-cnt">—</div><div class="k-sub" id="k-ftd-val">—</div></div>
+    <div class="kpi blue"><div class="k-label">MTD Invoices</div><div class="k-val" id="k-mtd-cnt">—</div><div class="k-sub" id="k-mtd-val">—</div></div>
+    <div class="kpi amber"><div class="k-label">FTD Attach %</div><div class="k-val" id="k-ftd-conv">—</div><div class="k-sub">FTD warranty rate</div></div>
+    <div class="kpi amber"><div class="k-label">MTD Attach %</div><div class="k-val" id="k-mtd-conv">—</div><div class="k-sub">MTD warranty rate</div></div>
+    <div class="kpi" id="k-diff-card"><div class="k-label">vs Prev Month</div><div class="k-val" id="k-diff">—</div><div class="k-sub">MTD change</div></div>
+    <div class="kpi"><div class="k-label">Avg Sell Price</div><div class="k-val" id="k-asp">—</div><div class="k-sub">MTD ASP</div></div>
+  </div>
+
+  <!-- ── Insight ───────────────────────────────────────────────── -->
+  <div class="insight" id="insight-bar" style="display:none;"></div>
+
+  <!-- ── Tabs ─────────────────────────────────────────────────── -->
+  <div class="tab-bar" id="tab-bar"></div>
+
+  <!-- ── Content ──────────────────────────────────────────────── -->
+  <div id="content-area">
+    <div class="spin-wrap"><div class="spin"></div></div>
+  </div>
+
+</div><!-- /.osg-page -->
+
+<script>
+let _data = null;
+
+// ── Formatters ────────────────────────────────────────────────────
+const fmtR  = n => n ? '₹' + Number(n).toLocaleString('en-IN', {maximumFractionDigits:0}) : '₹0';
+const fmtN  = n => Number(n||0).toLocaleString('en-IN');
+const fmtC  = v => v != null ? (v*100).toFixed(2)+'%' : '—';
+const fmtA  = n => n ? '₹'+Number(n).toFixed(0) : '—';
+const fmtPct= v => {
+  if (v == null) return '<span class="neu">0.00%</span>';
+  const cl = v > 0 ? 'pos' : v < 0 ? 'neg' : 'neu';
+  return `<span class="${cl}">${v>0?'+':''}${Number(v).toFixed(2)}%</span>`;
+};
+
+// ── Build All-Stores Table (FTD Count | FTD Value | FTD Conv | MTD Count | MTD Value | MTD Conv | PREV | DIFF% | ASP)
+function buildAllTable(stores) {
+  const active = stores.filter(s=>s.ftd_count>0);
+  const inactive = stores.filter(s=>s.ftd_count===0);
+  const all = [...stores].sort((a,b) => b.mtd_value - a.mtd_value);
+
+  // totals (MTD > 0 stores)
+  const tot = stores.filter(s=>s.mtd_value>0).reduce((acc,s)=>{
+    acc.ftd_cnt  += s.ftd_count; acc.ftd_val  += s.ftd_value;
+    acc.mtd_cnt  += s.mtd_count; acc.mtd_val  += s.mtd_value;
+    acc.prev_val += s.prev_value;
+    acc.ftd_total+= s.ftd_total_inv; acc.mtd_total+= s.mtd_total_inv;
+    return acc;
+  },{ftd_cnt:0,ftd_val:0,mtd_cnt:0,mtd_val:0,prev_val:0,ftd_total:0,mtd_total:0});
+  const tot_ftd_conv  = tot.ftd_total > 0 ? tot.ftd_cnt/tot.ftd_total : 0;
+  const tot_mtd_conv  = tot.mtd_total > 0 ? tot.mtd_cnt/tot.mtd_total : 0;
+  const tot_diff      = tot.prev_val  > 0 ? (tot.mtd_val-tot.prev_val)/tot.prev_val*100 : 0;
+  const tot_asp       = tot.mtd_cnt   > 0 ? tot.mtd_val/tot.mtd_cnt : 0;
+
+  const top1 = all.find(s=>s.mtd_value>0);
+
+  let rows = '';
+  all.forEach((s,i) => {
+    const rank = i===0 && s.mtd_value>0 ? '🥇' : i===1 && s.mtd_value>0 ? '🥈' : i===2 && s.mtd_value>0 ? '🥉' : '';
+    const act  = s.ftd_count > 0;
+    const badge= act ? '<span class="badge-act">Active</span>' : '<span class="badge-ina">Inactive</span>';
+    const cls  = s.mtd_value===0 && s.prev_value===0 ? 'inactive' : '';
+    rows += `<tr class="${cls}">
+      <td class="store">${rank}${s.branch}${badge}</td>
+      <td class="num">${fmtN(s.ftd_count)}</td>
+      <td class="num">${fmtR(s.ftd_value)}</td>
+      <td class="num">${fmtC(s.ftd_conv)}</td>
+      <td class="num">${fmtN(s.mtd_count)}</td>
+      <td class="num">${fmtR(s.mtd_value)}</td>
+      <td class="num">${fmtC(s.mtd_conv)}</td>
+      <td class="num">${fmtR(s.prev_value)}</td>
+      <td class="num">${fmtPct(s.diff_pct)}</td>
+      <td class="num">${fmtA(s.asp)}</td>
+    </tr>`;
+  });
+
+  return `
+  <div class="report-block">
+    <div class="report-header">
+      <div class="rh-title">OSG All Stores Sales Report</div>
+      <div class="rh-sub" id="gen-ts-all">Report Generated: ${_data.generated_at}</div>
+      <div class="rh-summary">
+        <span>📊 SUMMARY</span>
+        <span>Total: <strong>${stores.length}</strong></span>
+        <span>Active: <strong>${active.length}</strong></span>
+        <span>Inactive: <strong>${stores.length - active.length}</strong></span>
+        <span>Total Revenue: <strong>${fmtR(tot.mtd_val)}</strong></span>
+      </div>
+      ${top1 ? `<div class="rh-best">🏆 Top Performer: ${top1.branch} (${fmtR(top1.mtd_value)})</div>` : ''}
+    </div>
+    <div class="tbl-wrap">
+      <table class="osg">
+        <thead><tr>
+          <th>Store Name</th>
+          <th class="num">FTD Count</th>
+          <th class="num">FTD Value</th>
+          <th class="num">FTD Value Conv%</th>
+          <th class="num">MTD Count</th>
+          <th class="num">MTD Value</th>
+          <th class="num">MTD Value Conv%</th>
+          <th class="num">Prev Month Sale</th>
+          <th class="num">DIFF %</th>
+          <th class="num">ASP</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr>
+          <td>🎯 TOTAL</td>
+          <td class="num">${fmtN(tot.ftd_cnt)}</td>
+          <td class="num">${fmtR(tot.ftd_val)}</td>
+          <td class="num">${fmtC(tot_ftd_conv)}</td>
+          <td class="num">${fmtN(tot.mtd_cnt)}</td>
+          <td class="num">${fmtR(tot.mtd_val)}</td>
+          <td class="num">${fmtC(tot_mtd_conv)}</td>
+          <td class="num">${fmtR(tot.prev_val)}</td>
+          <td class="num">${fmtPct(tot_diff)}</td>
+          <td class="num">${fmtA(tot_asp)}</td>
+        </tr></tfoot>
+      </table>
+    </div>
+    <div class="report-footer" style="color:#94a3b8;">
+      ${tot_diff > 5 ? '📈 Excellent Growth' : tot_diff < -5 ? '📉 Needs Attention' : '📊 Stable Performance'}: 
+      ${Math.abs(tot_diff).toFixed(2)}% ${tot_diff >= 0 ? 'increase' : 'decrease'} from previous month
+    </div>
+  </div>`;
+}
+
+// ── Build RBM Table (MTD Conv | FTD Conv | MTD Count | FTD Count | MTD Value | FTD Value | PREV | DIFF% | ASP)
+function buildRbmTable(rbmName, stores) {
+  const sorted  = [...stores].sort((a,b) => b.mtd_value - a.mtd_value);
+  const active  = stores.filter(s=>s.ftd_count>0).length;
+  const top3    = sorted.filter(s=>s.mtd_value>0).slice(0,3);
+
+  const tot = stores.filter(s=>s.mtd_value>0).reduce((acc,s)=>{
+    acc.ftd_cnt  += s.ftd_count; acc.ftd_val  += s.ftd_value;
+    acc.mtd_cnt  += s.mtd_count; acc.mtd_val  += s.mtd_value;
+    acc.prev_val += s.prev_value;
+    acc.ftd_total+= s.ftd_total_inv; acc.mtd_total+= s.mtd_total_inv;
+    return acc;
+  },{ftd_cnt:0,ftd_val:0,mtd_cnt:0,mtd_val:0,prev_val:0,ftd_total:0,mtd_total:0});
+  const tot_ftd_conv = tot.ftd_total > 0 ? tot.ftd_cnt/tot.ftd_total : 0;
+  const tot_mtd_conv = tot.mtd_total > 0 ? tot.mtd_cnt/tot.mtd_total : 0;
+  const tot_diff     = tot.prev_val  > 0 ? (tot.mtd_val-tot.prev_val)/tot.prev_val*100 : 0;
+  const tot_asp      = tot.mtd_cnt   > 0 ? tot.mtd_val/tot.mtd_cnt : 0;
+
+  const best = sorted.find(s=>s.mtd_value>0);
+
+  let rows = '';
+  sorted.forEach((s,i) => {
+    const rank  = i===0&&s.mtd_value>0?'🥇':i===1&&s.mtd_value>0?'🥈':i===2&&s.mtd_value>0?'🥉':'';
+    const act   = s.ftd_count > 0;
+    const badge = act ? '<span class="badge-act">Active</span>' : '<span class="badge-ina">Inactive</span>';
+    const cls   = s.mtd_value===0 && s.prev_value===0 ? 'inactive' : '';
+    rows += `<tr class="${cls}">
+      <td class="store">${rank}${s.branch}${badge}</td>
+      <td class="num">${fmtC(s.mtd_conv)}</td>
+      <td class="num">${fmtC(s.ftd_conv)}</td>
+      <td class="num">${fmtN(s.mtd_count)}</td>
+      <td class="num">${fmtN(s.ftd_count)}</td>
+      <td class="num">${fmtR(s.mtd_value)}</td>
+      <td class="num">${fmtR(s.ftd_value)}</td>
+      <td class="num">${fmtR(s.prev_value)}</td>
+      <td class="num">${fmtPct(s.diff_pct)}</td>
+      <td class="num">${fmtA(s.asp)}</td>
+    </tr>`;
+  });
+
+  const top3str = top3.map(s=>`${s.branch}: ${fmtR(s.mtd_value)}`).join(' | ');
+  const diffIcon = tot_diff > 5 ? '📈 Excellent Growth' : tot_diff < -5 ? '📉 Needs Attention' : '📊 Stable Performance';
+
+  return `
+  <div class="report-block">
+    <div class="report-header">
+      <div class="rh-title">${rbmName} — Sales Performance Report</div>
+      <div class="rh-sub">Report Period: ${_data.month_label} | Generated: ${_data.generated_at}</div>
+      <div class="rh-summary">
+        <span>📈 PERFORMANCE OVERVIEW</span>
+        <span>Total Stores: <strong>${stores.length}</strong></span>
+        <span>Active: <strong>${active}</strong></span>
+        <span>Inactive: <strong>${stores.length - active}</strong></span>
+        <span>Total Revenue: <strong>${fmtR(tot.mtd_val)}</strong></span>
+      </div>
+      ${best ? `<div class="rh-best">🥇 Best Performer: ${best.branch} — ${fmtR(best.mtd_value)}</div>` : ''}
+    </div>
+    <div class="tbl-wrap">
+      <table class="osg">
+        <thead><tr>
+          <th>Store Name</th>
+          <th class="num">MTD Value Conv%</th>
+          <th class="num">FTD Value Conv%</th>
+          <th class="num">MTD Count</th>
+          <th class="num">FTD Count</th>
+          <th class="num">MTD Value</th>
+          <th class="num">FTD Value</th>
+          <th class="num">Prev Month Sale</th>
+          <th class="num">DIFF %</th>
+          <th class="num">ASP</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr>
+          <td>🎯 TOTAL</td>
+          <td class="num">${fmtC(tot_mtd_conv)}</td>
+          <td class="num">${fmtC(tot_ftd_conv)}</td>
+          <td class="num">${fmtN(tot.mtd_cnt)}</td>
+          <td class="num">${fmtN(tot.ftd_cnt)}</td>
+          <td class="num">${fmtR(tot.mtd_val)}</td>
+          <td class="num">${fmtR(tot.ftd_val)}</td>
+          <td class="num">${fmtR(tot.prev_val)}</td>
+          <td class="num">${fmtPct(tot_diff)}</td>
+          <td class="num">${fmtA(tot_asp)}</td>
+        </tr></tfoot>
+      </table>
+    </div>
+    <div class="report-footer" style="color:${tot_diff>0?'#34d399':'#f87171'}">
+      ${diffIcon}: ${Math.abs(tot_diff).toFixed(2)}% ${tot_diff>=0?'increase':'decrease'} from previous month
+    </div>
+    ${top3.length ? `<div class="report-footer" style="color:#a5b4fc;">
+      🏆 Top 3 Performers: ${top3str}
+    </div>` : ''}
+  </div>`;
+}
+
+function renderView(tab) {
+  const area = document.getElementById('content-area');
+  if (tab === 'ALL') {
+    area.innerHTML = buildAllTable(_data.stores);
+  } else {
+    const rbmStores = _data.stores.filter(s => s.rbm === tab);
+    area.innerHTML = buildRbmTable(tab, rbmStores);
+  }
+}
+
+function switchTab(tab, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderView(tab);
+}
+
+async function loadReport() {
+  const date  = document.getElementById('inp-date').value;
+  const month = document.getElementById('inp-month').value;
+  if (!date || !month) return;
+
+  document.getElementById('content-area').innerHTML = '<div class="spin-wrap"><div class="spin"></div></div>';
+  document.getElementById('insight-bar').style.display = 'none';
+  document.getElementById('tab-bar').innerHTML = '';
+
+  try {
+    const res  = await fetch(`/api/v1/osg-sale-report/?date=${date}&month=${month}`);
+    const data = await res.json();
+    if (data.status !== 'ok') throw new Error(data.error || 'API error');
+    _data = data;
+
+    // Generated line
+    document.getElementById('gen-line').textContent =
+      `Report Generated: ${data.generated_at} | ${data.month_label}`;
+
+    // KPIs
+    const S = data.summary;
+    document.getElementById('k-total').textContent  = data.stores.length;
+    document.getElementById('k-active-sub').textContent =
+      `Active: ${data.stores.filter(s=>s.ftd_count>0).length} | Inactive: ${data.stores.filter(s=>s.ftd_count===0).length}`;
+    document.getElementById('k-ftd-cnt').textContent = fmtN(S.ftd_count);
+    document.getElementById('k-ftd-val').textContent  = fmtR(S.ftd_value);
+    document.getElementById('k-mtd-cnt').textContent  = fmtN(S.mtd_count);
+    document.getElementById('k-mtd-val').textContent  = fmtR(S.mtd_value);
+    document.getElementById('k-ftd-conv').textContent = fmtC(S.ftd_conv);
+    document.getElementById('k-mtd-conv').textContent = fmtC(S.mtd_conv);
+    document.getElementById('k-diff').innerHTML       = fmtPct(S.diff_pct);
+    document.getElementById('k-asp').textContent      = fmtA(S.asp);
+    const diffCard = document.getElementById('k-diff-card');
+    diffCard.style.borderColor = S.diff_pct > 0
+      ? 'rgba(52,211,153,.3)' : 'rgba(248,113,113,.25)';
+
+    // Insight bar
+    const top3  = [...data.stores].sort((a,b)=>b.mtd_value-a.mtd_value)
+                    .filter(s=>s.mtd_value>0).slice(0,3);
+    const top3s = top3.map(s=>`<strong>${s.branch}:</strong> ${fmtR(s.mtd_value)}`).join(' &nbsp;|&nbsp; ');
+    const icon  = S.diff_pct > 5 ? '📈 Excellent Growth' : S.diff_pct < -5 ? '📉 Needs Attention' : '📊 Stable Performance';
+    document.getElementById('insight-bar').innerHTML =
+      `${icon}: <strong>${S.diff_pct>0?'+':''}${Number(S.diff_pct).toFixed(2)}%</strong> vs prev month &nbsp;&nbsp;|&nbsp;&nbsp; 🏆 Top 3: ${top3s}`;
+    document.getElementById('insight-bar').style.display = 'block';
+
+    // Build tabs
+    const rbms = [...new Set(data.stores.map(s=>s.rbm).filter(Boolean))].sort();
+    const tabBar = document.getElementById('tab-bar');
+    tabBar.innerHTML = `<span class="tab active" onclick="switchTab('ALL',this)">All Stores</span>` +
+      rbms.map(r => `<span class="tab" onclick="switchTab('${r}',this)">${r}</span>`).join('');
+
+    // Download link
+    document.getElementById('dl-btn').href = `/api/v1/osg-sale-report/download/?date=${date}&month=${month}`;
+
+    // Render All view
+    renderView('ALL');
+
+  } catch(e) {
+    document.getElementById('content-area').innerHTML =
+      `<div class="spin-wrap"><p class="text-danger fw-bold">Error: ${e.message}</p></div>`;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', loadReport);
+</script>
+{% endblock %}

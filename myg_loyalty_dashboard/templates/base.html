@@ -508,6 +508,12 @@
                 <a class="nav-link {% if request.resolver_match.url_name == 'redemption_analysis' %}active{% endif %}" href="{% url 'redemption_analysis' %}"><i class="bi bi-gift"></i> Redemption Analysis</a>
             </li>
             <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'osg_sale_report' %}active{% endif %}" href="{% url 'osg_sale_report' %}" style="border-left: 4px solid #f59e0b; color: #f59e0b; background: rgba(245,158,11,0.06); font-weight: 600;">
+                    <i class="bi bi-shield-check-fill" style="color:#f59e0b;"></i> OSG Warranty Report
+                    <span class="badge ms-1" style="background:linear-gradient(135deg,#f59e0b,#d97706);font-size:8px;font-weight:800;vertical-align:middle;">LIVE</span>
+                </a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'target_executive' %}active{% endif %}" href="{% url 'target_executive' %}"><i class="bi bi-bullseye text-danger"></i> Target Analysis Dashboard</a>
             </li>
         </ul>

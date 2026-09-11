@@ -4658,3 +4658,784 @@ class MobileCECrossSellReport2View(LoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
         from django.http import HttpResponse
         return HttpResponse('Mobile CE Cross-Sell Report 2 – Coming Soon', content_type='text/plain')
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  OSG Daily Sale Report
+#  Columns (matching Excel): Store Name | FTD Count | FTD Value |
+#  FTD Conv% | MTD Count | MTD Value | MTD Conv% | Prev Month Sale |
+#  DIFF % | ASP
+#  Source: azure_invoice_report (invoices) + branch_master (RBM)
+#          azure_sales_report total invoices used for conversion denom
+# ═══════════════════════════════════════════════════════════════════════════
+
+class OsgSaleReportView(LoginRequiredMixin, TemplateView):
+    """Renders the OSG Daily Sale Report page."""
+    template_name = 'dashboard/osg_sale_report.html'
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        from datetime import date
+        # Default to last date with OSG data, not today (which may have no data)
+        try:
+            from analytics.clickhouse_service import get_ch_client
+            ch = get_ch_client()
+            last_date = ch.query(
+                "SELECT MAX(toDate(date)) FROM azure_sales_report "
+                "WHERE item_code LIKE 'OSG%' AND sold_price > 0"
+            ).result_rows[0][0]
+            ftd_default = last_date if last_date else date.today()
+        except Exception:
+            ftd_default = date.today()
+        ctx['today']      = ftd_default.isoformat()
+        ctx['this_month'] = ftd_default.strftime('%Y-%m')
+        return ctx
+
+
+def _osg_query(ch, ftd_date_str: str, month_str: str):
+    """
+    OSG Warranty Report - ONSITEGO warranty items (item_code LIKE 'OSG%').
+
+    FORMULA (verified against Excel):
+      FTD/MTD Count  = SUM(qty) of OSG items
+      FTD/MTD Value  = SUM(sold_price) of OSG items
+      Conv%          = OSG Value / Revenue of OSG-eligible product categories
+                       (eligible = item_master.item_category IN OSG_ITEM_CATS)
+      PREV MONTH     = same period in previous month (Aug 1-10 for Sep 1-10)
+      DIFF%          = (MTD Value - PREV) / PREV * 100
+      ASP            = MTD Value / MTD Count
+
+    Sources: azure_sales_report + item_master + branch_master
+    """
+    import datetime, calendar
+
+    ftd_date  = datetime.date.fromisoformat(ftd_date_str)
+    year, mon = int(month_str[:4]), int(month_str[5:7])
+    mtd_start = datetime.date(year, mon, 1)
+    mtd_end   = ftd_date
+
+    if mon == 1:
+        prev_year, prev_mon = year - 1, 12
+    else:
+        prev_year, prev_mon = year, mon - 1
+    prev_start    = datetime.date(prev_year, prev_mon, 1)
+    prev_mon_days = calendar.monthrange(prev_year, prev_mon)[1]
+    prev_end      = datetime.date(prev_year, prev_mon, min(ftd_date.day, prev_mon_days))
+
+    month_label = ftd_date.strftime('%B %Y')
+
+    # OSG-eligible item_categories from OSG_details Excel
+    OSG_ITEM_CATS = (
+        'ELECTRIC KETTLE','GARMENTS STEAMER','INDUCTION COOKTOP','IRON BOX',
+        'MIXER GRINDER','PERSONAL FAN','STEAMER 18%','STEMER COMPACT','TABLE FAN',
+        'TOWER FAN','WALL FAN','CEILING FAN','INFRARED COOKTOP','PEDESTAL FAN',
+        'INDUCTION COOKER','INFRARED',
+        'CHOPPER','AIR FRYER','AIR OVEN','BLENDER','Juicer','ELECTRIC CHOPPER',
+        'ELECTRIC TOASTER','HAND BLENDER','HAND MIXER','TOASTER','WET GRINDER',
+        'WET GRINDER 5%','FOOD PROCESSOR',
+        'HOB','CHIMNEY','INDUCTION HOB',
+        'HOME THEATRE 28%','HOME THEATRE 18%','HOME THEATRE','PARTY SPEAKER',
+        'SOUND BAR','SOUNDBAR','BLUETOOTH SPEAKER',
+        'MASSAGER 18%','MASSAGER 5%','MASSAGER','ROBO VACCUM CLEANER',
+        'VACUUM CLEANER','VACCUM CLEANER','ROBOT VACUUM CLEANER',
+        'PERSONAL CARE','PERSONAL GROOMING','TRIMMER','SHAVER','HAIR DRYER',
+        'WATER HEATER','COOLER','WATER DISPENSER','TOWER COOLER',
+        'AC','AC INDOOR','TOWER AC','AIR CONDITIONER','AC OUTDOOR',
+        'WATER PURIFIER','AIR PURIFIER',
+        'MICROWAVE OVEN','DISHWASHER-BUILD IN','DISH WASHER','DRYER',
+        'MICROWAVE OVEN-SOLO','MICROWAVE OVEN-CONV','MICROWAVE OVEN-GRILL',
+        'WASHING MACHINE','REFRIGERATOR','WASHING MACHINE-TL','WASHING MACHINE-SA',
+        'REFRIGERATOR-FF','WASHING MACHINE-FL','REFRIGERATOR-DC','REFRIGERATOR-CBU',
+        'REFRIGERATOR-SBS','WASHING MACHINES','REFRIGERATORS','WASHER DRYER 18%',
+        'TV','Tv 18 %','TV 18 %','TV 28 %','Tv 28 %','LCD',
+        'SMALL APPLIANCES','HOME APPLIANCES',
+        'RICE COOKER','RICE COOKER 18%','POPUP TOASTER','SANDWICH MAKER',
+        'SANDWICH TOASTER','TOAST AND GRILL','STABILIZER','VISI COOLER',
+        'SEWING MACHINE','SEWING MACHINE 18%','NECK FAN','USB FAN','RECHARGEABLE FAN',
+    )
+    cats_sql = "'" + "','".join(OSG_ITEM_CATS) + "'"
+
+    EXB = "('3GH','SMC','HEAD OFFICE','UG SMART CHOICE')"
+    EXI = "invoice_no NOT LIKE '%SMC%' AND invoice_no NOT LIKE '%EI%'"
+
+    # 1. Branch master
+    bm_rows      = ch.query("SELECT code, branch_name, rbm FROM branch_master").result_rows
+    code_to_name = {r[0].strip().upper(): r[1].strip() for r in bm_rows}
+    code_to_rbm  = {r[0].strip().upper(): r[2].strip() for r in bm_rows}
+    name_to_rbm  = {r[1].strip().upper(): r[2].strip() for r in bm_rows}
+
+    # 2. Eligible product revenue per branch (denominator for Conv%)
+    elig_sql = f"""
+        SELECT s.branch,
+               sumIf(s.sold_price, toDate(s.date) = toDate('{ftd_date_str}'))       AS ftd_elig,
+               sumIf(s.sold_price, toDate(s.date) >= toDate('{mtd_start}')
+                                   AND toDate(s.date) <= toDate('{mtd_end}'))        AS mtd_elig
+        FROM azure_sales_report s
+        JOIN item_master m ON s.item_code = m.item_code
+        WHERE s.item_code NOT LIKE 'OSG%'
+          AND toDate(s.date) != toDate('1970-01-01')
+          AND s.branch NOT IN {EXB}
+          AND {EXI}
+          AND m.item_category IN ({cats_sql})
+          AND (
+              toDate(s.date) = toDate('{ftd_date_str}')
+              OR (toDate(s.date) >= toDate('{mtd_start}') AND toDate(s.date) <= toDate('{mtd_end}'))
+          )
+        GROUP BY s.branch
+    """
+    elig_rows    = ch.query(elig_sql).result_rows
+    ftd_elig_map = {r[0].strip().upper(): float(r[1] or 0) for r in elig_rows}
+    mtd_elig_map = {r[0].strip().upper(): float(r[2] or 0) for r in elig_rows}
+
+    # 3. OSG warranty sales per branch
+    osg_sql = f"""
+        SELECT
+            branch,
+            sumIf(sold_price, toDate(date) = toDate('{ftd_date_str}'))              AS ftd_value,
+            sumIf(qty,        toDate(date) = toDate('{ftd_date_str}'))              AS ftd_count,
+            sumIf(sold_price, toDate(date) >= toDate('{mtd_start}')
+                           AND toDate(date) <= toDate('{mtd_end}'))                 AS mtd_value,
+            sumIf(qty,        toDate(date) >= toDate('{mtd_start}')
+                           AND toDate(date) <= toDate('{mtd_end}'))                 AS mtd_count,
+            sumIf(sold_price, toDate(date) >= toDate('{prev_start}')
+                           AND toDate(date) <= toDate('{prev_end}'))                AS prev_value
+        FROM azure_sales_report
+        WHERE item_code LIKE 'OSG%'
+          AND sold_price > 0
+          AND toDate(date) != toDate('1970-01-01')
+          AND branch NOT IN {EXB}
+          AND {EXI}
+          AND (
+              toDate(date) = toDate('{ftd_date_str}')
+              OR (toDate(date) >= toDate('{mtd_start}') AND toDate(date) <= toDate('{mtd_end}'))
+              OR (toDate(date) >= toDate('{prev_start}') AND toDate(date) <= toDate('{prev_end}'))
+          )
+        GROUP BY branch
+        ORDER BY mtd_value DESC
+    """
+    osg_rows = ch.query(osg_sql).result_rows
+
+    # 4. Build store list
+    stores     = []
+    seen_codes = set()
+
+    for r in osg_rows:
+        b_up      = str(r[0]).strip().upper()
+        seen_codes.add(b_up)
+        full_name = code_to_name.get(b_up, str(r[0]).strip())
+        rbm       = code_to_rbm.get(b_up, name_to_rbm.get(b_up, ''))
+
+        ftd_val  = float(r[1] or 0)
+        ftd_cnt  = int(r[2] or 0)
+        mtd_val  = float(r[3] or 0)
+        mtd_cnt  = int(r[4] or 0)
+        prev_val = float(r[5] or 0)
+
+        ftd_elig = ftd_elig_map.get(b_up, 0)
+        mtd_elig = mtd_elig_map.get(b_up, 0)
+        ftd_conv = round(ftd_val / ftd_elig, 4) if ftd_elig > 0 else 0
+        mtd_conv = round(mtd_val / mtd_elig, 4) if mtd_elig > 0 else 0
+
+        diff_pct = round((mtd_val - prev_val) / prev_val * 100, 2) if prev_val > 0 else 0
+        asp      = round(mtd_val / mtd_cnt, 2) if mtd_cnt > 0 else 0
+
+        stores.append({
+            'branch':        full_name,
+            'branch_code':   b_up,
+            'rbm':           rbm,
+            'ftd_value':     round(ftd_val, 2),
+            'ftd_count':     ftd_cnt,
+            'ftd_conv':      ftd_conv,
+            'ftd_total_inv': ftd_elig,
+            'mtd_value':     round(mtd_val, 2),
+            'mtd_count':     mtd_cnt,
+            'mtd_conv':      mtd_conv,
+            'mtd_total_inv': mtd_elig,
+            'prev_value':    round(prev_val, 2),
+            'diff_pct':      diff_pct,
+            'asp':           asp,
+        })
+
+    # Add zero-sale branches from branch_master
+    for bm in bm_rows:
+        code = bm[0].strip().upper()
+        if code in seen_codes:
+            continue
+        stores.append({
+            'branch': bm[1].strip(), 'branch_code': code, 'rbm': bm[2].strip(),
+            'ftd_value': 0, 'ftd_count': 0, 'ftd_conv': 0, 'ftd_total_inv': 0,
+            'mtd_value': 0, 'mtd_count': 0, 'mtd_conv': 0, 'mtd_total_inv': 0,
+            'prev_value': 0, 'diff_pct': 0, 'asp': 0,
+        })
+
+    # 5. Summary
+    import datetime as _dt
+    active        = [s for s in stores if s['mtd_value'] > 0]
+    total_ftd_val = sum(s['ftd_value'] for s in active)
+    total_ftd_cnt = sum(s['ftd_count'] for s in active)
+    total_ftd_eli = sum(s['ftd_total_inv'] for s in active)
+    total_mtd_val = sum(s['mtd_value'] for s in active)
+    total_mtd_cnt = sum(s['mtd_count'] for s in active)
+    total_mtd_eli = sum(s['mtd_total_inv'] for s in active)
+    total_prev    = sum(s['prev_value'] for s in active)
+    total_diff    = round((total_mtd_val - total_prev) / total_prev * 100, 2) if total_prev > 0 else 0
+    total_ftd_conv= round(total_ftd_val / total_ftd_eli, 4) if total_ftd_eli > 0 else 0
+    total_mtd_conv= round(total_mtd_val / total_mtd_eli, 4) if total_mtd_eli > 0 else 0
+    total_asp     = round(total_mtd_val / total_mtd_cnt, 2) if total_mtd_cnt > 0 else 0
+    gen_at        = _dt.datetime.now().strftime('%d %B %Y %I:%M %p IST')
+
+    return {
+        'status':       'ok',
+        'ftd_date':     ftd_date_str,
+        'month_label':  month_label,
+        'generated_at': gen_at,
+        'stores':       stores,
+        'summary': {
+            'ftd_value':  round(total_ftd_val, 2),
+            'ftd_count':  total_ftd_cnt,
+            'ftd_conv':   total_ftd_conv,
+            'mtd_value':  round(total_mtd_val, 2),
+            'mtd_count':  total_mtd_cnt,
+            'mtd_conv':   total_mtd_conv,
+            'prev_value': round(total_prev, 2),
+            'diff_pct':   total_diff,
+            'asp':        total_asp,
+        }
+    }
+
+
+class OsgSaleReportAPIView(LoginRequiredMixin, View):
+    """
+    GET /api/v1/osg-sale-report/
+    Params: date=YYYY-MM-DD  month=YYYY-MM
+    Returns JSON matching OSG Excel report structure.
+    """
+    def get(self, request):
+        import datetime, json
+        from django.http import JsonResponse
+        from django.core.cache import cache
+        from analytics.clickhouse_service import get_ch_client
+
+        date_str  = request.GET.get('date', '').strip()
+        month_str = request.GET.get('month', '').strip()
+
+        if not date_str:
+            date_str = datetime.date.today().isoformat()
+        if not month_str:
+            month_str = datetime.date.today().strftime('%Y-%m')
+
+        cache_key = f'osg_report_{date_str}_{month_str}'
+        cached = cache.get(cache_key)
+        if cached:
+            return JsonResponse(cached)
+
+        try:
+            ch = get_ch_client()
+            data = _osg_query(ch, date_str, month_str)
+            cache.set(cache_key, data, 600)  # cache 10 min
+            return JsonResponse(data)
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            return JsonResponse({'status': 'error', 'error': str(e)}, status=500)
+
+
+class OsgSaleReportDownloadView(LoginRequiredMixin, View):
+    """
+    GET /api/v1/osg-sale-report/download/
+    Params: date=YYYY-MM-DD  month=YYYY-MM
+    Generates a premium dark-themed Excel matching the portal design.
+    """
+    def get(self, request):
+        import datetime, io
+        from django.http import HttpResponse
+        from analytics.clickhouse_service import get_ch_client
+
+        date_str  = request.GET.get('date',  datetime.date.today().isoformat())
+        month_str = request.GET.get('month', datetime.date.today().strftime('%Y-%m'))
+
+        try:
+            import openpyxl
+            from openpyxl.styles import (Font, PatternFill, Alignment, Border, Side, GradientFill)
+            from openpyxl.utils import get_column_letter
+            from openpyxl.styles.numbers import FORMAT_PERCENTAGE_00, FORMAT_NUMBER_COMMA_SEPARATED1
+        except ImportError:
+            return HttpResponse('openpyxl not installed', status=500)
+
+        try:
+            ch   = get_ch_client()
+            data = _osg_query(ch, date_str, month_str)
+        except Exception as e:
+            return HttpResponse(f'Error: {e}', status=500)
+
+        stores   = data['stores']
+        summary  = data['summary']
+        gen_time = datetime.datetime.now().strftime('%d %B %Y %I:%M %p IST')
+
+        # ── Colour palette (matching portal CSS) ──────────────────────────────
+        C = {
+            'bg_deep':   '0B1120',   # .osg-page background
+            'bg_card':   '0F172A',   # card/header base
+            'bg_row1':   '1E293B',   # even rows / ctrl-bar
+            'bg_row2':   '172033',   # odd rows
+            'bg_navy':   '1E3A5F',   # total row
+            'bg_kpi':    '1A2540',   # KPI card
+            'amber':     'F59E0B',   # active accent
+            'amber_dim': 'FDE68A',   # sub-text amber
+            'green':     '10B981',   # positive / growth
+            'red':       'F87171',   # negative / loss
+            'indigo':    '6366F1',   # tab/badge
+            'teal':      '059669',   # download button
+            'txt_main':  'F1F5F9',   # primary text
+            'txt_sub':   '94A3B8',   # secondary
+            'txt_mute':  '64748B',   # muted
+            'txt_indigo':'A5B4FC',   # indigo text
+            'border':    '334155',   # subtle border
+            'white':     'FFFFFF',
+        }
+
+        def fill(hex_col):
+            return PatternFill('solid', fgColor=hex_col)
+
+        def font(color='F1F5F9', bold=False, size=9, italic=False, name='Calibri'):
+            return Font(color=color, bold=bold, size=size, italic=italic, name=name)
+
+        def align(h='left', v='center', wrap=False):
+            return Alignment(horizontal=h, vertical=v, wrap_text=wrap)
+
+        def border(color='334155'):
+            s = Side(style='thin', color=color)
+            return Border(left=s, right=s, top=s, bottom=s)
+
+        def bottom_border(color='334155'):
+            return Border(bottom=Side(style='thin', color=color))
+
+        thin_bdr  = border()
+        btm_bdr   = bottom_border()
+
+        COLS = [
+            'Store Name', 'FTD Count', 'FTD Value (₹)',
+            'FTD Value\nConversion', 'MTD Count', 'MTD Value (₹)',
+            'MTD Value\nConversion', 'Prev Month\nSale (₹)', 'DIFF %', 'ASP (₹)',
+        ]
+        COL_WIDTHS = [36, 11, 15, 15, 11, 15, 15, 16, 10, 12]
+
+        def _pct_str(val):
+            sign = '+' if val >= 0 else ''
+            return f'{sign}{val:.2f}%'
+
+        def _conv_str(val):
+            return f'{val*100:.2f}%'
+
+        # ── Group by RBM ──────────────────────────────────────────────────────
+        rbms = {}
+        for s in stores:
+            rbm = (s['rbm'] or 'UNKNOWN').strip()
+            rbms.setdefault(rbm, []).append(s)
+
+        wb = openpyxl.Workbook()
+        wb.remove(wb.active)
+
+        def write_sheet(ws, sheet_stores, sheet_title):
+            ws.sheet_view.showGridLines = False
+            ws.sheet_properties.tabColor = C['amber']
+
+            active_ct = sum(1 for s in sheet_stores if s['mtd_value'] > 0)
+            inact_ct  = len(sheet_stores) - active_ct
+            total_rev = sum(s['mtd_value'] for s in sheet_stores)
+            top3      = sorted(sheet_stores, key=lambda x: -x['mtd_value'])[:3]
+
+            # ── ROW 1: Main title bar ─────────────────────────────────────────
+            ws.row_dimensions[1].height = 36
+            ws.append([f'OSG (ONSITEGO) WARRANTY REPORT  —  {sheet_title.upper()}'])
+            c = ws.cell(1, 1)
+            c.font      = font(C['amber'], bold=True, size=14)
+            c.fill      = fill(C['bg_card'])
+            c.alignment = align('left', 'center')
+            ws.merge_cells(f'A1:{get_column_letter(len(COLS))}1')
+            # amber left border emphasis via fill on col A
+            ws.cell(1,1).border = Border(left=Side(style='thick', color=C['amber']))
+
+            # ── ROW 2: Subtitle ───────────────────────────────────────────────
+            ws.row_dimensions[2].height = 18
+            ws.append([f'Report Period: {data["month_label"]}   |   FTD: {date_str}   |   Generated: {gen_time}'])
+            c = ws.cell(2, 1)
+            c.font      = font(C['txt_mute'], size=8, italic=True)
+            c.fill      = fill(C['bg_card'])
+            c.alignment = align('left', 'center')
+            ws.merge_cells(f'A2:{get_column_letter(len(COLS))}2')
+
+            # ── ROW 3: blank spacer ───────────────────────────────────────────
+            ws.row_dimensions[3].height = 8
+            ws.append([None] * len(COLS))
+            for ci in range(1, len(COLS)+1):
+                ws.cell(3, ci).fill = fill(C['bg_deep'])
+
+            # ── ROWS 4-5: KPI summary bar ─────────────────────────────────────
+            ws.row_dimensions[4].height = 20
+            ws.row_dimensions[5].height = 20
+
+            kpi_labels = [
+                'TOTAL STORES', 'ACTIVE', 'INACTIVE',
+                'FTD INVOICES', 'MTD INVOICES',
+                'FTD ATTACH %', 'MTD ATTACH %',
+                'VS PREV MONTH', 'AVG SELL PRICE',
+            ]
+            kpi_vals = [
+                str(len(sheet_stores)),
+                str(active_ct),
+                str(inact_ct),
+                str(summary['ftd_count']),
+                str(summary['mtd_count']),
+                _conv_str(summary['ftd_conv']),
+                _conv_str(summary['mtd_conv']),
+                _pct_str(summary['diff_pct']),
+                f'₹{summary["asp"]:,.0f}',
+            ]
+
+            ws.append(kpi_labels)
+            ws.append(kpi_vals)
+
+            for ci in range(1, len(kpi_labels)+1):
+                lbl  = ws.cell(4, ci)
+                val  = ws.cell(5, ci)
+                lbl.fill      = fill(C['bg_kpi'])
+                lbl.font      = font(C['txt_mute'], bold=True, size=7)
+                lbl.alignment = align('center', 'center')
+                val.fill      = fill(C['bg_kpi'])
+                val.alignment = align('center', 'center')
+                # colour-code key KPIs
+                idx = ci - 1
+                if idx == 1:   val.font = font(C['green'], bold=True, size=11)
+                elif idx == 2: val.font = font(C['red'],   bold=True, size=11)
+                elif idx == 7:
+                    diff_v = summary['diff_pct']
+                    col = C['green'] if diff_v >= 0 else C['red']
+                    val.font = font(col, bold=True, size=11)
+                else:          val.font = font(C['txt_main'], bold=True, size=11)
+                lbl.border = border(C['bg_card'])
+                val.border = border(C['bg_card'])
+
+            # ── ROW 6: Top performers bar ─────────────────────────────────────
+            ws.row_dimensions[6].height = 18
+            top_str = '  ●  '.join(f'  {s["branch"]}: ₹{s["mtd_value"]:,.0f}  ' for s in top3)
+            ws.append([f'🏆  TOP 3 PERFORMERS  ▸  {top_str}'])
+            c = ws.cell(6, 1)
+            c.font      = font(C['amber_dim'], bold=True, size=8)
+            c.fill      = fill(C['bg_card'])
+            c.alignment = align('left', 'center')
+            ws.merge_cells(f'A6:{get_column_letter(len(COLS))}6')
+
+            # ── ROW 7: blank spacer ───────────────────────────────────────────
+            ws.row_dimensions[7].height = 8
+            ws.append([None] * len(COLS))
+            for ci in range(1, len(COLS)+1):
+                ws.cell(7, ci).fill = fill(C['bg_deep'])
+
+            # ── ROW 8: Column headers ─────────────────────────────────────────
+            ws.row_dimensions[8].height = 38
+            ws.append(COLS)
+            header_colors = [
+                C['bg_card'], C['bg_navy'], C['bg_navy'],
+                C['bg_navy'], C['indigo'], C['indigo'],
+                C['indigo'], C['bg_row1'], C['bg_row1'], C['bg_row1'],
+            ]
+            for ci, hcol in enumerate(header_colors, 1):
+                c = ws.cell(8, ci)
+                c.fill      = fill(hcol)
+                c.font      = font(C['amber'] if ci == 1 else C['txt_main'], bold=True, size=9)
+                c.alignment = align('center', 'center', wrap=True)
+                c.border    = border()
+
+            # ── DATA ROWS (from row 9) ────────────────────────────────────────
+            sorted_stores = sorted(sheet_stores, key=lambda x: -x['mtd_value'])
+            DATA_START = 9
+            for i, s in enumerate(sorted_stores, DATA_START):
+                ws.row_dimensions[i].height = 18
+                diff_v = s['diff_pct']
+
+                row_data = [
+                    s['branch'],
+                    s['ftd_count']  if s['ftd_count'] > 0  else 0,
+                    s['ftd_value']  if s['ftd_value'] > 0  else 0,
+                    _conv_str(s['ftd_conv']),
+                    s['mtd_count']  if s['mtd_count'] > 0  else 0,
+                    s['mtd_value']  if s['mtd_value'] > 0  else 0,
+                    _conv_str(s['mtd_conv']),
+                    s['prev_value'] if s['prev_value'] > 0 else 0,
+                    _pct_str(diff_v),
+                    round(s['asp'], 2) if s['asp'] > 0 else 0,
+                ]
+                ws.append(row_data)
+
+                row_bg    = C['bg_row1'] if i % 2 == 0 else C['bg_row2']
+                is_active = s['ftd_count'] > 0
+
+                for ci, val in enumerate(row_data, 1):
+                    cell = ws.cell(i, ci)
+                    cell.fill   = fill(row_bg)
+                    cell.border = btm_bdr
+                    if ci == 1:
+                        cell.font      = font(C['amber'] if is_active else C['txt_mute'], bold=is_active, size=9)
+                        cell.alignment = align('left', 'center')
+                    elif ci in (4, 7):
+                        cell.font      = font(C['teal'] if s['mtd_value'] > 0 else C['txt_mute'], size=9)
+                        cell.alignment = align('center', 'center')
+                    elif ci == 9:
+                        diff_color = C['green'] if diff_v >= 0 else C['red']
+                        cell.font      = font(diff_color, bold=True, size=9)
+                        cell.alignment = align('center', 'center')
+                    elif ci in (2, 5):
+                        cell.font          = font(C['txt_sub'], size=9)
+                        cell.alignment     = align('center', 'center')
+                        cell.number_format = '#,##0'
+                    elif ci in (3, 6, 8, 10):
+                        cell.font          = font(C['txt_main'], size=9)
+                        cell.alignment     = align('right', 'center')
+                        cell.number_format = '[$₹-4009]#,##0.00'
+                    else:
+                        cell.font      = font(C['txt_sub'], size=9)
+                        cell.alignment = align('right', 'center')
+
+            # ── TOTALS ROW ────────────────────────────────────────────────────
+            tr          = ws.max_row + 1
+            ws.row_dimensions[tr].height = 22
+            total_ftdc  = sum(s['ftd_count']     for s in sheet_stores)
+            total_ftdv  = sum(s['ftd_value']     for s in sheet_stores)
+            total_ftde  = sum(s['ftd_total_inv'] for s in sheet_stores)
+            total_mtdc  = sum(s['mtd_count']     for s in sheet_stores)
+            total_mtdv  = sum(s['mtd_value']     for s in sheet_stores)
+            total_mtde  = sum(s['mtd_total_inv'] for s in sheet_stores)
+            total_prev  = sum(s['prev_value']    for s in sheet_stores)
+            total_diff  = round((total_mtdv - total_prev) / total_prev * 100, 2) if total_prev > 0 else 0
+            total_asp   = round(total_mtdv / total_mtdc, 2) if total_mtdc > 0 else 0
+            ftd_conv_t  = round(total_ftdv / total_ftde, 4) if total_ftde > 0 else 0
+            mtd_conv_t  = round(total_mtdv / total_mtde, 4) if total_mtde > 0 else 0
+
+            tot_data = [
+                f'GRAND TOTAL  ({len(sheet_stores)} stores)',
+                total_ftdc, round(total_ftdv, 2), _conv_str(ftd_conv_t),
+                total_mtdc, round(total_mtdv, 2), _conv_str(mtd_conv_t),
+                round(total_prev, 2), _pct_str(total_diff), round(total_asp, 2),
+            ]
+            ws.append(tot_data)
+            diff_col = C['green'] if total_diff >= 0 else C['red']
+            for ci, _ in enumerate(tot_data, 1):
+                c = ws.cell(tr, ci)
+                c.fill      = fill(C['bg_navy'])
+                c.alignment = align('center' if ci > 1 else 'left', 'center')
+                c.border    = border(C['amber'])
+                if ci == 1:
+                    c.font = font(C['amber'], bold=True, size=10)
+                elif ci == 9:
+                    c.font = font(diff_col, bold=True, size=10)
+                else:
+                    c.font = font(C['txt_main'], bold=True, size=10)
+                if ci in (3, 6, 8, 10):
+                    c.number_format = '[$₹-4009]#,##0.00'
+                elif ci in (2, 5):
+                    c.number_format = '#,##0'
+
+            # ── FOOTER ────────────────────────────────────────────────────────
+            ws.row_dimensions[tr+1].height = 8
+            ws.append([None] * len(COLS))
+            for ci in range(1, len(COLS)+1):
+                ws.cell(tr+1, ci).fill = fill(C['bg_deep'])
+
+            insight_txt = (f'📈  Growth of {abs(total_diff):.2f}% from previous month period'
+                           if total_diff >= 0
+                           else f'📉  Decline of {abs(total_diff):.2f}% from previous month period')
+            ws.append([insight_txt])
+            ws.row_dimensions[tr+2].height = 16
+            c = ws.cell(tr+2, 1)
+            c.font      = font(C['green'] if total_diff >= 0 else C['red'], size=8, italic=True)
+            c.fill      = fill(C['bg_card'])
+            c.alignment = align('left', 'center')
+            ws.merge_cells(f'A{tr+2}:{get_column_letter(len(COLS))}{tr+2}')
+
+            top_str2 = '  |  '.join(f'{s["branch"]}: ₹{s["mtd_value"]:,.0f}' for s in top3)
+            ws.append([f'🏆  Top Performers: {top_str2}'])
+            ws.row_dimensions[tr+3].height = 16
+            c = ws.cell(tr+3, 1)
+            c.font      = font(C['txt_indigo'], size=8, italic=True)
+            c.fill      = fill(C['bg_card'])
+            c.alignment = align('left', 'center')
+            ws.merge_cells(f'A{tr+3}:{get_column_letter(len(COLS))}{tr+3}')
+
+            # ── Column widths & freeze pane ───────────────────────────────────
+            for ci, w in enumerate(COL_WIDTHS, 1):
+                ws.column_dimensions[get_column_letter(ci)].width = w
+            ws.freeze_panes = 'B9'
+
+        # ── All Stores sheet ──────────────────────────────────────────────────
+        ws_all = wb.create_sheet('OSG ALL STORES')
+        write_sheet(ws_all, stores, 'All Stores')
+
+        # ── Per-RBM sheets ────────────────────────────────────────────────────
+        for rbm_name, rbm_stores in sorted(rbms.items()):
+            ws_rbm = wb.create_sheet(rbm_name[:31])
+            write_sheet(ws_rbm, rbm_stores, rbm_name)
+
+        # Stream response
+        buf  = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        fname = f'OSG_{date_str}_Sale_Report.xlsx'
+        resp  = HttpResponse(
+            buf.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        resp['Content-Disposition'] = f'attachment; filename="{fname}"'
+        return resp
+
+
+        wb = openpyxl.Workbook()
+        wb.remove(wb.active)  # remove default sheet
+
+        COLS = ['Store Name','FTD Count','FTD Value','FTD Value Conversion',
+                'MTD Count','MTD Value','MTD Value Conversion','PREV MONTH SALE','DIFF %','ASP']
+
+        # Styles
+        hdr_fill   = PatternFill('solid', fgColor='0F172A')
+        col_fill   = PatternFill('solid', fgColor='1E293B')
+        tot_fill   = PatternFill('solid', fgColor='1E3A5F')
+        hdr_font   = Font(bold=True, color='94A3B8', size=9)
+        col_font   = Font(bold=True, color='C7D2FE', size=10)
+        data_font  = Font(color='E2E8F0', size=9)
+        tot_font   = Font(bold=True, color='F1F5F9', size=10)
+        title_font = Font(bold=True, color='F1F5F9', size=13)
+        thin = Side(style='thin', color='334155')
+        bdr  = Border(bottom=Side(style='thin', color='334155'))
+
+        def write_sheet(ws, sheet_stores, sheet_title):
+            active  = sum(1 for s in sheet_stores if s['ftd_count'] > 0)
+            total_r = sum(s['mtd_value'] for s in sheet_stores)
+            top3    = sorted(sheet_stores, key=lambda x: -x['mtd_value'])[:3]
+
+            ws.sheet_view.showGridLines = False
+            ws.sheet_properties.tabColor = '6366F1'
+
+            # Row 1: Title
+            ws.append([f'{sheet_title} — Sales Performance Report'])
+            ws.cell(1,1).font = title_font
+            ws.cell(1,1).fill = hdr_fill
+            ws.cell(1,1).alignment = Alignment(horizontal='left', vertical='center')
+            ws.row_dimensions[1].height = 28
+
+            # Row 2: subtitle
+            ws.append([f'Report Period: {data["month_label"]} | Generated: {gen_time}'])
+            ws.cell(2,1).font = Font(color='94A3B8', size=9, italic=True)
+            ws.cell(2,1).fill = hdr_fill
+            ws.row_dimensions[2].height = 18
+
+            # Row 3: blank
+            ws.append([])
+
+            # Row 4: summary
+            ws.append([f'📊 PERFORMANCE OVERVIEW', None,
+                        f'Total Stores: {len(sheet_stores)} | Active: {active} | Inactive: {len(sheet_stores)-active} | Total Revenue: ₹{total_r:,.0f}'])
+            ws.cell(4,1).font = Font(bold=True, color='A5B4FC', size=9)
+            ws.cell(4,1).fill = col_fill
+            ws.cell(4,3).font = Font(color='94A3B8', size=9)
+            ws.cell(4,3).fill = col_fill
+
+            # Row 5: top performer
+            top_str = ' | '.join(f'{s["branch"]}: ₹{s["mtd_value"]:,.0f}' for s in top3)
+            ws.append([f'🏆 Top 3 Performers: {top_str}'])
+            ws.cell(5,1).font = Font(color='34D399', size=9)
+            ws.cell(5,1).fill = col_fill
+
+            # Row 6: blank
+            ws.append([])
+
+            # Row 7: column headers
+            ws.append(COLS)
+            for ci, _ in enumerate(COLS, 1):
+                c = ws.cell(7, ci)
+                c.font  = hdr_font
+                c.fill  = hdr_fill
+                c.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                c.border = bdr
+            ws.row_dimensions[7].height = 30
+
+            # Data rows
+            sorted_stores = sorted(sheet_stores, key=lambda x: -x['mtd_value'])
+            for i, s in enumerate(sorted_stores, 8):
+                diff_str = f"{'+' if s['diff_pct'] >= 0 else ''}{s['diff_pct']:.2f}%"
+                row_data = [
+                    s['branch'],
+                    s['ftd_count'],
+                    s['ftd_value'],
+                    s['ftd_conv'],
+                    s['mtd_count'],
+                    s['mtd_value'],
+                    s['mtd_conv'],
+                    s['prev_value'],
+                    diff_str,
+                    s['asp'],
+                ]
+                ws.append(row_data)
+                fill_row = PatternFill('solid', fgColor='1E293B' if i % 2 == 0 else '172033')
+                for ci in range(1, 11):
+                    cell = ws.cell(i, ci)
+                    cell.fill = fill_row
+                    cell.font = data_font
+                    cell.alignment = Alignment(horizontal='right' if ci > 1 else 'left', vertical='center')
+                    cell.border = bdr
+
+            # Totals row
+            tr = ws.max_row + 1
+            total_mtd  = sum(s['mtd_value'] for s in sheet_stores)
+            total_prev = sum(s['prev_value'] for s in sheet_stores)
+            total_ftd  = sum(s['ftd_value'] for s in sheet_stores)
+            total_ftdc = sum(s['ftd_count'] for s in sheet_stores)
+            total_mtdc = sum(s['mtd_count'] for s in sheet_stores)
+            total_diff = round((total_mtd - total_prev) / total_prev * 100, 2) if total_prev > 0 else 0
+            total_asp  = round(total_mtd / total_mtdc, 2) if total_mtdc > 0 else 0
+            tot_data   = [f'🎯 TOTAL',
+                          total_ftdc, round(total_ftd,2), f'{sum(s["ftd_conv"] for s in sheet_stores)/len(sheet_stores)*100:.2f}%',
+                          total_mtdc, round(total_mtd,2), f'{sum(s["mtd_conv"] for s in sheet_stores)/len(sheet_stores)*100:.2f}%',
+                          round(total_prev,2), f"{'+' if total_diff>=0 else ''}{total_diff:.2f}%", round(total_asp,2)]
+            ws.append(tot_data)
+            for ci in range(1, 11):
+                c = ws.cell(tr, ci)
+                c.font  = tot_font
+                c.fill  = tot_fill
+                c.alignment = Alignment(horizontal='right' if ci > 1 else 'left', vertical='center')
+            ws.row_dimensions[tr].height = 22
+
+            # Blank + insight
+            ws.append([])
+            diff_insight = f"{'📈 Excellent Growth' if total_diff > 0 else '📉 Needs Attention'}: {abs(total_diff):.2f}% {'increase' if total_diff > 0 else 'decrease'} from previous month"
+            ws.append([diff_insight])
+            ws.cell(ws.max_row, 1).font = Font(color='34D399' if total_diff > 0 else 'F87171', size=9, italic=True)
+            top3_str = ' | '.join(f'{s["branch"]}: ₹{s["mtd_value"]:,.0f}' for s in top3)
+            ws.append([f'🏆 Top 3 Performers: {top3_str}'])
+            ws.cell(ws.max_row, 1).font = Font(color='A5B4FC', size=9)
+
+            # Column widths
+            widths = [35, 10, 14, 16, 10, 14, 16, 16, 9, 10]
+            for ci, w in enumerate(widths, 1):
+                ws.column_dimensions[get_column_letter(ci)].width = w
+
+            # Merge title across columns
+            ws.merge_cells(f'A1:{get_column_letter(len(COLS))}1')
+            ws.merge_cells(f'A2:{get_column_letter(len(COLS))}2')
+
+        # ── All Stores sheet ──────────────────────────────────────────────────
+        ws_all = wb.create_sheet('OSG ALL STORES')
+        write_sheet(ws_all, stores, 'OSG All Stores')
+
+        # ── One sheet per RBM ─────────────────────────────────────────────────
+        for rbm_name, rbm_stores in sorted(rbms.items()):
+            ws_rbm = wb.create_sheet(rbm_name[:31])
+            write_sheet(ws_rbm, rbm_stores, rbm_name)
+
+        # Stream response
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        fname = f'OSG_{date_str}_Sale_Report.xlsx'
+        resp = HttpResponse(buf.read(),
+                            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        resp['Content-Disposition'] = f'attachment; filename="{fname}"'
+        return resp
