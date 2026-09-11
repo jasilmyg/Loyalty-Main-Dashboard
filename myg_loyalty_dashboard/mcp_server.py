@@ -287,8 +287,8 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-# Claude custom connectors require standard MCP SSE transport
-app = mcp.sse_app()
+# Streamable HTTP is the modern MCP transport (Claude recommends this over SSE)
+app = mcp.streamable_http_app()
 
 async def health_check(request):
     return JSONResponse({"status": "ok", "mcp": "myg-portal"})
