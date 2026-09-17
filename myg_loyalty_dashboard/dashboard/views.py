@@ -1,4 +1,4 @@
-﻿from django.views.generic import TemplateView, View
+from django.views.generic import TemplateView, View
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
@@ -4391,7 +4391,7 @@ class FutureSaleAnalysisAPIView(LoginRequiredMixin, View):
                     s.branch                               AS store,
                     sum(toFloat64(s.sold_price))           AS sale_value,
                     countDistinct(s.invoice_no)            AS invoices,
-                    sum(toInt64(s.qty))                    AS qty,
+                    sum(toInt64(if(s.sold_price < 0, -abs(toInt64(s.qty)), abs(toInt64(s.qty))))) AS qty,
                     countDistinct(i.customer_mobile)       AS unique_customers
                 FROM azure_sales_report s
                 LEFT JOIN azure_invoice_report i ON s.invoice_no = i.invoice_no
@@ -4419,7 +4419,7 @@ class FutureSaleAnalysisAPIView(LoginRequiredMixin, View):
                     s.branch                               AS store,
                     sum(toFloat64(s.sold_price))           AS sale_value,
                     countDistinct(s.invoice_no)            AS invoices,
-                    sum(toInt64(s.qty))                    AS qty,
+                    sum(toInt64(if(s.sold_price < 0, -abs(toInt64(s.qty)), abs(toInt64(s.qty))))) AS qty,
                     countDistinct(i.customer_mobile)       AS unique_customers,
                     countDistinct(toDate(s.date))          AS active_days
                 FROM azure_sales_report s
@@ -4522,7 +4522,7 @@ class FutureSaleAnalysisAPIView(LoginRequiredMixin, View):
                 SELECT
                     coalesce(nullIf(trim(m.product), ''), 'OTHERS') AS product,
                     sum(toFloat64(s.sold_price))                      AS sale_value,
-                    sum(toInt64(s.qty))                               AS qty,
+                    sum(toInt64(if(s.sold_price < 0, -abs(toInt64(s.qty)), abs(toInt64(s.qty))))) AS qty,
                     countDistinct(s.invoice_no)                       AS invoices
                 FROM azure_sales_report s
                 LEFT JOIN item_master m ON s.item_code = m.item_code
@@ -4558,7 +4558,7 @@ class FutureSaleAnalysisAPIView(LoginRequiredMixin, View):
                     SELECT
                         sum(toFloat64(s.sold_price))        AS sale_value,
                         countDistinct(s.invoice_no)         AS invoices,
-                        sum(toInt64(s.qty))                 AS qty,
+                        sum(toInt64(if(s.sold_price < 0, -abs(toInt64(s.qty)), abs(toInt64(s.qty))))) AS qty,
                         countDistinct(i.customer_mobile)    AS unique_customers
                     FROM azure_sales_report s
                     LEFT JOIN azure_invoice_report i ON s.invoice_no = i.invoice_no
@@ -4601,7 +4601,7 @@ class FutureSaleAnalysisAPIView(LoginRequiredMixin, View):
                     SELECT
                         coalesce(nullIf(trim(m.product), ''), 'OTHERS') AS product,
                         sum(toFloat64(s.sold_price))                      AS sale_value,
-                        sum(toInt64(s.qty))                               AS qty,
+                        sum(toInt64(if(s.sold_price < 0, -abs(toInt64(s.qty)), abs(toInt64(s.qty))))) AS qty,
                         countDistinct(s.invoice_no)                       AS invoices
                     FROM azure_sales_report s
                     LEFT JOIN item_master m ON s.item_code = m.item_code

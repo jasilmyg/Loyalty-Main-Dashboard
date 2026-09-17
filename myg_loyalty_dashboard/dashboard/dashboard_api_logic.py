@@ -102,7 +102,8 @@ def _fetch_period(ch, comp_type, val, year, brand_filter='', branch_filter='', c
             if(isNull(m.product) OR m.product='', 'Unknown', m.product) AS product,
             if(isNull(m.brand)   OR m.brand='',   'Unknown', m.brand)   AS brand,
             if(isNull(s.branch)  OR s.branch='',  'Unknown', s.branch)  AS branch,
-            sum(toFloat64(s.qty))        AS qty,
+            -- qty sign fix: sold_price < 0 means return, but qty is stored as +1 in source
+            sum(toFloat64(if(s.sold_price < 0, -abs(toFloat64(s.qty)), abs(toFloat64(s.qty))))) AS qty,
             sum(toFloat64(s.sold_price)) AS sold_price,
             countDistinct(s.invoice_no)  AS inv_count,
             sum(toFloat64(s.discount))   AS discount_amt,

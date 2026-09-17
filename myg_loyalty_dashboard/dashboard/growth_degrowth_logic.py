@@ -128,7 +128,8 @@ def _fetch_branch_metrics(ch, comp_type, val, year, branch_filter='', brand_filt
         SELECT
             if(isNull(s.branch) OR s.branch='', 'Unknown', s.branch) AS branch,
             sum(toFloat64(s.sold_price)) AS sale_value,
-            sum(toFloat64(s.qty))        AS qty,
+            -- qty sign fix: sold_price < 0 means return, qty stored as +1 in source
+            sum(toFloat64(if(s.sold_price < 0, -abs(toFloat64(s.qty)), abs(toFloat64(s.qty))))) AS qty,
             countDistinct(i.customer_mobile) AS unique_customers
         FROM azure_sales_report s
         LEFT JOIN item_master m ON s.item_code = m.item_code
