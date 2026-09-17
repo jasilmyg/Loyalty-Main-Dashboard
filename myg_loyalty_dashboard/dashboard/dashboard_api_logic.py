@@ -1,6 +1,7 @@
 from django.http import JsonResponse
 from django.core.cache import cache
 import pandas as pd
+from .utils import RETAIL_BRANCH_FILTER
 
 # ── ClickHouse helper ─────────────────────────────────────────────────────────
 def _get_ch():
@@ -65,6 +66,11 @@ def _date_filter_sql(comp_type, val, year=2026, alias='s'):
     return "1=1"
 
 
+# ── Branches to always exclude from retail branch reports ──────────────────
+# 3GH = HEAD OFFICE (internal transfers), CSB = CORPORATE SALES (B2B, not retail)
+EXCLUDED_BRANCHES = ('3GH', 'CSB', 'CSBW')
+EXCLUDED_BRANCHES_SQL = "s.branch NOT IN ('3GH','CSB','CSBW')"
+
 # ── Main ClickHouse fetch (aggregated — pushes work into CH to save RAM) ──────
 def _fetch_period(ch, comp_type, val, year, brand_filter='', branch_filter='', category_filter='', product_filter=''):
     """
@@ -86,7 +92,7 @@ def _fetch_period(ch, comp_type, val, year, brand_filter='', branch_filter='', c
         _in('m.product', product_filter),
     ] if c]
 
-    where = f"toDate(s.date) != toDate('1970-01-01') AND {date_cond}"
+    where = f"toDate(s.date) != toDate('1970-01-01') AND {date_cond} AND {EXCLUDED_BRANCHES_SQL}"
     if extra:
         where += " AND " + " AND ".join(extra)
 
@@ -172,7 +178,7 @@ def build_api_response(request):
     if rbm:
         rbm_list = [r.strip() for r in rbm.split(',') if r.strip()]
         rbm_escaped = "','".join(r.replace("'", "''") for r in rbm_list)
-        rbm_branches = ch.query(f"SELECT DISTINCT code FROM branch_master WHERE rbm IN ('{rbm_escaped}') AND code != ''").result_rows
+        rbm_branches = ch.query(f"SELECT DISTINCT code FROM branch_master WHERE rbm IN ('{rbm_escaped}') AND code != '' AND {RETAIL_BRANCH_FILTER}").result_rows
         rbm_codes = [r[0] for r in rbm_branches]
         # Merge with existing branch filter
         if rbm_codes:
@@ -184,7 +190,7 @@ def build_api_response(request):
     if bdm:
         bdm_list = [b.strip() for b in bdm.split(',') if b.strip()]
         bdm_escaped = "','".join(b.replace("'", "''") for b in bdm_list)
-        bdm_branches = ch.query(f"SELECT DISTINCT code FROM branch_master WHERE bdm IN ('{bdm_escaped}') AND code != ''").result_rows
+        bdm_branches = ch.query(f"SELECT DISTINCT code FROM branch_master WHERE bdm IN ('{bdm_escaped}') AND code != '' AND {RETAIL_BRANCH_FILTER}").result_rows
         bdm_codes = [r[0] for r in bdm_branches]
         if bdm_codes:
             existing = [b for b in branch.split(',') if b] if branch else []
@@ -195,7 +201,7 @@ def build_api_response(request):
     if district:
         dist_list = [d.strip() for d in district.split(',') if d.strip()]
         dist_escaped = "','".join(d.replace("'", "''") for d in dist_list)
-        dist_branches = ch.query(f"SELECT DISTINCT code FROM branch_master WHERE district IN ('{dist_escaped}') AND code != ''").result_rows
+        dist_branches = ch.query(f"SELECT DISTINCT code FROM branch_master WHERE district IN ('{dist_escaped}') AND code != '' AND {RETAIL_BRANCH_FILTER}").result_rows
         dist_codes = [r[0] for r in dist_branches]
         if dist_codes:
             existing = [b for b in branch.split(',') if b] if branch else []
@@ -208,7 +214,7 @@ def build_api_response(request):
         state_list = [s.strip() for s in state.split(',') if s.strip()]
         state_codes = [state_map_inv.get(s, s) for s in state_list]
         state_escaped = "','".join(s.replace("'", "''") for s in state_codes)
-        state_branches = ch.query(f"SELECT DISTINCT code FROM branch_master WHERE substring(gst_no, 1, 2) IN ('{state_escaped}') AND code != ''").result_rows
+        state_branches = ch.query(f"SELECT DISTINCT code FROM branch_master WHERE substring(gst_no, 1, 2) IN ('{state_escaped}') AND code != '' AND {RETAIL_BRANCH_FILTER}").result_rows
         st_codes = [r[0] for r in state_branches]
         if st_codes:
             existing = [b for b in branch.split(',') if b] if branch else []
@@ -350,6 +356,39 @@ def build_api_response(request):
     detailed_table = (pd.merge(b_dtbl, c_dtbl, on=['category','product','brand','branch'], how='outer')
                         .fillna(0).to_dict('records'))
 
+    # ── 8. True branch-level distinct customer count (for correct AVG SPEND) ──
+    # The per-product countDistinct summed to branch level inflates the denominator
+    # because the same customer buying 2 products is counted twice.
+    # This query gives the real countDistinct(customer_mobile) per branch.
+    def _fetch_branch_true_cust(ch, comp_type, val, year, branch_filter=''):
+        date_cond = _date_filter_sql(comp_type, val, year)
+        extra = []
+        if branch_filter:
+            vals = [v.strip() for v in branch_filter.split(',') if v.strip()]
+            if vals:
+                escaped = "','".join(v.replace("'", "''") for v in vals)
+                extra.append(f"s.branch IN ('{escaped}')")
+        where = f"toDate(s.date) != toDate('1970-01-01') AND {date_cond} AND {EXCLUDED_BRANCHES_SQL}"
+        if extra:
+            where += " AND " + " AND ".join(extra)
+        sql = f"""
+            SELECT
+                s.branch AS branch,
+                countDistinct(i.customer_mobile) AS true_unique_cust
+            FROM azure_sales_report s
+            LEFT JOIN azure_invoice_report i ON s.invoice_no = i.invoice_no
+            WHERE {where}
+            GROUP BY s.branch
+        """
+        try:
+            rows = ch.query(sql).result_rows
+            return {code_to_name.get(r[0], r[0]): int(r[1]) for r in rows}
+        except Exception:
+            return {}
+
+    b_branch_cust = _fetch_branch_true_cust(ch, comp_type, base_val, base_year, branch)
+    c_branch_cust = _fetch_branch_true_cust(ch, comp_type, comp_val, comp_year, branch)
+
     final_response = {
         "kpis":                kpis,
         "trends":              trends,
@@ -359,6 +398,10 @@ def build_api_response(request):
         "table":               tbl,
         "scorecard":           scorecard,
         "detailed_table":      detailed_table,
+        "branch_true_cust": {
+            "base": b_branch_cust,
+            "comp": c_branch_cust,
+        },
     }
 
     cache.set(cache_key, final_response, timeout=3600)

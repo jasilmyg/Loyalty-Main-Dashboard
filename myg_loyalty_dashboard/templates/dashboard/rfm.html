@@ -505,9 +505,9 @@
             const res = await fetch('/api/v1/branches-list/');
             if (!res.ok) throw new Error('Failed to load branches');
             const data = await res.json();
-            // data may be array of strings or array of objects
+            // data is now array of {code, name} objects; fallback for plain strings
             allBranches = Array.isArray(data)
-                ? data.map(b => typeof b === 'string' ? b : (b.branch || b.name || String(b)))
+                ? data.map(b => typeof b === 'string' ? {code: b, name: b} : {code: b.code || b.branch || String(b), name: b.name || b.branch || String(b)})
                 : [];
         } catch (e) {
             console.error('Branch load error:', e);
@@ -518,17 +518,17 @@
     function renderBranchList(filter = '') {
         const container = document.getElementById('branchCheckboxList');
         const lc = filter.toLowerCase();
-        const filtered = allBranches.filter(b => b.toLowerCase().includes(lc));
+        const filtered = allBranches.filter(b => b.name.toLowerCase().includes(lc));
         if (filtered.length === 0) {
             container.innerHTML = `<div class="no-branches-msg">${filter ? 'No branches match your search.' : 'No branches found.'}</div>`;
             return;
         }
         container.innerHTML = filtered.map(b => {
-            const safeName = b.replace(/"/g, '&quot;');
+            const safeCode = b.code.replace(/"/g, '&quot;');
             return `
                 <label class="branch-check-item">
-                    <input type="checkbox" class="branch-cb" value="${safeName}" onchange="updateBranchCount()">
-                    <span>${b}</span>
+                    <input type="checkbox" class="branch-cb" value="${safeCode}" onchange="updateBranchCount()">
+                    <span>${b.name}</span>
                 </label>`;
         }).join('');
         updateBranchCount();

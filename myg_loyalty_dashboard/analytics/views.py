@@ -240,9 +240,35 @@ class InvalidMobilesAPI(APIView):
 
 class BranchesAPI(APIView):
     permission_classes = [IsAuthenticated]
+
+    # Load branches.json once at class level for fast lookup
+    _branch_name_map = None
+
+    @classmethod
+    def _get_branch_name_map(cls):
+        if cls._branch_name_map is None:
+            import json, pathlib
+            branches_file = pathlib.Path(__file__).parent.parent / 'branches.json'
+            try:
+                with open(str(branches_file), 'r', encoding='utf-16') as f:
+                    pairs = json.load(f)
+                # pairs is a list of [code, name]
+                cls._branch_name_map = {code.upper(): name for code, name in pairs}
+            except Exception as e:
+                print(f"[BranchesAPI] Failed to load branches.json: {e}")
+                cls._branch_name_map = {}
+        return cls._branch_name_map
+
     def get(self, request):
-        data = get_analytics().get_unique_branches()
-        return Response(data)
+        codes = get_analytics().get_unique_branches()
+        name_map = self._get_branch_name_map()
+        result = []
+        for code in codes:
+            name = name_map.get(code.upper(), code)  # fallback to code if no mapping
+            result.append({'code': code, 'name': name})
+        # Sort by full name for better UX
+        result.sort(key=lambda x: x['name'])
+        return Response(result)
 
 try:
     import psycopg2

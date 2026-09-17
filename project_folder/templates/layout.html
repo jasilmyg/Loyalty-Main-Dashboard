@@ -29,15 +29,22 @@
     <div class="sidebar">
         <h4 class="mb-4">myG Intelligence</h4>
         <nav class="nav flex-column">
-            <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">Sales Overview</a>
-            <a class="nav-link {% if request.path == '/rfm' %}active{% endif %}" href="/rfm">RFM Segmentation</a>
-            <a class="nav-link {% if request.path == '/branches' %}active{% endif %}" href="/branches">Branch Performance</a>
-            <a class="nav-link {% if request.path == '/staff' %}active{% endif %}" href="/staff">Staff Performance</a>
-            <a class="nav-link {% if request.path == '/payments' %}active{% endif %}" href="/payments">Payment Analytics</a>
-            <a class="nav-link {% if request.path == '/discounts' %}active{% endif %}" href="/discounts">Discount Analysis</a>
-            <a class="nav-link {% if request.path == '/retention' %}active{% endif %}" href="/retention">Cohort Retention</a>
-            <hr class="bg-secondary">
-            <a class="nav-link" href="/logout">Logout</a>
+            <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">📊 Sales Overview</a>
+            <a class="nav-link {% if request.path == '/rfm' %}active{% endif %}" href="/rfm">👥 RFM Segmentation</a>
+            <a class="nav-link {% if request.path == '/branches' %}active{% endif %}" href="/branches">🏬 Branch Performance</a>
+            <a class="nav-link {% if request.path == '/staff' %}active{% endif %}" href="/staff">🧑‍💼 Staff Performance</a>
+            <a class="nav-link {% if request.path == '/payments' %}active{% endif %}" href="/payments">💳 Payment Analytics</a>
+            <a class="nav-link {% if request.path == '/discounts' %}active{% endif %}" href="/discounts">🏷️ Discount Analysis</a>
+            <a class="nav-link {% if request.path == '/retention' %}active{% endif %}" href="/retention">🔄 Cohort Retention</a>
+            <hr class="border-secondary my-2">
+            <p class="text-uppercase text-secondary" style="font-size:0.65rem;letter-spacing:1.5px;margin:4px 8px;">Warranty Tools</p>
+            <a class="nav-link {% if request.path == '/osg-integration' %}active{% endif %}"
+               href="/osg-integration"
+               style="{% if request.path == '/osg-integration' %}background:#1565c0;{% else %}border-left:3px solid #42a5f5;{% endif %}">
+               🛡️ OSG Integration
+            </a>
+            <hr class="border-secondary my-2">
+            <a class="nav-link" href="/logout">🚪 Logout</a>
         </nav>
     </div>
 

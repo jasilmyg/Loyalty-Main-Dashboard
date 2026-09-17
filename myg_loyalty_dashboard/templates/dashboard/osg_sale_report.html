@@ -7,12 +7,12 @@
 
 * { font-family: 'Inter', sans-serif; }
 
-.osg-page { background: #0b1120; min-height: 100vh; padding: 20px; }
+.osg-page { background: #f1f5f9; min-height: 100vh; padding: 20px; }
 
 /* ─── Header Banner ─────────────────────────────────────────────── */
 .osg-banner {
-  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-  border: 1px solid rgba(245,158,11,.25);
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid #e2e8f0;
   border-radius: 14px;
   padding: 22px 28px;
   margin-bottom: 20px;
@@ -21,22 +21,23 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
 }
 .osg-banner h1 {
   font-size: 1.45rem;
   font-weight: 800;
-  color: #f1f5f9;
+  color: #0f172a;
   margin: 0;
   display: flex;
   align-items: center;
   gap: 10px;
 }
-.osg-banner .sub { font-size: .8rem; color: #64748b; margin-top: 4px; }
+.osg-banner .sub { font-size: .8rem; color: #94a3b8; margin-top: 4px; }
 
 /* ─── Date Controls ─────────────────────────────────────────────── */
 .ctrl-bar {
-  background: #1e293b;
-  border: 1px solid rgba(255,255,255,.07);
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
   border-radius: 12px;
   padding: 14px 20px;
   margin-bottom: 18px;
@@ -44,12 +45,13 @@
   flex-wrap: wrap;
   gap: 14px;
   align-items: flex-end;
+  box-shadow: 0 1px 4px rgba(0,0,0,.05);
 }
 .ctrl-bar label { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: #64748b; display: block; margin-bottom: 5px; }
 .ctrl-bar input {
-  background: #0f172a;
-  border: 1px solid rgba(255,255,255,.1);
-  color: #f1f5f9;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
   border-radius: 8px;
   padding: 7px 12px;
   font-size: .82rem;
@@ -83,28 +85,29 @@
 /* ─── Summary KPIs ─────────────────────────────────────────────── */
 .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap: 12px; margin-bottom: 18px; }
 .kpi {
-  background: #1e293b;
-  border: 1px solid rgba(255,255,255,.07);
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
   border-radius: 11px;
   padding: 14px 16px;
   text-align: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,.05);
 }
-.kpi .k-label { font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: #64748b; margin-bottom: 6px; }
-.kpi .k-val   { font-size: 1.3rem; font-weight: 800; color: #f1f5f9; }
-.kpi .k-sub   { font-size: .7rem; color: #94a3b8; margin-top: 3px; }
-.kpi.amber    { border-color: rgba(245,158,11,.3); }
-.kpi.green    { border-color: rgba(52,211,153,.25); }
-.kpi.red      { border-color: rgba(248,113,113,.2); }
-.kpi.blue     { border-color: rgba(99,102,241,.3); }
+.kpi .k-label { font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: #94a3b8; margin-bottom: 6px; }
+.kpi .k-val   { font-size: 1.3rem; font-weight: 800; color: #0f172a; }
+.kpi .k-sub   { font-size: .7rem; color: #64748b; margin-top: 3px; }
+.kpi.amber    { border-color: rgba(245,158,11,.4);  background: #fffbeb; }
+.kpi.green    { border-color: rgba(16,185,129,.3);  background: #f0fdf4; }
+.kpi.red      { border-color: rgba(239,68,68,.25);  background: #fef2f2; }
+.kpi.blue     { border-color: rgba(99,102,241,.3);  background: #eef2ff; }
 
 /* ─── Insight Bar ─────────────────────────────────────────────── */
 .insight {
-  background: linear-gradient(90deg, rgba(245,158,11,.1), rgba(253,230,138,.05));
-  border: 1px solid rgba(245,158,11,.25);
+  background: #fffbeb;
+  border: 1px solid rgba(245,158,11,.35);
   border-radius: 10px;
   padding: 11px 18px;
   font-size: .8rem;
-  color: #fde68a;
+  color: #92400e;
   margin-bottom: 16px;
   line-height: 1.7;
 }
@@ -122,51 +125,52 @@
   font-size: .77rem;
   font-weight: 700;
   cursor: pointer;
-  border: 1.5px solid rgba(245,158,11,.25);
-  color: #94a3b8;
-  background: rgba(245,158,11,.05);
+  border: 1.5px solid #e2e8f0;
+  color: #64748b;
+  background: #ffffff;
   transition: all .15s;
 }
-.tab.active   { background: #f59e0b; color: #1a1a1a; border-color: #f59e0b; }
-.tab:hover:not(.active) { border-color: #f59e0b; color: #fde68a; }
+.tab.active   { background: #f59e0b; color: #fff; border-color: #f59e0b; }
+.tab:hover:not(.active) { border-color: #f59e0b; color: #d97706; }
 
 /* ─── Report Block ─────────────────────────────────────────────── */
 .report-block {
-  background: #1e293b;
-  border: 1px solid rgba(255,255,255,.07);
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
   border-radius: 14px;
   overflow: hidden;
   margin-bottom: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
 }
 .report-header {
-  background: #0f172a;
+  background: #f8fafc;
   padding: 16px 22px 0;
-  border-bottom: 1px solid rgba(255,255,255,.06);
+  border-bottom: 1px solid #e2e8f0;
 }
-.report-header .rh-title { font-size: 1rem; font-weight: 800; color: #f1f5f9; margin-bottom: 2px; }
-.report-header .rh-sub   { font-size: .74rem; color: #64748b; margin-bottom: 10px; }
+.report-header .rh-title { font-size: 1rem; font-weight: 800; color: #0f172a; margin-bottom: 2px; }
+.report-header .rh-sub   { font-size: .74rem; color: #94a3b8; margin-bottom: 10px; }
 .report-header .rh-summary {
-  background: rgba(245,158,11,.08);
-  border: 1px solid rgba(245,158,11,.15);
+  background: #fffbeb;
+  border: 1px solid rgba(245,158,11,.25);
   border-radius: 8px;
   padding: 8px 14px;
   font-size: .76rem;
-  color: #fde68a;
+  color: #92400e;
   margin-bottom: 14px;
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
   align-items: center;
 }
-.rh-summary span { color: #94a3b8; }
-.rh-summary strong { color: #f1f5f9; }
-.rh-best { font-size: .75rem; color: #34d399; padding-bottom: 12px; }
+.rh-summary span { color: #64748b; }
+.rh-summary strong { color: #0f172a; }
+.rh-best { font-size: .75rem; color: #059669; padding-bottom: 12px; }
 
 /* ─── Table ─────────────────────────────────────────────────────── */
 .tbl-wrap { overflow-x: auto; }
 table.osg { width: 100%; border-collapse: collapse; font-size: .8rem; }
 table.osg thead th {
-  background: #0f172a;
+  background: #f1f5f9;
   color: #64748b;
   font-weight: 700;
   font-size: .68rem;
@@ -174,31 +178,31 @@ table.osg thead th {
   letter-spacing: .5px;
   padding: 11px 14px;
   white-space: nowrap;
-  border-bottom: 1px solid rgba(255,255,255,.08);
+  border-bottom: 1px solid #e2e8f0;
   position: sticky; top: 0; z-index: 2;
 }
 table.osg thead th.num { text-align: right; }
-table.osg tbody tr { border-bottom: 1px solid rgba(255,255,255,.04); transition: background .12s; }
-table.osg tbody tr:hover { background: rgba(245,158,11,.04); }
-table.osg tbody td { padding: 10px 14px; color: #e2e8f0; vertical-align: middle; }
-table.osg tbody td.store { font-weight: 600; color: #f1f5f9; min-width: 200px; }
+table.osg tbody tr { border-bottom: 1px solid #f1f5f9; transition: background .12s; }
+table.osg tbody tr:hover { background: #fffbeb; }
+table.osg tbody td { padding: 10px 14px; color: #334155; vertical-align: middle; }
+table.osg tbody td.store { font-weight: 600; color: #0f172a; min-width: 200px; }
 table.osg tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
 table.osg tbody tr.inactive td { opacity: .45; }
 table.osg tfoot td {
-  background: #0f172a;
-  color: #f1f5f9;
+  background: #f8fafc;
+  color: #0f172a;
   font-weight: 800;
   padding: 12px 14px;
-  border-top: 2px solid rgba(245,158,11,.4);
+  border-top: 2px solid rgba(245,158,11,.5);
   font-size: .81rem;
 }
 table.osg tfoot td.num { text-align: right; }
 
 /* badges */
-.badge-act { background: rgba(52,211,153,.12); color: #34d399; font-size: .63rem; padding: 1px 7px; border-radius: 8px; font-weight: 700; margin-left: 6px; }
-.badge-ina { background: rgba(248,113,113,.1);  color: #f87171; font-size: .63rem; padding: 1px 7px; border-radius: 8px; font-weight: 700; margin-left: 6px; }
-.pos { color: #34d399; font-weight: 700; }
-.neg { color: #f87171; font-weight: 700; }
+.badge-act { background: rgba(16,185,129,.12); color: #059669; font-size: .63rem; padding: 1px 7px; border-radius: 8px; font-weight: 700; margin-left: 6px; }
+.badge-ina { background: rgba(239,68,68,.1);   color: #dc2626; font-size: .63rem; padding: 1px 7px; border-radius: 8px; font-weight: 700; margin-left: 6px; }
+.pos { color: #059669; font-weight: 700; }
+.neg { color: #dc2626; font-weight: 700; }
 .neu { color: #94a3b8; }
 
 /* rank medal */
@@ -207,8 +211,9 @@ table.osg tfoot td.num { text-align: right; }
 /* footer note in block */
 .report-footer {
   padding: 12px 20px;
-  border-top: 1px solid rgba(255,255,255,.05);
+  border-top: 1px solid #f1f5f9;
   font-size: .74rem;
+  color: #64748b;
 }
 
 /* spinner */
@@ -216,6 +221,9 @@ table.osg tfoot td.num { text-align: right; }
 .spin { width: 36px; height: 36px; border: 4px solid rgba(245,158,11,.2); border-top-color: #f59e0b; border-radius: 50%; animation: sp .7s linear infinite; }
 @keyframes sp { to { transform: rotate(360deg); } }
 </style>
+
+
+
 
 <div class="osg-page">
 
@@ -225,6 +233,73 @@ table.osg tfoot td.num { text-align: right; }
       <h1>🛡️ OSG (ONSITEGO) Warranty Report</h1>
       <div class="sub" id="gen-line">Loading…</div>
     </div>
+
+    <!-- ── Mapper Card (marked empty space) ─────────────────────── -->
+    <div id="mapper-card" style="
+      background: linear-gradient(135deg,#eff6ff,#dbeafe);
+      border: 1.5px solid #93c5fd;
+      border-radius: 12px;
+      padding: 14px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 340px;
+      max-width: 440px;
+      box-shadow: 0 2px 10px rgba(37,99,235,.12);
+    ">
+      <div style="font-size:.78rem;font-weight:700;color:#1e40af;letter-spacing:.5px;display:flex;align-items:center;gap:6px;">
+        🔄 OSG Integration Mapper
+        <span style="font-size:.68rem;font-weight:500;color:#3b82f6;background:#dbeafe;padding:2px 7px;border-radius:20px;">Upload → Complete Report</span>
+      </div>
+      <form id="mapperForm" method="POST" enctype="multipart/form-data"
+            action="/api/v1/osg-integration-mapper/"
+            style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+        {% csrf_token %}
+
+        <!-- File upload -->
+        <div style="flex:1;min-width:160px;">
+          <label style="font-size:.68rem;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:.6px;display:block;margin-bottom:4px;">Integration Report</label>
+          <label for="mapper-file" style="
+            display:flex;align-items:center;gap:6px;
+            background:white;border:1.5px solid #93c5fd;border-radius:8px;
+            padding:6px 10px;cursor:pointer;font-size:.78rem;color:#1e40af;font-weight:600;
+            transition:all .2s;
+          " onmouseover="this.style.borderColor='#2563eb'" onmouseout="this.style.borderColor='#93c5fd'">
+            <span id="mapper-file-icon">📂</span>
+            <span id="mapper-file-label">Choose .xlsx file</span>
+          </label>
+          <input type="file" id="mapper-file" name="integration_report"
+                 accept=".xlsx,.xls" required style="display:none;"
+                 onchange="
+                   var n=this.files[0]?this.files[0].name:'Choose .xlsx file';
+                   document.getElementById('mapper-file-label').textContent=n.length>22?n.slice(0,20)+'…':n;
+                   document.getElementById('mapper-file-icon').textContent='✅';
+                 ">
+        </div>
+
+        <!-- Date picker -->
+        <div>
+          <label style="font-size:.68rem;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:.6px;display:block;margin-bottom:4px;">Sale Date</label>
+          <input type="date" name="report_date" id="mapper-date"
+                 style="background:white;border:1.5px solid #93c5fd;border-radius:8px;padding:6px 10px;font-size:.78rem;color:#0f172a;font-weight:600;cursor:pointer;"
+                 required>
+        </div>
+
+        <!-- Generate button -->
+        <button type="submit" id="mapper-btn" style="
+          background:linear-gradient(135deg,#2563eb,#1d4ed8);
+          border:none;border-radius:8px;color:white;
+          font-size:.78rem;font-weight:700;padding:8px 14px;cursor:pointer;
+          transition:all .2s;white-space:nowrap;display:flex;align-items:center;gap:5px;
+          box-shadow:0 2px 8px rgba(37,99,235,.3);
+        " onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform='none'">
+          <span id="mapper-btn-icon">⚡</span>
+          <span id="mapper-btn-text">Generate</span>
+        </button>
+      </form>
+    </div>
+    <!-- ── end mapper card ──────────────────────────────────────── -->
+
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <a id="dl-btn" href="#" class="btn-dl"><i class="bi bi-file-earmark-excel me-1"></i> Download Excel</a>
     </div>
@@ -289,16 +364,16 @@ function buildAllTable(stores) {
   const inactive = stores.filter(s=>s.ftd_count===0);
   const all = [...stores].sort((a,b) => b.mtd_value - a.mtd_value);
 
-  // totals (MTD > 0 stores)
-  const tot = stores.filter(s=>s.mtd_value>0).reduce((acc,s)=>{
+  // totals — ALL stores (so eligible revenue denominator is complete)
+  const tot = stores.reduce((acc,s)=>{
     acc.ftd_cnt  += s.ftd_count; acc.ftd_val  += s.ftd_value;
     acc.mtd_cnt  += s.mtd_count; acc.mtd_val  += s.mtd_value;
     acc.prev_val += s.prev_value;
     acc.ftd_total+= s.ftd_total_inv; acc.mtd_total+= s.mtd_total_inv;
     return acc;
   },{ftd_cnt:0,ftd_val:0,mtd_cnt:0,mtd_val:0,prev_val:0,ftd_total:0,mtd_total:0});
-  const tot_ftd_conv  = tot.ftd_total > 0 ? tot.ftd_cnt/tot.ftd_total : 0;
-  const tot_mtd_conv  = tot.mtd_total > 0 ? tot.mtd_cnt/tot.mtd_total : 0;
+  const tot_ftd_conv  = tot.ftd_total > 0 ? tot.ftd_val/tot.ftd_total : 0;
+  const tot_mtd_conv  = tot.mtd_total > 0 ? tot.mtd_val/tot.mtd_total : 0;
   const tot_diff      = tot.prev_val  > 0 ? (tot.mtd_val-tot.prev_val)/tot.prev_val*100 : 0;
   const tot_asp       = tot.mtd_cnt   > 0 ? tot.mtd_val/tot.mtd_cnt : 0;
 
@@ -380,15 +455,15 @@ function buildRbmTable(rbmName, stores) {
   const active  = stores.filter(s=>s.ftd_count>0).length;
   const top3    = sorted.filter(s=>s.mtd_value>0).slice(0,3);
 
-  const tot = stores.filter(s=>s.mtd_value>0).reduce((acc,s)=>{
+  const tot = stores.reduce((acc,s)=>{
     acc.ftd_cnt  += s.ftd_count; acc.ftd_val  += s.ftd_value;
     acc.mtd_cnt  += s.mtd_count; acc.mtd_val  += s.mtd_value;
     acc.prev_val += s.prev_value;
     acc.ftd_total+= s.ftd_total_inv; acc.mtd_total+= s.mtd_total_inv;
     return acc;
   },{ftd_cnt:0,ftd_val:0,mtd_cnt:0,mtd_val:0,prev_val:0,ftd_total:0,mtd_total:0});
-  const tot_ftd_conv = tot.ftd_total > 0 ? tot.ftd_cnt/tot.ftd_total : 0;
-  const tot_mtd_conv = tot.mtd_total > 0 ? tot.mtd_cnt/tot.mtd_total : 0;
+  const tot_ftd_conv = tot.ftd_total > 0 ? tot.ftd_val/tot.ftd_total : 0;
+  const tot_mtd_conv = tot.mtd_total > 0 ? tot.mtd_val/tot.mtd_total : 0;
   const tot_diff     = tot.prev_val  > 0 ? (tot.mtd_val-tot.prev_val)/tot.prev_val*100 : 0;
   const tot_asp      = tot.mtd_cnt   > 0 ? tot.mtd_val/tot.mtd_cnt : 0;
 
@@ -548,6 +623,35 @@ async function loadReport() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', loadReport);
+document.addEventListener('DOMContentLoaded', () => {
+  loadReport();
+
+  // ── Mapper: set default date to yesterday ────────────────────────────────
+  const mapperDate = document.getElementById('mapper-date');
+  if (mapperDate) {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    mapperDate.value = d.toISOString().split('T')[0];
+  }
+
+  // ── Mapper: loading state on submit ─────────────────────────────────────
+  const mapperForm = document.getElementById('mapperForm');
+  const mapperBtn  = document.getElementById('mapper-btn');
+  if (mapperForm && mapperBtn) {
+    mapperForm.addEventListener('submit', function() {
+      mapperBtn.disabled = true;
+      mapperBtn.style.opacity = '0.7';
+      document.getElementById('mapper-btn-icon').textContent = '⏳';
+      document.getElementById('mapper-btn-text').textContent = 'Generating…';
+      // Re-enable after 90s in case of error
+      setTimeout(() => {
+        mapperBtn.disabled = false;
+        mapperBtn.style.opacity = '1';
+        document.getElementById('mapper-btn-icon').textContent = '⚡';
+        document.getElementById('mapper-btn-text').textContent = 'Generate';
+      }, 90000);
+    });
+  }
+});
 </script>
 {% endblock %}

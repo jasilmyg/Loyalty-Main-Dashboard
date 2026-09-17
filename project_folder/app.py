@@ -182,6 +182,63 @@ def export_data(format):
         }
     return "Invalid format", 400
 
+
+# ─── OSG Integration Mapper ────────────────────────────────────────────────────
+@app.route('/osg-integration', methods=['GET', 'POST'])
+@login_required
+def osg_integration():
+    from flask import send_file
+    if request.method == 'GET':
+        return render_template('osg_integration.html')
+
+    # POST — process uploaded file
+    uploaded = request.files.get('integration_report')
+    report_date = request.form.get('report_date', '').strip()
+
+    if not uploaded or not uploaded.filename.endswith(('.xlsx', '.xls')):
+        flash('Please upload a valid Excel file (.xlsx or .xls)')
+        return render_template('osg_integration.html')
+
+    if not report_date:
+        flash('Please select the sale date for this report')
+        return render_template('osg_integration.html')
+
+    try:
+        import sys, os as _os
+        # myg_loyalty_dashboard sits alongside project_folder
+        _MYG_DIR = _os.path.join(_os.path.dirname(__file__), '..', 'myg_loyalty_dashboard')
+        if _MYG_DIR not in sys.path:
+            sys.path.insert(0, _MYG_DIR)
+        _os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'myg_loyalty_dashboard.settings')
+        try:
+            import django
+            django.setup()
+        except RuntimeError:
+            pass  # already set up
+        from analytics.clickhouse_service import get_ch_client
+        from services.osg_mapper import OSGMapper
+
+        ch     = get_ch_client()
+        mapper = OSGMapper(ch)
+        result = mapper.process(uploaded.read(), report_date)
+        excel_bytes = mapper.to_excel(result)
+
+        summary = result['summary']
+        filename = f"OSG_Complete_{report_date}.xlsx"
+
+        return send_file(
+            io.BytesIO(excel_bytes),
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename,
+        )
+
+    except Exception as e:
+        logger.exception("OSG mapper error")
+        flash(f'Error processing report: {str(e)}')
+        return render_template('osg_integration.html')
+
+
 # ─── Startup ──────────────────────────────────────────────────────────────────
 if __name__ == '__main__':
     print("Initializing user database...")

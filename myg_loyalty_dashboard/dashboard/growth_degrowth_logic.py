@@ -65,7 +65,7 @@ def _in_clause(col, val_str):
 
 def _resolve_branch_filter(ch, branch='', rbm='', bdm='', district='', state=''):
     """Resolve all secondary filters to branch codes, same as dashboard_api_logic."""
-    from .utils import get_branch_mappings
+    from .utils import get_branch_mappings, RETAIL_BRANCH_FILTER
     code_to_name, name_to_code = get_branch_mappings(ch)
 
     if branch:
@@ -74,7 +74,7 @@ def _resolve_branch_filter(ch, branch='', rbm='', bdm='', district='', state='')
     if rbm:
         rbm_list = [r.strip() for r in rbm.split(',') if r.strip()]
         rbm_escaped = "','".join(r.replace("'", "''") for r in rbm_list)
-        rows = ch.query(f"SELECT DISTINCT code FROM branch_master WHERE rbm IN ('{rbm_escaped}') AND code != ''").result_rows
+        rows = ch.query(f"SELECT DISTINCT code FROM branch_master WHERE rbm IN ('{rbm_escaped}') AND code != '' AND {RETAIL_BRANCH_FILTER}").result_rows
         codes = [r[0] for r in rows]
         if codes:
             existing = [b for b in branch.split(',') if b] if branch else []
@@ -83,7 +83,7 @@ def _resolve_branch_filter(ch, branch='', rbm='', bdm='', district='', state='')
     if bdm:
         bdm_list = [b.strip() for b in bdm.split(',') if b.strip()]
         bdm_escaped = "','".join(b.replace("'", "''") for b in bdm_list)
-        rows = ch.query(f"SELECT DISTINCT code FROM branch_master WHERE bdm IN ('{bdm_escaped}') AND code != ''").result_rows
+        rows = ch.query(f"SELECT DISTINCT code FROM branch_master WHERE bdm IN ('{bdm_escaped}') AND code != '' AND {RETAIL_BRANCH_FILTER}").result_rows
         codes = [r[0] for r in rows]
         if codes:
             existing = [b for b in branch.split(',') if b] if branch else []
@@ -92,7 +92,7 @@ def _resolve_branch_filter(ch, branch='', rbm='', bdm='', district='', state='')
     if district:
         dist_list = [d.strip() for d in district.split(',') if d.strip()]
         dist_escaped = "','".join(d.replace("'", "''") for d in dist_list)
-        rows = ch.query(f"SELECT DISTINCT code FROM branch_master WHERE district IN ('{dist_escaped}') AND code != ''").result_rows
+        rows = ch.query(f"SELECT DISTINCT code FROM branch_master WHERE district IN ('{dist_escaped}') AND code != '' AND {RETAIL_BRANCH_FILTER}").result_rows
         codes = [r[0] for r in rows]
         if codes:
             existing = [b for b in branch.split(',') if b] if branch else []
@@ -103,7 +103,7 @@ def _resolve_branch_filter(ch, branch='', rbm='', bdm='', district='', state='')
         state_list = [s.strip() for s in state.split(',') if s.strip()]
         state_codes = [state_map_inv.get(s, s) for s in state_list]
         state_escaped = "','".join(s.replace("'", "''") for s in state_codes)
-        rows = ch.query(f"SELECT DISTINCT code FROM branch_master WHERE substring(gst_no, 1, 2) IN ('{state_escaped}') AND code != ''").result_rows
+        rows = ch.query(f"SELECT DISTINCT code FROM branch_master WHERE substring(gst_no, 1, 2) IN ('{state_escaped}') AND code != '' AND {RETAIL_BRANCH_FILTER}").result_rows
         codes = [r[0] for r in rows]
         if codes:
             existing = [b for b in branch.split(',') if b] if branch else []

@@ -169,14 +169,14 @@
 </div>
 
 
-<!-- ═══════════════════ FINANCIAL YEAR REPORT ═══════════════════ -->
+<!-- ═══════════════════ COMBINED FINANCIAL YEAR REPORT ═══════════════════ -->
 <div class="section-card mb-4 mt-4" style="border: 1px solid rgba(16,185,129,0.25); border-radius: 12px; overflow: hidden; background: #ffffff; box-shadow: 0 4px 16px rgba(0,0,0,0.07);">
-  <div class="card-header d-flex justify-content-between align-items-center" style="background: linear-gradient(to right, #f0fdf4, #dcfce7); border-bottom: 1px solid rgba(16,185,129,0.2); padding: 1.2rem 1.5rem;">
+  <div class="card-header d-flex justify-content-between align-items-center" style="background: linear-gradient(135deg, #f0fdf4 0%, #eff6ff 100%); border-bottom: 1px solid rgba(16,185,129,0.2); padding: 1.2rem 1.5rem;">
     <div>
       <h5 class="fw-bold text-dark m-0 d-flex align-items-center" style="letter-spacing: 0.5px;">
-        <i class="bi bi-calendar2-range text-success me-2 fs-4"></i> Financial Year Loyalty Report
+        <i class="bi bi-calendar2-range text-success me-2 fs-4"></i> Financial Year Performance Report
       </h5>
-      <div class="small text-muted mt-1" style="font-size: 0.75rem;">April 1 → March 31 &nbsp;|&nbsp; New vs Repeat customer breakdown per Financial Year</div>
+      <div class="small text-muted mt-1" style="font-size: 0.75rem;">April 1 → March 31 &nbsp;|&nbsp; Loyalty &amp; Sales combined breakdown per Financial Year</div>
     </div>
     <div class="d-flex align-items-center gap-2">
       {% if request.user.username != 'myguser' %}
@@ -188,62 +188,43 @@
     </div>
   </div>
   <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-hover mb-0 align-middle" style="font-size: 0.85rem; border-color: #e2e8f0;">
-        <thead style="position: sticky; top: 0; z-index: 10; background-color: #f0fdf4; box-shadow: 0 2px 6px rgba(0,0,0,0.06);">
-          <tr class="text-uppercase text-muted" style="letter-spacing: 0.8px; font-size: 0.72rem; border-bottom: 2px solid #10b981;">
-            <th class="ps-4 py-3" style="background-color: #f0fdf4;">Financial Year</th>
-            <th class="text-end py-3" style="background-color: #f0fdf4;">Total Members</th>
-            <th class="text-end py-3" style="background-color: #f0fdf4;">YoY Members %</th>
-            <th class="text-end py-3" style="background-color: #f0fdf4;">New Members</th>
-            <th class="text-end py-3" style="background-color: #f0fdf4;">Repeat Members</th>
-            <th class="text-end py-3" style="background-color: #f0fdf4;">Repeat %</th>
-            <th class="text-end py-3" style="background-color: #f0fdf4;">Retention % (DB)</th>
-            <th class="text-end pe-4 py-3" style="background-color: #f0fdf4;">Cumulative DB</th>
+    <div class="table-responsive" style="overflow-x: auto;">
+      <table class="table table-hover mb-0 align-middle" style="font-size: 0.8rem; border-color: #e2e8f0; min-width: 1400px;">
+        <thead style="position: sticky; top: 0; z-index: 10; background-color: #f8fafc; box-shadow: 0 2px 6px rgba(0,0,0,0.06);">
+          <!-- Column group header -->
+          <tr style="font-size: 0.68rem; letter-spacing: 0.05rem; text-transform: uppercase; font-weight: 700;">
+            <th class="ps-3 py-2" rowspan="2" style="background:#f8fafc; vertical-align:middle; min-width:110px; border-right:2px solid #cbd5e1; border-bottom: 2px solid #10b981;">
+              Financial Year
+            </th>
+            <!-- Loyalty Group -->
+            <th colspan="7" class="text-center py-2 px-3" style="background: rgba(16,185,129,0.1); color:#059669; border-bottom: 2px solid #10b981; border-right: 2px solid #bbf7d0;">
+              <i class="bi bi-people-fill me-1"></i> Loyalty Metrics
+            </th>
+            <!-- Sales Group -->
+            <th colspan="6" class="text-center py-2 px-3" style="background: rgba(59,130,246,0.1); color:#2563eb; border-bottom: 2px solid #3b82f6;">
+              <i class="bi bi-graph-up-arrow me-1"></i> Sales Metrics
+            </th>
+          </tr>
+          <tr class="text-muted" style="letter-spacing: 0.04rem; font-size: 0.67rem; text-transform: uppercase; font-weight: 600;">
+            <!-- Loyalty sub-headers -->
+            <th class="text-end py-2 px-2" style="background:#f0fdf4; white-space:nowrap;">Total Members</th>
+            <th class="text-end py-2 px-2" style="background:#f0fdf4; white-space:nowrap; background-color: rgba(16,185,129,0.06);">YoY Members %</th>
+            <th class="text-end py-2 px-2" style="background:#f0fdf4; white-space:nowrap;">New Members</th>
+            <th class="text-end py-2 px-2" style="background:#f0fdf4; white-space:nowrap;">Repeat Members</th>
+            <th class="text-end py-2 px-2" style="background:#f0fdf4; white-space:nowrap;">Repeat %</th>
+            <th class="text-end py-2 px-2" style="background:#f0fdf4; white-space:nowrap;">Retention % (DB)</th>
+            <th class="text-end py-2 px-2" style="background:#f0fdf4; white-space:nowrap; border-right:2px solid #bbf7d0;">Cumulative DB</th>
+            <!-- Sales sub-headers -->
+            <th class="text-end py-2 px-2" style="background:#eff6ff; white-space:nowrap;">Total Sale (Cr)</th>
+            <th class="text-end py-2 px-2" style="background:#eff6ff; white-space:nowrap; background-color: rgba(59,130,246,0.06);">YoY Sale Growth %</th>
+            <th class="text-end py-2 px-2" style="background:#eff6ff; white-space:nowrap;">New Sale (Cr)</th>
+            <th class="text-end py-2 px-2" style="background:#eff6ff; white-space:nowrap;">Repeat Sale (Cr)</th>
+            <th class="text-end py-2 px-2" style="background:#eff6ff; white-space:nowrap;">Repeat Sale %</th>
+            <th class="text-end pe-3 py-2 px-2" style="background:#eff6ff; white-space:nowrap;">ASP (Customer)</th>
           </tr>
         </thead>
-        <tbody id="fy-report-body">
-          <tr><td colspan="8" class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm text-success me-2"></div>Loading Financial Year data...</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════════════ FINANCIAL YEAR SALES REPORT ═══════════════════ -->
-<div class="section-card mb-4 mt-4" style="border: 1px solid rgba(59,130,246,0.25); border-radius: 12px; overflow: hidden; background: #ffffff; box-shadow: 0 4px 16px rgba(0,0,0,0.07);">
-  <div class="card-header d-flex justify-content-between align-items-center" style="background: linear-gradient(to right, #eff6ff, #dbeafe); border-bottom: 1px solid rgba(59,130,246,0.2); padding: 1.2rem 1.5rem;">
-    <div>
-      <h5 class="fw-bold text-dark m-0 d-flex align-items-center" style="letter-spacing: 0.5px;">
-        <i class="bi bi-graph-up-arrow text-primary me-2 fs-4"></i> Financial Year Sales Report
-      </h5>
-      <div class="small text-muted mt-1" style="font-size: 0.75rem;">April 1 → March 31 &nbsp;|&nbsp; Sales performance per Financial Year</div>
-    </div>
-    <div class="d-flex align-items-center gap-2">
-      {% if request.user.username != 'myguser' %}
-      <button class="btn btn-sm btn-outline-primary d-flex align-items-center" onclick="downloadExport('fy-sales-report')" title="Export to Excel">
-        <i class="bi bi-file-earmark-excel me-1"></i> Export
-      </button>
-      {% endif %}
-      <span class="badge bg-primary bg-opacity-10 text-primary border border-primary" style="font-size:0.72rem; padding:0.4rem 0.9rem;">FY (Apr–Mar)</span>
-    </div>
-  </div>
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-hover mb-0 align-middle" style="font-size: 0.85rem; border-color: #e2e8f0;">
-        <thead style="position: sticky; top: 0; z-index: 10; background-color: #eff6ff; box-shadow: 0 2px 6px rgba(0,0,0,0.06);">
-          <tr class="text-uppercase text-muted" style="letter-spacing: 0.8px; font-size: 0.72rem; border-bottom: 2px solid #3b82f6;">
-            <th class="ps-4 py-3" style="background-color: #eff6ff;">Financial Year</th>
-            <th class="text-end py-3" style="background-color: #eff6ff;">Total Sale (Cr)</th>
-            <th class="text-end py-3" style="background-color: #eff6ff;">YoY Sale Growth %</th>
-            <th class="text-end py-3" style="background-color: #eff6ff;">New Members Sale (Cr)</th>
-            <th class="text-end py-3" style="background-color: #eff6ff;">Repeat Members Sale (Cr)</th>
-            <th class="text-end py-3" style="background-color: #eff6ff;">Repeat Sale %</th>
-            <th class="text-end pe-4 py-3" style="background-color: #eff6ff;">ASP (Customer)</th>
-          </tr>
-        </thead>
-        <tbody id="fy-sales-body">
-          <tr><td colspan="7" class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Loading Financial Year Sales data...</td></tr>
+        <tbody id="fy-combined-body">
+          <tr><td colspan="14" class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm text-success me-2"></div>Loading Financial Year data...</td></tr>
         </tbody>
       </table>
     </div>
@@ -327,106 +308,100 @@ async function syncCounts() {
         // Load Retail Analytics Data to build the table
         loadMatrixData();
 
-        // Load Financial Year table
-        loadFYReport();
-        loadFYSalesReport();
+        // Load combined Financial Year table
+        loadFYCombinedReport();
 
     } catch(e) {
         console.error('API Error:', e);
     }
 }
 
-async function loadFYReport() {
-    const tbody = document.getElementById('fy-report-body');
+async function loadFYCombinedReport() {
+    const tbody = document.getElementById('fy-combined-body');
     if (!tbody) return;
-    tbody.innerHTML = `<tr><td colspan="8" class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm text-success me-2"></div>Loading Financial Year data...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="14" class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm text-success me-2"></div>Loading Financial Year data...</td></tr>`;
+
+    const FY_PCT = (v, bgColor) => {
+        if (v === null || v === undefined) return '<span class="text-muted">—</span>';
+        const num = parseFloat(v);
+        const color = num > 0 ? 'text-success' : (num < 0 ? 'text-danger' : 'text-muted');
+        return `<span class="fw-bold ${color}">${num > 0 ? '▲' : (num < 0 ? '▼' : '')} ${Math.abs(num).toFixed(2)}%</span>`;
+    };
+    const CR = v => (v || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 
     try {
         const fetchOpts = { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } };
-        const res = await fetch(`/api/v1/fy-loyalty-report/${window.location.search}`, fetchOpts);
-        const rows = await res.json();
+        // Fetch both APIs in parallel
+        const [loyaltyRes, salesRes] = await Promise.all([
+            fetch(`/api/v1/fy-loyalty-report/${window.location.search}`, fetchOpts),
+            fetch(`/api/v1/fy-sales-report/${window.location.search}`, fetchOpts)
+        ]);
 
-        if (!rows || rows.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="8" class="text-center py-5 text-warning">No Financial Year data found.</td></tr>`;
+        const loyaltyRows = await loyaltyRes.json();
+        const salesRows   = await salesRes.json();
+
+        if ((!loyaltyRows || loyaltyRows.length === 0) && (!salesRows || salesRows.length === 0)) {
+            tbody.innerHTML = `<tr><td colspan="14" class="text-center py-5 text-warning">No Financial Year data found.</td></tr>`;
             return;
         }
 
-        const FY_PCT = v => {
-            if (v === null || v === undefined) return '<span class="text-muted">—</span>';
-            const num = parseFloat(v);
-            const color = num > 0 ? 'text-success' : (num < 0 ? 'text-danger' : 'text-muted');
-            return `<span class="fw-bold ${color}">${num > 0 ? '▲' : (num < 0 ? '▼' : '')} ${Math.abs(num).toFixed(2)}%</span>`;
-        };
+        // Build a lookup map for sales rows by fy_label
+        const salesMap = {};
+        (salesRows || []).forEach(s => { salesMap[s.fy_label] = s; });
 
-        tbody.innerHTML = rows.map((r, i) => {
-            const repeatBadgeClass = r.repeat_pct >= 50
+        // Use loyalty rows as the base (they define the FY order)
+        const allRows = (loyaltyRows || []).map(r => ({
+            loyalty: r,
+            sales: salesMap[r.fy_label] || null
+        }));
+
+        tbody.innerHTML = allRows.map(({ loyalty: r, sales: s }) => {
+            const repeatBadgeClass = (r.repeat_pct || 0) >= 50
                 ? 'bg-success bg-opacity-25 text-success border border-success'
                 : 'bg-secondary bg-opacity-25 text-secondary border border-secondary';
-            const retentionStyle = 'color: #059669; background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3);';
-            return `
-            <tr style="transition: all 0.2s;"
-                onmouseover="this.style.backgroundColor='rgba(16,185,129,0.05)'"
-                onmouseout="this.style.backgroundColor='transparent'">
-                <td class="ps-4 fw-bold text-success" style="font-family: monospace; font-size:0.88rem;">${r.fy_label}</td>
-                <td class="text-end fw-bold text-dark">${NUM(r.total_members)}</td>
-                <td class="text-end" style="background: rgba(16,185,129,0.06)">${FY_PCT(r.yoy_pct)}</td>
-                <td class="text-end text-success">${NUM(r.new_members)}</td>
-                <td class="text-end text-primary">${NUM(r.repeat_members)}</td>
-                <td class="text-end"><span class="badge ${repeatBadgeClass}">${(r.repeat_pct || 0).toFixed(2)}%</span></td>
-                <td class="text-end"><span class="badge" style="${retentionStyle}">${(r.retention_pct_db || 0).toFixed(2)}%</span></td>
-                <td class="pe-4 text-end text-dark" style="font-family: monospace;">${NUM(r.cumulative_db)}</td>
-            </tr>`;
-        }).join('');
+            const retentionStyle = 'color:#059669; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.3);';
 
-    } catch(e) {
-        console.error('FY Report Error:', e);
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-5 text-danger">Failed to load Financial Year data.</td></tr>`;
-    }
-}
-
-async function loadFYSalesReport() {
-    const tbody = document.getElementById('fy-sales-body');
-    if (!tbody) return;
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Loading Financial Year Sales data...</td></tr>`;
-
-    try {
-        const fetchOpts = { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } };
-        const res = await fetch(`/api/v1/fy-sales-report/${window.location.search}`, fetchOpts);
-        const rows = await res.json();
-
-        if (!rows || rows.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-5 text-warning">No Financial Year Sales data found.</td></tr>`;
-            return;
-        }
-
-        const FY_PCT = v => {
-            if (v === null || v === undefined) return '<span class="text-muted">—</span>';
-            const num = parseFloat(v);
-            const color = num > 0 ? 'text-success' : (num < 0 ? 'text-danger' : 'text-muted');
-            return `<span class="fw-bold ${color}">${num > 0 ? '▲' : (num < 0 ? '▼' : '')} ${Math.abs(num).toFixed(2)}%</span>`;
-        };
-
-        tbody.innerHTML = rows.map((r) => {
-            const repeatBadgeClass = r.repeat_sale_pct >= 40
+            const sRepeatBadgeClass = s && (s.repeat_sale_pct || 0) >= 40
                 ? 'bg-primary bg-opacity-25 text-primary border border-primary'
                 : 'bg-secondary bg-opacity-25 text-secondary border border-secondary';
+
+            const salesCells = s ? `
+                <td class="text-end fw-bold text-dark px-2">${CR(s.total_sale_cr)}</td>
+                <td class="text-end px-2" style="background:rgba(59,130,246,0.06)">${FY_PCT(s.yoy_sale_pct)}</td>
+                <td class="text-end text-success px-2">${CR(s.new_member_sale_cr)}</td>
+                <td class="text-end text-primary px-2">${CR(s.repeat_member_sale_cr)}</td>
+                <td class="text-end px-2"><span class="badge ${sRepeatBadgeClass}">${(s.repeat_sale_pct || 0).toFixed(2)}%</span></td>
+                <td class="pe-3 text-end text-dark px-2" style="font-family:monospace;">₹${(s.asp || 0).toLocaleString('en-IN', {maximumFractionDigits:0})}</td>
+            ` : `
+                <td class="text-end text-muted px-2">—</td>
+                <td class="text-end text-muted px-2">—</td>
+                <td class="text-end text-muted px-2">—</td>
+                <td class="text-end text-muted px-2">—</td>
+                <td class="text-end text-muted px-2">—</td>
+                <td class="text-end text-muted px-2">—</td>
+            `;
+
             return `
             <tr style="transition: all 0.2s;"
-                onmouseover="this.style.backgroundColor='rgba(59,130,246,0.05)'"
+                onmouseover="this.style.backgroundColor='rgba(16,185,129,0.04)'"
                 onmouseout="this.style.backgroundColor='transparent'">
-                <td class="ps-4 fw-bold text-primary" style="font-family: monospace; font-size:0.88rem;">${r.fy_label}</td>
-                <td class="text-end fw-bold text-dark">${r.total_sale_cr.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                <td class="text-end" style="background: rgba(59,130,246,0.06)">${FY_PCT(r.yoy_sale_pct)}</td>
-                <td class="text-end text-success">${r.new_member_sale_cr.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                <td class="text-end text-primary">${r.repeat_member_sale_cr.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                <td class="text-end"><span class="badge ${repeatBadgeClass}">${(r.repeat_sale_pct || 0).toFixed(2)}%</span></td>
-                <td class="pe-4 text-end text-dark" style="font-family: monospace;">₹${r.asp.toLocaleString('en-IN', {maximumFractionDigits: 0})}</td>
+                <td class="ps-3 fw-bold text-success px-2" style="font-family:monospace; font-size:0.85rem; border-right:2px solid #e2e8f0;">${r.fy_label}</td>
+                <!-- Loyalty columns -->
+                <td class="text-end fw-bold text-dark px-2">${NUM(r.total_members)}</td>
+                <td class="text-end px-2" style="background:rgba(16,185,129,0.06)">${FY_PCT(r.yoy_pct)}</td>
+                <td class="text-end text-success px-2">${NUM(r.new_members)}</td>
+                <td class="text-end text-primary px-2">${NUM(r.repeat_members)}</td>
+                <td class="text-end px-2"><span class="badge ${repeatBadgeClass}">${(r.repeat_pct || 0).toFixed(2)}%</span></td>
+                <td class="text-end px-2"><span class="badge" style="${retentionStyle}">${(r.retention_pct_db || 0).toFixed(2)}%</span></td>
+                <td class="text-end px-2" style="font-family:monospace; border-right:2px solid #bbf7d0;">${NUM(r.cumulative_db)}</td>
+                <!-- Sales columns -->
+                ${salesCells}
             </tr>`;
         }).join('');
 
     } catch(e) {
-        console.error('FY Sales Report Error:', e);
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-5 text-danger">Failed to load Financial Year Sales data.</td></tr>`;
+        console.error('FY Combined Report Error:', e);
+        tbody.innerHTML = `<tr><td colspan="14" class="text-center py-5 text-danger">Failed to load Financial Year data: ${e.message}</td></tr>`;
     }
 }
 

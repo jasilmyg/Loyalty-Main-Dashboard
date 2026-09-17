@@ -752,21 +752,31 @@
         <div id="gd-newrepeat-section" style="display:none;">
           <table class="sc-table">
             <colgroup>
-              <col style="width:30%">
-              <col style="width:23%">
-              <col style="width:23%">
-              <col style="width:24%">
+              <col style="width:26%">
+              <col style="width:13%">
+              <col style="width:14%">
+              <col style="width:12%">
+              <col style="width:14%">
+              <col style="width:12%">
             </colgroup>
             <thead>
               <tr>
                 <th style="padding-left:1.25rem; vertical-align:middle; border-right:2px solid #64748b;">BRANCH</th>
                 <th class="text-center" id="gd-nr-comp-h">TOTAL</th>
-                <th class="text-center">REPEAT</th>
-                <th class="text-center" style="padding-right:1.25rem;">NEW</th>
+                <th class="text-center" id="gd-nr-rep-h" style="cursor:pointer; user-select:none;"
+                    onclick="nrSortToggle('repeat')">
+                  REPEAT <span id="nr-rep-sort-icon" style="font-size:0.85rem; opacity:0.4;">&#8645;</span>
+                </th>
+                <th class="text-center" style="color:#f59e0b; font-size:0.76rem;">% REP</th>
+                <th class="text-center" id="gd-nr-new-h" style="cursor:pointer; user-select:none;"
+                    onclick="nrSortToggle('new')">
+                  NEW <span id="nr-new-sort-icon" style="font-size:0.85rem; opacity:0.4;">&#8645;</span>
+                </th>
+                <th class="text-center" style="color:#10b981; font-size:0.76rem; padding-right:1.25rem;">% NEW</th>
               </tr>
             </thead>
             <tbody id="gd-newrepeat-tbody">
-              <tr class="loading-row"><td colspan="4"><div class="skeleton" style="height:14px;width:60%"></div></td></tr>
+              <tr class="loading-row"><td colspan="6"><div class="skeleton" style="height:14px;width:60%"></div></td></tr>
             </tbody>
           </table>
         </div>
@@ -1847,9 +1857,10 @@ function renderBranchReport(rows) {
     return;
   }
 
-  // Aggregate by branch — exclude HEAD OFFICE
+  // Aggregate by branch — exclude HEAD OFFICE, 3GH, CORPORATE SALES (handled in backend too)
+  const EXCLUDED_BRANCH_NAMES = new Set(['HEAD OFFICE', '3GH', 'CORPORATE SALES', 'CORPORATE SALES GODOWN']);
   const map = {};
-  rows.filter(r => (r.branch || '').toUpperCase() !== 'HEAD OFFICE').forEach(r => {
+  rows.filter(r => !EXCLUDED_BRANCH_NAMES.has((r.branch || '').toUpperCase())).forEach(r => {
     const key = r.branch || '—';
     if (!map[key]) map[key] = { b_rev:0, c_rev:0, b_qty:0, c_qty:0, c_discount:0, c_disc_qty:0, c_unique_cust:0 };
     map[key].b_rev += (r.b_rev || 0);
@@ -1890,10 +1901,11 @@ function renderBranchReport(rows) {
       const db = b[1].c_rev > 0 ? b[1].c_discount / b[1].c_rev : 0;
       return discSortDir === 'disc_desc' ? db - da : da - db;
     }
-    // Avg Spend sort (only in discount view)
+    // Avg Spend sort (only in discount view) — use true branch cust count
     if (avgSortDir !== 'comp') {
-      const aa = a[1].c_unique_cust > 0 ? a[1].c_rev / a[1].c_unique_cust : 0;
-      const ab = b[1].c_unique_cust > 0 ? b[1].c_rev / b[1].c_unique_cust : 0;
+      const trueCust = (_data && _data.branch_true_cust && _data.branch_true_cust.comp) || {};
+      const aa = (trueCust[a[0]] || a[1].c_unique_cust) > 0 ? a[1].c_rev / (trueCust[a[0]] || a[1].c_unique_cust) : 0;
+      const ab = (trueCust[b[0]] || b[1].c_unique_cust) > 0 ? b[1].c_rev / (trueCust[b[0]] || b[1].c_unique_cust) : 0;
       return avgSortDir === 'avg_desc' ? ab - aa : aa - ab;
     }
     // Growth % sort
@@ -1932,9 +1944,12 @@ function renderBranchReport(rows) {
       qty_metric_html = `<td class="text-right" style="padding-right:1.25rem; font-weight:${isTotal?800:600}">${qty_s.toFixed(2)}%</td>`;
     } else if (currentBranchMetric === 'discount') {
       const disc_pct = v.c_rev > 0 ? (v.c_discount / v.c_rev) * 100 : 0;
-      const avg_spend = v.c_unique_cust > 0 ? v.c_rev / v.c_unique_cust : 0;
+      // Use true branch-level distinct customer count for accurate AVG SPEND
+      const trueCust = (_data && _data.branch_true_cust && _data.branch_true_cust.comp) || {};
+      const denomCust = (label && trueCust[label]) ? trueCust[label] : (v.c_unique_cust || 0);
+      const avg_spend = denomCust > 0 ? v.c_rev / denomCust : 0;
       amt_metric_html = `<td class="text-right" style="border-right: 2px solid #64748b; color:var(--text-2); font-weight:${isTotal?800:600}">${disc_pct.toFixed(2)}%</td>`;
-      qty_metric_html = `<td class="text-right" style="padding-right:1.25rem; font-weight:${isTotal?800:600}">₹${Math.round(avg_spend).toLocaleString('en-IN')}</td>`;
+      qty_metric_html = `<td class="text-right" style="padding-right:1.25rem; font-weight:${isTotal?800:600}">&#8377;${Math.round(avg_spend).toLocaleString('en-IN')}</td>`;
     }
 
     const rowClass = isTotal ? 'grand-total' : '';
@@ -1957,9 +1972,13 @@ function renderBranchReport(rows) {
 
   const dataRows = sorted.map(([label, v]) => buildRow(label, v, false)).join('');
   const totalRow = buildRow('Grand Total', {
-    b_rev:tot_b_rev, c_rev:tot_c_rev, 
-    b_qty:tot_b_qty, c_qty:tot_c_qty, 
-    c_discount:tot_c_disc, c_disc_qty:tot_c_dqty, c_unique_cust:tot_c_cust
+    b_rev:tot_b_rev, c_rev:tot_c_rev,
+    b_qty:tot_b_qty, c_qty:tot_c_qty,
+    c_discount:tot_c_disc, c_disc_qty:tot_c_dqty,
+    // For grand total AVG SPEND: sum of all true branch distinct counts
+    c_unique_cust: ((_data && _data.branch_true_cust && _data.branch_true_cust.comp)
+      ? Object.values(_data.branch_true_cust.comp).reduce((s, v) => s + v, 0)
+      : tot_c_cust)
   }, true);
 
   tbody.innerHTML = dataRows + totalRow;
@@ -2149,38 +2168,86 @@ function renderGrowthDegrowth(data) {
   renderGDSection('uniq', 'comp');
 
   // ── New & Repeat Table ──
-  // ── New & Repeat Table ──
-  const nrTbody = document.getElementById('gd-newrepeat-tbody');
-  if (nrTbody) {
-    // Sort by Total (Comp) descending
-    const sorted = [...rows].sort((a,b) => {
-      const at = (a.new_customers||0) + (a.repeat_customers||0);
-      const bt2 = (b.new_customers||0) + (b.repeat_customers||0);
-      return bt2 - at;
+  // Sort state: 'total_desc' | 'rep_desc' | 'rep_asc' | 'new_desc' | 'new_asc'
+  window._nrSortDir = window._nrSortDir || 'total_desc';
+
+  // Store rows on window so re-sort can access them without refetching
+  window._nrRows    = rows;
+  window._nrTotNew  = tot_new;
+  window._nrTotRep  = tot_repeat;
+
+  window.nrSortToggle = function(col) {
+    const cycle = {
+      repeat: { total_desc:'rep_desc', rep_desc:'rep_asc', rep_asc:'total_desc', new_desc:'rep_desc', new_asc:'rep_desc' },
+      new:    { total_desc:'new_desc', new_desc:'new_asc', new_asc:'total_desc', rep_desc:'new_desc', rep_asc:'new_desc' },
+    };
+    window._nrSortDir = (cycle[col] || {})[window._nrSortDir] || 'total_desc';
+    renderNRTable();
+  };
+
+  window.renderNRTable = function() {
+    const nrTbody = document.getElementById('gd-newrepeat-tbody');
+    if (!nrTbody) return;
+    const dir  = window._nrSortDir || 'total_desc';
+    const data = window._nrRows || [];
+    const totNew = window._nrTotNew || 0;
+    const totRep = window._nrTotRep || 0;
+
+    // Update sort icon states
+    const repIcon = document.getElementById('nr-rep-sort-icon');
+    const newIcon = document.getElementById('nr-new-sort-icon');
+    const repTh   = document.getElementById('gd-nr-rep-h');
+    const newTh   = document.getElementById('gd-nr-new-h');
+    if (repIcon) { repIcon.textContent = dir==='rep_desc' ? '↓' : dir==='rep_asc' ? '↑' : '⇅'; repIcon.style.opacity = dir.startsWith('rep') ? '1' : '0.4'; repIcon.style.color = dir.startsWith('rep') ? '#3b82f6' : ''; }
+    if (newIcon) { newIcon.textContent = dir==='new_desc' ? '↓' : dir==='new_asc' ? '↑' : '⇅'; newIcon.style.opacity = dir.startsWith('new') ? '1' : '0.4'; newIcon.style.color = dir.startsWith('new') ? '#10b981' : ''; }
+
+    // Sort
+    const sorted = [...data].sort((a, b) => {
+      const aRep = a.repeat_customers || 0; const bRep = b.repeat_customers || 0;
+      const aNew = a.new_customers    || 0; const bNew = b.new_customers    || 0;
+      const aT   = aRep + aNew;            const bT   = bRep + bNew;
+      const aRPct = aT > 0 ? aRep / aT : 0; const bRPct = bT > 0 ? bRep / bT : 0;
+      const aNPct = aT > 0 ? aNew / aT : 0; const bNPct = bT > 0 ? bNew / bT : 0;
+      if (dir === 'total_desc') return bT   - aT;
+      if (dir === 'rep_desc')   return bRPct - aRPct;
+      if (dir === 'rep_asc')    return aRPct - bRPct;
+      if (dir === 'new_desc')   return bNPct - aNPct;
+      if (dir === 'new_asc')    return aNPct - bNPct;
+      return bT - aT;
     });
+
+    const totTotal = totNew + totRep;
+    const totRPct  = totTotal > 0 ? (totRep / totTotal * 100).toFixed(1) : '—';
+    const totNPct  = totTotal > 0 ? (totNew / totTotal * 100).toFixed(1) : '—';
+
     let html = sorted.map(r => {
-      const cNew   = (r.new_customers||0);
-      const cRep   = (r.repeat_customers||0);
+      const cNew   = r.new_customers    || 0;
+      const cRep   = r.repeat_customers || 0;
       const cTotal = cNew + cRep;
+      const rPct   = cTotal > 0 ? (cRep / cTotal * 100).toFixed(1) : '—';
+      const nPct   = cTotal > 0 ? (cNew / cTotal * 100).toFixed(1) : '—';
       return `<tr onmouseover="this.style.background='rgba(59,130,246,0.04)'" onmouseout="this.style.background=''">
         <td style="padding-left:1.25rem; font-weight:600; border-right:2px solid #64748b;">${r.branch}</td>
         <td class="text-right fw-bold">${fN(cTotal)}</td>
         <td class="text-right text-primary fw-bold">${fN(cRep)}</td>
-        <td class="text-right text-success fw-bold" style="padding-right:1.25rem;">${fN(cNew)}</td>
+        <td class="text-right" style="color:#f59e0b; font-size:0.82rem; font-weight:600;">${rPct}%</td>
+        <td class="text-right text-success fw-bold">${fN(cNew)}</td>
+        <td class="text-right" style="color:#10b981; font-size:0.82rem; font-weight:600; padding-right:1.25rem;">${nPct}%</td>
       </tr>`;
     }).join('');
-    // Grand Total row
-    const totCNew   = tot_new;
-    const totCRep   = tot_repeat;
-    const totCTotal = totCNew + totCRep;
+
     html += `<tr class="grand-total">
       <td style="padding-left:1.25rem; border-right:2px solid #64748b;"><strong>Grand Total</strong></td>
-      <td class="text-right"><strong>${fN(totCTotal)}</strong></td>
-      <td class="text-right text-primary fw-bold">${fN(totCRep)}</td>
-      <td class="text-right text-success fw-bold" style="padding-right:1.25rem;">${fN(totCNew)}</td>
+      <td class="text-right"><strong>${fN(totTotal)}</strong></td>
+      <td class="text-right text-primary fw-bold">${fN(totRep)}</td>
+      <td class="text-right" style="color:#f59e0b; font-size:0.82rem; font-weight:700;">${totRPct}%</td>
+      <td class="text-right text-success fw-bold">${fN(totNew)}</td>
+      <td class="text-right" style="color:#10b981; font-size:0.82rem; font-weight:700; padding-right:1.25rem;">${totNPct}%</td>
     </tr>`;
     nrTbody.innerHTML = html;
-  }
+  };
+
+  renderNRTable();
 }
 
 async function loadGrowthDegrowthData() {

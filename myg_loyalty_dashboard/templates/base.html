@@ -931,9 +931,12 @@
             
             branches.forEach(branch => {
                 const option = document.createElement('option');
-                option.value = branch;
-                option.textContent = branch;
-                if (branch === selectedBranch) {
+                // API now returns {code, name} objects; fallback for plain strings
+                const code = branch.code !== undefined ? branch.code : branch;
+                const name = branch.name !== undefined ? branch.name : branch;
+                option.value = code;
+                option.textContent = name;
+                if (code === selectedBranch) {
                     option.selected = true;
                 }
                 select.appendChild(option);
@@ -1021,10 +1024,13 @@ async function populateBcdBranches() {
         const branches = await res.json();
         list.innerHTML = '';
         branches.forEach(b => {
+            // API now returns {code, name} objects; fallback for plain strings
+            const code = b.code !== undefined ? b.code : b;
+            const name = b.name !== undefined ? b.name : b;
             const lbl = document.createElement('label');
             lbl.className = 'bcd-ms-item';
-            lbl.dataset.branch = b.toLowerCase();
-            lbl.innerHTML = `<input type="checkbox" class="bcd-ms-cb" value="${b}" onchange="bcdUpdateSelection()"> ${b}`;
+            lbl.dataset.branch = name.toLowerCase();
+            lbl.innerHTML = `<input type="checkbox" class="bcd-ms-cb" value="${code}" onchange="bcdUpdateSelection()"> ${name}`;
             list.appendChild(lbl);
         });
         _bcdBranchesLoaded = true;
