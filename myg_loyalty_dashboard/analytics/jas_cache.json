@@ -1,16 +1,16 @@
 {
   "jas_target": 529245,
-  "jas_achieved": 340315,
-  "jas_achieved_pct": 64.3,
-  "jas_gap": 188930,
-  "jas_days_done": 68,
-  "jas_days_rem": 24,
+  "jas_achieved": 391632,
+  "jas_achieved_pct": 74.0,
+  "jas_gap": 137613,
+  "jas_days_done": 81,
+  "jas_days_rem": 11,
   "jas_days_total": 92,
-  "jas_daily_rate": 5005.0,
-  "jas_req_daily": 7872,
-  "jas_forecast_final": 487565,
-  "jas_status_badge": "AT RISK",
-  "jas_risk_color": "#F59E0B",
+  "jas_daily_rate": 4835.0,
+  "jas_req_daily": 12510,
+  "jas_forecast_final": 438886,
+  "jas_status_badge": "BEHIND",
+  "jas_risk_color": "#EF4444",
   "jas_daily_json": [
     {
       "date": "2026-07-01",
@@ -346,113 +346,126 @@
       "date": "2026-09-05",
       "cum": 340315,
       "daily_new": 5726
+    },
+    {
+      "date": "2026-09-06",
+      "cum": 345701,
+      "daily_new": 5386
+    },
+    {
+      "date": "2026-09-07",
+      "cum": 349716,
+      "daily_new": 4015
+    },
+    {
+      "date": "2026-09-08",
+      "cum": 353519,
+      "daily_new": 3803
+    },
+    {
+      "date": "2026-09-09",
+      "cum": 357386,
+      "daily_new": 3867
+    },
+    {
+      "date": "2026-09-10",
+      "cum": 361890,
+      "daily_new": 4504
+    },
+    {
+      "date": "2026-09-11",
+      "cum": 366150,
+      "daily_new": 4260
+    },
+    {
+      "date": "2026-09-12",
+      "cum": 371264,
+      "daily_new": 5114
+    },
+    {
+      "date": "2026-09-13",
+      "cum": 375453,
+      "daily_new": 4189
+    },
+    {
+      "date": "2026-09-14",
+      "cum": 378965,
+      "daily_new": 3512
+    },
+    {
+      "date": "2026-09-15",
+      "cum": 381999,
+      "daily_new": 3034
+    },
+    {
+      "date": "2026-09-16",
+      "cum": 384970,
+      "daily_new": 2971
+    },
+    {
+      "date": "2026-09-17",
+      "cum": 388267,
+      "daily_new": 3297
+    },
+    {
+      "date": "2026-09-18",
+      "cum": 391632,
+      "daily_new": 3365
     }
   ],
   "jas_lstm_json": [
     {
-      "date": "2026-09-06",
-      "cum": 345897
-    },
-    {
-      "date": "2026-09-07",
-      "cum": 351434
-    },
-    {
-      "date": "2026-09-08",
-      "cum": 356956
-    },
-    {
-      "date": "2026-09-09",
-      "cum": 361848
-    },
-    {
-      "date": "2026-09-10",
-      "cum": 367454
-    },
-    {
-      "date": "2026-09-11",
-      "cum": 373009
-    },
-    {
-      "date": "2026-09-12",
-      "cum": 378773
-    },
-    {
-      "date": "2026-09-13",
-      "cum": 384011
-    },
-    {
-      "date": "2026-09-14",
-      "cum": 389411
-    },
-    {
-      "date": "2026-09-15",
-      "cum": 395586
-    },
-    {
-      "date": "2026-09-16",
-      "cum": 402086
-    },
-    {
-      "date": "2026-09-17",
-      "cum": 408261
-    },
-    {
-      "date": "2026-09-18",
-      "cum": 414761
-    },
-    {
       "date": "2026-09-19",
-      "cum": 421261
+      "cum": 395089
     },
     {
       "date": "2026-09-20",
-      "cum": 427436
+      "cum": 398691
     },
     {
       "date": "2026-09-21",
-      "cum": 432961
+      "cum": 402044
     },
     {
       "date": "2026-09-22",
-      "cum": 439136
+      "cum": 405820
     },
     {
       "date": "2026-09-23",
-      "cum": 444661
+      "cum": 409243
     },
     {
       "date": "2026-09-24",
-      "cum": 450836
+      "cum": 413185
     },
     {
       "date": "2026-09-25",
-      "cum": 457336
+      "cum": 417470
     },
     {
       "date": "2026-09-26",
-      "cum": 463511
+      "cum": 421689
     },
     {
       "date": "2026-09-27",
-      "cum": 469036
+      "cum": 425582
     },
     {
       "date": "2026-09-28",
-      "cum": 475211
+      "cum": 430010
     },
     {
       "date": "2026-09-29",
-      "cum": 481386
+      "cum": 434463
     },
     {
       "date": "2026-09-30",
-      "cum": 487561
+      "cum": 438880
     }
   ],
   "jas_target_json": 529245,
   "base_customers": 5292454,
   "avg_hist_rate": "Deep Learning BiLSTM",
-  "computed_at": "2026-09-06",
+  "computed_at": "2026-09-19",
   "data_source": "azure_invoice_report"
 }
