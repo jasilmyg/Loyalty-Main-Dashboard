@@ -1,0 +1,301 @@
+{% extends "layout.html" %}
+{% block title %}🛡️ OSG Integration Mapper{% endblock %}
+
+{% block content %}
+<style>
+  /* ── OSG Mapper Page Styles ────────────────────────────────────────── */
+  .osg-hero {
+    background: linear-gradient(135deg, #0f3460 0%, #1565c0 60%, #0d47a1 100%);
+    border-radius: 16px;
+    padding: 36px 40px;
+    color: white;
+    margin-bottom: 28px;
+    position: relative;
+    overflow: hidden;
+  }
+  .osg-hero::after {
+    content: '🛡️';
+    font-size: 120px;
+    position: absolute;
+    right: 30px;
+    top: -10px;
+    opacity: 0.08;
+  }
+  .osg-hero h1 { font-size: 1.9rem; font-weight: 700; margin: 0 0 6px; }
+  .osg-hero p  { opacity: 0.85; margin: 0; font-size: 0.97rem; }
+
+  /* Upload card */
+  .upload-card {
+    background: white;
+    border-radius: 14px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    padding: 32px 36px;
+    margin-bottom: 28px;
+  }
+  .upload-zone {
+    border: 2px dashed #90caf9;
+    border-radius: 12px;
+    background: #f0f7ff;
+    padding: 40px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all .25s;
+    position: relative;
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: #1565c0;
+    background: #e3f2fd;
+  }
+  .upload-zone .upload-icon { font-size: 3rem; margin-bottom: 10px; }
+  .upload-zone input[type=file] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer;
+  }
+  .upload-zone .file-name {
+    margin-top: 10px; font-weight: 600; color: #1565c0; font-size: 0.9rem;
+  }
+
+  /* Step badges */
+  .steps-row { display: flex; gap: 16px; margin-bottom: 28px; }
+  .step-item {
+    flex: 1;
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+  }
+  .step-num {
+    width: 38px; height: 38px; min-width: 38px;
+    background: linear-gradient(135deg,#1565c0,#42a5f5);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 700; font-size: 1rem;
+  }
+  .step-text h6 { margin: 0 0 3px; font-weight: 600; color: #212529; font-size: 0.88rem; }
+  .step-text p  { margin: 0; color: #6c757d; font-size: 0.8rem; }
+
+  /* Legend */
+  .legend-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  .legend-item {
+    display: flex; align-items: center; gap: 8px;
+    background: white; border-radius: 8px;
+    padding: 8px 14px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+    font-size: 0.82rem; font-weight: 500;
+  }
+  .legend-dot {
+    width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0;
+  }
+
+  /* Submit button */
+  .btn-generate {
+    background: linear-gradient(135deg, #1565c0, #42a5f5);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 13px 40px;
+    font-size: 1rem;
+    font-weight: 600;
+    transition: all .25s;
+    cursor: pointer;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .btn-generate:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(21,101,192,0.35);
+    color: white;
+  }
+  .btn-generate:disabled {
+    opacity: 0.6; transform: none; cursor: not-allowed;
+  }
+  .btn-generate .spinner-border { width: 18px; height: 18px; display: none; }
+  .btn-generate.loading .spinner-border { display: inline-block; }
+  .btn-generate.loading .btn-icon      { display: none; }
+
+  /* Info boxes */
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 24px; }
+  .info-box {
+    border-radius: 10px; padding: 18px 20px; font-size: 0.85rem; line-height: 1.5;
+  }
+  .info-box h6 { font-weight: 700; margin-bottom: 8px; font-size: 0.88rem; }
+  .info-box ul { margin: 0; padding-left: 18px; }
+  .info-box li { margin-bottom: 4px; }
+  .info-blue  { background: #e3f2fd; border-left: 4px solid #1565c0; color: #0d3c6e; }
+  .info-green { background: #e8f5e9; border-left: 4px solid #2e7d32; color: #1b4a1f; }
+</style>
+
+<!-- Hero -->
+<div class="osg-hero">
+  <h1>🛡️ OSG Integration Mapper</h1>
+  <p>Upload the OnSiteGo integration report — get back a complete reconciled Excel with all registered, missing, and returned warranties in the exact OnSiteGo format.</p>
+</div>
+
+<!-- Steps -->
+<div class="steps-row">
+  <div class="step-item">
+    <div class="step-num">1</div>
+    <div class="step-text">
+      <h6>Upload Integration Report</h6>
+      <p>Upload the Excel report downloaded from the OnSiteGo portal (.xlsx)</p>
+    </div>
+  </div>
+  <div class="step-item">
+    <div class="step-num">2</div>
+    <div class="step-text">
+      <h6>Select Sale Date</h6>
+      <p>Pick the date of the sales data to reconcile against ClickHouse</p>
+    </div>
+  </div>
+  <div class="step-item">
+    <div class="step-num">3</div>
+    <div class="step-text">
+      <h6>Download Complete Report</h6>
+      <p>System auto-maps missing/returned warranties and generates a 4-sheet Excel</p>
+    </div>
+  </div>
+</div>
+
+<!-- Legend -->
+<div class="legend-row">
+  <div class="legend-item"><div class="legend-dot" style="background:#bbdefb"></div> Registered — Already in OnSiteGo</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#c8e6c9"></div> To Activate — Missing warranties (send to OnSiteGo)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ffcdd2"></div> SR Returns — Returned / cancelled warranties</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ffa726"></div> Registered-Returned — Flagged returns in integration</div>
+</div>
+
+<!-- Upload Form -->
+<div class="upload-card">
+  <h5 style="font-weight:700;margin-bottom:22px;color:#0f3460;">📤 Upload & Generate Report</h5>
+
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      {% for msg in messages %}
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+          <strong>⚠️</strong> {{ msg }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <form method="POST" enctype="multipart/form-data" id="osgForm" action="/osg-integration">
+
+    <div class="row g-4 align-items-end">
+
+      <!-- File upload -->
+      <div class="col-md-7">
+        <label class="form-label fw-semibold text-dark mb-2" style="font-size:.88rem;">
+          OnSiteGo Integration Report (.xlsx)
+        </label>
+        <div class="upload-zone" id="uploadZone">
+          <div class="upload-icon">📊</div>
+          <div><strong>Drag & drop</strong> your file here, or <u>click to browse</u></div>
+          <div style="font-size:.8rem;color:#78909c;margin-top:6px;">Supports .xlsx / .xls — OnSiteGo integration report format</div>
+          <div class="file-name" id="fileName" style="display:none"></div>
+          <input type="file" name="integration_report" id="fileInput" accept=".xlsx,.xls" required>
+        </div>
+      </div>
+
+      <!-- Date picker -->
+      <div class="col-md-3">
+        <label class="form-label fw-semibold text-dark mb-2" style="font-size:.88rem;">
+          Sale Date to Reconcile
+        </label>
+        <input type="date" name="report_date" id="reportDate" class="form-control form-control-lg"
+               style="border-radius:10px;border:1.5px solid #90caf9;"
+               max="{{ '' }}" required>
+        <small class="text-muted mt-1 d-block">Date of the sales in ClickHouse to compare</small>
+      </div>
+
+      <!-- Submit -->
+      <div class="col-md-2 d-flex align-items-end">
+        <button type="submit" class="btn-generate w-100" id="submitBtn">
+          <span class="btn-icon">⚡</span>
+          <span class="spinner-border spinner-border-sm" role="status"></span>
+          Generate
+        </button>
+      </div>
+    </div>
+
+  </form>
+
+  <!-- Info grid -->
+  <div class="info-grid">
+    <div class="info-box info-blue">
+      <h6>📋 What the report contains</h6>
+      <ul>
+        <li><strong>Sheet 1 — Complete Report:</strong> All 365+ rows in one view</li>
+        <li><strong>Sheet 2 — To Activate:</strong> Missing warranties to send to OnSiteGo</li>
+        <li><strong>Sheet 3 — SR Returns:</strong> Sales return warranty cases with full details</li>
+        <li><strong>Sheet 4 — Registered:</strong> Already active in OnSiteGo (from your upload)</li>
+      </ul>
+    </div>
+    <div class="info-box info-green">
+      <h6>🔍 Mapping logic applied</h6>
+      <ul>
+        <li><strong>Tier 1 — Slab match:</strong> Product price within OSG plan slab (e.g., 15K-20K)</li>
+        <li><strong>Tier 2 — Category match:</strong> From official OSG eligible categories file</li>
+        <li><strong>Tier 3 — Highest value:</strong> Fallback with manual review flag</li>
+        <li><strong>⚠️ Billing errors</strong> flagged with warning comments</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+  // File drag & drop
+  const zone   = document.getElementById('uploadZone');
+  const input  = document.getElementById('fileInput');
+  const label  = document.getElementById('fileName');
+  const btn    = document.getElementById('submitBtn');
+  const form   = document.getElementById('osgForm');
+
+  // Set default date to yesterday
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  document.getElementById('reportDate').value = yesterday.toISOString().split('T')[0];
+
+  input.addEventListener('change', () => {
+    if (input.files[0]) {
+      label.textContent = '✅ ' + input.files[0].name;
+      label.style.display = 'block';
+      zone.style.borderColor = '#2e7d32';
+      zone.style.background  = '#e8f5e9';
+    }
+  });
+
+  ['dragover','dragenter'].forEach(ev => {
+    zone.addEventListener(ev, e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  });
+  ['dragleave','drop'].forEach(ev => {
+    zone.addEventListener(ev, e => {
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      if (ev === 'drop' && e.dataTransfer.files[0]) {
+        const dt = e.dataTransfer;
+        // Assign dropped file to input
+        const fileList = dt.files;
+        Object.defineProperty(input, 'files', { value: fileList, writable: false });
+        label.textContent = '✅ ' + fileList[0].name;
+        label.style.display = 'block';
+        zone.style.borderColor = '#2e7d32';
+        zone.style.background  = '#e8f5e9';
+      }
+    });
+  });
+
+  // Loading state on submit
+  form.addEventListener('submit', () => {
+    btn.classList.add('loading');
+    btn.disabled = true;
+    btn.querySelector('.btn-icon').style.display = 'none';
+    // Re-enable after 60s in case of error
+    setTimeout(() => {
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }, 60000);
+  });
+</script>
+{% endblock %}

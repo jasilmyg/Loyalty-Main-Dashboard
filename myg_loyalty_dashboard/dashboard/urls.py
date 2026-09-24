@@ -130,5 +130,8 @@ urlpatterns = [
 
     # 🛡️ OSG Integration Mapper — upload report → complete reconciled Excel
     path('api/v1/osg-integration-mapper/', views.OsgIntegrationMapperView.as_view(), name='osg_integration_mapper'),
+    
+    # ✅ OSG Final Reconciliation — 3 files upload
+    path('api/v1/osg-reconcile/', views.OsgReconciliationView.as_view(), name='osg_reconcile'),
 ]
 

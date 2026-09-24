@@ -5344,3 +5344,263 @@ class OsgIntegrationMapperView(LoginRequiredMixin, View):
         except Exception as e:
             import traceback
             return HttpResponse('Error: {}\n\n{}'.format(e, traceback.format_exc()), status=500)
+
+
+class OsgReconciliationView(LoginRequiredMixin, View):
+    """
+    POST /api/v1/osg-reconcile/
+    Accepts 3 uploaded Excel files:
+    1. osg_integration_report (Final output from OnSiteGo)
+    2. osg_sep_comb (POS Sales dump)
+    3. osg_vas_detailed (POS VAS Detailed dump)
+    
+    Unified Workflow:
+    Phase A: Maps POS data with ClickHouse product info and cancels returns.
+    Phase B: Reconciles mapped data against OSG integration and VAS dumps.
+    Phase C: Outputs 3 sheets in an Excel file.
+    """
+    def post(self, request):
+        import pandas as pd
+        import io, tempfile, os
+        from django.http import HttpResponse
+        from django.core.files.uploadedfile import TemporaryUploadedFile
+        from analytics.clickhouse_service import get_ch_client
+
+        osg_integ_file = request.FILES.get('osg_integration_report')
+        osg_comb_file = request.FILES.get('osg_sep_comb')
+        vas_file = request.FILES.get('osg_vas_detailed')
+
+        if not (osg_integ_file and osg_comb_file and vas_file):
+            return HttpResponse('Missing one or more required files.', status=400)
+
+        try:
+            def _read_excel(file_obj):
+                if isinstance(file_obj, TemporaryUploadedFile):
+                    try:
+                        return pd.read_excel(file_obj.temporary_file_path(), engine='openpyxl')
+                    except Exception:
+                        return pd.read_excel(file_obj.temporary_file_path(), engine='xlrd')
+                else:
+                    file_obj.seek(0)
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp:
+                        tmp.write(file_obj.read())
+                        tmp_path = tmp.name
+                    try:
+                        try:
+                            return pd.read_excel(tmp_path, engine='openpyxl')
+                        except Exception:
+                            return pd.read_excel(tmp_path, engine='xlrd')
+                    finally:
+                        os.unlink(tmp_path)
+                
+            # ── Phase A: Mapping ──
+            comb_df = _read_excel(osg_comb_file)
+            
+            # Apply return cancellation logic on comb_df
+            rows_to_keep = []
+            if 'Customer Mobile' in comb_df.columns and 'Item Code' in comb_df.columns and 'QTY' in comb_df.columns:
+                for (mobile, item_code), group in comb_df.groupby(['Customer Mobile', 'Item Code']):
+                    # ensure QTY is numeric
+                    group['QTY'] = pd.to_numeric(group['QTY'], errors='coerce').fillna(0)
+                    positives = group[group['QTY'] > 0].index.tolist()
+                    negatives = group[group['QTY'] < 0].index.tolist()
+                    while negatives and positives:
+                        negatives.pop(0)
+                        positives.pop(0)
+                    rows_to_keep.extend(positives)
+                    rows_to_keep.extend(negatives)
+                filtered_comb = comb_df.loc[rows_to_keep].copy()
+            else:
+                filtered_comb = comb_df.copy()
+            
+            # Query ClickHouse and map using OSGMapper
+            ch_osg = []
+            for _, r in filtered_comb.iterrows():
+                inv = str(r.get('Invoice Number', '')).strip()
+                branch = str(r.get('Branch', '')).strip()
+                code = str(r.get('Item Code', '')).strip()
+                qty = r.get('QTY', 1)
+                price = r.get('Sold Price', 0)
+                if inv:
+                    ch_osg.append((inv, branch, code, qty, price))
+                    
+            all_invs = list({r[0] for r in ch_osg})
+            
+            import sys
+            _proj_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'project_folder'))
+            if _proj_dir not in sys.path:
+                sys.path.insert(0, _proj_dir)
+            from services.osg_mapper import OSGMapper
+            
+            ch = get_ch_client()
+            mapper = OSGMapper(ch)
+            
+            from collections import defaultdict
+            inv_info = {}
+            inv_products = defaultdict(list)
+            imei_by_inv = defaultdict(list)
+            mobile_products = defaultdict(list)
+            
+            if all_invs:
+                inv_sql = "'" + "','".join(i.replace("'", "''") for i in all_invs) + "'"
+                
+                # Fetch info
+                inv_rows = ch.query(f"SELECT invoice_no, toDate(date), branch, customer_mobile FROM azure_invoice_report WHERE invoice_no IN ({inv_sql})").result_rows
+                for r in inv_rows:
+                    inv_info[r[0].strip()] = {'date': r[1], 'branch': r[2], 'mobile': r[3]}
+                
+                # Fallback info from comb_df
+                for _, r in filtered_comb.iterrows():
+                    inv = str(r.get('Invoice Number', '')).strip()
+                    if inv not in inv_info:
+                        inv_info[inv] = {
+                            'date': r.get('Date', ''),
+                            'branch': str(r.get('Branch', '')).strip(),
+                            'mobile': str(r.get('Customer Mobile', '')).strip()
+                        }
+                        
+                mobiles = list({info['mobile'] for info in inv_info.values() if info.get('mobile')})
+                if mobiles:
+                    mob_sql = "'" + "','".join(m.replace("'", "''") for m in mobiles) + "'"
+                    cust_prod_rows = ch.query(f"SELECT i.customer_mobile, s.invoice_no, s.item_code, s.sold_price, m.item_name, m.item_category, m.brand, s.mop FROM azure_sales_report s JOIN azure_invoice_report i ON s.invoice_no = i.invoice_no LEFT JOIN item_master m ON s.item_code = m.item_code WHERE i.customer_mobile IN ({mob_sql}) AND s.item_code NOT LIKE 'OSG%' AND s.item_code NOT LIKE 'STY%' AND s.item_code NOT LIKE 'DLC%' AND s.sold_price != 0").result_rows
+                    for r in cust_prod_rows:
+                        mobile_products[r[0].strip()].append({
+                            'invoice_no': r[1].strip(),
+                            'item_code': r[2], 'sold_price': float(r[3] or 0),
+                            'name': str(r[4] or ''), 'category': str(r[5] or '').upper().strip(), 'brand': str(r[6] or ''),
+                            'mop': float(r[7] or 0)
+                        })
+
+                # Fetch products by invoice as fallback
+                prod_rows = ch.query(f"SELECT s.invoice_no, s.item_code, s.sold_price, m.item_name, m.item_category, m.brand, s.mop FROM azure_sales_report s LEFT JOIN item_master m ON s.item_code = m.item_code WHERE s.invoice_no IN ({inv_sql}) AND s.item_code NOT LIKE 'OSG%' AND s.item_code NOT LIKE 'STY%' AND s.item_code NOT LIKE 'DLC%' AND s.sold_price != 0").result_rows
+                for r in prod_rows:
+                    inv_products[r[0].strip()].append({
+                        'item_code': r[1], 'sold_price': float(r[2] or 0),
+                        'name': str(r[3] or ''), 'category': str(r[4] or '').upper().strip(), 'brand': str(r[5] or ''),
+                        'mop': float(r[6] or 0)
+                    })
+                    
+                # Fetch IMEIs
+                imei_rows = ch.query(f"SELECT s.invoice_no, s.item_code, s.imei_batch, m.item_category, s.sold_price FROM azure_sales_report s LEFT JOIN item_master m ON s.item_code = m.item_code WHERE s.invoice_no IN ({inv_sql}) AND s.item_code NOT LIKE 'OSG%' AND s.item_code NOT LIKE 'STY%' AND s.item_code NOT LIKE 'SC%' AND s.item_code NOT LIKE 'DLC%' AND isNotNull(s.imei_batch) AND s.imei_batch != '' AND s.sold_price > 0 ORDER BY s.invoice_no, s.sold_price DESC").result_rows
+                for r in imei_rows:
+                    imei = str(r[2] or '').strip()
+                    if imei:
+                        imei_by_inv[r[0].strip()].append({
+                            'item_code': r[1], 'imei': imei, 'category': str(r[3] or '').upper().strip(), 'price': float(r[4] or 0)
+                        })
+
+            osg_codes = list({r[2] for r in ch_osg})
+            osg_names = mapper._fetch_osg_names(osg_codes)
+            final_df = _read_excel(osg_integ_file)
+            EXACT_COLS_26 = ['Date', 'Invoice No', 'Customer', 'Store Code', 'Store Name', 'Region', 'Serial No', 'Category', 'Brand', 'Quantity', 'Model', 'Plan Type', 'EWS Qty', 'Item Rate', 'Plan Price', 'Email', 'Mobile No', 'Manufacturer Warranty', 'Duration', 'Retailer SKU', 'OnSiteGo SKU', 'Total Coverage', 'Primary Invoice No', 'Return against invoice No.', 'Return Flag', 'Comment']
+            
+            # Format final_df columns
+            if 'Duration (Year)' in final_df.columns:
+                final_df.rename(columns={'Duration (Year)': 'Duration'}, inplace=True)
+            if 'OnsiteGo SKU' in final_df.columns:
+                final_df.rename(columns={'OnsiteGo SKU': 'OnSiteGo SKU'}, inplace=True)
+            for col in EXACT_COLS_26:
+                if col not in final_df.columns:
+                    final_df[col] = ''
+            final_df = final_df[EXACT_COLS_26]
+                    
+            # 1. Base data: All rows from the Integration Report verbatim
+            all_generated_rows = final_df.to_dict('records')
+            
+            # Count occurrences of each invoice in the Integration Report to handle multiple warranties correctly
+            from collections import defaultdict
+            integ_counts = defaultdict(int)
+            for row in all_generated_rows:
+                inv = str(row.get('Invoice No', '')).strip()
+                if not inv or inv == 'nan':
+                    inv = str(row.get('Primary Invoice No', '')).strip()
+                if inv and inv != 'nan':
+                    integ_counts[inv] += 1
+                    
+            # Set to track which original invoices are registered (for returns logic)
+            registered_orig_invs = set(integ_counts.keys())
+
+            # 2. Append MISSING data from OSG COMB, mapped by our engine
+            for r in ch_osg:
+                inv = str(r[0]).strip()
+                is_sr = '-SR-' in inv
+                
+                # If this instance is already covered in the Integration Report, skip mapping it
+                if integ_counts.get(inv, 0) > 0:
+                    integ_counts[inv] -= 1
+                    continue
+                
+                # It's missing from the Integration Report, so we map it!
+                row_dict = mapper._make_row(inv, r, osg_names, inv_info, inv_products, imei_by_inv, mobile_products=mobile_products, is_sr=is_sr)
+                if row_dict:
+                    if is_sr:
+                        orig_inv = str(row_dict.get('Return against invoice No.', '')).strip()
+                        if orig_inv and orig_inv != inv:
+                            if orig_inv in registered_orig_invs:
+                                row_dict['Comment'] += f' 🚨 URGENT: Original warranty {orig_inv} IS REGISTERED in OnSiteGo! MUST BE CANCELLED!'
+                            else:
+                                row_dict['Comment'] += f' ✅ Note: Original warranty {orig_inv} was never registered. Safe to ignore.'
+                    all_generated_rows.append(row_dict)
+                        
+            generated_report = pd.DataFrame(all_generated_rows)
+            for col in EXACT_COLS_26:
+                if col not in generated_report.columns:
+                    generated_report[col] = ''
+            generated_report = generated_report[EXACT_COLS_26]
+
+            # ── Phase B: Reconciliation ──
+            vas_df   = _read_excel(vas_file)
+
+            def get_final_invoice(r):
+                flag = str(r.get('Return Flag', '')).strip()
+                if flag == 'Returned':
+                    return str(r.get('Return against invoice No.', '')).strip()
+                return str(r.get('Primary Invoice No', '')).strip()
+
+            if 'Primary Invoice No' in final_df.columns:
+                final_osg_invoices = final_df.apply(get_final_invoice, axis=1).dropna()
+                final_osg_invoices = final_osg_invoices[final_osg_invoices != ''].astype(str).str.strip().tolist()
+            else:
+                final_osg_invoices = final_df.get('Invoice No', pd.Series()).dropna().astype(str).str.strip().tolist()
+
+            if 'Invoice Number' in vas_df.columns:
+                vas_invoices = vas_df['Invoice Number'].dropna().astype(str).str.strip().tolist()
+            else:
+                vas_invoices = []
+
+            final_set = set(final_osg_invoices)
+            vas_set   = set(vas_invoices)
+
+            in_final_not_vas = final_set - vas_set
+            in_vas_not_final = vas_set - final_set
+
+            if 'Invoice No' in generated_report.columns:
+                df_missing_in_vas = generated_report[generated_report['Invoice No'].astype(str).str.strip().isin(in_final_not_vas)]
+            else:
+                df_missing_in_vas = pd.DataFrame({'Invoice No': list(in_final_not_vas)})
+
+            if 'Invoice Number' in vas_df.columns:
+                df_missing_in_final = vas_df[vas_df['Invoice Number'].astype(str).str.strip().isin(in_vas_not_final)]
+            else:
+                df_missing_in_final = pd.DataFrame({'Invoice Number': list(in_vas_not_final)})
+
+            # ── Phase C: Output ──
+            buf = io.BytesIO()
+            with pd.ExcelWriter(buf, engine='openpyxl') as writer:
+                generated_report.to_excel(writer, sheet_name='Final Generated Report', index=False)
+                df_missing_in_vas.to_excel(writer, sheet_name='In Final NOT in VAS', index=False)
+                df_missing_in_final.to_excel(writer, sheet_name='In VAS NOT in Final', index=False)
+
+            buf.seek(0)
+            fname = "OSG_Unified_Reconciliation_Report.xlsx"
+            resp = HttpResponse(
+                buf.read(),
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            resp['Content-Disposition'] = f'attachment; filename="{fname}"'
+            return resp
+
+        except Exception as e:
+            import traceback
+            import traceback
+            return HttpResponse(f'Error processing reconciliation:\n\n{e}\n\n{traceback.format_exc()}', status=500)
