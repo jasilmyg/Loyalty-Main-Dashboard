@@ -147,17 +147,19 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 AUTH_USER_MODEL = 'users.User'
 
 # Caching Configuration (File-based: survives server restarts, shared across workers)
+# TIMEOUT=3600 → cached for 1 hour; cache.clear() is called after every new data ingestion
 import os as _os
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
         'LOCATION': _os.path.join(BASE_DIR, '.cache'),
-        'TIMEOUT': 3600,
+        'TIMEOUT': 3600,       # 1 hour — fresh enough; cleared on every data ingestion
         'OPTIONS': {
             'MAX_ENTRIES': 2000,
         }
     }
 }
+
 
 # Celery Configuration
 CELERY_BROKER_URL = 'memory://'

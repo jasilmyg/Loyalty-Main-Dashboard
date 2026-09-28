@@ -111,8 +111,14 @@ class AnalyticsService:
         return (' AND '.join(conditions) if conditions else '1=1'), params
 
     def _build_ch_where_clause(self, filters):
-        """Build ClickHouse-compatible WHERE clause. Returns (sql_str, params_dict)."""
-        conditions, params = [], {}
+        """Build ClickHouse-compatible WHERE clause. Returns (sql_str, params_dict).
+
+        NOTE: SMC/EI invoice rows and HEAD OFFICE / UG SMART CHOICE / 3GH branch
+        rows are ALWAYS excluded from dashboard results. ClickHouse tables are NOT
+        modified — the filter is applied here at query time only.
+        """
+        from analytics.clickhouse_service import CH_EXCLUDE_FILTER
+        conditions, params = [CH_EXCLUDE_FILTER], {}
 
         start_date = _parse_date(filters.get('start_date'))
         end_date   = _parse_date(filters.get('end_date'))
@@ -140,7 +146,7 @@ class AnalyticsService:
             conditions.append("upper(bdm) = upper({bdm:String})")
             params['bdm'] = bdm
 
-        where = ' AND '.join(conditions) if conditions else '1=1'
+        where = ' AND '.join(conditions)
         return where, params
 
     def _ch_is_filtered(self, filters):

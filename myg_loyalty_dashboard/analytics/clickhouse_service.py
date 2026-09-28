@@ -13,6 +13,43 @@ import threading
 import clickhouse_connect
 from typing import Optional
 
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Dashboard exclusion filters ──────────────────────────────────────────────
+# These rows exist in ClickHouse but must NOT appear in any dashboard report:
+#   • Invoices where invoice_no contains 'SMC' or 'EI'
+#     (belong to HEAD OFFICE / UG SMART CHOICE internal transfers)
+#   • Any row where branch = '3GH'
+#
+# Usage in any ClickHouse SQL (main table, no alias):
+#   WHERE {CH_EXCLUDE_FILTER} AND ...
+#
+# Usage when the table has an alias (e.g. FROM azure_invoice_report ai):
+#   WHERE {CH_EXCLUDE_FILTER_ALIAS.format(alias='ai')} AND ...
+#
+# ClickHouse tables are NEVER modified — filter is applied at query time only.
+CH_EXCLUDE_FILTER = """
+    NOT (
+        upper(invoice_no) LIKE '%SMC%'
+        OR upper(invoice_no) LIKE '%EI%'
+        OR upper(branch) IN ('HEAD OFFICE', 'UG SMART CHOICE', '3GH')
+    )
+""".strip()
+
+def ch_exclude_filter(alias: str = '') -> str:
+    """Return the exclusion WHERE fragment, with optional table alias prefix.
+    e.g. ch_exclude_filter('s') → 'NOT (upper(s.invoice_no) LIKE ...'
+    """
+    p = f'{alias}.' if alias else ''
+    return (
+        f"NOT ("
+        f" upper({p}invoice_no) LIKE '%SMC%'"
+        f" OR upper({p}invoice_no) LIKE '%EI%'"
+        f" OR upper({p}branch) IN ('HEAD OFFICE', 'UG SMART CHOICE', '3GH')"
+        f")"
+    )
+# ─────────────────────────────────────────────────────────────────────────────
+
 # ─── Credentials (from environment — set in Render Dashboard) ───────────────
 CH_HOST     = os.environ.get("CH_HOST",     "pdhsuv47ec.ap-south-1.aws.clickhouse.cloud")
 CH_PORT     = int(os.environ.get("CH_PORT", "8443"))

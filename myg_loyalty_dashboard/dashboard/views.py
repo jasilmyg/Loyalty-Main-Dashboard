@@ -2026,42 +2026,44 @@ class RedemptionAnalysisAPIView(LoginRequiredMixin, View):
     def get(self, request):
         import traceback
         try:
-            # ── ClickHouse: azure_invoice_report — deductions column ─────────────
+            # ── ClickHouse: sales_data — point_redemption (loyalty points ONLY) ────
+            # FIX: Previously used azure_invoice_report.deductions which includes
+            # exchange/scheme deductions — inflating Nov-25 to 1.3% (correct: ~0.3%).
+            # Now uses sales_data.point_redemption = actual loyalty points only.
             from analytics.clickhouse_service import is_ch_available, ch_query
             if is_ch_available():
                 rows = ch_query("""
                     SELECT
-                        formatDateTime(toStartOfMonth(toDate(date)), '%b-%y')  AS month_label,
-                        toStartOfMonth(toDate(date))                           AS month_start,
-                        count(DISTINCT customer_mobile)                        AS redeemed_customer_count,
+                        formatDateTime(toStartOfMonth(parsed_date), '%b-%y') AS month_label,
+                        toStartOfMonth(parsed_date)                           AS month_start,
+                        uniqIf(customer_mobile, toFloat64OrZero(point_redemption) > 0)
+                                                                              AS redeemed_customer_count,
                         ifNull(round(sumIf(
-                            deductions,
-                            deductions > 0
-                        ), 2), 0)                                              AS redeemed_point_value,
+                            toFloat64OrZero(point_redemption),
+                            toFloat64OrZero(point_redemption) > 0
+                        ), 2), 0)                                             AS redeemed_point_value,
                         ifNull(round(sumIf(
-                            invoice_total,
-                            deductions > 0
+                            total_value,
+                            toFloat64OrZero(point_redemption) > 0
                         ), 2), 0)                                             AS redeemed_sale_value,
                         ifNull(round(
                             100.0 * sumIf(
-                                deductions,
-                                deductions > 0
-                            ) / nullIf(sum(invoice_total), 0)
+                                toFloat64OrZero(point_redemption),
+                                toFloat64OrZero(point_redemption) > 0
+                            ) / nullIf(sum(total_value), 0)
                         , 2), 0)                                              AS pct_loyalty_discount,
                         ifNull(round(
                             sumIf(
-                                invoice_total,
-                                deductions > 0
+                                total_value,
+                                toFloat64OrZero(point_redemption) > 0
                             ) / nullIf(countIf(
-                                deductions > 0
+                                toFloat64OrZero(point_redemption) > 0
                             ), 0)
                         , 2), 0)                                              AS asp
-                    FROM azure_invoice_report
-                    WHERE toDate(date) >= '2020-01-01'
-                      AND toDate(date) != toDate('1970-01-01')
-                      AND LENGTH(customer_mobile) = 10
-                      AND customer_mobile NOT IN ('1313131313','0000000000','9999999999')
-                      AND customer_mobile != ''
+                    FROM sales_data
+                    WHERE parsed_date >= '2020-01-01'
+                      AND NOT (upper(invoice_number) LIKE '%SMC%' OR upper(invoice_number) LIKE '%/EI/%')
+                      AND upper(branch) NOT IN ('HEAD OFFICE','UG SMART CHOICE')
                     GROUP BY month_start
                     ORDER BY month_start ASC
                 """)

@@ -37,6 +37,41 @@ SKIP_C = {
     'PRESSURE COOKER', 'APPACHATTY',
 }
 
+# ── SKU → eligible product categories (from Colab mapping logic) ──────────────
+SKU_CATEGORY_MAPPING = {
+    "Water Cooler": ["COOLER", "DISPENCER", "GEYSER", "ROOM COOLER", "HEATER", "WATER HEATER", "WATER DISPENSER"],
+    "Fan/Mixr": ["FAN", "MIXER", "IRON BOX", "KETTLE", "OTG", "GROOMING KIT", "GEYSER", "STEAMER",
+                 "INDUCTION", "CEILING FAN", "TOWER FAN", "PEDESTAL FAN", "INDUCTION COOKER",
+                 "ELECTRIC KETTLE", "WALL FAN", "MIXER GRINDER", "CELLING FAN", "INDUCTION COOKTOP", "INFRARED COOKTOP"],
+    "AC AMC": ["AC", "AIR CONDITIONER", "AC INDOOR"],
+    "Warranty : AC": ["AC", "AIR CONDITIONER", "AC INDOOR"],
+    "Air Purifier": ["AIR PURIFIER", "WATER PURIFIER"],
+    "Dryer/MW": ["DRYER", "MICROWAVE OVEN", "DISH WASHER", "MICROWAVE OVEN-CONV"],
+    "Ref/WM": ["REFRIGERATOR", "WASHING MACHINE", "WASHING MACHINE-TL", "REFRIGERATOR-DC",
+               "WASHING MACHINE-FL", "WASHING MACHINE-SA", "REF", "REFRIGERATOR-CBU",
+               "REFRIGERATOR-FF", "WM", "REFRIGERATOR-SBS"],
+    "Warranty : TV": ["TV", "TV 28 %", "TV 18 %"],
+    "TTC": ["TV", "TV 28 %", "TV 18 %"],
+    "Spill and Drop": ["TV", "TV 28 %", "TV 18 %"],
+    "Chop/Blend": ["CHOPPER", "BLENDER", "TOASTER", "AIR FRYER", "FOOD PROCESSOR",
+                   "JUICER", "INDUCTION COOKER", "INDUCTION COOKTOP", "INFRARED COOKTOP"],
+    "HOB": ["HOB", "CHIMNEY"],
+    "HT/SoundBar": ["HOME THEATRE", "AUDIO SYSTEM", "SPEAKER", "SOUND BAR",
+                    "PARTY SPEAKER", "SOUNDBAR"],
+    "Vacuum": ["VACUUM CLEANER", "FAN", "MASSAGER", "IRON BOX", "CEILING FAN",
+               "TOWER FAN", "PEDESTAL FAN", "WALL FAN", "ROBO VACCUM CLEANER"],
+    "RWSA": ["FAN", "MIXER GRINDER", "IRON BOX", "KETTLE", "INDUCTION COOKTOP",
+             "INFRARED COOKTOP", "OTG", "STEAMER", "CEILING FAN", "TOWER FAN"],
+}
+
+def _sku_eligible_cats(osg_name):
+    """Return list of eligible product categories based on OSG SKU name."""
+    osg_upper = osg_name.upper()
+    for key, cats in SKU_CATEGORY_MAPPING.items():
+        if key.upper() in osg_upper:
+            return [c.upper() for c in cats]
+    return []  # fallback: no restriction
+
 # ── Retail branch filter (exclude warehouse/godown/HO) ───────────────────────
 RETAIL_BRANCH_FILTER = """
     AND branch NOT IN (
@@ -460,58 +495,56 @@ class OSGMapper:
             else:
                 comment = f'⚠️ SALES RETURN — Could not find original purchase.'
         else:
-            # Product matching — new customer-wide logic
-            elig_cats = self.elig(osg_name)
+            # ── Product matching using Colab-style SKU category mapping ──────
+            elig_cats = set(_sku_eligible_cats(osg_name))
+            if not elig_cats:
+                elig_cats = self.elig(osg_name)  # fallback to original elig()
             slab_lo, slab_hi = self.parse_slab(osg_name)
             matched_code = ''
 
-            # Helper to find matches based on a price field
-            def find_matches(price_field):
-                matches = []
-                if elig_cats:
-                    for p in products:
-                        if p['category'] in elig_cats and p['sold_price'] > 0:
-                            if slab_hi < 999999:
-                                if slab_lo <= p.get(price_field, 0) <= slab_hi:
-                                    matches.append(p)
-                            else:
-                                matches.append(p)
-                return matches
+            # Step 1: Filter by eligible category across ALL customer products
+            def category_matches(p):
+                return p['category'].upper() in elig_cats if elig_cats else True
 
-            # Helper to process a list of matches
-            def process_matches(matches):
-                if len(matches) == 1:
-                    return matches[0], ''
-                elif len(matches) > 1:
-                    inv_matches = [p for p in matches if p.get('invoice_no') == inv_no]
-                    if len(inv_matches) == 1:
-                        return inv_matches[0], ''
-                return None, 'multiple' if len(matches) > 1 else 'zero'
+            cat_filtered = [p for p in products if category_matches(p) and p['sold_price'] > 0]
 
-            # 1. Try mapping with sold_price
-            matched_p, err_type = process_matches(find_matches('sold_price'))
-
-            # 2. If no unique match, fallback to mop
-            if not matched_p:
-                matched_p_mop, err_type_mop = process_matches(find_matches('mop'))
-                if matched_p_mop:
-                    matched_p = matched_p_mop
-                else:
-                    # If mop also fails, prefer the error type from sold_price if it was multiple
-                    err_type = err_type if err_type == 'multiple' else err_type_mop
-
-            # 3. Finalize
-            if matched_p:
-                cat, brand, model = matched_p['category'], matched_p['brand'], matched_p['name']
-                item_rate = matched_p['sold_price']
-                matched_code = matched_p['item_code']
-                primary_inv = matched_p.get('invoice_no', inv_no)
-                comment = ''  # Perfect match
+            # Step 2: Unique model check
+            unique_names = list({p['name'] for p in cat_filtered})
+            if len(unique_names) == 1:
+                matched_p = cat_filtered[0]
             else:
-                if err_type == 'multiple':
-                    comment = '❌ Needs review — multiple eligible appliances found for this customer'
+                # Step 3: Apply price slab filter
+                if slab_hi < 999999:
+                    slab_filtered = [p for p in cat_filtered
+                                     if slab_lo <= p.get('sold_price', 0) <= slab_hi]
                 else:
+                    slab_filtered = cat_filtered
+
+                unique_slab = list({p['name'] for p in slab_filtered})
+                if len(unique_slab) == 1:
+                    matched_p = slab_filtered[0]
+                elif len(unique_slab) > 1:
+                    # Step 4: Narrow by invoice number (same invoice as warranty)
+                    inv_filtered = [p for p in slab_filtered if p.get('invoice_no') == inv_no]
+                    if len(inv_filtered) >= 1:
+                        matched_p = max(inv_filtered, key=lambda x: x['sold_price'])
+                    else:
+                        # Pick the highest-price match as best guess
+                        matched_p = max(slab_filtered, key=lambda x: x['sold_price'])
+                        comment = '❌ Needs review — multiple eligible appliances found for this customer'
+                else:
+                    matched_p = None
                     comment = '❌ Needs review — no eligible appliance found for this customer'
+
+            if matched_p:
+                cat        = matched_p['category']
+                brand      = matched_p['brand']
+                model      = matched_p['name']
+                item_rate  = matched_p['sold_price']
+                matched_code = matched_p['item_code']
+                primary_inv  = matched_p.get('invoice_no', inv_no)
+                if not comment:
+                    comment = ''
 
             serial = self._get_imei(imei_by_inv, primary_inv, cat, matched_code)
 
