@@ -32,6 +32,11 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
+# ── Token-based access for OSG Mapper (college/external users) ───────────────
+# Share this URL: /osg-sale-report/?token=<OSG_ACCESS_TOKEN>
+# To revoke access: change the token value here and redeploy.
+OSG_ACCESS_TOKEN = 'TogmZWIfym5uOQPdNjMD2gSBqjD0PCEYa5QkbMqP4qs'
+
 
 # Application definition
 

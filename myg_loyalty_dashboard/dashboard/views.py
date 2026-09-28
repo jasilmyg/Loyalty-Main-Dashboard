@@ -22,6 +22,42 @@ def csrf_failure(request, reason=""):
     return redirect('login')
 
 
+class TokenAccessMixin:
+    """
+    Allows access to a view either via:
+      1. Normal Django login (LoginRequiredMixin path), OR
+      2. A secret token in the URL: ?token=<OSG_ACCESS_TOKEN>
+
+    Usage: Replace LoginRequiredMixin with TokenAccessMixin on OSG views.
+    Share URL: /osg-sale-report/?token=<OSG_ACCESS_TOKEN>
+    Revoke: Change OSG_ACCESS_TOKEN in settings.py and redeploy.
+    """
+    def dispatch(self, request, *args, **kwargs):
+        # Already authenticated — allow normally
+        if request.user.is_authenticated:
+            return super().dispatch(request, *args, **kwargs)
+
+        # Check for valid token in query string
+        from django.conf import settings
+        import hmac, hashlib
+        token = request.GET.get('token', '')
+        valid_token = getattr(settings, 'OSG_ACCESS_TOKEN', '')
+
+        if token and valid_token and hmac.compare_digest(token, valid_token):
+            # Valid token — allow access without login
+            # Attach token to session so API/download calls also work
+            request.session['osg_token_valid'] = True
+            return super().dispatch(request, *args, **kwargs)
+
+        # Check session token (set when page was first loaded with valid token)
+        if request.session.get('osg_token_valid'):
+            return super().dispatch(request, *args, **kwargs)
+
+        # No auth, no token — redirect to login
+        from django.contrib.auth.views import redirect_to_login
+        return redirect_to_login(request.get_full_path())
+
+
 class AzureAnalyticsDashboardView(LoginRequiredMixin, TemplateView):
     template_name = 'dashboard/azure_analytics.html'
 
@@ -4672,8 +4708,8 @@ class MobileCECrossSellReport2View(LoginRequiredMixin, View):
 #          azure_sales_report total invoices used for conversion denom
 # ═══════════════════════════════════════════════════════════════════════════
 
-class OsgSaleReportView(LoginRequiredMixin, TemplateView):
-    """Renders the OSG Daily Sale Report page."""
+class OsgSaleReportView(TokenAccessMixin, TemplateView):
+    """Renders the OSG Daily Sale Report page. Accessible via login OR ?token=<OSG_ACCESS_TOKEN>"""
     template_name = 'dashboard/osg_sale_report.html'
 
     def get_context_data(self, **kwargs):
@@ -4930,11 +4966,12 @@ def _osg_query(ch, ftd_date_str: str, month_str: str):
     }
 
 
-class OsgSaleReportAPIView(LoginRequiredMixin, View):
+class OsgSaleReportAPIView(TokenAccessMixin, View):
     """
     GET /api/v1/osg-sale-report/
     Params: date=YYYY-MM-DD  month=YYYY-MM
     Returns JSON matching OSG Excel report structure.
+    Accessible via login OR session set by OsgSaleReportView token.
     """
     def get(self, request):
         import datetime, json
@@ -4965,7 +5002,7 @@ class OsgSaleReportAPIView(LoginRequiredMixin, View):
             return JsonResponse({'status': 'error', 'error': str(e)}, status=500)
 
 
-class OsgSaleReportDownloadView(LoginRequiredMixin, View):
+class OsgSaleReportDownloadView(TokenAccessMixin, View):
     """
     GET /api/v1/osg-sale-report/download/
     Params: date=YYYY-MM-DD  month=YYYY-MM
