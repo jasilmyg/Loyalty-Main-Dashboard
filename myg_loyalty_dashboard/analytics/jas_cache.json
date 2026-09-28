@@ -1,14 +1,14 @@
 {
   "jas_target": 529245,
-  "jas_achieved": 391632,
-  "jas_achieved_pct": 74.0,
-  "jas_gap": 137613,
-  "jas_days_done": 81,
-  "jas_days_rem": 11,
+  "jas_achieved": 421824,
+  "jas_achieved_pct": 79.7,
+  "jas_gap": 107421,
+  "jas_days_done": 90,
+  "jas_days_rem": 2,
   "jas_days_total": 92,
-  "jas_daily_rate": 4835.0,
-  "jas_req_daily": 12510,
-  "jas_forecast_final": 438886,
+  "jas_daily_rate": 4687.0,
+  "jas_req_daily": 53710,
+  "jas_forecast_final": 432009,
   "jas_status_badge": "BEHIND",
   "jas_risk_color": "#EF4444",
   "jas_daily_json": [
@@ -411,61 +411,70 @@
       "date": "2026-09-18",
       "cum": 391632,
       "daily_new": 3365
+    },
+    {
+      "date": "2026-09-19",
+      "cum": 395948,
+      "daily_new": 4316
+    },
+    {
+      "date": "2026-09-20",
+      "cum": 399655,
+      "daily_new": 3707
+    },
+    {
+      "date": "2026-09-21",
+      "cum": 403167,
+      "daily_new": 3512
+    },
+    {
+      "date": "2026-09-22",
+      "cum": 406223,
+      "daily_new": 3056
+    },
+    {
+      "date": "2026-09-23",
+      "cum": 409239,
+      "daily_new": 3016
+    },
+    {
+      "date": "2026-09-24",
+      "cum": 412100,
+      "daily_new": 2861
+    },
+    {
+      "date": "2026-09-25",
+      "cum": 415009,
+      "daily_new": 2909
+    },
+    {
+      "date": "2026-09-26",
+      "cum": 418767,
+      "daily_new": 3758
+    },
+    {
+      "date": "2026-09-27",
+      "cum": 421824,
+      "daily_new": 3057
     }
   ],
   "jas_lstm_json": [
     {
-      "date": "2026-09-19",
-      "cum": 395089
-    },
-    {
-      "date": "2026-09-20",
-      "cum": 398691
-    },
-    {
-      "date": "2026-09-21",
-      "cum": 402044
-    },
-    {
-      "date": "2026-09-22",
-      "cum": 405820
-    },
-    {
-      "date": "2026-09-23",
-      "cum": 409243
-    },
-    {
-      "date": "2026-09-24",
-      "cum": 413185
-    },
-    {
-      "date": "2026-09-25",
-      "cum": 417470
-    },
-    {
-      "date": "2026-09-26",
-      "cum": 421689
-    },
-    {
-      "date": "2026-09-27",
-      "cum": 425582
-    },
-    {
       "date": "2026-09-28",
-      "cum": 430010
+      "cum": 425281
     },
     {
       "date": "2026-09-29",
-      "cum": 434463
+      "cum": 428707
     },
     {
       "date": "2026-09-30",
-      "cum": 438880
+      "cum": 432009
     }
   ],
   "jas_target_json": 529245,
   "base_customers": 5292454,
   "avg_hist_rate": "Deep Learning BiLSTM",
-  "computed_at": "2026-09-19",
+  "computed_at": "2026-09-28",
   "data_source": "azure_invoice_report"
 }

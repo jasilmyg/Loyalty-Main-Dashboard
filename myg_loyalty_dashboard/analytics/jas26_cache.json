@@ -1,34 +1,34 @@
 {
   "model_label": "Advanced BiLSTM+Attention (12-dim, 2-layer, hidden=64)",
-  "computed_at": "2026-09-19",
+  "computed_at": "2026-09-28",
   "jas26_rev_target": 2500.0,
-  "jas26_rev_achieved": 2122.9,
-  "jas26_rev_pct": 84.9,
-  "jas26_rev_forecast": 2427.0,
-  "jas26_rev_gap": 377.1,
+  "jas26_rev_achieved": 2318.96,
+  "jas26_rev_pct": 92.8,
+  "jas26_rev_forecast": 2376.0,
+  "jas26_rev_gap": 181.04,
   "jas26_rev_status_badge": "AT RISK",
   "jas26_rev_risk_color": "#F59E0B",
-  "jas26_rev_prob": 97.1,
-  "jas26_rev_daily_rate": 26.54,
-  "jas26_rev_req_daily": 31.43,
-  "jas26_rev_rmse": "4.14",
-  "jas26_rev_mae": "3.25",
-  "jas26_rev_mape": "12.73",
+  "jas26_rev_prob": 95.0,
+  "jas26_rev_daily_rate": 26.06,
+  "jas26_rev_req_daily": 60.35,
+  "jas26_rev_rmse": "1.95",
+  "jas26_rev_mae": "1.55",
+  "jas26_rev_mape": "7.01",
   "jas26_cust_target": 900000,
-  "jas26_cust_achieved": 727898,
-  "jas26_cust_pct": 80.9,
-  "jas26_cust_forecast": 803076,
-  "jas26_cust_gap": 172102,
+  "jas26_cust_achieved": 785686,
+  "jas26_cust_pct": 87.3,
+  "jas26_cust_forecast": 802433,
+  "jas26_cust_gap": 114314,
   "jas26_cust_status_badge": "CRITICAL",
   "jas26_cust_risk_color": "#EF4444",
   "jas26_cust_prob": 89.2,
-  "jas26_cust_daily_rate": 9099.0,
-  "jas26_cust_req_daily": 14341.8,
-  "jas26_cust_rmse": "1612.3",
-  "jas26_cust_mae": "1342.1",
-  "jas26_cust_mape": "17.19",
-  "jas_days_done": 80,
-  "jas_days_rem": 12,
+  "jas26_cust_daily_rate": 8828.0,
+  "jas26_cust_req_daily": 38104.7,
+  "jas26_cust_rmse": "729.6",
+  "jas26_cust_mae": "592.0",
+  "jas26_cust_mape": "9.22",
+  "jas_days_done": 89,
+  "jas_days_rem": 3,
   "jas_days_total": 92,
   "jas26_rev_daily_json": [
     {
@@ -430,156 +430,93 @@
       "date": "2026-09-18",
       "cum": 2122.9,
       "daily": 25.97
+    },
+    {
+      "date": "2026-09-19",
+      "cum": 2147.87,
+      "daily": 24.98
+    },
+    {
+      "date": "2026-09-20",
+      "cum": 2168.41,
+      "daily": 20.53
+    },
+    {
+      "date": "2026-09-21",
+      "cum": 2190.02,
+      "daily": 21.61
+    },
+    {
+      "date": "2026-09-22",
+      "cum": 2211.15,
+      "daily": 21.13
+    },
+    {
+      "date": "2026-09-23",
+      "cum": 2232.96,
+      "daily": 21.81
+    },
+    {
+      "date": "2026-09-24",
+      "cum": 2252.95,
+      "daily": 19.99
+    },
+    {
+      "date": "2026-09-25",
+      "cum": 2275.73,
+      "daily": 22.78
+    },
+    {
+      "date": "2026-09-26",
+      "cum": 2300.0,
+      "daily": 24.26
+    },
+    {
+      "date": "2026-09-27",
+      "cum": 2318.96,
+      "daily": 18.96
     }
   ],
   "jas26_rev_lstm_json": [
     {
-      "date": "2026-09-19",
-      "cum": 2149.43
-    },
-    {
-      "date": "2026-09-20",
-      "cum": 2173.0
-    },
-    {
-      "date": "2026-09-21",
-      "cum": 2196.24
-    },
-    {
-      "date": "2026-09-22",
-      "cum": 2222.79
-    },
-    {
-      "date": "2026-09-23",
-      "cum": 2248.04
-    },
-    {
-      "date": "2026-09-24",
-      "cum": 2273.53
-    },
-    {
-      "date": "2026-09-25",
-      "cum": 2299.25
-    },
-    {
-      "date": "2026-09-26",
-      "cum": 2326.29
-    },
-    {
-      "date": "2026-09-27",
-      "cum": 2352.07
-    },
-    {
       "date": "2026-09-28",
-      "cum": 2375.09
+      "cum": 2339.66
     },
     {
       "date": "2026-09-29",
-      "cum": 2400.44
+      "cum": 2357.94
     },
     {
       "date": "2026-09-30",
-      "cum": 2426.97
+      "cum": 2376.02
     }
   ],
   "jas26_rev_conf_upper_json": [
     {
-      "date": "2026-09-19",
-      "cum": 2149.54
-    },
-    {
-      "date": "2026-09-20",
-      "cum": 2173.2
-    },
-    {
-      "date": "2026-09-21",
-      "cum": 2196.55
-    },
-    {
-      "date": "2026-09-22",
-      "cum": 2223.2
-    },
-    {
-      "date": "2026-09-23",
-      "cum": 2248.56
-    },
-    {
-      "date": "2026-09-24",
-      "cum": 2274.15
-    },
-    {
-      "date": "2026-09-25",
-      "cum": 2299.97
-    },
-    {
-      "date": "2026-09-26",
-      "cum": 2327.11
-    },
-    {
-      "date": "2026-09-27",
-      "cum": 2353.0
-    },
-    {
       "date": "2026-09-28",
-      "cum": 2376.12
+      "cum": 2339.75
     },
     {
       "date": "2026-09-29",
-      "cum": 2401.57
+      "cum": 2358.13
     },
     {
       "date": "2026-09-30",
-      "cum": 2428.2
+      "cum": 2376.3
     }
   ],
   "jas26_rev_conf_lower_json": [
     {
-      "date": "2026-09-19",
-      "cum": 2149.33
-    },
-    {
-      "date": "2026-09-20",
-      "cum": 2172.79
-    },
-    {
-      "date": "2026-09-21",
-      "cum": 2195.93
-    },
-    {
-      "date": "2026-09-22",
-      "cum": 2222.38
-    },
-    {
-      "date": "2026-09-23",
-      "cum": 2247.53
-    },
-    {
-      "date": "2026-09-24",
-      "cum": 2272.92
-    },
-    {
-      "date": "2026-09-25",
-      "cum": 2298.54
-    },
-    {
-      "date": "2026-09-26",
-      "cum": 2325.47
-    },
-    {
-      "date": "2026-09-27",
-      "cum": 2351.15
-    },
-    {
       "date": "2026-09-28",
-      "cum": 2374.07
+      "cum": 2339.57
     },
     {
       "date": "2026-09-29",
-      "cum": 2399.32
+      "cum": 2357.76
     },
     {
       "date": "2026-09-30",
-      "cum": 2425.74
+      "cum": 2375.74
     }
   ],
   "jas26_cust_daily_json": [
@@ -982,156 +919,93 @@
       "date": "2026-09-18",
       "cum": 727898,
       "daily": 6306
+    },
+    {
+      "date": "2026-09-19",
+      "cum": 735783,
+      "daily": 7885
+    },
+    {
+      "date": "2026-09-20",
+      "cum": 742577,
+      "daily": 6794
+    },
+    {
+      "date": "2026-09-21",
+      "cum": 749395,
+      "daily": 6818
+    },
+    {
+      "date": "2026-09-22",
+      "cum": 755358,
+      "daily": 5963
+    },
+    {
+      "date": "2026-09-23",
+      "cum": 761086,
+      "daily": 5728
+    },
+    {
+      "date": "2026-09-24",
+      "cum": 766476,
+      "daily": 5390
+    },
+    {
+      "date": "2026-09-25",
+      "cum": 771889,
+      "daily": 5413
+    },
+    {
+      "date": "2026-09-26",
+      "cum": 779534,
+      "daily": 7645
+    },
+    {
+      "date": "2026-09-27",
+      "cum": 785686,
+      "daily": 6152
     }
   ],
   "jas26_cust_lstm_json": [
     {
-      "date": "2026-09-19",
-      "cum": 735804
-    },
-    {
-      "date": "2026-09-20",
-      "cum": 742595
-    },
-    {
-      "date": "2026-09-21",
-      "cum": 749150
-    },
-    {
-      "date": "2026-09-22",
-      "cum": 756313
-    },
-    {
-      "date": "2026-09-23",
-      "cum": 762667
-    },
-    {
-      "date": "2026-09-24",
-      "cum": 768795
-    },
-    {
-      "date": "2026-09-25",
-      "cum": 774623
-    },
-    {
-      "date": "2026-09-26",
-      "cum": 780852
-    },
-    {
-      "date": "2026-09-27",
-      "cum": 786659
-    },
-    {
       "date": "2026-09-28",
-      "cum": 791768
+      "cum": 791745
     },
     {
       "date": "2026-09-29",
-      "cum": 797329
+      "cum": 797104
     },
     {
       "date": "2026-09-30",
-      "cum": 803076
+      "cum": 802433
     }
   ],
   "jas26_cust_conf_upper_json": [
     {
-      "date": "2026-09-19",
-      "cum": 735861
-    },
-    {
-      "date": "2026-09-20",
-      "cum": 742709
-    },
-    {
-      "date": "2026-09-21",
-      "cum": 749322
-    },
-    {
-      "date": "2026-09-22",
-      "cum": 756542
-    },
-    {
-      "date": "2026-09-23",
-      "cum": 762953
-    },
-    {
-      "date": "2026-09-24",
-      "cum": 769138
-    },
-    {
-      "date": "2026-09-25",
-      "cum": 775024
-    },
-    {
-      "date": "2026-09-26",
-      "cum": 781310
-    },
-    {
-      "date": "2026-09-27",
-      "cum": 787174
-    },
-    {
       "date": "2026-09-28",
-      "cum": 792340
+      "cum": 791771
     },
     {
       "date": "2026-09-29",
-      "cum": 797958
+      "cum": 797157
     },
     {
       "date": "2026-09-30",
-      "cum": 803762
+      "cum": 802512
     }
   ],
   "jas26_cust_conf_lower_json": [
     {
-      "date": "2026-09-19",
-      "cum": 735747
-    },
-    {
-      "date": "2026-09-20",
-      "cum": 742480
-    },
-    {
-      "date": "2026-09-21",
-      "cum": 748978
-    },
-    {
-      "date": "2026-09-22",
-      "cum": 756085
-    },
-    {
-      "date": "2026-09-23",
-      "cum": 762381
-    },
-    {
-      "date": "2026-09-24",
-      "cum": 768452
-    },
-    {
-      "date": "2026-09-25",
-      "cum": 774223
-    },
-    {
-      "date": "2026-09-26",
-      "cum": 780395
-    },
-    {
-      "date": "2026-09-27",
-      "cum": 786144
-    },
-    {
       "date": "2026-09-28",
-      "cum": 791196
+      "cum": 791718
     },
     {
       "date": "2026-09-29",
-      "cum": 796699
+      "cum": 797051
     },
     {
       "date": "2026-09-30",
-      "cum": 802389
+      "cum": 802353
     }
   ],
   "jas26_active_festivals": [],
@@ -1140,8 +1014,8 @@
     "Independence Day (Aug 15) adds +10% footfall spike in the festival intelligence layer.",
     "SW Monsoon (Jul-Sep) reduces footfall 5-15% on heavy-rain days; weather layer compensates.",
     "Salary-period boost (1st-5th) adds +7% customer conversion in the autoregressive forecast.",
-    "Revenue run rate: 26.54 Cr/day | Needed: 31.43 Cr/day for 2500 Cr target.",
-    "Customer acquisition: 9,098/day | Needed: 14,341/day for 9L target.",
+    "Revenue run rate: 26.06 Cr/day | Needed: 60.35 Cr/day for 2500 Cr target.",
+    "Customer acquisition: 8,827/day | Needed: 38,104/day for 9L target.",
     "BiLSTM: 12-dim features, 2-layer bidirectional LSTM + Attention \u2014 trained on 2yr Kerala retail history."
   ]
 }
