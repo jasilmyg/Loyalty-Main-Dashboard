@@ -3,11 +3,11 @@
   "jas_achieved": 421824,
   "jas_achieved_pct": 79.7,
   "jas_gap": 107421,
-  "jas_days_done": 90,
-  "jas_days_rem": 2,
+  "jas_days_done": 91,
+  "jas_days_rem": 1,
   "jas_days_total": 92,
-  "jas_daily_rate": 4687.0,
-  "jas_req_daily": 53710,
+  "jas_daily_rate": 4635.0,
+  "jas_req_daily": 107421,
   "jas_forecast_final": 432009,
   "jas_status_badge": "BEHIND",
   "jas_risk_color": "#EF4444",
@@ -475,6 +475,6 @@
   "jas_target_json": 529245,
   "base_customers": 5292454,
   "avg_hist_rate": "Deep Learning BiLSTM",
-  "computed_at": "2026-09-28",
+  "computed_at": "2026-09-29",
   "data_source": "azure_invoice_report"
 }

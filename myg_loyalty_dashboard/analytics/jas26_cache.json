@@ -1,10 +1,10 @@
 {
   "model_label": "Advanced BiLSTM+Attention (12-dim, 2-layer, hidden=64)",
-  "computed_at": "2026-09-28",
+  "computed_at": "2026-09-29",
   "jas26_rev_target": 2500.0,
   "jas26_rev_achieved": 2318.96,
   "jas26_rev_pct": 92.8,
-  "jas26_rev_forecast": 2376.0,
+  "jas26_rev_forecast": 2374.6,
   "jas26_rev_gap": 181.04,
   "jas26_rev_status_badge": "AT RISK",
   "jas26_rev_risk_color": "#F59E0B",
@@ -17,7 +17,7 @@
   "jas26_cust_target": 900000,
   "jas26_cust_achieved": 785686,
   "jas26_cust_pct": 87.3,
-  "jas26_cust_forecast": 802433,
+  "jas26_cust_forecast": 803064,
   "jas26_cust_gap": 114314,
   "jas26_cust_status_badge": "CRITICAL",
   "jas26_cust_risk_color": "#EF4444",
@@ -480,43 +480,43 @@
   "jas26_rev_lstm_json": [
     {
       "date": "2026-09-28",
-      "cum": 2339.66
+      "cum": 2339.25
     },
     {
       "date": "2026-09-29",
-      "cum": 2357.94
+      "cum": 2357.08
     },
     {
       "date": "2026-09-30",
-      "cum": 2376.02
+      "cum": 2374.6
     }
   ],
   "jas26_rev_conf_upper_json": [
     {
       "date": "2026-09-28",
-      "cum": 2339.75
+      "cum": 2339.35
     },
     {
       "date": "2026-09-29",
-      "cum": 2358.13
+      "cum": 2357.28
     },
     {
       "date": "2026-09-30",
-      "cum": 2376.3
+      "cum": 2374.89
     }
   ],
   "jas26_rev_conf_lower_json": [
     {
       "date": "2026-09-28",
-      "cum": 2339.57
+      "cum": 2339.15
     },
     {
       "date": "2026-09-29",
-      "cum": 2357.76
+      "cum": 2356.89
     },
     {
       "date": "2026-09-30",
-      "cum": 2375.74
+      "cum": 2374.31
     }
   ],
   "jas26_cust_daily_json": [
@@ -969,43 +969,43 @@
   "jas26_cust_lstm_json": [
     {
       "date": "2026-09-28",
-      "cum": 791745
+      "cum": 792006
     },
     {
       "date": "2026-09-29",
-      "cum": 797104
+      "cum": 797570
     },
     {
       "date": "2026-09-30",
-      "cum": 802433
+      "cum": 803064
     }
   ],
   "jas26_cust_conf_upper_json": [
     {
       "date": "2026-09-28",
-      "cum": 791771
+      "cum": 792035
     },
     {
       "date": "2026-09-29",
-      "cum": 797157
+      "cum": 797628
     },
     {
       "date": "2026-09-30",
-      "cum": 802512
+      "cum": 803152
     }
   ],
   "jas26_cust_conf_lower_json": [
     {
       "date": "2026-09-28",
-      "cum": 791718
+      "cum": 791977
     },
     {
       "date": "2026-09-29",
-      "cum": 797051
+      "cum": 797511
     },
     {
       "date": "2026-09-30",
-      "cum": 802353
+      "cum": 802976
     }
   ],
   "jas26_active_festivals": [],
