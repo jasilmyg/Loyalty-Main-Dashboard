@@ -163,7 +163,7 @@ def create_all_tables(client) -> dict:
         try:
             client.command(ddl)
             results[name] = "created"
-            print(f"[MB Tables] ✓ {name}")
+            print(f"[MB Tables] OK {name}")
         except Exception as e:
             if "already exists" in str(e).lower():
                 results[name] = "already_exists"

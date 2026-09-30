@@ -764,6 +764,7 @@ class PerformanceEngine:
         if not self.branches_df.empty:
             branch_map = dict(zip(self.branches_df['code'], self.branches_df['branch_name']))
         grp['branch_name'] = grp['branch'].map(branch_map).fillna(grp['branch'])
+        grp.rename(columns={'sales_staff_code': 'staff_code'}, inplace=True)
         return grp
 
 
@@ -902,7 +903,10 @@ def run_full_precompute(days_back: int = 730, quick: bool = False) -> dict:
     # ── Item2Vec ────────────────────────────────────────────────────────────────
     logger.info("[MB Engine] === Item2Vec Phase ===")
     i2v = Item2VecEngine(items_df, item_meta)
-    i2v.train()
+    try:
+        i2v.train()
+    except Exception as e:
+        logger.error(f"[MB Engine] Item2Vec skipped/failed: {e}")
 
     # ── Collaborative Filtering ─────────────────────────────────────────────────
     logger.info("[MB Engine] === Collaborative Filtering Phase ===")
