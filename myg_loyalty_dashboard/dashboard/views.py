@@ -5335,7 +5335,7 @@ class OsgSaleReportDownloadView(TokenAccessMixin, View):
 
 
 # OSG Integration Mapper - POST: upload integration report -> full reconciled Excel
-class OsgIntegrationMapperView(LoginRequiredMixin, View):
+class OsgIntegrationMapperView(TokenAccessMixin, View):
     """
     POST /api/v1/osg-integration-mapper/
     Form fields:
@@ -5385,7 +5385,7 @@ class OsgIntegrationMapperView(LoginRequiredMixin, View):
             return HttpResponse('Error: {}\n\n{}'.format(e, traceback.format_exc()), status=500)
 
 
-class OsgReconciliationView(LoginRequiredMixin, View):
+class OsgReconciliationView(TokenAccessMixin, View):
     """
     POST /api/v1/osg-reconcile/
     Accepts 3 uploaded Excel files:

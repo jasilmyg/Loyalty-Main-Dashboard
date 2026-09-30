@@ -1,12 +1,12 @@
 """
-load_sep28_blob.py
+load_sep29_blob.py
 ==================
-Loads Sep 28, 2026 data into ClickHouse:
+Loads Sep 29, 2026 data into ClickHouse:
   - azure_sales_report   (from item_wise_sales_report blobs)
   - azure_invoice_report (from invoice_wise_sales_report blobs)
 
 Blob files (generated at 3am next day):
-  Sep 28 data -> files dated 29-09-2026
+  Sep 29 data -> files dated 30-09-2026
 
 Deduplication: skips rows already existing for those dates.
 """
@@ -29,12 +29,12 @@ container_url  = f"{ACCOUNT_URL}/{CONTAINER_NAME}?{SAS_TOKEN}"
 cc             = ContainerClient.from_container_url(container_url)
 client         = get_ch_client()
 
-# Sep 28 data -> blob files dated 29-09-2026
+# Sep 29 data -> blob files dated 30-09-2026
 BLOB_PAIRS = [
     (
-        "item_wise_sales_report/item_wise_sales_report_29-09-2026_03_00_02_542933.csv",
-        "invoice_wise_sales_report/invoice_wise_sales_report_29-09-2026_03_00_03_227191.csv",
-        "Sep 28, 2026"
+        "item_wise_sales_report/item_wise_sales_report_30-09-2026_03_00_02_318863.csv",
+        "invoice_wise_sales_report/invoice_wise_sales_report_30-09-2026_03_00_03_027755.csv",
+        "Sep 29, 2026"
     ),
 ]
 
@@ -76,7 +76,7 @@ def insert_with_dedup(table, cols, df, label):
     return len(rows)
 
 print("=" * 60)
-print("  Loading Sep 28, 2026 Data from Azure Blob")
+print("  Loading Sep 29, 2026 Data from Azure Blob")
 print("=" * 60)
 
 total_sales = 0
@@ -167,5 +167,5 @@ for r in res:
 print()
 print(f"  Total inserted -> sales: {total_sales:,}  invoice: {total_inv:,}")
 print("=" * 60)
-print("  DONE. Sep 28, 2026 data loaded successfully!")
+print("  DONE. Sep 29, 2026 data loaded successfully!")
 print("=" * 60)

@@ -1,34 +1,34 @@
 {
   "model_label": "Advanced BiLSTM+Attention (12-dim, 2-layer, hidden=64)",
-  "computed_at": "2026-09-29",
+  "computed_at": "2026-09-30",
   "jas26_rev_target": 2500.0,
-  "jas26_rev_achieved": 2318.96,
-  "jas26_rev_pct": 92.8,
-  "jas26_rev_forecast": 2374.6,
-  "jas26_rev_gap": 181.04,
+  "jas26_rev_achieved": 2362.58,
+  "jas26_rev_pct": 94.5,
+  "jas26_rev_forecast": 2382.9,
+  "jas26_rev_gap": 137.42,
   "jas26_rev_status_badge": "AT RISK",
   "jas26_rev_risk_color": "#F59E0B",
-  "jas26_rev_prob": 95.0,
-  "jas26_rev_daily_rate": 26.06,
-  "jas26_rev_req_daily": 60.35,
-  "jas26_rev_rmse": "1.95",
-  "jas26_rev_mae": "1.55",
-  "jas26_rev_mape": "7.01",
+  "jas26_rev_prob": 95.3,
+  "jas26_rev_daily_rate": 25.96,
+  "jas26_rev_req_daily": 137.42,
+  "jas26_rev_rmse": "2.02",
+  "jas26_rev_mae": "1.7",
+  "jas26_rev_mape": "7.7",
   "jas26_cust_target": 900000,
-  "jas26_cust_achieved": 785686,
-  "jas26_cust_pct": 87.3,
-  "jas26_cust_forecast": 803064,
-  "jas26_cust_gap": 114314,
+  "jas26_cust_achieved": 798628,
+  "jas26_cust_pct": 88.7,
+  "jas26_cust_forecast": 803834,
+  "jas26_cust_gap": 101372,
   "jas26_cust_status_badge": "CRITICAL",
   "jas26_cust_risk_color": "#EF4444",
-  "jas26_cust_prob": 89.2,
-  "jas26_cust_daily_rate": 8828.0,
-  "jas26_cust_req_daily": 38104.7,
-  "jas26_cust_rmse": "729.6",
-  "jas26_cust_mae": "592.0",
-  "jas26_cust_mape": "9.22",
-  "jas_days_done": 89,
-  "jas_days_rem": 3,
+  "jas26_cust_prob": 89.3,
+  "jas26_cust_daily_rate": 8776.0,
+  "jas26_cust_req_daily": 101372.0,
+  "jas26_cust_rmse": "716.1",
+  "jas26_cust_mae": "558.3",
+  "jas26_cust_mape": "8.7",
+  "jas_days_done": 91,
+  "jas_days_rem": 1,
   "jas_days_total": 92,
   "jas26_rev_daily_json": [
     {
@@ -475,48 +475,34 @@
       "date": "2026-09-27",
       "cum": 2318.96,
       "daily": 18.96
+    },
+    {
+      "date": "2026-09-28",
+      "cum": 2339.3,
+      "daily": 20.34
+    },
+    {
+      "date": "2026-09-29",
+      "cum": 2362.58,
+      "daily": 23.27
     }
   ],
   "jas26_rev_lstm_json": [
     {
-      "date": "2026-09-28",
-      "cum": 2339.25
-    },
-    {
-      "date": "2026-09-29",
-      "cum": 2357.08
-    },
-    {
       "date": "2026-09-30",
-      "cum": 2374.6
+      "cum": 2382.89
     }
   ],
   "jas26_rev_conf_upper_json": [
     {
-      "date": "2026-09-28",
-      "cum": 2339.35
-    },
-    {
-      "date": "2026-09-29",
-      "cum": 2357.28
-    },
-    {
       "date": "2026-09-30",
-      "cum": 2374.89
+      "cum": 2382.89
     }
   ],
   "jas26_rev_conf_lower_json": [
     {
-      "date": "2026-09-28",
-      "cum": 2339.15
-    },
-    {
-      "date": "2026-09-29",
-      "cum": 2356.89
-    },
-    {
       "date": "2026-09-30",
-      "cum": 2374.31
+      "cum": 2382.89
     }
   ],
   "jas26_cust_daily_json": [
@@ -964,48 +950,34 @@
       "date": "2026-09-27",
       "cum": 785686,
       "daily": 6152
+    },
+    {
+      "date": "2026-09-28",
+      "cum": 792008,
+      "daily": 6322
+    },
+    {
+      "date": "2026-09-29",
+      "cum": 798628,
+      "daily": 6620
     }
   ],
   "jas26_cust_lstm_json": [
     {
-      "date": "2026-09-28",
-      "cum": 792006
-    },
-    {
-      "date": "2026-09-29",
-      "cum": 797570
-    },
-    {
       "date": "2026-09-30",
-      "cum": 803064
+      "cum": 803834
     }
   ],
   "jas26_cust_conf_upper_json": [
     {
-      "date": "2026-09-28",
-      "cum": 792035
-    },
-    {
-      "date": "2026-09-29",
-      "cum": 797628
-    },
-    {
       "date": "2026-09-30",
-      "cum": 803152
+      "cum": 803834
     }
   ],
   "jas26_cust_conf_lower_json": [
     {
-      "date": "2026-09-28",
-      "cum": 791977
-    },
-    {
-      "date": "2026-09-29",
-      "cum": 797511
-    },
-    {
       "date": "2026-09-30",
-      "cum": 802976
+      "cum": 803834
     }
   ],
   "jas26_active_festivals": [],
@@ -1014,8 +986,8 @@
     "Independence Day (Aug 15) adds +10% footfall spike in the festival intelligence layer.",
     "SW Monsoon (Jul-Sep) reduces footfall 5-15% on heavy-rain days; weather layer compensates.",
     "Salary-period boost (1st-5th) adds +7% customer conversion in the autoregressive forecast.",
-    "Revenue run rate: 26.06 Cr/day | Needed: 60.35 Cr/day for 2500 Cr target.",
-    "Customer acquisition: 8,827/day | Needed: 38,104/day for 9L target.",
+    "Revenue run rate: 25.96 Cr/day | Needed: 137.42 Cr/day for 2500 Cr target.",
+    "Customer acquisition: 8,776/day | Needed: 101,372/day for 9L target.",
     "BiLSTM: 12-dim features, 2-layer bidirectional LSTM + Attention \u2014 trained on 2yr Kerala retail history."
   ]
 }
