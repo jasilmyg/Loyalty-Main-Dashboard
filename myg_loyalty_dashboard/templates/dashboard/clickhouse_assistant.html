@@ -1,0 +1,584 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    .main-content { padding: 0 !important; }
+
+    :root {
+        --chx-ink: #0f172a;
+        --chx-muted: #64748b;
+        --chx-line: #e6eaf2;
+        --chx-bg: #f5f7fb;
+        --chx-card: #ffffff;
+        --chx-yellow: #facc15;
+        --chx-yellow-deep: #eab308;
+        --chx-indigo: #6366f1;
+        --chx-violet: #8b5cf6;
+        --chx-green: #16a34a;
+        --chx-red: #dc2626;
+    }
+
+    /* ── Shell ─────────────────────────────────────────────── */
+    .chx-shell {
+        display: flex; flex-direction: column;
+        height: calc(100vh - 72px);
+        background:
+            radial-gradient(900px 400px at 85% -10%, rgba(250,204,21,.10), transparent 60%),
+            radial-gradient(800px 420px at -10% 110%, rgba(99,102,241,.08), transparent 60%),
+            var(--chx-bg);
+        font-family: 'Inter', sans-serif; color: var(--chx-ink); overflow: hidden;
+    }
+
+    /* ── Header ────────────────────────────────────────────── */
+    .chx-header {
+        display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+        padding: 0 1.75rem; height: 68px; flex-shrink: 0;
+        background: rgba(255,255,255,.85); backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--chx-line);
+    }
+    .chx-brand { display: flex; align-items: center; gap: .9rem; min-width: 0; }
+    .chx-logo {
+        position: relative; width: 44px; height: 44px; border-radius: 13px; flex-shrink: 0;
+        background: linear-gradient(135deg, #1e1b4b, #312e81);
+        display: grid; place-items: center;
+        box-shadow: 0 6px 18px rgba(49,46,129,.35);
+    }
+    .chx-logo .bars { display: flex; gap: 3px; align-items: flex-end; height: 20px; }
+    .chx-logo .bars i { width: 4px; background: var(--chx-yellow); border-radius: 2px; display: block; }
+    .chx-logo .bars i:nth-child(1) { height: 100%; } .chx-logo .bars i:nth-child(2) { height: 100%; }
+    .chx-logo .bars i:nth-child(3) { height: 100%; } .chx-logo .bars i:nth-child(4) { height: 45%; }
+    .chx-pulse {
+        position: absolute; top: -3px; right: -3px; width: 12px; height: 12px; border-radius: 50%;
+        background: #22c55e; border: 2px solid #fff; animation: chx-pulse 2s ease-in-out infinite;
+    }
+    @keyframes chx-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,.5);} 50% { box-shadow: 0 0 0 6px rgba(34,197,94,0);} }
+    .chx-title h1 { font-size: 1.05rem; font-weight: 800; margin: 0; letter-spacing: -.01em; }
+    .chx-title p { font-size: .74rem; color: var(--chx-muted); margin: 1px 0 0; }
+    .chx-actions { display: flex; align-items: center; gap: .6rem; }
+    .chx-chip {
+        display: inline-flex; align-items: center; gap: .4rem; font-size: .7rem; font-weight: 600;
+        padding: .32rem .7rem; border-radius: 99px; background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0;
+    }
+    .chx-chip.model { background: #eef2ff; color: #4338ca; border-color: #c7d2fe; font-family: 'JetBrains Mono', monospace; font-weight: 500; }
+    .chx-btn {
+        display: inline-flex; align-items: center; gap: .45rem; font-size: .8rem; font-weight: 600;
+        padding: .5rem .9rem; border-radius: 10px; border: 1px solid var(--chx-line);
+        background: #fff; color: var(--chx-ink); cursor: pointer; transition: all .18s ease;
+    }
+    .chx-btn:hover { border-color: #c7d2fe; background: #f8faff; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99,102,241,.12); }
+
+    /* ── Body layout ───────────────────────────────────────── */
+    .chx-body { flex: 1; display: flex; min-height: 0; }
+    .chx-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .chx-scroll { flex: 1; overflow-y: auto; padding: 1.5rem 1.75rem 1rem; scroll-behavior: smooth; }
+    .chx-scroll::-webkit-scrollbar, .chx-schema-list::-webkit-scrollbar, .chx-tablewrap::-webkit-scrollbar { width: 8px; height: 8px; }
+    .chx-scroll::-webkit-scrollbar-thumb, .chx-schema-list::-webkit-scrollbar-thumb, .chx-tablewrap::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
+    .chx-stream { max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.25rem; }
+
+    /* ── Welcome ───────────────────────────────────────────── */
+    .chx-welcome { max-width: 980px; margin: 1.5vh auto 0; text-align: center; animation: chx-rise .5s ease both; }
+    .chx-welcome .hero {
+        width: 68px; height: 68px; margin: 0 auto 1rem; border-radius: 20px;
+        background: linear-gradient(135deg, #1e1b4b, #4338ca); display: grid; place-items: center;
+        box-shadow: 0 14px 34px rgba(67,56,202,.35);
+    }
+    .chx-welcome .hero i { color: var(--chx-yellow); font-size: 1.9rem; }
+    .chx-welcome h2 { font-size: 1.65rem; font-weight: 800; letter-spacing: -.02em; margin-bottom: .35rem; }
+    .chx-welcome h2 span { background: linear-gradient(90deg, #4338ca, #a855f7); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .chx-welcome p.sub { color: var(--chx-muted); font-size: .92rem; max-width: 620px; margin: 0 auto 1.6rem; }
+    .chx-sugg-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; text-align: left; }
+    @media (max-width: 1100px) { .chx-sugg-grid { grid-template-columns: 1fr; } }
+    .chx-sugg-col h6 {
+        font-size: .68rem; font-weight: 800; letter-spacing: .09em; text-transform: uppercase;
+        color: var(--chx-muted); margin: 0 0 .55rem .2rem; display: flex; align-items: center; gap: .4rem;
+    }
+    .chx-sugg {
+        display: block; width: 100%; text-align: left; font-size: .83rem; line-height: 1.35;
+        padding: .75rem .9rem; margin-bottom: .55rem; background: var(--chx-card);
+        border: 1px solid var(--chx-line); border-radius: 12px; color: var(--chx-ink); cursor: pointer;
+        transition: all .18s ease;
+    }
+    .chx-sugg:hover { border-color: var(--chx-indigo); transform: translateY(-2px); box-shadow: 0 8px 22px rgba(99,102,241,.14); }
+
+    /* ── Messages ──────────────────────────────────────────── */
+    @keyframes chx-rise { from { opacity: 0; transform: translateY(10px);} to { opacity: 1; transform: none; } }
+    .chx-msg { display: flex; gap: .8rem; animation: chx-rise .3s ease both; }
+    .chx-msg.user { justify-content: flex-end; }
+    .chx-avatar {
+        width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; display: grid; place-items: center;
+        background: linear-gradient(135deg, #1e1b4b, #4338ca); color: var(--chx-yellow); font-size: 1rem;
+    }
+    .chx-bubble-user {
+        max-width: 78%; padding: .75rem 1.05rem; border-radius: 16px 16px 4px 16px; font-size: .9rem; line-height: 1.5;
+        background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; white-space: pre-wrap; word-break: break-word;
+        box-shadow: 0 6px 18px rgba(99,102,241,.28);
+    }
+    .chx-card {
+        flex: 1; min-width: 0; background: var(--chx-card); border: 1px solid var(--chx-line);
+        border-radius: 4px 16px 16px 16px; padding: 1rem 1.2rem; box-shadow: 0 2px 14px rgba(15,23,42,.04);
+    }
+    .chx-card.error { border-color: #fecaca; background: #fff7f7; }
+    .chx-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: .8rem; padding-top: .7rem; border-top: 1px dashed var(--chx-line); font-size: .7rem; color: var(--chx-muted); }
+    .chx-meta .tag { background: #f1f5f9; padding: .15rem .5rem; border-radius: 6px; font-weight: 600; }
+    .chx-meta .grow { flex: 1; }
+    .chx-meta button { border: 0; background: transparent; color: var(--chx-muted); cursor: pointer; font-size: .7rem; padding: .15rem .35rem; border-radius: 6px; }
+    .chx-meta button:hover { background: #f1f5f9; color: var(--chx-ink); }
+
+    /* markdown */
+    .chx-md { font-size: .92rem; line-height: 1.62; word-break: break-word; }
+    .chx-md > *:first-child { margin-top: 0 !important; } .chx-md > *:last-child { margin-bottom: 0 !important; }
+    .chx-md p { margin: 0 0 .7rem; }
+    .chx-md h1, .chx-md h2, .chx-md h3, .chx-md h4 { font-weight: 700; margin: 1rem 0 .45rem; letter-spacing: -.01em; }
+    .chx-md h1 { font-size: 1.2rem; } .chx-md h2 { font-size: 1.1rem; } .chx-md h3 { font-size: 1rem; } .chx-md h4 { font-size: .92rem; }
+    .chx-md ul, .chx-md ol { padding-left: 1.3rem; margin: 0 0 .7rem; } .chx-md li { margin-bottom: .22rem; }
+    .chx-md code { font-family: 'JetBrains Mono', monospace; font-size: .8rem; background: #f1f5f9; color: #be185d; padding: .1rem .35rem; border-radius: 5px; }
+    .chx-md hr { border: 0; border-top: 1px solid var(--chx-line); margin: 1rem 0; }
+    .chx-md a { color: var(--chx-indigo); }
+    .chx-md table { border-collapse: collapse; margin: .3rem 0 .9rem; font-size: .82rem; display: block; overflow-x: auto; max-width: 100%; }
+    .chx-md th { background: #f8fafc; font-weight: 700; text-align: left; }
+    .chx-md th, .chx-md td { border: 1px solid var(--chx-line); padding: .4rem .7rem; white-space: nowrap; }
+    .chx-md td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .chx-code { position: relative; margin: .4rem 0 .9rem; border-radius: 12px; overflow: hidden; background: #0f172a; }
+    .chx-code .bar { display: flex; justify-content: space-between; align-items: center; padding: .35rem .8rem; background: #1e293b; color: #94a3b8; font-size: .68rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+    .chx-code .bar button { border: 0; background: transparent; color: #cbd5e1; cursor: pointer; font-size: .7rem; font-weight: 600; }
+    .chx-code .bar button:hover { color: #fff; }
+    .chx-code pre { margin: 0; padding: .85rem 1rem; overflow-x: auto; color: #e2e8f0; font-family: 'JetBrains Mono', monospace; font-size: .78rem; line-height: 1.6; }
+    .chx-code pre .kw { color: #fbbf24; font-weight: 500; } .chx-code pre .str { color: #86efac; } .chx-code pre .num { color: #f9a8d4; } .chx-code pre .cm { color: #64748b; }
+
+    /* result table */
+    .chx-result { margin-top: .9rem; border: 1px solid var(--chx-line); border-radius: 12px; overflow: hidden; }
+    .chx-result-head { display: flex; align-items: center; gap: .6rem; padding: .5rem .8rem; background: #f8fafc; border-bottom: 1px solid var(--chx-line); font-size: .74rem; font-weight: 600; color: #334155; }
+    .chx-result-head .grow { flex: 1; }
+    .chx-result-head button { border: 1px solid var(--chx-line); background: #fff; font-size: .7rem; font-weight: 600; padding: .22rem .6rem; border-radius: 7px; cursor: pointer; color: #334155; }
+    .chx-result-head button:hover { border-color: var(--chx-indigo); color: var(--chx-indigo); }
+    .chx-tablewrap { max-height: 340px; overflow: auto; }
+    .chx-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .78rem; }
+    .chx-table th { position: sticky; top: 0; z-index: 1; background: #fff; text-align: left; padding: .5rem .8rem; font-weight: 700; color: #475569; border-bottom: 2px solid var(--chx-line); white-space: nowrap; }
+    .chx-table td { padding: .42rem .8rem; border-bottom: 1px solid #f1f5f9; white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+    .chx-table td.num { text-align: right; font-variant-numeric: tabular-nums; font-family: 'JetBrains Mono', monospace; font-size: .75rem; }
+    .chx-table tr:hover td { background: #fafbff; }
+    .chx-table td.null { color: #cbd5e1; }
+
+    /* steps */
+    .chx-steps { margin-top: .8rem; }
+    .chx-steps summary { cursor: pointer; font-size: .75rem; font-weight: 600; color: var(--chx-indigo); list-style: none; display: inline-flex; align-items: center; gap: .35rem; }
+    .chx-steps summary::-webkit-details-marker { display: none; }
+    .chx-steps[open] summary i { transform: rotate(90deg); } .chx-steps summary i { transition: transform .2s; }
+    .chx-step { margin-top: .5rem; }
+    .chx-step .lbl { font-size: .68rem; font-weight: 700; color: var(--chx-muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: .2rem; display: flex; gap: .4rem; align-items: center; }
+    .chx-step .lbl .bad { color: var(--chx-red); }
+
+    /* typing */
+    .chx-typing { display: flex; align-items: center; gap: .7rem; font-size: .82rem; color: var(--chx-muted); }
+    .chx-dots span { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--chx-indigo); margin-right: 3px; animation: chx-bounce 1.2s infinite ease-in-out; }
+    .chx-dots span:nth-child(2) { animation-delay: .15s; } .chx-dots span:nth-child(3) { animation-delay: .3s; }
+    @keyframes chx-bounce { 0%,80%,100% { transform: scale(.6); opacity: .4;} 40% { transform: scale(1); opacity: 1; } }
+
+    /* ── Composer ──────────────────────────────────────────── */
+    .chx-composer-wrap { padding: .4rem 1.75rem 1rem; flex-shrink: 0; }
+    .chx-composer {
+        max-width: 980px; margin: 0 auto; display: flex; align-items: flex-end; gap: .6rem;
+        background: #fff; border: 1.5px solid var(--chx-line); border-radius: 18px; padding: .55rem .6rem .55rem 1.05rem;
+        box-shadow: 0 10px 32px rgba(15,23,42,.07); transition: border-color .2s, box-shadow .2s;
+    }
+    .chx-composer:focus-within { border-color: var(--chx-indigo); box-shadow: 0 10px 32px rgba(99,102,241,.18); }
+    .chx-composer textarea { flex: 1; border: 0; outline: 0; resize: none; font-family: inherit; font-size: .92rem; line-height: 1.5; padding: .4rem 0; max-height: 160px; background: transparent; }
+    .chx-send {
+        width: 42px; height: 42px; flex-shrink: 0; border: 0; border-radius: 12px; cursor: pointer; display: grid; place-items: center;
+        background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; font-size: 1.05rem; transition: transform .15s, opacity .15s;
+        box-shadow: 0 6px 16px rgba(99,102,241,.4);
+    }
+    .chx-send:hover:not(:disabled) { transform: translateY(-2px) scale(1.04); }
+    .chx-send:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+    .chx-foot { max-width: 980px; margin: .5rem auto 0; text-align: center; font-size: .68rem; color: #94a3b8; }
+    .chx-foot i { color: var(--chx-green); }
+
+    /* ── Schema panel ──────────────────────────────────────── */
+    .chx-schema { width: 330px; flex-shrink: 0; display: flex; flex-direction: column; background: rgba(255,255,255,.9); border-left: 1px solid var(--chx-line); transition: margin .25s ease; }
+    .chx-schema.collapsed { margin-right: -330px; }
+    @media (max-width: 1150px) { .chx-schema { display: none; } }
+    .chx-schema-head { padding: 1rem 1rem .6rem; }
+    .chx-schema-head h6 { font-size: .72rem; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: var(--chx-muted); display: flex; justify-content: space-between; align-items: center; margin-bottom: .6rem; }
+    .chx-schema-head h6 button { border: 0; background: transparent; color: var(--chx-muted); cursor: pointer; }
+    .chx-schema-head h6 button:hover { color: var(--chx-indigo); }
+    .chx-schema-head input { width: 100%; font-size: .8rem; padding: .5rem .75rem; border: 1px solid var(--chx-line); border-radius: 10px; outline: 0; background: #f8fafc; }
+    .chx-schema-head input:focus { border-color: var(--chx-indigo); background: #fff; }
+    .chx-schema-list { flex: 1; overflow-y: auto; padding: 0 .6rem 1rem; }
+    .chx-tbl { border-radius: 10px; margin-bottom: 2px; }
+    .chx-tbl-row { display: flex; align-items: center; gap: .5rem; padding: .45rem .55rem; border-radius: 9px; cursor: pointer; font-size: .8rem; }
+    .chx-tbl-row:hover { background: #eef2ff; }
+    .chx-tbl-row .ic { color: var(--chx-yellow-deep); }
+    .chx-tbl-row .nm { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chx-tbl-row .rc { font-size: .66rem; color: var(--chx-muted); background: #f1f5f9; padding: .08rem .4rem; border-radius: 6px; font-weight: 600; }
+    .chx-tbl-row .chev { font-size: .65rem; color: #94a3b8; transition: transform .2s; }
+    .chx-tbl.open .chev { transform: rotate(90deg); }
+    .chx-cols { display: none; padding: .15rem 0 .5rem 1.7rem; }
+    .chx-tbl.open .chx-cols { display: block; }
+    .chx-col { display: flex; justify-content: space-between; gap: .5rem; font-size: .72rem; padding: .18rem .45rem; border-radius: 6px; cursor: pointer; }
+    .chx-col:hover { background: #f1f5f9; }
+    .chx-col .cn { font-family: 'JetBrains Mono', monospace; color: #334155; overflow: hidden; text-overflow: ellipsis; }
+    .chx-col .ct { color: #94a3b8; font-size: .66rem; white-space: nowrap; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+    .chx-tbl-actions { padding: 0 0 .3rem .5rem; display: flex; gap: .4rem; }
+    .chx-tbl-actions button { border: 1px solid var(--chx-line); background: #fff; font-size: .66rem; font-weight: 600; padding: .15rem .5rem; border-radius: 6px; cursor: pointer; color: #475569; }
+    .chx-tbl-actions button:hover { border-color: var(--chx-indigo); color: var(--chx-indigo); }
+    .chx-empty { text-align: center; color: var(--chx-muted); font-size: .8rem; padding: 1.5rem .5rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="chx-shell" id="chx-shell">
+
+    <!-- Header -->
+    <header class="chx-header">
+        <div class="chx-brand">
+            <div class="chx-logo" aria-hidden="true">
+                <div class="bars"><i></i><i></i><i></i><i></i></div>
+                <span class="chx-pulse"></span>
+            </div>
+            <div class="chx-title">
+                <h1>ClickHouse Assistant</h1>
+                <p>Ask anything about your ClickHouse database &middot; data, schema &amp; SQL help</p>
+            </div>
+        </div>
+        <div class="chx-actions">
+            <span class="chx-chip"><i class="bi bi-shield-check"></i> Read-only</span>
+            <span class="chx-chip model" id="chx-model" title="AI model used for the last answer" style="display:none;"></span>
+            <button class="chx-btn" id="chx-toggle-schema" type="button" title="Show / hide the schema explorer"><i class="bi bi-layout-sidebar-inset-reverse"></i> Schema</button>
+            <button class="chx-btn" id="chx-new" type="button"><i class="bi bi-plus-lg"></i> New chat</button>
+        </div>
+    </header>
+
+    <div class="chx-body">
+        <!-- Chat -->
+        <section class="chx-main">
+            <div class="chx-scroll" id="chx-scroll">
+                <div class="chx-welcome" id="chx-welcome">
+                    <div class="hero"><i class="bi bi-database-fill"></i></div>
+                    <h2>What would you like to know about <span>your data</span>?</h2>
+                    <p class="sub">I turn your questions into ClickHouse SQL, run them safely (read-only) and explain the results. I can also explain tables, columns and any ClickHouse concept.</p>
+                    <div class="chx-sugg-grid">
+                        <div class="chx-sugg-col">
+                            <h6><i class="bi bi-graph-up-arrow"></i> Your data</h6>
+                            <button class="chx-sugg" type="button">What was the total sales revenue and number of bills last month?</button>
+                            <button class="chx-sugg" type="button">Top 10 branches by revenue this year</button>
+                            <button class="chx-sugg" type="button">Which product categories sell the most, and how has that trended by month?</button>
+                        </div>
+                        <div class="chx-sugg-col">
+                            <h6><i class="bi bi-diagram-3"></i> Database &amp; schema</h6>
+                            <button class="chx-sugg" type="button">List all tables with their row counts and size on disk</button>
+                            <button class="chx-sugg" type="button">Explain the azure_invoice_report table and how it relates to azure_sales_report</button>
+                            <button class="chx-sugg" type="button">Which tables were updated most recently?</button>
+                        </div>
+                        <div class="chx-sugg-col">
+                            <h6><i class="bi bi-mortarboard"></i> ClickHouse know-how</h6>
+                            <button class="chx-sugg" type="button">What is the difference between MergeTree and ReplacingMergeTree?</button>
+                            <button class="chx-sugg" type="button">How do I write a running total / moving average in ClickHouse?</button>
+                            <button class="chx-sugg" type="button">How can I make my slow queries on azure_sales_report faster?</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="chx-stream" id="chx-stream"></div>
+            </div>
+
+            <div class="chx-composer-wrap">
+                <form class="chx-composer" id="chx-form" autocomplete="off">
+                    <textarea id="chx-input" rows="1" placeholder="Ask a question about your ClickHouse database…  (Enter to send, Shift+Enter for a new line)" maxlength="4000"></textarea>
+                    <button class="chx-send" id="chx-send" type="submit" title="Send"><i class="bi bi-arrow-up"></i></button>
+                </form>
+                <div class="chx-foot"><i class="bi bi-lock-fill"></i> Queries run in read-only mode with time &amp; row limits. AI can make mistakes &mdash; check the SQL under &ldquo;How I got this&rdquo;.</div>
+            </div>
+        </section>
+
+        <!-- Schema explorer -->
+        <aside class="chx-schema" id="chx-schema">
+            <div class="chx-schema-head">
+                <h6><span><i class="bi bi-database me-1"></i> Schema explorer</span>
+                    <button type="button" id="chx-refresh-schema" title="Reload schema"><i class="bi bi-arrow-clockwise"></i></button></h6>
+                <input type="search" id="chx-schema-filter" placeholder="Search tables or columns…">
+            </div>
+            <div class="chx-schema-list" id="chx-schema-list"><div class="chx-empty">Loading schema…</div></div>
+        </aside>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    'use strict';
+    const CSRF = '{{ csrf_token }}';
+    const CHAT_URL = '{% url "clickhouse_assistant_chat_api" %}';
+    const SCHEMA_URL = '{% url "clickhouse_assistant_schema_api" %}';
+    const STORE_KEY = 'chx_assistant_chat_v1';
+
+    const $ = (id) => document.getElementById(id);
+    const scrollEl = $('chx-scroll'), streamEl = $('chx-stream'), welcomeEl = $('chx-welcome');
+    const inputEl = $('chx-input'), sendBtn = $('chx-send'), formEl = $('chx-form');
+
+    let messages = [];      // [{role:'user'|'assistant', content, results, steps, model, ms, error}]
+    let busy = false;
+
+    /* ───────────── helpers ───────────── */
+    const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const toBottom = () => { scrollEl.scrollTop = scrollEl.scrollHeight; };
+    const NON_NUM_COLS = /mobile|phone|pin|hsn|code|_no$|^no$|id$|year|month|day|week|quarter|hour/i;
+
+    function fmtCell(v, col) {
+        if (v === null || v === undefined) return { t: 'NULL', cls: 'null' };
+        if (typeof v === 'number') {
+            if (NON_NUM_COLS.test(col) && Number.isInteger(v)) return { t: String(v), cls: 'num' };
+            const t = Number.isInteger(v) ? v.toLocaleString('en-IN') : v.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+            return { t, cls: 'num' };
+        }
+        if (typeof v === 'object') return { t: JSON.stringify(v), cls: '' };
+        return { t: String(v), cls: '' };
+    }
+
+    function highlightSQL(code) {
+        let h = esc(code);
+        h = h.replace(/(--[^\n]*)/g, '<span class="cm">$1</span>');
+        h = h.replace(/(&#39;|')((?:[^'\n]|'')*)(&#39;|')/g, '<span class="str">\'$2\'</span>');
+        h = h.replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="num">$1</span>');
+        h = h.replace(/\b(SELECT|FROM|WHERE|GROUP BY|ORDER BY|LIMIT|JOIN|LEFT|RIGHT|INNER|OUTER|FULL|ON|AS|AND|OR|NOT|IN|IS|NULL|LIKE|ILIKE|BETWEEN|CASE|WHEN|THEN|ELSE|END|WITH|HAVING|DISTINCT|UNION|ALL|DESC|ASC|SHOW|DESCRIBE|CREATE|TABLE|OVER|PARTITION BY|SETTINGS|FORMAT|INTERVAL|BY|BIG|EXISTS|EXPLAIN)\b/gi, '<span class="kw">$1</span>');
+        return h;
+    }
+
+    function codeBlock(code, lang) {
+        const isSql = !lang || /sql|clickhouse/i.test(lang);
+        const body = isSql ? highlightSQL(code) : esc(code);
+        const id = 'c' + Math.random().toString(36).slice(2, 9);
+        return '<div class="chx-code"><div class="bar"><span>' + esc(lang || 'sql') + '</span>' +
+            '<button type="button" data-copy="' + id + '"><i class="bi bi-clipboard"></i> Copy</button></div>' +
+            '<pre id="' + id + '">' + body + '</pre></div>';
+    }
+
+    /* ───────────── tiny safe markdown renderer ───────────── */
+    function inline(s) {
+        s = esc(s);
+        s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+        s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        s = s.replace(/(^|[^*])\*([^*\s][^*]*)\*(?!\*)/g, '$1<em>$2</em>');
+        s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+        return s;
+    }
+    function renderMarkdown(src) {
+        const lines = String(src || '').replace(/\r\n/g, '\n').split('\n');
+        let out = [], i = 0;
+        const isTableSep = (l) => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l);
+        const splitRow = (l) => l.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+        while (i < lines.length) {
+            const line = lines[i];
+            let m;
+            if ((m = line.match(/^```(\w*)\s*$/))) {
+                const buf = []; i++;
+                while (i < lines.length && !/^```\s*$/.test(lines[i])) buf.push(lines[i++]);
+                i++; out.push(codeBlock(buf.join('\n'), m[1])); continue;
+            }
+            if (/^\s*(-{3,}|\*{3,})\s*$/.test(line)) { out.push('<hr>'); i++; continue; }
+            if ((m = line.match(/^(#{1,4})\s+(.*)$/))) { out.push('<h' + m[1].length + '>' + inline(m[2]) + '</h' + m[1].length + '>'); i++; continue; }
+            if (line.includes('|') && i + 1 < lines.length && isTableSep(lines[i + 1])) {
+                const head = splitRow(line); i += 2; const rows = [];
+                while (i < lines.length && lines[i].includes('|') && lines[i].trim()) rows.push(splitRow(lines[i++]));
+                let t = '<table><thead><tr>' + head.map((h) => '<th>' + inline(h) + '</th>').join('') + '</tr></thead><tbody>';
+                rows.forEach((r) => { t += '<tr>' + r.map((c) => '<td' + (/^[₹$-]?[\d,]+(\.\d+)?%?$/.test(c.replace(/\*\*/g, '')) ? ' class="num"' : '') + '>' + inline(c) + '</td>').join('') + '</tr>'; });
+                out.push(t + '</tbody></table>'); continue;
+            }
+            if (/^\s*[-*•]\s+/.test(line)) {
+                const items = [];
+                while (i < lines.length && /^\s*[-*•]\s+/.test(lines[i])) items.push('<li>' + inline(lines[i++].replace(/^\s*[-*•]\s+/, '')) + '</li>');
+                out.push('<ul>' + items.join('') + '</ul>'); continue;
+            }
+            if (/^\s*\d+[.)]\s+/.test(line)) {
+                const items = [];
+                while (i < lines.length && /^\s*\d+[.)]\s+/.test(lines[i])) items.push('<li>' + inline(lines[i++].replace(/^\s*\d+[.)]\s+/, '')) + '</li>');
+                out.push('<ol>' + items.join('') + '</ol>'); continue;
+            }
+            if (!line.trim()) { i++; continue; }
+            const para = [];
+            while (i < lines.length && lines[i].trim() && !/^(```|#{1,4}\s|\s*[-*•]\s+|\s*\d+[.)]\s+)/.test(lines[i]) &&
+                   !(lines[i].includes('|') && i + 1 < lines.length && isTableSep(lines[i + 1]))) para.push(inline(lines[i++]));
+            if (!para.length) { para.push(inline(lines[i++])); }  // safety: always make progress
+            out.push('<p>' + para.join('<br>') + '</p>');
+        }
+        return out.join('');
+    }
+
+    /* ───────────── rendering ───────────── */
+    function resultHTML(res, idx) {
+        const head = '<tr>' + res.columns.map((c) => '<th>' + esc(c) + '</th>').join('') + '</tr>';
+        const body = res.rows.map((r) => '<tr>' + r.map((v, ci) => {
+            const f = fmtCell(v, res.columns[ci]);
+            return '<td class="' + f.cls + '" title="' + esc(f.t) + '">' + esc(f.t) + '</td>';
+        }).join('') + '</tr>').join('');
+        const note = res.truncated ? ' (showing first ' + res.rows.length.toLocaleString('en-IN') + ')' : '';
+        return '<div class="chx-result"><div class="chx-result-head"><i class="bi bi-table"></i>' +
+            '<span>' + res.row_count.toLocaleString('en-IN') + ' row' + (res.row_count === 1 ? '' : 's') + note + ' &middot; ' + res.elapsed_ms + ' ms</span><span class="grow"></span>' +
+            '<button type="button" data-csv="' + idx + '"><i class="bi bi-download"></i> CSV</button></div>' +
+            '<div class="chx-tablewrap"><table class="chx-table"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div></div>';
+    }
+
+    function stepsHTML(steps) {
+        if (!steps || !steps.length) return '';
+        let h = '<details class="chx-steps"><summary><i class="bi bi-chevron-right"></i> How I got this (' + steps.length + ' step' + (steps.length > 1 ? 's' : '') + ')</summary>';
+        steps.forEach((s, n) => {
+            const isSql = s.tool === 'run_sql';
+            h += '<div class="chx-step"><div class="lbl">' + (n + 1) + '. ' + (isSql ? 'SQL query' : 'Inspected table') +
+                (s.error ? ' <span class="bad"><i class="bi bi-x-circle-fill"></i> failed — retried</span>' : ' <span style="color:#16a34a"><i class="bi bi-check-circle-fill"></i></span>') + '</div>' +
+                codeBlock(s.sql || '', isSql ? 'sql' : 'text') +
+                (s.error ? '<div style="font-size:.72rem;color:#b91c1c;margin-top:-.5rem;margin-bottom:.6rem;">' + esc(s.error.slice(0, 300)) + '</div>' : '') + '</div>';
+        });
+        return h + '</details>';
+    }
+
+    function addMessageEl(m, mi) {
+        const wrap = document.createElement('div');
+        wrap.className = 'chx-msg ' + (m.role === 'user' ? 'user' : 'assistant');
+        if (m.role === 'user') {
+            wrap.innerHTML = '<div class="chx-bubble-user">' + esc(m.content) + '</div>';
+        } else {
+            let inner = '<div class="chx-md">' + renderMarkdown(m.content) + '</div>';
+            (m.results || []).forEach((r, ri) => { inner += resultHTML(r, mi + ':' + ri); });
+            inner += stepsHTML(m.steps);
+            if (!m.error) {
+                inner += '<div class="chx-meta">' +
+                    (m.model ? '<span class="tag">' + esc(m.model) + '</span>' : '') +
+                    (m.ms ? '<span>' + (m.ms / 1000).toFixed(1) + 's</span>' : '') +
+                    '<span class="grow"></span><button type="button" data-copy-answer="' + mi + '"><i class="bi bi-clipboard"></i> Copy answer</button></div>';
+            }
+            wrap.innerHTML = '<div class="chx-avatar"><i class="bi bi-database-fill"></i></div><div class="chx-card' + (m.error ? ' error' : '') + '">' + inner + '</div>';
+        }
+        streamEl.appendChild(wrap);
+    }
+
+    function renderAll() {
+        streamEl.innerHTML = '';
+        welcomeEl.style.display = messages.length ? 'none' : '';
+        messages.forEach((m, i) => addMessageEl(m, i));
+        const last = [...messages].reverse().find((m) => m.model);
+        const chip = $('chx-model');
+        if (last) { chip.textContent = last.model; chip.style.display = ''; } else chip.style.display = 'none';
+        toBottom();
+    }
+
+    const STATUS = ['Reading the schema…', 'Thinking about the best query…', 'Querying ClickHouse…', 'Analysing the results…'];
+    function showTyping() {
+        const el = document.createElement('div');
+        el.className = 'chx-msg'; el.id = 'chx-typing';
+        el.innerHTML = '<div class="chx-avatar"><i class="bi bi-database-fill"></i></div>' +
+            '<div class="chx-card"><div class="chx-typing"><div class="chx-dots"><span></span><span></span><span></span></div><span id="chx-status">' + STATUS[0] + '</span></div></div>';
+        streamEl.appendChild(el); toBottom();
+        let n = 0;
+        el._t = setInterval(() => { n = Math.min(n + 1, STATUS.length - 1); const s = $('chx-status'); if (s) s.textContent = STATUS[n]; }, 4500);
+    }
+    function hideTyping() { const el = $('chx-typing'); if (el) { clearInterval(el._t); el.remove(); } }
+
+    /* ───────────── persistence ───────────── */
+    function save() {
+        try {
+            const slim = messages.slice(-30).map((m) => m.role === 'assistant'
+                ? { ...m, results: (m.results || []).map((r) => ({ ...r, rows: r.rows.slice(0, 100), truncated: r.truncated || r.rows.length > 100 })) }
+                : m);
+            sessionStorage.setItem(STORE_KEY, JSON.stringify(slim));
+        } catch (e) { /* storage full – ignore */ }
+    }
+    function load() { try { messages = JSON.parse(sessionStorage.getItem(STORE_KEY) || '[]'); } catch (e) { messages = []; } }
+
+    /* ───────────── send ───────────── */
+    async function send(text) {
+        text = (text || '').trim();
+        if (!text || busy) return;
+        busy = true; sendBtn.disabled = true;
+        const history = messages.filter((m) => !m.error).map((m) => ({ role: m.role, content: m.content }));
+        messages.push({ role: 'user', content: text });
+        renderAll(); showTyping();
+        inputEl.value = ''; autosize();
+        try {
+            const r = await fetch(CHAT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                credentials: 'same-origin',
+                body: JSON.stringify({ question: text, history }),
+            });
+            let data = {};
+            try { data = await r.json(); } catch (e) { /* non-JSON (e.g. login redirect / 502) */ }
+            hideTyping();
+            if (!r.ok || data.error) {
+                messages.push({ role: 'assistant', error: true, content: '⚠️ ' + (data.error || ('Request failed (HTTP ' + r.status + ').')) });
+            } else {
+                messages.push({ role: 'assistant', content: data.answer, results: data.results, steps: data.steps, model: data.model, ms: data.elapsed_ms });
+            }
+        } catch (e) {
+            hideTyping();
+            messages.push({ role: 'assistant', error: true, content: '⚠️ Network error — could not reach the server.' });
+        }
+        busy = false; sendBtn.disabled = false;
+        save(); renderAll(); inputEl.focus();
+    }
+
+    /* ───────────── composer ───────────── */
+    function autosize() { inputEl.style.height = 'auto'; inputEl.style.height = Math.min(inputEl.scrollHeight, 160) + 'px'; }
+    inputEl.addEventListener('input', autosize);
+    inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(inputEl.value); } });
+    formEl.addEventListener('submit', (e) => { e.preventDefault(); send(inputEl.value); });
+    document.querySelectorAll('.chx-sugg').forEach((b) => b.addEventListener('click', () => send(b.textContent)));
+    $('chx-new').addEventListener('click', () => { if (busy) return; messages = []; save(); renderAll(); inputEl.focus(); });
+
+    /* delegated clicks: copy code, copy answer, csv */
+    document.addEventListener('click', (e) => {
+        const t = e.target.closest('[data-copy],[data-copy-answer],[data-csv]');
+        if (!t) return;
+        const flash = (btn, label) => { const o = btn.innerHTML; btn.innerHTML = '<i class="bi bi-check2"></i> ' + label; setTimeout(() => { btn.innerHTML = o; }, 1300); };
+        if (t.dataset.copy) { navigator.clipboard.writeText($(t.dataset.copy).innerText); flash(t, 'Copied'); }
+        else if (t.dataset.copyAnswer) { navigator.clipboard.writeText(messages[+t.dataset.copyAnswer].content); flash(t, 'Copied'); }
+        else if (t.dataset.csv) {
+            const [mi, ri] = t.dataset.csv.split(':').map(Number);
+            const res = messages[mi].results[ri];
+            const q = (v) => { if (v === null || v === undefined) return ''; const s = typeof v === 'object' ? JSON.stringify(v) : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+            const csv = [res.columns.map(q).join(',')].concat(res.rows.map((r) => r.map(q).join(','))).join('\n');
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }));
+            a.download = 'clickhouse_result_' + new Date().toISOString().slice(0, 16).replace(/[:T]/g, '') + '.csv';
+            a.click(); URL.revokeObjectURL(a.href);
+        }
+    });
+
+    /* ───────────── schema explorer ───────────── */
+    let schema = [];
+    const human = (n) => { if (n === null || n === undefined) return '–'; const u = ['', 'K', 'M', 'B']; let i = 0; n = +n; while (n >= 1000 && i < 3) { n /= 1000; i++; } return (i ? n.toFixed(1) : n.toFixed(0)) + u[i]; };
+    function renderSchema(filter) {
+        const list = $('chx-schema-list'); const f = (filter || '').toLowerCase().trim();
+        const rows = schema.filter((t) => !f || t.name.toLowerCase().includes(f) || t.columns.some((c) => c.name.toLowerCase().includes(f)));
+        if (!rows.length) { list.innerHTML = '<div class="chx-empty">No matching tables.</div>'; return; }
+        list.innerHTML = rows.map((t) => {
+            const cols = t.columns.map((c) => '<div class="chx-col" data-col="' + esc(c.name) + '" title="Click to insert into your question"><span class="cn">' + esc(c.name) + '</span><span class="ct">' + esc(c.type) + '</span></div>').join('');
+            return '<div class="chx-tbl' + (f ? ' open' : '') + '" data-t="' + esc(t.name) + '">' +
+                '<div class="chx-tbl-row"><i class="bi bi-table ic"></i><span class="nm" title="' + esc(t.name) + '">' + esc(t.name) + '</span><span class="rc">' + human(t.rows) + '</span><i class="bi bi-chevron-right chev"></i></div>' +
+                '<div class="chx-cols"><div class="chx-tbl-actions"><button type="button" data-ask="Describe the ' + esc(t.name) + ' table: what it contains, key columns, and show 5 sample rows">Describe</button>' +
+                '<button type="button" data-ask="Give me a quick profile of ' + esc(t.name) + ': row count, date range and the most important column distributions">Profile</button></div>' + cols + '</div></div>';
+        }).join('');
+    }
+    $('chx-schema-list').addEventListener('click', (e) => {
+        const ask = e.target.closest('[data-ask]'); if (ask) { send(ask.dataset.ask); return; }
+        const col = e.target.closest('[data-col]'); if (col) { inputEl.value += (inputEl.value && !inputEl.value.endsWith(' ') ? ' ' : '') + col.dataset.col + ' '; autosize(); inputEl.focus(); return; }
+        const row = e.target.closest('.chx-tbl-row'); if (row) row.parentElement.classList.toggle('open');
+    });
+    $('chx-schema-filter').addEventListener('input', (e) => renderSchema(e.target.value));
+    async function loadSchema(refresh) {
+        try {
+            const r = await fetch(SCHEMA_URL + (refresh ? '?refresh=1' : ''), { credentials: 'same-origin' });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.error || 'failed');
+            schema = d.tables; renderSchema($('chx-schema-filter').value);
+        } catch (e) { $('chx-schema-list').innerHTML = '<div class="chx-empty">Could not load schema.<br>' + esc(e.message) + '</div>'; }
+    }
+    $('chx-refresh-schema').addEventListener('click', () => loadSchema(true));
+    $('chx-toggle-schema').addEventListener('click', () => $('chx-schema').classList.toggle('collapsed'));
+
+    /* init */
+    load(); renderAll(); loadSchema(false); inputEl.focus();
+})();
+</script>
+{% endblock %}
