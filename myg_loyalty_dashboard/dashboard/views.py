@@ -3215,6 +3215,25 @@ class DailyNewRepeatAPIView(LoginRequiredMixin, View):
         end_date   = request.GET.get('end_date',   default_end)
         branch     = request.GET.get('branch',     '').strip()
 
+        # ── Auto-correct: if end_date > latest available data, clamp to latest ──
+        # This prevents zeros when running in a month where blob data hasn't arrived
+        try:
+            _client_tmp = get_ch_client()
+            _latest_row = _client_tmp.query("""
+                SELECT toString(max(toDate(date)))
+                FROM azure_invoice_report
+                WHERE toDate(date) != toDate('1970-01-01') AND invoice_total > 0
+            """).result_rows
+            _latest_date = _latest_row[0][0] if _latest_row and _latest_row[0][0] else None
+            if _latest_date and end_date > _latest_date:
+                end_date = _latest_date
+                # also adjust start to 1st of the latest month
+                from datetime import date as _date
+                _ld = _date.fromisoformat(_latest_date)
+                start_date = _ld.replace(day=1).isoformat()
+        except Exception:
+            _latest_date = None
+
         branch_clause_where = ""
         if branch and branch.lower() != 'all':
             safe = branch.replace("'", "''")
@@ -3405,6 +3424,7 @@ class DailyNewRepeatAPIView(LoginRequiredMixin, View):
                         'start_date':        start_date,
                         'end_date':          end_date,
                         'base_date':         self.BASE_DATE,
+                        'latest_data_date':  _latest_date or end_date,
                     }
                 }
             })
@@ -5199,7 +5219,7 @@ class OsgSaleReportDownloadView(TokenAccessMixin, View):
 
                 for ci, val in enumerate(row_data, 1):
                     cell = ws.cell(i, ci)
-                    cell.border = _border_btm()
+                    cell.border = _border()
 
                     if ci == 1:
                         # Store Name — bold, left aligned, row fill
@@ -5208,8 +5228,8 @@ class OsgSaleReportDownloadView(TokenAccessMixin, View):
                         cell.alignment = _align('left', 'center')
 
                     elif ci in (4, 7):
-                        # FTD / MTD Value Conversion — green if positive, red if zero/neg
-                        if isinstance(val, (int, float)) and val > 0.005:
+                        # FTD / MTD Value Conversion — green if >= 2%, red if < 2%
+                        if isinstance(val, (int, float)) and val >= 0.02:
                             cell.fill = FILL_GREEN
                             cell.font = _font(FC_GREEN, bold=True, size=10)
                         else:
@@ -5643,3 +5663,21 @@ class OsgReconciliationView(TokenAccessMixin, View):
             import traceback
             import traceback
             return HttpResponse(f'Error processing reconciliation:\n\n{e}\n\n{traceback.format_exc()}', status=500)
+
+class RcaDashboardView(LoginRequiredMixin, TemplateView):
+    template_name = 'dashboard/rca_dashboard.html'
+
+
+class RcaDashboardView(LoginRequiredMixin, TemplateView):
+    template_name = 'dashboard/rca_dashboard.html'
+
+from django.http import JsonResponse
+from .rca_logic import build_rca_data, get_rca_filters
+
+class RcaDashboardAPIView(LoginRequiredMixin, View):
+    def get(self, request):
+        action = request.GET.get('action')
+        if action == 'filters':
+            return JsonResponse(get_rca_filters())
+        else:
+            return JsonResponse(build_rca_data(request))

@@ -1,0 +1,549 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Customer Review RCA — myG Loyalty{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Custom properties for RCA Dashboard */
+:root {
+    --card-bg: #ffffff;
+    --red-main: #e11d48;
+    --red-light: #ffe4e6;
+    --orange-main: #d97706;
+    --orange-light: #fef3c7;
+    --blue-light: #e0f2fe;
+    --gray-main: #64748b;
+    --gray-light: #f1f5f9;
+}
+
+/* ─── Header Banner ─────────────────────────────────────────────── */
+.rca-banner {
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 22px 28px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06);
+}
+
+.rca-banner h1 {
+    font-size: 1.45rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.rca-banner .sub {
+    font-size: .8rem;
+    color: #94a3b8;
+    margin-top: 4px;
+}
+
+.header-badge {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    padding: 10px 18px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+
+/* ─── Filter Bar ─────────────────────────────────────────────── */
+.ctrl-bar {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 14px 20px;
+    margin-bottom: 24px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    align-items: flex-end;
+    box-shadow: 0 1px 4px rgba(0,0,0,.05);
+}
+
+.ctrl-bar label {
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    color: #64748b;
+    display: block;
+    margin-bottom: 5px;
+}
+
+.ctrl-bar select, .ctrl-bar input {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    color: #0f172a;
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-size: .82rem;
+    outline: none;
+}
+
+.ctrl-bar select:focus {
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 3px rgba(245,158,11,0.15);
+}
+
+.btn-refresh {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-weight: 700;
+    font-size: .82rem;
+    padding: 9px 20px;
+    cursor: pointer;
+    transition: all .2s;
+}
+
+.btn-refresh:hover {
+    opacity: .9;
+    transform: translateY(-1px);
+}
+
+/* ─── Cards Grid ─────────────────────────────────────────────── */
+.cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 24px;
+    margin-bottom: 30px;
+}
+
+.rca-card {
+    background: var(--card-bg);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 24px 30px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.rca-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);
+}
+
+.rca-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 20px;
+    right: 20px;
+    height: 6px;
+    border-bottom-left-radius: 6px;
+    border-bottom-right-radius: 6px;
+}
+
+.rca-card.red::before { background-color: var(--red-main); }
+.rca-card.orange::before { background-color: var(--orange-main); }
+.rca-card.blue::before { background-color: var(--blue-main); }
+.rca-card.gray::before { background-color: var(--gray-main); }
+
+.card-header {
+    margin-bottom: 24px;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 16px;
+    padding-top: 10px;
+}
+
+.card-header .percentage {
+    font-size: 2.5rem;
+    font-weight: 800;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    letter-spacing: -1px;
+}
+
+.rca-card.red .percentage { color: var(--red-main); }
+.rca-card.orange .percentage { color: var(--orange-main); }
+.rca-card.blue .percentage { color: var(--blue-main); }
+.rca-card.gray .percentage { color: var(--gray-main); }
+
+.card-header .reviews-count {
+    font-size: 0.9rem;
+    color: #64748b;
+    font-weight: 600;
+    letter-spacing: 0;
+}
+
+.card-header h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-top: 8px;
+    color: #0f172a;
+}
+
+/* List Items */
+.list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 0;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.list-item:last-child {
+    border-bottom: none;
+}
+
+.item-name {
+    font-size: 0.9rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #334155;
+}
+
+.item-name::before {
+    content: '';
+    display: block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+}
+
+.rca-card.red .item-name::before { background-color: var(--red-main); }
+.rca-card.orange .item-name::before { background-color: var(--orange-main); }
+.rca-card.blue .item-name::before { background-color: var(--blue-main); }
+.rca-card.gray .item-name::before { background-color: var(--gray-main); }
+
+.item-stats {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.95rem;
+}
+
+.item-count {
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.item-percentage {
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 0.8rem;
+    width: 60px;
+    text-align: center;
+}
+
+.rca-card.red .item-percentage { background-color: var(--red-light); color: var(--red-main); }
+.rca-card.orange .item-percentage { background-color: var(--orange-light); color: var(--orange-main); }
+.rca-card.blue .item-percentage { background-color: var(--blue-light); color: var(--blue-main); }
+.rca-card.gray .item-percentage { background-color: var(--gray-light); color: var(--gray-main); }
+
+/* Key Takeaway */
+.key-takeaway {
+    background-color: var(--card-bg);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 18px 24px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+
+.takeaway-badge {
+    background-color: #0f172a;
+    color: white;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.takeaway-text {
+    font-size: 0.95rem;
+    color: #1e293b;
+    font-weight: 500;
+    line-height: 1.5;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- ── Banner ────────────────────────────────────────────────── -->
+<div class="rca-banner">
+    <div>
+        <h1><i class="bi bi-chat-left-text-fill text-danger me-2"></i> Customer Review RCA Dashboard</h1>
+        <div class="sub">Executive Breakdown of Negative Feedback (1 & 2 Star Ratings)</div>
+    </div>
+    <div class="header-badge">
+        <span>⚠️</span> 5,791 Total Reviews Analyzed
+    </div>
+</div>
+
+<!-- ── Controls ──────────────────────────────────────────────── -->
+<div class="ctrl-bar">
+    <div>
+        <label>RBM (Regional Business Manager)</label>
+        <select id="rbmFilter">
+            <option value="all">All Regions</option>
+            <option value="north">North Region</option>
+            <option value="central">Central Region</option>
+            <option value="south">South Region</option>
+        </select>
+    </div>
+    <div>
+        <label>BDM (Business Development Manager)</label>
+        <select id="bdmFilter">
+            <option value="all">All Managers</option>
+        </select>
+    </div>
+    <div>
+        <label>Store Location</label>
+        <select id="storeFilter">
+            <option value="all">All Stores (137)</option>
+        </select>
+    </div>
+    <button class="btn-refresh">
+        <i class="bi bi-funnel-fill me-1"></i> Apply Filters
+    </button>
+</div>
+
+<!-- ── Cards Grid ──────────────────────────────────────────────── -->
+<div class="cards-grid">
+    <!-- Card 1 -->
+    <div class="rca-card red">
+        <div class="card-header">
+            <div class="percentage">
+                60.2% <span class="reviews-count">(3,487 Reviews)</span>
+            </div>
+            <h3>After-Sales & Service Friction</h3>
+        </div>
+        <div class="card-body">
+            <div class="list-item">
+                <span class="item-name">Delays & Turnaround Lag</span>
+                <div class="item-stats"><span class="item-count">663</span><span class="item-percentage">19.0%</span></div>
+            </div>
+            <div class="list-item">
+                <span class="item-name">Warranty & Replacements</span>
+                <div class="item-stats"><span class="item-count">435</span><span class="item-percentage">12.5%</span></div>
+            </div>
+            <div class="list-item">
+                <span class="item-name">Unresolved / Repeat Faults</span>
+                <div class="item-stats"><span class="item-count">372</span><span class="item-percentage">10.7%</span></div>
+            </div>
+            <div class="list-item">
+                <span class="item-name">Missing Proactive Updates</span>
+                <div class="item-stats"><span class="item-count">295</span><span class="item-percentage">8.5%</span></div>
+            </div>
+            <div class="list-item">
+                <span class="item-name">Service Cost & Spares</span>
+                <div class="item-stats"><span class="item-count">160</span><span class="item-percentage">4.6%</span></div>
+            </div>
+            <div class="list-item">
+                <span class="item-name">General Service Dissatisfaction</span>
+                <div class="item-stats"><span class="item-count">1,562</span><span class="item-percentage">44.8%</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 2 -->
+    <div class="rca-card orange">
+        <div class="card-header">
+            <div class="percentage">
+                34.9% <span class="reviews-count">(2,020 Reviews)</span>
+            </div>
+            <h3>Staff Interaction & Attitude</h3>
+        </div>
+        <div class="card-body">
+            <div class="list-item">
+                <span class="item-name">Unprofessionalism / Knowledge Gap</span>
+                <div class="item-stats"><span class="item-count">395</span><span class="item-percentage">19.6%</span></div>
+            </div>
+            <div class="list-item">
+                <span class="item-name">Rude Behavior & Talking Style</span>
+                <div class="item-stats"><span class="item-count">346</span><span class="item-percentage">17.1%</span></div>
+            </div>
+            <div class="list-item">
+                <span class="item-name">Inattention & Walk-in Neglect</span>
+                <div class="item-stats"><span class="item-count">204</span><span class="item-percentage">10.1%</span></div>
+            </div>
+            <div class="list-item">
+                <span class="item-name">Poor Attitude & Budget Bias</span>
+                <div class="item-stats"><span class="item-count">202</span><span class="item-percentage">10.0%</span></div>
+            </div>
+            <div class="list-item">
+                <span class="item-name">General Staff Grievances</span>
+                <div class="item-stats"><span class="item-count">873</span><span class="item-percentage">43.2%</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 3 -->
+    <div class="rca-card blue">
+        <div class="card-header">
+            <div class="percentage">
+                33.1% <span class="reviews-count">(1,919 Reviews)</span>
+            </div>
+            <h3>Communication Breakdown</h3>
+        </div>
+        <div class="card-body">
+            <div class="list-item">
+                <span class="item-name">Customer Chasing (Repeated Calls)</span>
+                <div class="item-stats"><span class="item-count">327</span><span class="item-percentage">17.0%</span></div>
+            </div>
+            <div class="list-item">
+                <span class="item-name">Broken Promises & No Callbacks</span>
+                <div class="item-stats"><span class="item-count">184</span><span class="item-percentage">9.6%</span></div>
+            </div>
+            <div class="list-item">
+                <span class="item-name">Rude Telephonic Response</span>
+                <div class="item-stats"><span class="item-count">174</span><span class="item-percentage">9.1%</span></div>
+            </div>
+            <div class="list-item">
+                <span class="item-name">Unanswered / Disconnected Calls</span>
+                <div class="item-stats"><span class="item-count">156</span><span class="item-percentage">8.1%</span></div>
+            </div>
+            <div class="list-item">
+                <span class="item-name">Zero Contact (Phone / WhatsApp)</span>
+                <div class="item-stats"><span class="item-count">1,096</span><span class="item-percentage">57.1%</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 4 -->
+    <div class="rca-card gray">
+        <div class="card-header">
+            <div class="percentage">
+                0.0% <span class="reviews-count">(0 Reviews)</span>
+            </div>
+            <h3>Other / Unclassified</h3>
+        </div>
+        <div class="card-body">
+            <div class="list-item">
+                <span class="item-name">Misc. / No specific keyword</span>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="key-takeaway">
+    <div class="takeaway-badge">Key Takeaway</div>
+    <div class="takeaway-text">Over 80% of customer dissatisfaction stems from post-billing communication silence, service turnaround lag, and floor disengagement — not hardware or product quality.</div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const rbmFilter = document.getElementById('rbmFilter');
+    const bdmFilter = document.getElementById('bdmFilter');
+    const storeFilter = document.getElementById('storeFilter');
+    const btnRefresh = document.querySelector('.btn-refresh');
+
+    function populateDropdown(selectElement, options, defaultText) {
+        const currentValue = selectElement.value;
+        selectElement.innerHTML = `<option value="all">${defaultText}</option>`;
+        options.forEach(opt => {
+            selectElement.innerHTML += `<option value="${opt}">${opt}</option>`;
+        });
+        if (options.includes(currentValue)) {
+            selectElement.value = currentValue;
+        }
+    }
+
+    function formatPct(count, total) {
+        if (total === 0) return '0.0%';
+        return (count / total * 100).toFixed(1) + '%';
+    }
+
+    function updateCard(cardClass, data, total_reviews) {
+        const card = document.querySelector(`.rca-card.${cardClass}`);
+        if(!card) return;
+        
+        card.querySelector('.percentage').innerHTML = `${formatPct(data.total, total_reviews)} <span class="reviews-count">(${data.total.toLocaleString()} Reviews)</span>`;
+        
+        const items = card.querySelectorAll('.list-item');
+        const keys = Object.keys(data).filter(k => k !== 'total');
+        
+        items.forEach((item, index) => {
+            if (index < keys.length) {
+                const count = data[keys[index]];
+                item.querySelector('.item-count').textContent = count.toLocaleString();
+                item.querySelector('.item-percentage').textContent = formatPct(count, data.total);
+            }
+        });
+    }
+
+    async function loadFilters() {
+        try {
+            const res = await fetch('/api/v1/rca-dashboard/?action=filters');
+            const data = await res.json();
+            populateDropdown(rbmFilter, data.rbms, 'All Regions');
+            populateDropdown(bdmFilter, data.bdms, 'All Managers');
+            populateDropdown(storeFilter, data.stores, 'All Stores');
+        } catch(e) {
+            console.error('Error loading filters', e);
+        }
+    }
+
+    async function loadData() {
+        const rbm = rbmFilter.value;
+        const bdm = bdmFilter.value;
+        const store = storeFilter.value;
+        
+        btnRefresh.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Loading...';
+        btnRefresh.disabled = true;
+
+        try {
+            const res = await fetch(`/api/v1/rca-dashboard/?rbm=${encodeURIComponent(rbm)}&bdm=${encodeURIComponent(bdm)}&store=${encodeURIComponent(store)}`);
+            const data = await res.json();
+            
+            if (data.status === 'ok') {
+                document.querySelector('.header-badge').innerHTML = `<span>⚠️</span> ${data.total_reviews.toLocaleString()} Total Reviews Analyzed`;
+                
+                updateCard('red', data.after_sales, data.total_reviews);
+                updateCard('orange', data.staff, data.total_reviews);
+                updateCard('blue', data.communication, data.total_reviews);
+                updateCard('gray', data.other, data.total_reviews);
+            } else if (data.status === 'empty') {
+                document.querySelector('.header-badge').innerHTML = `<span>⚠️</span> 0 Total Reviews Analyzed`;
+                const zeroData = {total: 0, delays: 0, warranty: 0, unresolved: 0, updates: 0, cost: 0, general: 0, unprofessional: 0, rude: 0, neglect: 0, bias: 0, chasing: 0, promises: 0, rude_phone: 0, unanswered: 0, zero_contact: 0};
+                updateCard('red', zeroData, 0);
+                updateCard('orange', zeroData, 0);
+                updateCard('blue', zeroData, 0);
+                updateCard('gray', {total: 0, unclassified: 0}, 0);
+            }
+        } catch(e) {
+            console.error('Error loading data', e);
+        } finally {
+            btnRefresh.innerHTML = '<i class="bi bi-funnel-fill me-1"></i> Apply Filters';
+            btnRefresh.disabled = false;
+        }
+    }
+
+    btnRefresh.addEventListener('click', loadData);
+
+    // Initial load
+    loadFilters().then(() => {
+        loadData();
+    });
+});
+</script>
+{% endblock %}

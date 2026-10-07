@@ -128,6 +128,10 @@ urlpatterns = [
     path('api/v1/osg-sale-report/', views.OsgSaleReportAPIView.as_view(), name='osg_sale_report_api'),
     path('api/v1/osg-sale-report/download/', views.OsgSaleReportDownloadView.as_view(), name='osg_sale_report_download'),
 
+    # 📊 RCA Dashboard
+    path('rca-dashboard/', views.RcaDashboardView.as_view(), name='rca_dashboard'),
+    path('api/v1/rca-dashboard/', views.RcaDashboardAPIView.as_view(), name='rca_dashboard_api'),
+
     # 🛡️ OSG Integration Mapper — upload report → complete reconciled Excel
     path('api/v1/osg-integration-mapper/', views.OsgIntegrationMapperView.as_view(), name='osg_integration_mapper'),
     
