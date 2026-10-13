@@ -137,5 +137,18 @@ urlpatterns = [
     
     # ✅ OSG Final Reconciliation — 3 files upload
     path('api/v1/osg-reconcile/', views.OsgReconciliationView.as_view(), name='osg_reconcile'),
+    
+    # 🌟 Google Reviews
+    path('api/v1/google-reviews/', views.GoogleReviewsAPIView.as_view(), name='google_reviews_api'),
+    
+    # 📈 RCA v2 Dashboard
+    path('rca-v2/', views.RcaV2DashboardView.as_view(), name='rca_v2_dashboard'),
+    path('api/v1/rca-v2/', views.RcaV2DashboardAPIView.as_view(), name='rca_v2_dashboard_api'),
+    path('api/v1/rca-v2/detail/<str:section>/', views.RcaV2SectionDetailAPIView.as_view(), name='rca_v2_section_detail'),
+    # Text sentiment page
+    path('sentiment/', views.SentimentDashboardView.as_view(), name='sentiment_dashboard'),
+    path('api/v1/sentiment/', views.SentimentDashboardAPIView.as_view(), name='sentiment_dashboard_api'),
+    path('api/v1/sentiment/export/', views.SentimentQueueExportView.as_view(), name='sentiment_queue_export'),
+
 ]
 

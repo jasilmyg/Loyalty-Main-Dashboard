@@ -25,8 +25,18 @@ def _get_ch_client():
     )
 
 
+# Source of truth for transactions: azure_invoice_report (one row per invoice).
+# Aliased to the legacy sales_data column names so the queries below are unchanged.
+# Same exclusions as analytics/management/commands/sync_daily_azure_blob.py.
+SALES_SRC = """(
+    SELECT customer_mobile, toDate(date) AS parsed_date, invoice_total AS total_value
+    FROM azure_invoice_report
+    WHERE invoice_no NOT LIKE '%SMC%' AND invoice_no NOT LIKE '%EI%'
+      AND branch NOT IN ('HEAD OFFICE', 'UG SMART CHOICE')
+)"""
+
 # ── Full RFM query (all customers, computed in ClickHouse) ────────────────────
-RFM_QUERY = """
+RFM_QUERY = f"""
 WITH ordered AS (
     SELECT
         customer_mobile,
@@ -35,7 +45,7 @@ WITH ordered AS (
         lagInFrame(parsed_date) OVER (
             PARTITION BY customer_mobile ORDER BY parsed_date
         ) AS prev_date
-    FROM sales_data
+    FROM {SALES_SRC}
     WHERE customer_mobile != ''
       AND length(customer_mobile) = 10
       AND total_value > 0
@@ -127,7 +137,7 @@ def get_monthly_reactivations(client=None) -> pd.DataFrame:
         client = _get_ch_client()
 
     logger.info("[RFM] Querying monthly reactivation counts (rolling 180-day gap)...")
-    query = """
+    query = f"""
     WITH ordered AS (
         SELECT
             customer_mobile,
@@ -136,7 +146,7 @@ def get_monthly_reactivations(client=None) -> pd.DataFrame:
             lagInFrame(parsed_date) OVER (
                 PARTITION BY customer_mobile ORDER BY parsed_date
             ) AS prev_date
-        FROM sales_data
+        FROM {SALES_SRC}
         WHERE customer_mobile != ''
           AND length(customer_mobile) = 10
           AND total_value > 0
@@ -173,10 +183,10 @@ def get_historical_labels(client=None) -> pd.DataFrame:
         client = _get_ch_client()
 
     logger.info("[RFM] Building historical labels for LightGBM...")
-    query = """
+    query = f"""
     WITH last_before_cutoff AS (
         SELECT customer_mobile, max(parsed_date) as last_date
-        FROM sales_data
+        FROM {SALES_SRC}
         WHERE customer_mobile != ''
           AND length(customer_mobile) = 10
           AND total_value > 0
@@ -186,7 +196,7 @@ def get_historical_labels(client=None) -> pd.DataFrame:
     ),
     returned AS (
         SELECT DISTINCT customer_mobile
-        FROM sales_data
+        FROM {SALES_SRC}
         WHERE customer_mobile != ''
           AND parsed_date BETWEEN toDate('2024-07-01') AND toDate('2025-01-31')
           AND total_value > 0

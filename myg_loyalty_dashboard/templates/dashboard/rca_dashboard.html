@@ -226,6 +226,18 @@
 .rca-card.orange .item-name::before { background-color: var(--orange-main); }
 .rca-card.blue .item-name::before { background-color: var(--blue-main); }
 .rca-card.gray .item-name::before { background-color: var(--gray-main); }
+/* clickable sub-category dot / label -> opens the "what does this mean" panel */
+.item-name.ld-click { cursor: pointer; transition: color .15s; }
+.item-name.ld-click::before { transition: transform .15s, box-shadow .15s; flex: 0 0 6px; }
+.item-name.ld-click:hover { color: #4f46e5; }
+.item-name.ld-click:hover::before { transform: scale(1.9); box-shadow: 0 0 0 4px rgba(79,70,229,.16); }
+.item-name.ld-click:focus-visible { outline: 2px solid #4f46e5; outline-offset: 3px; border-radius: 4px; }
+.ldi-sec { margin-bottom: 1.1rem; }
+.ldi-sec h6 { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; color: #64748b; margin-bottom: .45rem; }
+.ldi-sec p { margin: 0; font-size: .92rem; color: #1e293b; line-height: 1.55; }
+.ldi-ex { border-left: 3px solid #cbd5e1; padding: .3rem .75rem; margin-bottom: .4rem; font-size: .86rem; color: #334155; background: #f8fafc; border-radius: 0 6px 6px 0; }
+.ldi-note { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: .55rem .8rem; font-size: .8rem; color: #92400e; }
+
 
 .item-stats {
     display: flex;
@@ -284,6 +296,39 @@
     line-height: 1.5;
 }
 </style>
+<style>
+/* ─── Detailed analysis button + modal ─────────────────────────── */
+.card-header-top { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px; }
+.btn-card-detail {
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    color: #fff; border: 0; border-radius: 999px;
+    font-size: .7rem; font-weight: 700; padding: 6px 12px; cursor: pointer; white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(79,70,229,.3); transition: transform .15s, box-shadow .15s;
+}
+.btn-card-detail:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(79,70,229,.45); }
+.ld-modal .modal-header { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; }
+.ld-modal .btn-close { filter: invert(1); }
+.ld-modal .modal-body { background: #f8fafc; }
+.ld-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.08); padding: 14px 18px; margin-bottom: 14px; }
+.ld-card h6 { font-weight: 700; color: #0f172a; margin-bottom: 10px; }
+.ld-chip { background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.08); padding: 10px 12px; text-align: center; height: 100%; }
+.ld-chip .v { font-size: 1.35rem; font-weight: 700; color: #0f172a; }
+.ld-chip .l { font-size: .68rem; color: #64748b; text-transform: uppercase; font-weight: 700; }
+.ld-insights { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 8px; }
+.ld-insight { border-left: 4px solid #94a3b8; background: #f8fafc; border-radius: 0 6px 6px 0; padding: 8px 12px; }
+.ld-insight .t { font-weight: 700; font-size: .83rem; color: #0f172a; }
+.ld-insight .x { font-size: .8rem; color: #475569; margin-top: 2px; }
+.ld-insight.danger { border-color: #ef4444; background: #fef2f2; }
+.ld-insight.warning { border-color: #f59e0b; background: #fffbeb; }
+.ld-insight.success { border-color: #10b981; background: #ecfdf5; }
+.ld-insight.info { border-color: #6366f1; background: #eef2ff; }
+.ld-tbl { font-size: .8rem; }
+.ld-tbl th { white-space: nowrap; }
+.ld-bar { background: #e2e8f0; border-radius: 4px; height: 8px; min-width: 60px; }
+.ld-bar > div { height: 8px; border-radius: 4px; }
+.ld-quote { border-left: 3px solid #cbd5e1; padding-left: 10px; font-size: .8rem; color: #334155; margin-bottom: 8px; }
+.ld-quote small { color: #64748b; }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -291,7 +336,7 @@
 <div class="rca-banner">
     <div>
         <h1><i class="bi bi-chat-left-text-fill text-danger me-2"></i> Customer Review RCA Dashboard</h1>
-        <div class="sub">Executive Breakdown of Negative Feedback (1 & 2 Star Ratings)</div>
+        <div class="sub">AI-Powered Analysis of Customer Feedback, Sentiment & Root Causes Across All Reviews</div>
     </div>
     <div class="header-badge">
         <span>⚠️</span> 5,791 Total Reviews Analyzed
@@ -331,9 +376,9 @@
     <!-- Card 1 -->
     <div class="rca-card red">
         <div class="card-header">
-            <div class="percentage">
+            <div class="card-header-top"><div class="percentage">
                 60.2% <span class="reviews-count">(3,487 Reviews)</span>
-            </div>
+            </div><button type="button" class="btn-card-detail" onclick="openCardDetail('after_sales')"><i class="bi bi-bar-chart-line me-1"></i>Detailed Analysis</button></div>
             <h3>After-Sales & Service Friction</h3>
         </div>
         <div class="card-body">
@@ -367,9 +412,9 @@
     <!-- Card 2 -->
     <div class="rca-card orange">
         <div class="card-header">
-            <div class="percentage">
+            <div class="card-header-top"><div class="percentage">
                 34.9% <span class="reviews-count">(2,020 Reviews)</span>
-            </div>
+            </div><button type="button" class="btn-card-detail" onclick="openCardDetail('staff')"><i class="bi bi-bar-chart-line me-1"></i>Detailed Analysis</button></div>
             <h3>Staff Interaction & Attitude</h3>
         </div>
         <div class="card-body">
@@ -399,8 +444,11 @@
     <!-- Card 3 -->
     <div class="rca-card blue">
         <div class="card-header">
-            <div class="percentage">
-                33.1% <span class="reviews-count">(1,919 Reviews)</span>
+            <div class="card-header-top">
+                <div class="percentage">
+                    33.1% <span class="reviews-count">(1,919 Reviews)</span>
+                </div>
+                <button type="button" class="btn-card-detail" onclick="openCardDetail('communication')"><i class="bi bi-bar-chart-line me-1"></i>Detailed Analysis</button>
             </div>
             <h3>Communication Breakdown</h3>
         </div>
@@ -431,14 +479,30 @@
     <!-- Card 4 -->
     <div class="rca-card gray">
         <div class="card-header">
-            <div class="percentage">
+            <div class="card-header-top"><div class="percentage">
                 0.0% <span class="reviews-count">(0 Reviews)</span>
-            </div>
-            <h3>Other / Unclassified</h3>
+            </div><button type="button" class="btn-card-detail" onclick="openCardDetail('other')"><i class="bi bi-bar-chart-line me-1"></i>Detailed Analysis</button></div>
+            <h3>Positive & General Feedback</h3>
         </div>
         <div class="card-body">
             <div class="list-item">
-                <span class="item-name">Misc. / No specific keyword</span>
+                <span class="item-name">General Praise & Appreciation</span>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
+            </div>
+            <div class="list-item">
+                <span class="item-name">Store Ambiance & Cleanliness</span>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
+            </div>
+            <div class="list-item">
+                <span class="item-name">Excellent Service & Staff</span>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
+            </div>
+            <div class="list-item">
+                <span class="item-name">Product Satisfaction & Variety</span>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
+            </div>
+            <div class="list-item">
+                <span class="item-name">Misc. / Unclassified</span>
                 <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
             </div>
         </div>
@@ -447,9 +511,347 @@
 
 <div class="key-takeaway">
     <div class="takeaway-badge">Key Takeaway</div>
-    <div class="takeaway-text">Over 80% of customer dissatisfaction stems from post-billing communication silence, service turnaround lag, and floor disengagement — not hardware or product quality.</div>
+    <div class="takeaway-text" id="keyTakeawayText">Analysing reviews…</div>
 </div>
 
+<!-- Sub-category explanation modal (opened by clicking a dot) -->
+<div class="modal fade" id="ldItemModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title mb-0" id="ldItemTitle"></h5>
+                    <div class="small text-muted" id="ldItemSub"></div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="ldItemBody"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed analysis modal -->
+<div class="modal fade ld-modal" id="ldModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ldModalTitle">Detailed Analysis</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="ldModalBody"></div>
+        </div>
+    </div>
+</div>
+
+{% verbatim %}
+<script>
+let ldCharts = [];
+const LD_COLORS = ['#ef4444', '#f59e0b', '#6366f1', '#10b981', '#06b6d4', '#ec4899', '#64748b'];
+const ldFmt = n => Number(n).toLocaleString();
+const ldEsc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+const ldChip = (l, v, cls = '') => `<div class="col-6 col-md"><div class="ld-chip"><div class="v ${cls}">${v}</div><div class="l">${l}</div></div></div>`;
+const ldCard = (t, inner) => `<div class="ld-card"><h6>${t}</h6>${inner}</div>`;
+const ldBar = (pct, color) => `<div class="d-flex align-items-center gap-2"><div class="ld-bar flex-grow-1"><div style="width:${Math.min(100, pct)}%;background:${color}"></div></div><span class="small fw-semibold">${pct}%</span></div>`;
+const ldHeat = (v, max) => `background: rgba(239,68,68,${Math.min(0.5, (v / (max || 1)) * 0.5).toFixed(2)})`;
+const ldTable = (heads, rows) => `<div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0 ld-tbl"><thead><tr>${heads.map(h => `<th${h.r ? ' class="text-end"' : ''}>${h.t || h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+const ldChange = (v, complaint) => {
+    if (v === null || v === undefined) return '<span class="text-muted">–</span>';
+    const bad = complaint ? v > 0 : v < 0;
+    return `<span class="fw-semibold ${v === 0 ? 'text-muted' : (bad ? 'text-danger' : 'text-success')}">${v > 0 ? '+' : ''}${v}%</span>`;
+};
+
+function ldFilters() {
+    const g = id => (document.getElementById(id) || {value: 'all'}).value || 'all';
+    return `rbm=${encodeURIComponent(g('rbmFilter'))}&bdm=${encodeURIComponent(g('bdmFilter'))}&store=${encodeURIComponent(g('storeFilter'))}`;
+}
+
+function ldDestroyCharts() { ldCharts.forEach(c => c.destroy()); ldCharts = []; }
+
+function ldRender(d) {
+    const s = d.summary, cx = d.complaint;
+    let h = `<div class="row g-2 mb-3">
+        ${ldChip('Reviews in card', ldFmt(s.reviews))}
+        ${ldChip('Share of all reviews', s.share_of_all + '%')}
+        ${ldChip('Average rating', s.avg_rating + '★')}
+        ${ldChip('1–2★ reviews', ldFmt(s.negative) + ' <small>(' + s.neg_rate + '%)</small>', 'text-danger')}
+        ${ldChip('4–5★ reviews', ldFmt(s.positive) + ' <small>(' + s.pos_rate + '%)</small>', 'text-success')}
+        ${ldChip('Last 30d vs prev', s.change_pct === null ? '–' : ldChange(s.change_pct, cx))}
+    </div>`;
+    h += ldCard('<i class="bi bi-lightbulb text-warning me-1"></i>Main insights',
+        `<div class="ld-insights">${d.insights.map(i => `<div class="ld-insight ${i.type}"><div class="t">${ldEsc(i.title)}</div><div class="x">${ldEsc(i.text)}</div></div>`).join('')}</div>`);
+
+    const maxNeg = Math.max(...d.items.map(i => i.neg_rate), 1);
+    h += ldCard('All sub-categories at a glance', ldTable(
+        ['Sub-category', {t: 'Reviews', r: 1}, 'Share of card', {t: 'Avg ★', r: 1}, {t: '1–2★', r: 1}, {t: '4–5★', r: 1}, {t: 'Last 30d', r: 1}, {t: 'Prev 30d', r: 1}, {t: 'Change', r: 1}, {t: 'Stores', r: 1}, 'Top emotion', 'Suggested action'],
+        d.items.map((i, n) => `<tr><td class="fw-semibold"><span class="me-2" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${LD_COLORS[n % LD_COLORS.length]}"></span>${ldEsc(i.label)}</td>
+            <td class="text-end">${ldFmt(i.count)}</td><td style="min-width:120px">${ldBar(i.share, LD_COLORS[n % LD_COLORS.length])}</td>
+            <td class="text-end">${i.avg_rating}</td><td class="text-end" style="${ldHeat(i.neg_rate, maxNeg)}">${i.neg_rate}%</td><td class="text-end">${i.pos_rate}%</td>
+            <td class="text-end">${ldFmt(i.last_30d)}</td><td class="text-end">${ldFmt(i.prev_30d)}</td><td class="text-end">${ldChange(i.change_pct, cx)}</td>
+            <td class="text-end">${i.stores}</td><td>${ldEsc(i.top_emotion)}</td><td class="small">${ldEsc(i.top_action)}</td></tr>`)));
+
+    h += '<div class="row g-3"><div class="col-lg-7">' + ldCard('Monthly volume by sub-category (last 12 months)', '<canvas id="ld-monthly" height="130"></canvas>') +
+         '</div><div class="col-lg-5">' + ldCard('Rating mix per sub-category', '<canvas id="ld-ratings" height="170"></canvas>') + '</div></div>';
+
+    h += '<div class="ld-card"><h6>Drill-down: every sub-category</h6><div class="accordion" id="ldAcc">';
+    d.items.forEach((i, n) => {
+        h += `<div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button ${n ? 'collapsed' : ''}" type="button" data-bs-toggle="collapse" data-bs-target="#ld-acc-${n}">
+            <span class="flex-grow-1 fw-semibold">${ldEsc(i.label)}</span>
+            <span class="badge bg-dark me-2">${ldFmt(i.count)} reviews</span><span class="badge bg-secondary me-2">${i.share}% of card</span><span class="badge ${i.neg_rate >= 50 ? 'bg-danger' : 'bg-light text-dark border'} me-3">${i.neg_rate}% 1–2★</span></button></h2>
+            <div id="ld-acc-${n}" class="accordion-collapse collapse ${n ? '' : 'show'}" data-bs-parent="#ldAcc"><div class="accordion-body">
+              <div class="row g-2 mb-3">${ldChip('Avg rating', i.avg_rating + '★')}${ldChip('1–2★', ldFmt(i.negative), 'text-danger')}${ldChip('3★', ldFmt(i.neutral))}${ldChip('4–5★', ldFmt(i.positive), 'text-success')}${ldChip('Stores affected', i.stores)}${ldChip('30d change', ldChange(i.change_pct, cx))}</div>
+              <div class="row g-3"><div class="col-lg-5"><div class="fw-semibold small mb-2">Top stores (share of the store's own reviews)</div>
+                ${i.top_stores.length ? ldTable(['Store', {t: 'Reviews', r: 1}, {t: '% of store', r: 1}], i.top_stores.map(t => `<tr><td>${ldEsc(t.store)}</td><td class="text-end">${ldFmt(t.count)}</td><td class="text-end">${t.share}%</td></tr>`)) : '<div class="text-muted small">No data.</div>'}
+              </div><div class="col-lg-7"><div class="fw-semibold small mb-2">${cx ? 'Lowest-rated recent reviews' : 'Latest reviews'}</div>
+                ${i.samples.length ? i.samples.map(q => `<div class="ld-quote"><strong class="text-warning">${'★'.repeat(q.rating)}</strong> ${ldEsc(q.comment)}<br><small>${ldEsc(q.store)} · ${ldEsc(q.date)}</small></div>`).join('') : '<div class="text-muted small">No reviews with comments.</div>'}
+              </div></div></div></div></div>`;
+    });
+    h += '</div></div>';
+
+    const gRow = (g, nm) => `<tr><td class="fw-semibold">${ldEsc(g.name || g.store)}</td>${nm ? '' : `<td>${ldEsc(g.rbm)}</td><td>${ldEsc(g.bdm)}</td>`}${nm ? `<td class="text-end">${g.stores}</td>` : ''}<td class="text-end">${ldFmt(g.total)}</td><td class="text-end">${ldFmt(g.count)}</td><td class="text-end fw-bold" style="${ldHeat(g.rate, s.share_of_all * 3)}">${g.rate}%</td><td class="text-end">${ldFmt(g.negative)}</td></tr>`;
+    h += `<div class="ld-card"><h6>Who is affected? (rate = card reviews ÷ the unit's total reviews, so large stores aren't penalised)</h6>
+        <ul class="nav nav-pills mb-3"><li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#ld-t-stores">Stores (≥50 reviews)</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#ld-t-rbm">RBMs</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#ld-t-bdm">BDMs</button></li></ul>
+        <div class="tab-content"><div class="tab-pane fade show active" id="ld-t-stores">${ldTable(['Store', 'RBM', 'BDM', {t: 'All reviews', r: 1}, {t: 'In card', r: 1}, {t: 'Rate', r: 1}, {t: '1–2★', r: 1}], d.stores.map(g => gRow(g, false)))}</div>
+        <div class="tab-pane fade" id="ld-t-rbm">${ldTable(['RBM', {t: 'Stores', r: 1}, {t: 'All reviews', r: 1}, {t: 'In card', r: 1}, {t: 'Rate', r: 1}, {t: '1–2★', r: 1}], d.rbms.map(g => gRow(g, true)))}</div>
+        <div class="tab-pane fade" id="ld-t-bdm">${ldTable(['BDM', {t: 'Stores', r: 1}, {t: 'All reviews', r: 1}, {t: 'In card', r: 1}, {t: 'Rate', r: 1}, {t: '1–2★', r: 1}], d.bdms.map(g => gRow(g, true)))}</div></div></div>`;
+    return h;
+}
+
+function ldCharts_(d) {
+    const m = document.getElementById('ld-monthly'), r = document.getElementById('ld-ratings');
+    if (m) ldCharts.push(new Chart(m.getContext('2d'), {
+        type: 'bar',
+        data: { labels: d.monthly.months, datasets: d.monthly.series.map((s, n) => ({ label: s.label, data: s.data, backgroundColor: LD_COLORS[n % LD_COLORS.length] })) },
+        options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true } }, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } } }
+    }));
+    if (r) ldCharts.push(new Chart(r.getContext('2d'), {
+        type: 'bar',
+        data: { labels: d.items.map(i => i.label), datasets: [
+            { label: '1–2★', data: d.items.map(i => i.neg_rate), backgroundColor: '#ef4444' },
+            { label: '3★', data: d.items.map(i => i.count ? Math.round(i.neutral / i.count * 1000) / 10 : 0), backgroundColor: '#f59e0b' },
+            { label: '4–5★', data: d.items.map(i => i.pos_rate), backgroundColor: '#10b981' }] },
+        options: { indexAxis: 'y', responsive: true, scales: { x: { stacked: true, max: 100, ticks: { callback: v => v + '%' } }, y: { stacked: true, ticks: { font: { size: 10 } } } }, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } } }
+    }));
+}
+
+function openCardDetail(card) {
+    ldDestroyCharts();
+    const body = document.getElementById('ldModalBody');
+    const titles = {after_sales: 'After-Sales & Service Friction', staff: 'Staff Interaction & Attitude', communication: 'Communication Breakdown', other: 'Positive & General Feedback'};
+    document.getElementById('ldModalTitle').innerText = titles[card] + ' — Detailed Analysis';
+    body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-muted">Analysing every sub-category…</div></div>';
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('ldModal')).show();
+    fetch(`/api/v1/rca-dashboard/?action=detail&card=${card}&${ldFilters()}`)
+        .then(r => r.json())
+        .then(d => {
+            if (d.status === 'error') throw new Error(d.message);
+            if (d.status === 'empty') { body.innerHTML = '<div class="alert alert-warning">No reviews match the selected filters.</div>'; return; }
+            document.getElementById('ldModalTitle').innerText = d.title + ' — Detailed Analysis';
+            body.innerHTML = ldRender(d);
+            ldCharts_(d);
+        })
+        .catch(e => { body.innerHTML = `<div class="alert alert-danger">Could not load analysis: ${ldEsc(e.message)}</div>`; });
+}
+
+
+// ---------------------------------------------------------------------------------------------
+// Click a sub-category dot -> explanation + live stats for that sub-category
+// ---------------------------------------------------------------------------------------------
+const LD_CARD_KEYS = {red: 'after_sales', orange: 'staff', blue: 'communication', gray: 'other'};
+const LD_CARD_ORDER = {
+    after_sales: ['delays', 'warranty', 'unresolved', 'updates', 'cost', 'general'],
+    staff: ['unprofessional', 'rude', 'neglect', 'bias', 'general'],
+    communication: ['chasing', 'promises', 'rude_phone', 'unanswered', 'zero_contact'],
+    other: ['praise', 'ambiance', 'service', 'product', 'unclassified']
+};
+const LD_CARD_NAMES = {after_sales: 'After-Sales & Service Friction', staff: 'Staff Interaction & Attitude', communication: 'Communication Breakdown', other: 'Positive & General Feedback'};
+const LD_CARD_COLOR = {after_sales: '#e11d48', staff: '#d97706', communication: '#2563eb', other: '#64748b'};
+
+const LD_ISSUE_RULE = 'A review counts as a complaint when it is rated 1–2★, or 3★ with a clear complaint in the text. ';
+const LD_ORDER_NOTE = 'Rules are checked in a fixed order and a review goes to the first one it matches, so a review that mentions several problems is filed under only one of them.';
+
+const LD_DEFS = {
+    'after_sales/delays': {
+        meaning: 'Complaints about things taking too long: delivery or installation not done on time, a product left for repair for days or weeks, or long waits at the billing counter or for staff.',
+        examples: ['“Purchased TV. Delivery not done even after three days.”', '“Delay in cash counter.”', '“Bought AC on 6th April, still no installation.”'],
+        picked: LD_ISSUE_RULE + 'The text contains time words such as delay, late, waiting, took days / weeks, not delivered, pending, slow or long queue, and it did not match an earlier rule (call or contact problems, rude or neglectful staff, or warranty).'
+    },
+    'after_sales/warranty': {
+        meaning: 'Problems getting a replacement, refund, exchange or warranty claim honoured: refused, disputed, delayed, or only partly given.',
+        examples: ['“The first TV had a screen defect. After a long delay they delivered a replacement that was even worse.”', '“They refused to replace the product within the warranty period.”'],
+        picked: LD_ISSUE_RULE + 'The text mentions warranty, replace, refund, exchange, guarantee or money back. This rule is checked before Delays, so a late replacement lands here.'
+    },
+    'after_sales/unresolved': {
+        meaning: 'The product is faulty or the repair did not fix it: the same fault returns, the item is damaged, or it stopped working soon after purchase.',
+        examples: ['“Bought a phone, lost its display within 2 weeks.”', '“Laptop returned dead after service.”'],
+        picked: LD_ISSUE_RULE + 'The text mentions not working, defect, repair, fault, problem, damage, broken, hanging, overheating, fake / duplicate or poor quality, and it did not match an earlier rule.'
+    },
+    'after_sales/updates': {
+        meaning: 'The customer was not kept informed about the status of their order, delivery, installation or repair, and had to find out by asking.',
+        examples: ['“No proper update from the customer service team.”', '“Still no updates from them about my order.”'],
+        picked: LD_ISSUE_RULE + 'The text mentions update, status, not informed / not told, no information, no message, or poor follow-up. This is a small group.'
+    },
+    'after_sales/cost': {
+        meaning: 'Disputes about money: high service or spare-part charges, extra charges, offers or advertised prices that were not honoured, scratch-card gifts not given, or surprises on the bill such as insurance or EMI.',
+        examples: ['“Charged Rs 5 for a carry bag.”', '“Phone insurance was added without asking us.”', '“No offers, only advertised.”'],
+        picked: LD_ISSUE_RULE + 'The text mentions price, cost, charges, expensive, spare, offer, bill, EMI, amount, discount, gift, fake or misleading advertising, and did not match an earlier rule.'
+    },
+    'after_sales/general': {
+        meaning: 'Low-rated reviews about after-sales service where the text gives no specific cause, such as “Very bad customer service” or a rating with little or no comment. This is the catch-all group for the card.',
+        examples: ['“Very bad customer service.”', '“Customer service not good enough.”', '“After sale service is bad.”'],
+        picked: LD_ISSUE_RULE + 'It is a complaint that matched none of the other sub-categories in any card, so it falls back to here. It is the largest group, so read it as “unhappy, reason not stated”.'
+    },
+    'staff/unprofessional': {
+        meaning: 'Staff who lack product knowledge or training, give wrong information, or handle customers in an unprofessional way.',
+        examples: ['“Staff didn’t know about the product.”', '“The staff don’t know how to fit a screen guard and damaged my phone.”'],
+        picked: LD_ISSUE_RULE + 'The text mentions unprofessional, lack of knowledge or training, “don’t know”, wrong information, misguided, clueless or incompetent.'
+    },
+    'staff/rude': {
+        meaning: 'Rude, arrogant or disrespectful behaviour by staff: shouting, insults, a bad talking style, or being treated badly.',
+        examples: ['“Bad behaviour.”', '“Very arrogant staff.”', '“Rude and unprofessional behaviour of staff.”'],
+        picked: LD_ISSUE_RULE + 'The text mentions rude, arrogant, disrespect, shout, insult, impolite, harsh, bad behaviour or similar. Rude behaviour over the phone goes to Communication instead.'
+    },
+    'staff/neglect': {
+        meaning: 'Customers who walked in and were ignored: nobody came to help, staff were busy chatting or on their phones, or showed no interest in attending.',
+        examples: ['“No one to attend to us. All the sales staff were busy in loose talk.”', '“Least interested in attending to customers.”'],
+        picked: LD_ISSUE_RULE + 'The text mentions ignored, neglect, nobody attended, no assistance, waiting for staff, staff busy or chatting, or not interested in helping.'
+    },
+    'staff/bias': {
+        meaning: 'Staff attitude problems and treating customers differently by budget: pushy selling, pressure to buy, looking down on low-budget customers, or being unhelpful and uncooperative.',
+        examples: ['“They just don’t care about customers: buy it or leave.”', '“Negative attitude and no respect shown to the customer.”'],
+        picked: LD_ISSUE_RULE + 'The text mentions attitude, low budget, cheap customer, pushy, pressure to buy, unhelpful, uncooperative or careless.'
+    },
+    'staff/general': {
+        meaning: 'Low-rated reviews that blame staff, sales people or the billing counter without saying what exactly they did.',
+        examples: ['“Bad experience from staff.”', '“Staff behaviour and customer service were not satisfactory.”'],
+        picked: LD_ISSUE_RULE + 'The text mentions staff, salesman, executive, cashier or billing counter and matched none of the more specific staff rules.'
+    },
+    'communication/chasing': {
+        meaning: 'Customers had to call, visit or follow up again and again to get something done. It also includes repeated unwanted marketing calls.',
+        examples: ['“Even after requesting them 3 times, no service was arranged.”', '“Getting frequent marketing calls twice daily.”'],
+        picked: LD_ISSUE_RULE + 'The text mentions follow-up, chasing, again and again, many / several / multiple times, repeatedly or a number of visits or calls. It is checked late, so most reviews with a more specific cause are filed elsewhere.'
+    },
+    'communication/promises': {
+        meaning: 'Something was promised (a callback, delivery date, installation time, offer) and not delivered, or nobody called back.',
+        examples: ['“Promised installation within 48 hours, still not done.”', '“They don’t even call back.”'],
+        picked: LD_ISSUE_RULE + 'The text mentions promise, assured, callback, “no one called / informed / got back” or “did not call”.'
+    },
+    'communication/rude_phone': {
+        meaning: 'Rudeness or a bad tone over the phone or from customer care.',
+        examples: ['“The person on the phone was rude and shouted at me.”'],
+        picked: LD_ISSUE_RULE + 'A rude word (rude, arrogant, shout, impolite, disrespect, harsh, insult) appears within about 30 characters of a call word (call, phone, customer care, helpline). This is the strictest rule, so the group is very small.'
+    },
+    'communication/unanswered': {
+        meaning: 'Phone calls that are not picked up, always busy, switched off or disconnected, so the customer cannot reach the store or service team.',
+        examples: ['“Nobody is picking the call. Tried for 2 hours.”', '“Always the line says busy.”'],
+        picked: LD_ISSUE_RULE + 'The text mentions not picking / answering, unreachable, busy tone, disconnected or being unable to reach or contact, together with a call, phone or number word.'
+    },
+    'communication/zero_contact': {
+        meaning: 'No response at all by phone, WhatsApp or message: the customer contacted the store and heard nothing back.',
+        examples: ['“I contacted their number and there is no response.”', '“No communication after purchase.”'],
+        picked: LD_ISSUE_RULE + 'The text mentions no response / reply / communication / contact, not responding or replying, unresponsive, or WhatsApp with “no / not / never”.'
+    },
+    'other/praise': {
+        meaning: 'General praise and appreciation with no specific topic, for example “Good experience” or “Nice”.',
+        examples: ['“Good experience.”', '“Extremely happy shopping.”'],
+        picked: 'Everything that is not a complaint (4–5★, or a neutral 3★ with no clear complaint). If the text does not mention the store look, staff or service, or products, it is filed here.'
+    },
+    'other/ambiance': {
+        meaning: 'Praise for the store itself: cleanliness, atmosphere, layout, space and organisation.',
+        examples: ['“Very neat and organised showroom.”', '“Great ambience.”'],
+        picked: 'A non-complaint review that mentions clean, ambience, neat, organised, atmosphere, spacious, interior, decor, parking and similar. Checked first among the positive groups.'
+    },
+    'other/service': {
+        meaning: 'Praise for staff and service: helpful, friendly, polite, knowledgeable people and good support.',
+        examples: ['“Good service by Keerthy.”', '“Very knowledgeable and patient with all my questions.”'],
+        picked: 'A non-complaint review that mentions staff, service, helpful, friendly, polite, support, executive, explain or similar, and was not already filed under store look.'
+    },
+    'other/product': {
+        meaning: 'Praise for the products: range and variety, prices and offers, quality and genuine goods.',
+        examples: ['“Great collection and competitive prices.”', '“Best offers I had ever got.”'],
+        picked: 'A non-complaint review that mentions product, collection, variety, range, price, offers, discount, brand or quality, and was not filed under the groups above.'
+    },
+    'other/unclassified': {
+        meaning: 'Reviews with no readable text: a rating with no comment, or only emoji or symbols.',
+        examples: ['“👍”', '“✅”', '(rating only)'],
+        picked: 'A non-complaint review with an empty comment, or one that the earlier classifier found no usable words in. These cannot be analysed for sentiment beyond the star rating.'
+    }
+};
+
+const ldDetailCache = {};
+function ldGetDetail(card) {
+    const k = card + '|' + ldFilters();
+    if (!ldDetailCache[k]) {
+        ldDetailCache[k] = fetch(`/api/v1/rca-dashboard/?action=detail&card=${card}&${ldFilters()}`)
+            .then(r => r.json())
+            .catch(e => { delete ldDetailCache[k]; throw e; });
+    }
+    return ldDetailCache[k];
+}
+
+function openItemDetail(card, key, label) {
+    const def = LD_DEFS[card + '/' + key] || {meaning: '', examples: [], picked: ''};
+    const dot = `<span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${LD_CARD_COLOR[card]};margin-right:8px"></span>`;
+    document.getElementById('ldItemTitle').innerHTML = dot + ldEsc(label);
+    document.getElementById('ldItemSub').innerText = LD_CARD_NAMES[card];
+    document.getElementById('ldItemBody').innerHTML = `
+        <div class="ldi-sec"><h6>What it means</h6><p>${ldEsc(def.meaning)}</p></div>
+        <div class="ldi-sec"><h6>Typical reviews</h6>${def.examples.map(e => `<div class="ldi-ex">${ldEsc(e)}</div>`).join('')}</div>
+        <div class="ldi-sec"><h6>How the dashboard picks these reviews</h6><p>${ldEsc(def.picked)}</p>
+            ${card === 'other' ? '' : `<div class="ldi-note mt-2"><i class="bi bi-info-circle me-1"></i>${ldEsc(LD_ORDER_NOTE)} This is keyword matching, so a few reviews can be filed in the wrong group.</div>`}</div>
+        <div class="ldi-sec" id="ldItemLive"><h6>Live numbers for this sub-category</h6>
+            <div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm me-2"></div>Loading numbers and sample reviews…</div></div>
+        <div class="text-end"><button type="button" class="btn btn-sm btn-outline-primary" onclick="ldItemToFull('${card}')"><i class="bi bi-bar-chart-line me-1"></i>Open full Detailed Analysis for this card</button></div>`;
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('ldItemModal')).show();
+
+    ldGetDetail(card).then(d => {
+        const live = document.getElementById('ldItemLive');
+        if (!live || document.getElementById('ldItemTitle').innerText.trim() !== label) return;
+        if (d.status === 'error') throw new Error(d.message);
+        const it = d.status === 'ok' ? d.items.find(i => i.key === key) : null;
+        if (!it) { live.innerHTML = '<h6>Live numbers for this sub-category</h6><div class="alert alert-warning mb-0">No reviews match the selected filters.</div>'; return; }
+        const cx = d.complaint;
+        live.innerHTML = '<h6>Live numbers for this sub-category (respects the filters above)</h6>' +
+            `<div class="row g-2 mb-3">${ldChip('Reviews', ldFmt(it.count))}${ldChip('Share of card', it.share + '%')}${ldChip('Average rating', it.avg_rating + '★')}` +
+            `${ldChip('1–2★', ldFmt(it.negative) + ' <small>(' + it.neg_rate + '%)</small>', 'text-danger')}${ldChip('Stores affected', it.stores)}${ldChip('Last 30d vs prev', ldChange(it.change_pct, cx))}</div>` +
+            '<div class="row g-3"><div class="col-lg-5"><div class="fw-semibold small mb-2">Top stores (share of the store’s own reviews)</div>' +
+            (it.top_stores.length ? ldTable(['Store', {t: 'Reviews', r: 1}, {t: '% of store', r: 1}], it.top_stores.map(t => `<tr><td>${ldEsc(t.store)}</td><td class="text-end">${ldFmt(t.count)}</td><td class="text-end">${t.share}%</td></tr>`)) : '<div class="text-muted small">No data.</div>') +
+            `</div><div class="col-lg-7"><div class="fw-semibold small mb-2">${cx ? 'Lowest-rated recent reviews' : 'Latest reviews'}</div>` +
+            (it.samples.length ? it.samples.map(q => `<div class="ld-quote"><strong class="text-warning">${'★'.repeat(q.rating)}</strong> ${ldEsc(q.comment)}<br><small>${ldEsc(q.store)} · ${ldEsc(q.date)}</small></div>`).join('') : '<div class="text-muted small">No reviews with comments.</div>') +
+            '</div></div>';
+    }).catch(e => {
+        const live = document.getElementById('ldItemLive');
+        if (live) live.innerHTML = `<h6>Live numbers for this sub-category</h6><div class="alert alert-danger mb-0">Could not load numbers: ${ldEsc(e.message)}</div>`;
+    });
+}
+
+function ldItemToFull(card) {
+    const el = document.getElementById('ldItemModal');
+    const go = () => { el.removeEventListener('hidden.bs.modal', go); openCardDetail(card); };
+    el.addEventListener('hidden.bs.modal', go);
+    bootstrap.Modal.getOrCreateInstance(el).hide();
+}
+
+document.querySelectorAll('.rca-card').forEach(cardEl => {
+    const cls = ['red', 'orange', 'blue', 'gray'].find(c => cardEl.classList.contains(c));
+    const card = LD_CARD_KEYS[cls];
+    if (!card) return;
+    cardEl.querySelectorAll('.list-item .item-name').forEach((nm, i) => {
+        const key = LD_CARD_ORDER[card][i];
+        if (!key) return;
+        nm.classList.add('ld-click');
+        nm.dataset.card = card; nm.dataset.key = key;
+        nm.setAttribute('role', 'button'); nm.setAttribute('tabindex', '0');
+        nm.title = 'Click for what this means';
+        nm.addEventListener('click', () => openItemDetail(card, key, nm.textContent.trim()));
+        nm.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); nm.click(); } });
+    });
+});
+
+document.getElementById('ldModal').addEventListener('hidden.bs.modal', ldDestroyCharts);
+</script>
+{% endverbatim %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const rbmFilter = document.getElementById('rbmFilter');
@@ -473,6 +875,34 @@ document.addEventListener('DOMContentLoaded', function() {
         return (count / total * 100).toFixed(1) + '%';
     }
 
+    const ISSUE_LABELS = {
+        after_sales: {delays: 'service turnaround delays', warranty: 'warranty & replacement disputes', unresolved: 'unresolved / repeat faults',
+                      updates: 'missing proactive updates', cost: 'service cost & spares disputes', general: 'general service dissatisfaction'},
+        staff: {unprofessional: 'unprofessionalism / knowledge gaps', rude: 'rude behaviour & talking style', neglect: 'walk-in neglect',
+                bias: 'poor attitude & budget bias', general: 'general staff grievances'},
+        communication: {chasing: 'customer chasing (repeated calls)', promises: 'broken promises & no callbacks', rude_phone: 'rude telephonic response',
+                        unanswered: 'unanswered / disconnected calls', zero_contact: 'zero contact on phone / WhatsApp'}
+    };
+
+    function updateTakeaway(data) {
+        const el = document.getElementById('keyTakeawayText');
+        if (!el) return;
+        const cards = {after_sales: 'After-Sales & Service Friction', staff: 'Staff Interaction & Attitude', communication: 'Communication Breakdown'};
+        const issueTotal = ['after_sales', 'staff', 'communication'].reduce((a, k) => a + data[k].total, 0);
+        if (!issueTotal) { el.textContent = 'No complaint reviews match the selected filters.'; return; }
+        const rows = [];
+        Object.keys(cards).forEach(c => Object.keys(ISSUE_LABELS[c]).forEach(k => {
+            if (k !== 'general') rows.push({label: ISSUE_LABELS[c][k], n: data[c][k]});
+        }));
+        rows.sort((a, b) => b.n - a.n);
+        const top = rows.slice(0, 3).filter(r => r.n > 0).map(r => `${r.label} (${r.n.toLocaleString()})`);
+        const topCard = Object.keys(cards).sort((a, b) => data[b].total - data[a].total)[0];
+        const pct = (issueTotal / data.total_reviews * 100).toFixed(1);
+        el.textContent = `${issueTotal.toLocaleString()} reviews (${pct}% of ${data.total_reviews.toLocaleString()}) are genuine complaints; `
+            + `${cards[topCard]} is the largest group. Top specific causes: ${top.join(', ')}. `
+            + `The remaining ${(100 - pct).toFixed(1)}% is positive or general feedback.`;
+    }
+
     function updateCard(cardClass, data, total_reviews) {
         const card = document.querySelector(`.rca-card.${cardClass}`);
         if(!card) return;
@@ -491,13 +921,60 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    let hierarchy = [];
+    
+    function updateDropdowns() {
+        const curRbm = rbmFilter.value;
+        const curBdm = bdmFilter.value;
+        const curStore = storeFilter.value;
+        
+        let validBdms = new Set();
+        let validStores = new Set();
+        let validRbms = new Set();
+        
+        hierarchy.forEach(item => {
+            validRbms.add(item.rbm);
+            if (curRbm === 'all' || item.rbm === curRbm) {
+                validBdms.add(item.bdm);
+                if (curBdm === 'all' || item.bdm === curBdm) {
+                    validStores.add(item.store);
+                }
+            }
+        });
+
+        populateDropdown(rbmFilter, Array.from(validRbms).filter(x => x !== 'Unknown').sort(), 'All Regions');
+        populateDropdown(bdmFilter, Array.from(validBdms).filter(x => x !== 'Unknown').sort(), 'All Managers');
+        populateDropdown(storeFilter, Array.from(validStores).sort(), 'All Stores');
+
+        rbmFilter.value = Array.from(validRbms).includes(curRbm) ? curRbm : 'all';
+        bdmFilter.value = Array.from(validBdms).includes(curBdm) ? curBdm : 'all';
+        storeFilter.value = Array.from(validStores).includes(curStore) ? curStore : 'all';
+    }
+
+    rbmFilter.addEventListener('change', () => {
+        bdmFilter.value = 'all';
+        storeFilter.value = 'all';
+        updateDropdowns();
+    });
+
+    bdmFilter.addEventListener('change', () => {
+        storeFilter.value = 'all';
+        updateDropdowns();
+    });
+
     async function loadFilters() {
         try {
             const res = await fetch('/api/v1/rca-dashboard/?action=filters');
             const data = await res.json();
-            populateDropdown(rbmFilter, data.rbms, 'All Regions');
-            populateDropdown(bdmFilter, data.bdms, 'All Managers');
-            populateDropdown(storeFilter, data.stores, 'All Stores');
+            
+            if (data.hierarchy) {
+                hierarchy = data.hierarchy;
+                updateDropdowns();
+            } else {
+                populateDropdown(rbmFilter, data.rbms, 'All Regions');
+                populateDropdown(bdmFilter, data.bdms, 'All Managers');
+                populateDropdown(storeFilter, data.stores, 'All Stores');
+            }
         } catch(e) {
             console.error('Error loading filters', e);
         }
@@ -522,13 +999,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 updateCard('orange', data.staff, data.total_reviews);
                 updateCard('blue', data.communication, data.total_reviews);
                 updateCard('gray', data.other, data.total_reviews);
+                updateTakeaway(data);
             } else if (data.status === 'empty') {
                 document.querySelector('.header-badge').innerHTML = `<span>⚠️</span> 0 Total Reviews Analyzed`;
                 const zeroData = {total: 0, delays: 0, warranty: 0, unresolved: 0, updates: 0, cost: 0, general: 0, unprofessional: 0, rude: 0, neglect: 0, bias: 0, chasing: 0, promises: 0, rude_phone: 0, unanswered: 0, zero_contact: 0};
                 updateCard('red', zeroData, 0);
                 updateCard('orange', zeroData, 0);
                 updateCard('blue', zeroData, 0);
-                updateCard('gray', {total: 0, unclassified: 0}, 0);
+                updateCard('gray', {total: 0, praise: 0, ambiance: 0, service: 0, product: 0, unclassified: 0}, 0);
+                document.getElementById('keyTakeawayText').textContent = 'No complaint reviews match the selected filters.';
             }
         } catch(e) {
             console.error('Error loading data', e);

@@ -1,0 +1,553 @@
+{% extends "base.html" %}
+
+{% block title %}RCA v2 Dashboard{% endblock %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+    body { background-color: #f8f9fa; }
+    .section-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 2.25rem; margin-bottom: 1rem; border-bottom: 2px solid #e5e7eb; padding-bottom: 0.5rem; }
+    .section-head h2 { margin: 0; font-size: 1.35rem; font-weight: 600; color: #111827; }
+    .btn-detail { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; border: 0; font-weight: 600; font-size: 0.85rem; padding: 0.4rem 0.95rem; border-radius: 999px; box-shadow: 0 2px 8px rgba(79,70,229,.3); transition: transform .15s, box-shadow .15s; white-space: nowrap; }
+    .btn-detail:hover { color: #fff; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(79,70,229,.45); }
+    .kpi-card { background: white; border-radius: 8px; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-top: 4px solid #ef4444; height: 100%; }
+    .kpi-value { font-size: 2rem; font-weight: 700; color: #1f2937; }
+    .kpi-label { font-size: 0.875rem; color: #6b7280; text-transform: uppercase; font-weight: 600; }
+    .kpi-delta { font-size: 0.8rem; font-weight: 600; margin-top: 0.25rem; min-height: 1.2rem; }
+    .delta-good { color: #059669; } .delta-bad { color: #dc2626; } .delta-flat { color: #6b7280; }
+    .chart-container { background: white; border-radius: 8px; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); height: 100%; }
+    .table-container { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; }
+    .table thead { background-color: #f3f4f6; }
+    .badge-sentiment-pos { background-color: #def7ec; color: #03543f; padding: 0.25rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+    .badge-sentiment-neg { background-color: #fde8e8; color: #9b1c1c; padding: 0.25rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+    .badge-sentiment-neu { background-color: #e5e7eb; color: #374151; padding: 0.25rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+
+    /* Key insights */
+    .insights-panel { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 1rem 1.1rem; height: 100%; }
+    .insights-panel h6 { font-weight: 700; color: #4338ca; text-transform: uppercase; font-size: 0.78rem; letter-spacing: .05em; margin-bottom: .75rem; }
+    .insight { border-left: 4px solid #9ca3af; background: #f9fafb; border-radius: 0 6px 6px 0; padding: .55rem .75rem; margin-bottom: .55rem; }
+    .insight .i-title { font-weight: 700; font-size: .85rem; color: #111827; }
+    .insight .i-text { font-size: .82rem; color: #4b5563; margin-top: 2px; }
+    .insight.danger { border-color: #ef4444; background: #fef2f2; }
+    .insight.warning { border-color: #f59e0b; background: #fffbeb; }
+    .insight.success { border-color: #10b981; background: #ecfdf5; }
+    .insight.info { border-color: #6366f1; background: #eef2ff; }
+    .insights-wide { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: .6rem; }
+    .insights-wide .insight { margin-bottom: 0; }
+    .skeleton { color: #9ca3af; font-size: .85rem; padding: .5rem 0; }
+
+    /* Detail modal */
+    .modal-detail .modal-header { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; }
+    .modal-detail .btn-close { filter: invert(1); }
+    .modal-detail .modal-body { background: #f8f9fa; }
+    .d-card { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.08); padding: 1rem 1.15rem; margin-bottom: 1rem; }
+    .d-card h6 { font-weight: 700; color: #111827; margin-bottom: .75rem; }
+    .d-chip { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.08); padding: .75rem 1rem; text-align: center; }
+    .d-chip .v { font-size: 1.5rem; font-weight: 700; color: #1f2937; }
+    .d-chip .l { font-size: .72rem; color: #6b7280; text-transform: uppercase; font-weight: 600; }
+    .bar-track { background: #e5e7eb; border-radius: 4px; height: 8px; min-width: 70px; }
+    .bar-fill { height: 8px; border-radius: 4px; }
+    .tbl-sm { font-size: .82rem; }
+    .tbl-sm th { white-space: nowrap; }
+    .status-spike { background:#fee2e2; color:#991b1b; } .status-rising { background:#fef3c7; color:#92400e; }
+    .status-stable { background:#e5e7eb; color:#374151; } .status-falling { background:#d1fae5; color:#065f46; }
+    .status-pill { padding: .15rem .55rem; border-radius: 999px; font-size: .72rem; font-weight: 700; text-transform: uppercase; }
+    .quote { border-left: 3px solid #d1d5db; padding-left: .6rem; font-size: .82rem; color: #374151; margin-bottom: .5rem; }
+    .quote small { color: #6b7280; }
+</style>
+
+<div class="container-fluid px-4 py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800"><i class="bi bi-robot text-primary me-2"></i>AI-Powered RCA Dashboard</h1>
+            <p class="text-muted mb-0">Multi-dimensional Root Cause Analysis across all reviews</p>
+        </div>
+        <button class="btn btn-primary" id="btn-refresh" onclick="loadData()"><i class="bi bi-arrow-clockwise me-1"></i>Refresh Data</button>
+    </div>
+
+    <!-- Section A: Executive Overview -->
+    <div class="section-head">
+        <h2>Section A — Executive Overview</h2>
+        <button class="btn btn-detail" id="btn-detail-a" onclick="openDetail('a')"><i class="bi bi-bar-chart-line me-1"></i>Detailed Analysis</button>
+    </div>
+    <div class="row g-4 mb-3">
+        <div class="col-md-3">
+            <div class="kpi-card" style="border-top-color: #3b82f6;">
+                <div class="kpi-label">Total Reviews Analyzed</div>
+                <div class="kpi-value" id="kpi-total">-</div>
+                <div class="kpi-delta" id="kpi-total-delta"></div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="kpi-card" style="border-top-color: #ef4444;">
+                <div class="kpi-label">Negative Experience Rate</div>
+                <div class="kpi-value" id="kpi-negative">-</div>
+                <div class="kpi-delta" id="kpi-negative-delta"></div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="kpi-card" style="border-top-color: #10b981;">
+                <div class="kpi-label">Positive Experience Rate</div>
+                <div class="kpi-value" id="kpi-positive">-</div>
+                <div class="kpi-delta" id="kpi-positive-delta"></div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="kpi-card" style="border-top-color: #f59e0b;">
+                <div class="kpi-label">Top Driving Complaint</div>
+                <div class="kpi-value" id="kpi-top-issue" style="font-size: 1.25rem; line-height: 2rem;">-</div>
+                <div class="kpi-delta text-muted">Among 1–2★ reviews</div>
+            </div>
+        </div>
+    </div>
+    <div class="insights-panel mb-4">
+        <h6><i class="bi bi-lightbulb me-1"></i>Key Insights</h6>
+        <div class="insights-wide" id="insights-a"><div class="skeleton">Analysing…</div></div>
+    </div>
+
+    <!-- Section B: Root-Cause Analysis -->
+    <div class="section-head">
+        <h2>Section B — Root-Cause Analysis</h2>
+        <button class="btn btn-detail" id="btn-detail-b" onclick="openDetail('b')"><i class="bi bi-bar-chart-line me-1"></i>Detailed Analysis</button>
+    </div>
+    <div class="row g-4 mb-4">
+        <div class="col-lg-8">
+            <div class="chart-container">
+                <h5>Primary Root Cause Breakdown &amp; Pareto <small class="text-muted fs-6">(1–2★ reviews)</small></h5>
+                <canvas id="paretoChart" height="110"></canvas>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="insights-panel">
+                <h6><i class="bi bi-lightbulb me-1"></i>Key Insights</h6>
+                <div id="insights-b"><div class="skeleton">Analysing…</div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section C: Stores -->
+    <div class="section-head">
+        <h2>Section C — Critical Stores</h2>
+        <button class="btn btn-detail" id="btn-detail-c" onclick="openDetail('c')"><i class="bi bi-bar-chart-line me-1"></i>Detailed Analysis</button>
+    </div>
+    <div class="row g-4 mb-4">
+        <div class="col-lg-6">
+            <div class="table-container">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Store Location</th>
+                            <th class="text-end">Total Reviews</th>
+                            <th class="text-end">Negative Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody id="store-tbody">
+                        <tr><td colspan="3" class="text-center py-4">Loading store data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="insights-panel">
+                <h6><i class="bi bi-lightbulb me-1"></i>Key Insights</h6>
+                <div id="insights-c"><div class="skeleton">Analysing…</div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section D: Trends -->
+    <div class="section-head">
+        <h2>Section D — Trends &amp; Warnings</h2>
+        <button class="btn btn-detail" id="btn-detail-d" onclick="openDetail('d')"><i class="bi bi-bar-chart-line me-1"></i>Detailed Analysis</button>
+    </div>
+    <div class="row g-4 mb-4">
+        <div class="col-lg-7">
+            <div class="chart-container">
+                <h5>30-Day Dissatisfaction Trend</h5>
+                <canvas id="trendChart" height="130"></canvas>
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <div class="insights-panel">
+                <h6><i class="bi bi-lightbulb me-1"></i>Key Insights</h6>
+                <div id="insights-d"><div class="skeleton">Analysing…</div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section E: Review Explorer -->
+    <div class="section-head">
+        <h2>Section E — AI Review Explorer</h2>
+        <button class="btn btn-detail" id="btn-detail-e" onclick="openDetail('e')"><i class="bi bi-bar-chart-line me-1"></i>Detailed Analysis</button>
+    </div>
+    <div class="insights-panel mb-3">
+        <h6><i class="bi bi-lightbulb me-1"></i>Key Insights</h6>
+        <div class="insights-wide" id="insights-e"><div class="skeleton">Analysing…</div></div>
+    </div>
+    <div class="table-container mb-5">
+        <table class="table table-hover align-middle mb-0" style="font-size: 0.875rem;">
+            <thead>
+                <tr>
+                    <th style="width: 15%">Store &amp; Date</th>
+                    <th style="width: 30%">Customer Review</th>
+                    <th style="width: 15%">AI Sentiment</th>
+                    <th style="width: 20%">AI Root Cause</th>
+                    <th style="width: 20%">Suggested Action</th>
+                </tr>
+            </thead>
+            <tbody id="reviews-tbody">
+                <tr><td colspan="5" class="text-center py-4">Loading AI classification data...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Detailed analysis modal -->
+<div class="modal fade modal-detail" id="detailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detailModalTitle">Detailed Analysis</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="detailModalBody"></div>
+        </div>
+    </div>
+</div>
+
+{% verbatim %}
+<script>
+let paretoChart, trendChart;
+let modalCharts = [];
+const detailPromises = {};
+const SECTION_TITLES = {
+    a: 'Section A — Executive Overview: Detailed Analysis',
+    b: 'Section B — Root-Cause Analysis: Detailed Analysis',
+    c: 'Section C — Store & Management Performance: Detailed Analysis',
+    d: 'Section D — Trends & Early Warnings: Detailed Analysis',
+    e: 'Section E — Review Explorer & Action Tracker: Detailed Analysis'
+};
+
+const fmt = n => Number(n).toLocaleString();
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function setDelta(id, text, cls) {
+    const el = document.getElementById(id);
+    el.className = 'kpi-delta ' + cls;
+    el.innerText = text;
+}
+
+function renderKpiDeltas(p) {
+    if (!p || !p.prev_total) return;
+    const arrow = v => v > 0 ? '▲' : (v < 0 ? '▼' : '■');
+    setDelta('kpi-total-delta', `${arrow(p.total_delta_pct)} ${Math.abs(p.total_delta_pct)}% volume vs prev 30d`, 'delta-flat');
+    const n = p.neg_delta_pp;
+    setDelta('kpi-negative-delta', `${arrow(n)} ${Math.abs(n)} pp vs prev 30d (${p.neg_rate_cur}%)`, n > 0.05 ? 'delta-bad' : (n < -0.05 ? 'delta-good' : 'delta-flat'));
+    const q = p.pos_delta_pp;
+    setDelta('kpi-positive-delta', `${arrow(q)} ${Math.abs(q)} pp vs prev 30d (${p.pos_rate_cur}%)`, q > 0.05 ? 'delta-good' : (q < -0.05 ? 'delta-bad' : 'delta-flat'));
+}
+
+function loadData() {
+    detailPromises.a = detailPromises.b = detailPromises.c = detailPromises.d = detailPromises.e = null;
+    loadInsights();
+    fetch('/api/v1/rca-v2/')
+        .then(res => res.json())
+        .then(data => {
+            // Section A
+            document.getElementById('kpi-total').innerText = data.kpis.total_reviews.toLocaleString();
+            document.getElementById('kpi-negative').innerText = data.kpis.negative_rate + '%';
+            document.getElementById('kpi-positive').innerText = data.kpis.positive_rate + '%';
+            document.getElementById('kpi-top-issue').innerText = data.kpis.top_issue;
+            renderKpiDeltas(data.kpis.period);
+
+            // Section B
+            renderPareto(data.root_cause);
+
+            // Section C
+            let storeHtml = '';
+            data.stores.worst_stores.forEach(s => {
+                storeHtml += `<tr>
+                    <td><strong>${esc(s.store)}</strong></td>
+                    <td class="text-end">${s.total}</td>
+                    <td class="text-end text-danger fw-bold">${s.rate}%</td>
+                </tr>`;
+            });
+            document.getElementById('store-tbody').innerHTML = storeHtml;
+
+            // Section D
+            renderTrend(data.trends);
+
+            // Section E
+            let reviewHtml = '';
+            data.reviews.reviews.forEach(r => {
+                let starStr = '★'.repeat(r.rating) + '☆'.repeat(5-r.rating);
+                let emotionBadge = r.emotion.includes('Anger') || r.emotion.includes('Frustration') ? 'badge-sentiment-neg' : 'badge-sentiment-neu';
+
+                reviewHtml += `<tr>
+                    <td>
+                        <div class="fw-bold">${esc(r.store)}</div>
+                        <div class="text-muted small">${esc(r.date.substring(0,10))}</div>
+                    </td>
+                    <td>
+                        <div class="text-warning mb-1">${starStr}</div>
+                        <div>${r.comment ? esc(r.comment) : '<span class="text-muted fst-italic">No comment provided</span>'}</div>
+                    </td>
+                    <td>
+                        <div class="mb-1"><span class="text-muted small">Prod:</span> <span class="badge ${r.product_sentiment.includes('Positive') ? 'badge-sentiment-pos' : 'badge-sentiment-neu'}">${esc(r.product_sentiment)}</span></div>
+                        <div><span class="text-muted small">Serv:</span> <span class="badge ${r.service_sentiment.includes('Negative') ? 'badge-sentiment-neg' : 'badge-sentiment-neu'}">${esc(r.service_sentiment)}</span></div>
+                    </td>
+                    <td>
+                        <div class="fw-bold text-danger">${esc(r.primary_issue)}</div>
+                        <div class="small text-muted mt-1">Emo: <span class="badge ${emotionBadge}">${esc(r.emotion)}</span></div>
+                    </td>
+                    <td>
+                        <div class="small fw-semibold text-primary"><i class="bi bi-arrow-return-right me-1"></i>${esc(r.action)}</div>
+                    </td>
+                </tr>`;
+            });
+            document.getElementById('reviews-tbody').innerHTML = reviewHtml;
+        });
+}
+
+/* ------------------------------ insights ------------------------------ */
+function fetchSection(s) {
+    if (!detailPromises[s]) {
+        detailPromises[s] = fetch(`/api/v1/rca-v2/detail/${s}/`).then(r => r.json());
+    }
+    return detailPromises[s];
+}
+
+function insightHtml(i) {
+    return `<div class="insight ${i.type}"><div class="i-title">${esc(i.title)}</div><div class="i-text">${esc(i.text)}</div></div>`;
+}
+
+function loadInsights() {
+    ['a','b','c','d','e'].forEach(s => {
+        const box = document.getElementById('insights-' + s);
+        box.innerHTML = '<div class="skeleton">Analysing…</div>';
+        fetchSection(s).then(d => {
+            if (d.status === 'error') throw new Error(d.message);
+            box.innerHTML = d.insights.length ? d.insights.map(insightHtml).join('') : '<div class="skeleton">No insights available.</div>';
+        }).catch(err => {
+            box.innerHTML = `<div class="text-danger small">Could not load insights: ${esc(err.message)}</div>`;
+        });
+    });
+}
+
+/* ------------------------------ charts ------------------------------ */
+function renderPareto(rcData) {
+    const ctx = document.getElementById('paretoChart').getContext('2d');
+    if(paretoChart) paretoChart.destroy();
+
+    paretoChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: rcData.labels,
+            datasets: [
+                { label: 'Cumulative %', data: rcData.pareto, type: 'line', borderColor: '#ef4444', yAxisID: 'y1', tension: 0.1 },
+                { label: 'Complaint Count', data: rcData.data, backgroundColor: '#3b82f6', yAxisID: 'y' }
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: { type: 'linear', position: 'left' },
+                y1: { type: 'linear', position: 'right', max: 100, grid: { drawOnChartArea: false } }
+            }
+        }
+    });
+}
+
+function renderTrend(tData) {
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    if(trendChart) trendChart.destroy();
+
+    trendChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: tData.dates,
+            datasets: [{ label: 'Negative Reviews', data: tData.negative, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', fill: true, tension: 0.3 }]
+        },
+        options: { responsive: true, plugins: { legend: { display: false } } }
+    });
+}
+
+/* ------------------------------ detail modal ------------------------------ */
+const heat = (v, max, rgb = '239,68,68') => `background: rgba(${rgb}, ${Math.min(0.55, (v / (max || 1)) * 0.55).toFixed(2)})`;
+const barCell = (pct, color = '#6366f1') => `<div class="d-flex align-items-center gap-2"><div class="bar-track flex-grow-1"><div class="bar-fill" style="width:${Math.min(100, pct)}%; background:${color}"></div></div><span class="small fw-semibold">${pct}%</span></div>`;
+const card = (title, inner) => `<div class="d-card"><h6>${title}</h6>${inner}</div>`;
+const chip = (label, value, cls = '') => `<div class="col-6 col-md-3"><div class="d-chip"><div class="v ${cls}">${value}</div><div class="l">${label}</div></div></div>`;
+const table = (heads, rows, extra = '') => `<div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0 tbl-sm ${extra}"><thead><tr>${heads.map(h => `<th${h.cls ? ` class="${h.cls}"` : ''}>${h.t || h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+const R = 'text-end';
+
+function mkChart(id, cfg) {
+    const el = document.getElementById(id);
+    if (el) modalCharts.push(new Chart(el.getContext('2d'), cfg));
+}
+
+function monthlyChart(id, monthly) {
+    mkChart(id, {
+        type: 'bar',
+        data: {
+            labels: monthly.map(m => m.month),
+            datasets: [
+                { label: 'Negative rate %', data: monthly.map(m => m.neg_rate), type: 'line', borderColor: '#ef4444', backgroundColor: '#ef4444', yAxisID: 'y1', tension: .3 },
+                { label: 'Reviews', data: monthly.map(m => m.total), backgroundColor: 'rgba(99,102,241,.55)', yAxisID: 'y' }
+            ]
+        },
+        options: { responsive: true, scales: { y: { position: 'left' }, y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => v + '%' } } } }
+    });
+}
+
+function renderDetailA(d) {
+    const p = d.period, s = d.summary;
+    let h = `<div class="row g-3 mb-3">
+        ${chip('Total reviews', fmt(s.total))}
+        ${chip('Negative (1–2★)', fmt(s.negative), 'text-danger')}
+        ${chip('Average rating', s.avg_rating + '★')}
+        ${p ? chip('Neg. rate: last 30d vs prev', `${p.neg_rate_cur}% <small class="${p.neg_delta_pp > 0 ? 'text-danger' : 'text-success'}">(${p.neg_delta_pp > 0 ? '+' : ''}${p.neg_delta_pp} pp)</small>`) : ''}
+    </div>`;
+    h += card('Monthly review volume &amp; negative rate', '<canvas id="mc-monthly" height="90"></canvas>');
+    h += card('Monthly breakdown', table(['Month', {t: 'Reviews', cls: R}, {t: 'Negative', cls: R}, {t: 'Neg. rate', cls: R}, {t: 'Positive rate', cls: R}, {t: 'Avg ★', cls: R}],
+        d.monthly.map(m => `<tr><td>${esc(m.month)}</td><td class="${R}">${fmt(m.total)}</td><td class="${R}">${fmt(m.negative)}</td><td class="${R}" style="${heat(m.neg_rate, 8)}">${m.neg_rate}%</td><td class="${R}">${m.pos_rate}%</td><td class="${R}">${m.avg_rating}</td></tr>`)));
+
+    h += '<div class="row g-3"><div class="col-lg-5">';
+    h += card('Rating distribution', d.ratings.map(r => `<div class="mb-2"><div class="small mb-1">${r.rating}★ <span class="text-muted">· ${fmt(r.count)}</span></div>${barCell(r.pct, r.rating <= 2 ? '#ef4444' : (r.rating === 3 ? '#f59e0b' : '#10b981'))}</div>`).join(''));
+    h += '</div><div class="col-lg-7">';
+    h += card('Emotion mix (all reviews vs. negative)', table(['Emotion', {t: 'All', cls: R}, {t: 'Negative', cls: R}, {t: '% neg.', cls: R}],
+        d.emotions.map(e => `<tr><td>${esc(e.emotion)}</td><td class="${R}">${fmt(e.total)}</td><td class="${R}">${fmt(e.negative)}</td><td class="${R}">${(e.total ? e.negative / e.total * 100 : 0).toFixed(1)}%</td></tr>`)));
+    h += '</div></div>';
+
+    const prods = [...new Set(d.matrix.map(m => m.product))], servs = [...new Set(d.matrix.map(m => m.service))];
+    const max = Math.max(...d.matrix.map(m => m.count), 1);
+    const get = (p, s) => (d.matrix.find(m => m.product === p && m.service === s) || {count: 0}).count;
+    h += card('Product vs. service sentiment in negative reviews (count)', table(['Product ↓ / Service →', ...servs.map(s => ({t: esc(s), cls: R}))],
+        prods.map(pr => `<tr><td class="fw-semibold">${esc(pr)}</td>${servs.map(sv => { const c = get(pr, sv); return `<td class="${R}" style="${heat(c, max, '99,102,241')}">${fmt(c)}</td>`; }).join('')}</tr>`)));
+    return { html: h, after: () => monthlyChart('mc-monthly', d.monthly) };
+}
+
+function renderDetailB(d) {
+    let h = `<div class="alert alert-light border small mb-3"><i class="bi bi-info-circle me-1"></i>Drill-down: <strong>category → secondary issue → individual reviews</strong>. Click a category to expand. Only 1–2★ reviews with an identified complaint are ranked
+        (${fmt(d.unattributed)} of ${fmt(d.all_negative)} negative reviews had no clear complaint and are excluded).</div>`;
+    h += '<div class="accordion" id="rcAccordion">';
+    d.categories.forEach((c, i) => {
+        h += `<div class="accordion-item"><h2 class="accordion-header">
+            <button class="accordion-button ${i ? 'collapsed' : ''}" type="button" data-bs-toggle="collapse" data-bs-target="#rc-${i}">
+                <span class="me-2 fw-bold">#${i + 1}</span><span class="flex-grow-1">${esc(c.category)}</span>
+                <span class="badge bg-danger me-2">${fmt(c.negatives)} negative</span>
+                <span class="badge bg-secondary me-2">${c.share}% share</span>
+                <span class="badge bg-dark me-3">cum. ${c.cumulative}%</span>
+            </button></h2>
+            <div id="rc-${i}" class="accordion-collapse collapse ${i ? '' : 'show'}" data-bs-parent="#rcAccordion"><div class="accordion-body">
+                <div class="row g-3 mb-3">
+                    ${chip('Total mentions (primary)', fmt(c.mentions))}
+                    ${chip('% of mentions that are 1–2★', c.neg_rate + '%', c.neg_rate > 30 ? 'text-danger' : '')}
+                    ${chip('Avg ★ of negatives', c.avg_rating)}
+                    ${chip('Seen as secondary issue', fmt(c.secondary_mentions))}
+                </div>
+                <div class="row g-3"><div class="col-lg-5">
+                    <div class="fw-semibold small mb-2">Subcategory — co-occurring secondary issues</div>
+                    ${c.secondary.length ? table(['Secondary issue', {t: 'Reviews', cls: R}], c.secondary.map(s => `<tr><td>${esc(s.issue)}</td><td class="${R}">${fmt(s.count)}</td></tr>`)) : '<div class="text-muted small">No secondary issue recorded.</div>'}
+                </div><div class="col-lg-7">
+                    <div class="fw-semibold small mb-2">Latest reviews in this category</div>
+                    ${c.samples.length ? c.samples.map(s => `<div class="quote">${'★'.repeat(s.rating)} ${esc(s.comment)}<br><small>${esc(s.store)} · ${esc(s.date)}</small></div>`).join('') : '<div class="text-muted small">No reviews with comments.</div>'}
+                </div></div>
+            </div></div></div>`;
+    });
+    h += '</div>';
+    return { html: h };
+}
+
+function renderDetailC(d) {
+    const net = d.network, maxAdj = Math.max(...d.stores.map(s => s.adj_rate), 1);
+    const heads = first => [first, {t: 'Stores', cls: R}, {t: 'Reviews', cls: R}, {t: 'Neg.', cls: R}, {t: 'Raw rate', cls: R}, {t: 'Adj. rate', cls: R}, {t: 'Staff %', cls: R}, {t: 'Delay %', cls: R}, {t: 'Product %', cls: R}, {t: 'Phone %', cls: R}, 'Top complaint'];
+    const grpRow = g => `<tr><td class="fw-semibold">${esc(g.name)}</td><td class="${R}">${g.stores}</td><td class="${R}">${fmt(g.total)}</td><td class="${R}">${fmt(g.negative)}</td><td class="${R}">${g.rate}%</td><td class="${R} fw-bold" style="${heat(g.adj_rate, maxAdj)}">${g.adj_rate}%</td><td class="${R}">${g.staff}%</td><td class="${R}">${g.delay}%</td><td class="${R}">${g.product}%</td><td class="${R}">${g.contact}%</td><td>${esc(g.top_complaint)}</td></tr>`;
+    let h = `<div class="row g-3 mb-3">
+        ${chip('Network reviews', fmt(net.total))}${chip('Network negatives', fmt(net.negative), 'text-danger')}${chip('Network negative rate', net.rate + '%')}${chip('Best-performing store', d.best_stores.length ? esc(d.best_stores[0].name) : '—')}
+    </div>
+    <div class="alert alert-light border small"><i class="bi bi-info-circle me-1"></i>${esc(d.note)} Category columns show negative (1–2★) reviews per 100 reviews.</div>
+    <ul class="nav nav-pills mb-3" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#c-stores">Stores (top 30)</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#c-rbm">RBMs</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#c-bdm">BDMs</button></li>
+    </ul><div class="tab-content">
+    <div class="tab-pane fade show active" id="c-stores">${card('Stores ranked by size-adjusted negative rate',
+        table(['Store', 'RBM', 'BDM', {t: 'Reviews', cls: R}, {t: 'Neg.', cls: R}, {t: 'Raw rate', cls: R}, {t: 'Adj. rate', cls: R}, {t: 'Staff %', cls: R}, {t: 'Delay %', cls: R}, {t: 'Product %', cls: R}, {t: 'Phone %', cls: R}, 'Top complaint'],
+            d.stores.map(s => `<tr><td class="fw-semibold">${esc(s.name)}</td><td>${esc(s.rbm)}</td><td>${esc(s.bdm)}</td><td class="${R}">${fmt(s.total)}</td><td class="${R}">${fmt(s.negative)}</td><td class="${R}">${s.rate}%</td><td class="${R} fw-bold" style="${heat(s.adj_rate, maxAdj)}">${s.adj_rate}%</td><td class="${R}">${s.staff}%</td><td class="${R}">${s.delay}%</td><td class="${R}">${s.product}%</td><td class="${R}">${s.contact}%</td><td>${esc(s.top_complaint)}</td></tr>`)))}</div>
+    <div class="tab-pane fade" id="c-rbm">${card('Regional Business Managers', table(heads('RBM'), d.rbms.map(grpRow)))}</div>
+    <div class="tab-pane fade" id="c-bdm">${card('Business Development Managers', table(heads('BDM'), d.bdms.map(grpRow)))}</div></div>`;
+    return { html: h };
+}
+
+function renderDetailD(d) {
+    if (!d.daily) return { html: '<div class="text-muted">No trend data available.</div>' };
+    const statusPill = s => `<span class="status-pill status-${s}">${s}</span>`;
+    let h = `<div class="alert alert-light border small mb-3"><i class="bi bi-info-circle me-1"></i>Data as of <strong>${esc(d.as_of)}</strong>. Spikes compare the last 30 days to the monthly average of the preceding 90 days; unusual days exceed the trailing 28-day mean + 2σ.</div>`;
+    h += '<div class="row g-3"><div class="col-lg-6">' + card('Weekly negative reviews &amp; rate (last 13 weeks)', '<canvas id="mc-weekly" height="150"></canvas>') +
+         '</div><div class="col-lg-6">' + card('Daily negative reviews (last 60 days)', '<canvas id="mc-daily" height="150"></canvas>') + '</div></div>';
+    h += card('Early-warning: complaint categories (last 30 days vs baseline)', table(['Category', {t: 'Last 30d', cls: R}, {t: 'Baseline / 30d', cls: R}, {t: 'Change', cls: R}, 'Status'],
+        d.category_trends.map(c => `<tr><td>${esc(c.category)}</td><td class="${R}">${c.last_30d}</td><td class="${R}">${c.baseline_30d}</td><td class="${R} fw-semibold ${c.change_pct > 0 ? 'text-danger' : 'text-success'}">${c.change_pct > 0 ? '+' : ''}${c.change_pct}%</td><td>${statusPill(c.status)}</td></tr>`)));
+    h += '<div class="row g-3"><div class="col-lg-6">' + card('Unusual days (last 30 days)', d.anomalies.length ? table(['Date', {t: 'Negatives', cls: R}, {t: 'Expected', cls: R}, {t: 'z-score', cls: R}],
+        d.anomalies.map(a => `<tr><td>${esc(a.date)}</td><td class="${R} text-danger fw-bold">${a.negative}</td><td class="${R}">${a.expected}</td><td class="${R}">${a.z}</td></tr>`)) : '<div class="text-success small"><i class="bi bi-check-circle me-1"></i>No unusual days detected.</div>') +
+         '</div><div class="col-lg-6">' + card('Negative rate by weekday', table(['Day', {t: 'Reviews', cls: R}, {t: 'Negative', cls: R}, {t: 'Neg. rate', cls: R}],
+        d.weekday.map(w => `<tr><td>${w.day}</td><td class="${R}">${fmt(w.total)}</td><td class="${R}">${fmt(w.negative)}</td><td class="${R}" style="${heat(w.neg_rate, 6)}">${w.neg_rate}%</td></tr>`))) + '</div></div>';
+    h += card('Monthly trend', table(['Month', {t: 'Reviews', cls: R}, {t: 'Negative', cls: R}, {t: 'Neg. rate', cls: R}],
+        d.monthly.map(m => `<tr><td>${esc(m.month)}</td><td class="${R}">${fmt(m.total)}</td><td class="${R}">${fmt(m.negative)}</td><td class="${R}" style="${heat(m.neg_rate, 8)}">${m.neg_rate}%</td></tr>`)));
+    return { html: h, after: () => {
+        mkChart('mc-weekly', { type: 'bar', data: { labels: d.weekly.map(w => w.week), datasets: [
+            { label: 'Neg. rate %', data: d.weekly.map(w => w.neg_rate), type: 'line', borderColor: '#ef4444', backgroundColor: '#ef4444', yAxisID: 'y1', tension: .3 },
+            { label: 'Negative reviews', data: d.weekly.map(w => w.negative), backgroundColor: 'rgba(239,68,68,.35)', yAxisID: 'y' }] },
+            options: { scales: { y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => v + '%' } } } } });
+        const anomSet = new Set(d.anomalies.map(a => a.date));
+        mkChart('mc-daily', { type: 'line', data: { labels: d.daily.map(x => x.date.substring(5)), datasets: [{ label: 'Negative reviews', data: d.daily.map(x => x.negative),
+            borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,.1)', fill: true, tension: .25,
+            pointRadius: d.daily.map(x => anomSet.has(x.date) ? 6 : 2), pointBackgroundColor: d.daily.map(x => anomSet.has(x.date) ? '#7c3aed' : '#ef4444') }] },
+            options: { plugins: { legend: { display: false } } } });
+    }};
+}
+
+function renderDetailE(d) {
+    let h = `<div class="row g-3 mb-3">
+        ${chip('Negative reviews', fmt(d.negative_total), 'text-danger')}
+        ${chip('High priority (anger / frustration)', fmt(d.high_priority_total), 'text-danger')}
+        ${chip('High priority – last 30 days', fmt(d.high_priority_30d))}
+        ${chip('Action types', d.actions.length)}
+    </div>`;
+    h += card('Action tracker — what to fix, ranked by negative reviews', table(['Suggested action', {t: 'Negative reviews', cls: R}, 'Share of negatives', {t: 'High priority', cls: R}, {t: 'Tagged (all reviews)', cls: R}],
+        d.actions.map(a => `<tr><td class="fw-semibold">${esc(a.action)}</td><td class="${R}">${fmt(a.negatives)}</td><td style="min-width:140px">${barCell(a.share, '#ef4444')}</td><td class="${R}">${fmt(a.high_priority)}</td><td class="${R}">${fmt(a.all_reviews)}</td></tr>`)));
+    h += '<div class="row g-3"><div class="col-lg-4">' + card('Emotion in negative reviews', d.emotions.map(e => `<div class="mb-2"><div class="small mb-1">${esc(e.emotion)} <span class="text-muted">· ${fmt(e.count)}</span></div>${barCell(e.share, '#f59e0b')}</div>`).join('')) +
+         '</div><div class="col-lg-8">' + card('Urgent follow-up queue (latest high-priority reviews)', d.queue.length ? d.queue.map(q => `<div class="quote"><strong>${'★'.repeat(q.rating)}</strong> ${esc(q.comment)}<br>
+            <small>${esc(q.store)} · ${esc(q.date)} · ${esc(q.issue)} · ${esc(q.emotion)}</small><br><small class="text-primary fw-semibold"><i class="bi bi-arrow-return-right"></i> ${esc(q.action)}</small></div>`).join('') : '<div class="text-muted small">No high-priority reviews.</div>') + '</div></div>';
+    return { html: h };
+}
+
+const RENDERERS = { a: renderDetailA, b: renderDetailB, c: renderDetailC, d: renderDetailD, e: renderDetailE };
+
+function openDetail(section) {
+    modalCharts.forEach(c => c.destroy());
+    modalCharts = [];
+    document.getElementById('detailModalTitle').innerText = SECTION_TITLES[section];
+    const body = document.getElementById('detailModalBody');
+    body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-muted">Running detailed analysis…</div></div>';
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('detailModal'));
+    modal.show();
+    fetchSection(section).then(d => {
+        if (d.status === 'error') throw new Error(d.message);
+        const out = RENDERERS[section](d.detail);
+        body.innerHTML = `<div class="d-card"><h6><i class="bi bi-lightbulb me-1 text-warning"></i>Main Insights</h6><div class="insights-wide">${d.insights.map(insightHtml).join('')}</div></div>` + out.html;
+        if (out.after) out.after();
+    }).catch(err => {
+        body.innerHTML = `<div class="alert alert-danger">Could not load analysis: ${esc(err.message)}</div>`;
+    });
+}
+
+document.getElementById('detailModal').addEventListener('hidden.bs.modal', () => {
+    modalCharts.forEach(c => c.destroy());
+    modalCharts = [];
+});
+
+document.addEventListener('DOMContentLoaded', loadData);
+</script>
+{% endverbatim %}
+{% endblock %}

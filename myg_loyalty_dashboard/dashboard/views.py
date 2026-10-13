@@ -5679,5 +5679,108 @@ class RcaDashboardAPIView(LoginRequiredMixin, View):
         action = request.GET.get('action')
         if action == 'filters':
             return JsonResponse(get_rca_filters())
+        elif action == 'detail':
+            from .rca_legacy_detail import get_card_detail
+            try:
+                data = get_card_detail(request, request.GET.get('card', ''))
+            except Exception as e:
+                return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+            if data is None:
+                return JsonResponse({'status': 'error', 'message': 'Unknown card'}, status=404)
+            return JsonResponse(data)
         else:
             return JsonResponse(build_rca_data(request))
+
+
+class GoogleReviewsAPIView(LoginRequiredMixin, View):
+    def get(self, request):
+        try:
+            from analytics.clickhouse_service import get_ch_client
+            ch = get_ch_client()
+            
+            store_name = request.GET.get('store', '')
+            
+            query = "SELECT sentiment_category, count() as cnt FROM google_reviews"
+            if store_name:
+                store_name = store_name.replace("'", "''")
+                query += f" WHERE store_name = '{store_name}'"
+                
+            query += " GROUP BY sentiment_category ORDER BY cnt DESC"
+            
+            res = ch.query(query).result_rows
+            summary = [{"sentiment": row[0], "count": row[1]} for row in res]
+            
+            review_query = "SELECT store_name, rating, reviewer_name, comment, sentiment_category FROM google_reviews"
+            if store_name:
+                review_query += f" WHERE store_name = '{store_name}'"
+            review_query += " ORDER BY updated_at DESC LIMIT 50"
+            
+            recent_reviews_res = ch.query(review_query).result_rows
+            recent_reviews = [
+                {
+                    "store_name": r[0],
+                    "rating": r[1],
+                    "reviewer_name": r[2],
+                    "comment": r[3],
+                    "sentiment_category": r[4]
+                } for r in recent_reviews_res
+            ]
+            
+            return JsonResponse({
+                'status': 'success',
+                'data': {
+                    'summary': summary,
+                    'recent_reviews': recent_reviews
+                }
+            })
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+from django.http import JsonResponse
+from .rca_v2_logic import get_all_sections
+
+class RcaV2DashboardAPIView(LoginRequiredMixin, View):
+    def get(self, request):
+        return JsonResponse(get_all_sections(request))
+        
+class RcaV2DashboardView(LoginRequiredMixin, TemplateView):
+    template_name = 'dashboard/rca_v2_dashboard.html'
+
+class RcaV2SectionDetailAPIView(LoginRequiredMixin, View):
+    """Detailed analysis + key insights for one RCA v2 section (a-e)."""
+    def get(self, request, section):
+        from .rca_v2_detail import get_section_detail
+        try:
+            data = get_section_detail(request, section)
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+        if data is None:
+            return JsonResponse({'status': 'error', 'message': 'Unknown section'}, status=404)
+        return JsonResponse(data)
+
+
+# ---- Text Sentiment page (SENTIMENT_ANALYSIS_GUIDE.md section 9) -------------------------------------
+class SentimentDashboardView(LoginRequiredMixin, TemplateView):
+    template_name = 'dashboard/sentiment_dashboard.html'
+
+
+class SentimentDashboardAPIView(LoginRequiredMixin, View):
+    """JSON for one tab (overview | stores | queue | quality) of the sentiment page."""
+    def get(self, request):
+        from . import sentiment_dash
+        try:
+            return JsonResponse(sentiment_dash.build(request.GET))
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+class SentimentQueueExportView(LoginRequiredMixin, View):
+    """Excel export of the (filtered) review queue."""
+    def get(self, request):
+        from . import sentiment_dash
+        data = sentiment_dash.export_queue(request.GET)
+        if data is None:
+            return HttpResponse('reviews_scored.parquet not found', status=404)
+        resp = HttpResponse(data, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        resp['Content-Disposition'] = 'attachment; filename="review_queue_sentiment.xlsx"'
+        return resp

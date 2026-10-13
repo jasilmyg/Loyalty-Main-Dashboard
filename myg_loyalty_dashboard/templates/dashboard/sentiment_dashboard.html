@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+
+{% block title %}Text Sentiment Analysis{% endblock %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    .sn-wrap { max-width: 1400px; margin: 0 auto; padding: 1.25rem 1rem 3rem; font-family: 'Inter', system-ui, sans-serif; color: #0f172a; }
+    .sn-head { background: #fff; border-radius: 14px; padding: 1.1rem 1.4rem; box-shadow: 0 1px 3px rgba(15,23,42,.08); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; }
+    .sn-head h1 { font-size: 1.35rem; font-weight: 700; margin: 0; }
+    .sn-head p { margin: .15rem 0 0; font-size: .78rem; color: #64748b; }
+    .sn-filters { background: #fff; border-radius: 12px; padding: .9rem 1.2rem; margin-top: .9rem; box-shadow: 0 1px 3px rgba(15,23,42,.06); display: flex; gap: .8rem; flex-wrap: wrap; align-items: end; }
+    .sn-filters label { display: block; font-size: .62rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #64748b; margin-bottom: .2rem; }
+    .sn-filters select { min-width: 170px; font-size: .82rem; }
+    .sn-tabs { display: flex; gap: .4rem; margin: 1rem 0 .8rem; flex-wrap: wrap; }
+    .sn-tab { border: 0; background: #e2e8f0; color: #334155; padding: .5rem 1rem; border-radius: 999px; font-size: .82rem; font-weight: 600; cursor: pointer; transition: all .15s; }
+    .sn-tab:hover { background: #cbd5e1; }
+    .sn-tab.active { background: #4f46e5; color: #fff; box-shadow: 0 4px 12px rgba(79,70,229,.3); }
+    .sn-card { background: #fff; border-radius: 12px; padding: 1.1rem 1.3rem; box-shadow: 0 1px 3px rgba(15,23,42,.08); height: 100%; }
+    .sn-card h2 { font-size: .95rem; font-weight: 700; margin: 0 0 .15rem; }
+    .sn-card .sub { font-size: .72rem; color: #64748b; margin-bottom: .8rem; }
+    .kpi { text-align: center; padding: .9rem .5rem; }
+    .kpi .v { font-size: 1.9rem; font-weight: 800; line-height: 1.1; }
+    .kpi .c { font-size: .78rem; color: #64748b; }
+    .kpi .l { font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; color: #475569; margin-top: .3rem; }
+    .sn-table { width: 100%; font-size: .8rem; border-collapse: collapse; }
+    .sn-table th { text-align: left; font-size: .66rem; text-transform: uppercase; letter-spacing: .04em; color: #64748b; border-bottom: 1px solid #e2e8f0; padding: .4rem .5rem; position: sticky; top: 0; background: #fff; }
+    .sn-table td { padding: .45rem .5rem; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    .sn-table td.num, .sn-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .sn-table tr.small td { color: #94a3b8; background: #f8fafc; }
+    .pill { display: inline-block; padding: .08rem .55rem; border-radius: 999px; font-size: .68rem; font-weight: 700; color: #fff; white-space: nowrap; }
+    .pill.Positive { background: #16a34a; } .pill.Negative { background: #dc2626; } .pill.Mixed { background: #d97706; }
+    .pill.Neutral { background: #64748b; } .pill.Unreadable { background: #94a3b8; }
+    .tag { font-size: .62rem; background: #eef2ff; color: #4338ca; border-radius: 4px; padding: .05rem .35rem; margin-left: .25rem; font-weight: 600; }
+    .tag.warn { background: #fef3c7; color: #92400e; }
+    .bar-cell { position: relative; min-width: 110px; }
+    .bar-cell .fill { position: absolute; left: 0; top: 2px; bottom: 2px; background: #fee2e2; border-radius: 4px; z-index: 0; }
+    .bar-cell span { position: relative; z-index: 1; padding-left: .3rem; }
+    .scroll { max-height: 520px; overflow: auto; }
+    .sn-foot { margin-top: 1.5rem; font-size: .74rem; color: #64748b; text-align: center; }
+    .chip { border: 1px solid #cbd5e1; background: #fff; border-radius: 999px; padding: .25rem .8rem; font-size: .76rem; cursor: pointer; font-weight: 600; color: #334155; }
+    .chip.active { background: #0f172a; color: #fff; border-color: #0f172a; }
+    .sn-note { background: #f8fafc; border-left: 4px solid #4f46e5; padding: .6rem .9rem; font-size: .76rem; color: #475569; border-radius: 6px; margin-bottom: .9rem; }
+    .sn-loading { text-align: center; padding: 3rem; color: #64748b; }
+    .rev { max-width: 640px; white-space: pre-wrap; word-break: break-word; }
+</style>
+
+<div class="sn-wrap">
+    <div class="sn-head">
+        <div>
+            <h1><i class="bi bi-chat-square-text me-2" style="color:#4f46e5"></i>Text Sentiment Analysis</h1>
+            <p>What customers <b>wrote</b> (rule-based text analysis), shown separately from the star rating they clicked.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/rca-dashboard/" class="btn btn-outline-secondary btn-sm"><i class="bi bi-diagram-3 me-1"></i>RCA Dashboard</a>
+            <a href="/rca-v2/" class="btn btn-outline-primary btn-sm"><i class="bi bi-stars me-1"></i>RCA v2</a>
+        </div>
+    </div>
+
+    <div class="sn-filters">
+        <div><label>Card (star-rating group)</label><select id="fCard" class="form-select form-select-sm"><option value="all">All cards</option></select></div>
+        <div><label>RBM</label><select id="fRbm" class="form-select form-select-sm"><option value="all">All regions</option></select></div>
+        <div><label>BDM</label><select id="fBdm" class="form-select form-select-sm"><option value="all">All managers</option></select></div>
+        <div><label>Store</label><select id="fStore" class="form-select form-select-sm"><option value="all">All stores</option></select></div>
+        <div class="form-check mb-1"><input class="form-check-input" type="checkbox" id="fDup"><label class="form-check-label" style="text-transform:none;font-size:.78rem;letter-spacing:0;font-weight:500;color:#334155" for="fDup">Exclude duplicate text</label></div>
+        <button class="btn btn-danger btn-sm" id="btnApply"><i class="bi bi-funnel-fill me-1"></i>Apply Filters</button>
+        <div id="viewCount" class="ms-auto small text-muted"></div>
+    </div>
+
+    <div class="sn-tabs" id="tabs">
+        <button class="sn-tab active" data-tab="overview"><i class="bi bi-pie-chart me-1"></i>Overview</button>
+        <button class="sn-tab" data-tab="stores"><i class="bi bi-shop me-1"></i>Stores &amp; RBMs</button>
+        <button class="sn-tab" data-tab="queue"><i class="bi bi-list-check me-1"></i>Review Queue</button>
+        <button class="sn-tab" data-tab="quality"><i class="bi bi-shield-check me-1"></i>Data Quality</button>
+    </div>
+
+    <div id="panel"><div class="sn-loading">Loading…</div></div>
+    <div class="sn-foot" id="footer"></div>
+</div>
+
+{% verbatim %}
+<script>
+(function () {
+    const COLORS = {Positive: '#16a34a', Neutral: '#64748b', Negative: '#dc2626', Mixed: '#d97706', 'No text / unreadable': '#cbd5e1'};
+    const PILL = {Positive: 'Positive', Negative: 'Negative', Mixed: 'Mixed', Neutral: 'Neutral', 'No text / unreadable': 'Unreadable'};
+    const state = {tab: 'overview', page: 1, label: 'all', q: ''};
+    let hierarchy = [], charts = [];
+    const $ = id => document.getElementById(id);
+    const fmt = n => Number(n).toLocaleString('en-IN');
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+    const pill = (label, key) => `<span class="pill ${PILL[key] || 'Neutral'}">${esc(label)}</span>`;
+
+    function filterQS(extra) {
+        const p = new URLSearchParams({card: $('fCard').value, rbm: $('fRbm').value, bdm: $('fBdm').value, store: $('fStore').value,
+                                       dup: $('fDup').checked ? 'exclude' : 'include'});
+        Object.entries(extra || {}).forEach(([k, v]) => p.set(k, v));
+        return p.toString();
+    }
+    function killCharts() { charts.forEach(c => c.destroy()); charts = []; }
+    function fill(sel, values, allLabel) {
+        const cur = sel.value;
+        sel.innerHTML = `<option value="all">${allLabel}</option>` + values.map(v => `<option>${esc(v)}</option>`).join('');
+        sel.value = values.includes(cur) ? cur : 'all';
+    }
+    function cascade() {
+        const rbm = $('fRbm').value, bdm = $('fBdm').value;
+        const rows = hierarchy.filter(h => h.rbm !== 'Unknown');
+        fill($('fBdm'), [...new Set(rows.filter(h => rbm === 'all' || h.rbm === rbm).map(h => h.bdm))].sort(), 'All managers');
+        const b2 = $('fBdm').value;
+        fill($('fStore'), [...new Set(hierarchy.filter(h => (rbm === 'all' || h.rbm === rbm) && (b2 === 'all' || h.bdm === b2)).map(h => h.store))].sort(), 'All stores');
+    }
+
+    async function api(extra) {
+        const res = await fetch('/api/v1/sentiment/?' + filterQS(extra));
+        return res.json();
+    }
+
+    async function load(first) {
+        $('panel').innerHTML = '<div class="sn-loading"><div class="spinner-border spinner-border-sm me-2"></div>Loading…</div>';
+        const extra = {tab: state.tab};
+        if (first) extra.filters = '1';
+        if (state.tab === 'queue') Object.assign(extra, {page: state.page, label: state.label, q: state.q});
+        let d;
+        try { d = await api(extra); } catch (e) { $('panel').innerHTML = '<div class="alert alert-danger">Could not load data.</div>'; return; }
+        if (d.status === 'missing') { $('panel').innerHTML = `<div class="alert alert-warning"><b>No scored data yet.</b> ${esc(d.message)}</div>`; return; }
+        if (d.status !== 'ok') { $('panel').innerHTML = `<div class="alert alert-danger">${esc(d.message || 'Error')}</div>`; return; }
+        if (d.filters) {
+            hierarchy = d.filters.hierarchy;
+            fill($('fCard'), d.filters.cards, 'All cards');
+            fill($('fRbm'), d.filters.rbms, 'All regions');
+            cascade();
+        }
+        $('viewCount').innerHTML = `<b>${fmt(d.meta.total)}</b> of ${fmt(d.meta.all_total)} reviews in view`;
+        $('footer').textContent = d.meta.footer;
+        killCharts();
+        if (d.empty) { $('panel').innerHTML = '<div class="alert alert-info">No reviews match these filters.</div>'; return; }
+        ({overview: renderOverview, stores: renderStores, queue: renderQueue, quality: renderQuality})[state.tab](d);
+    }
+
+    // ------------------------------------------------------------------ Overview
+    function renderOverview(d) {
+        const g = k => d.distribution.find(x => x.key === k);
+        const neg = g('Negative').count + g('Mixed').count, negShare = (g('Negative').share + g('Mixed').share).toFixed(2);
+        const kpi = (v, c, l, col) => `<div class="col-6 col-lg-3"><div class="sn-card kpi"><div class="v" style="color:${col}">${v}</div><div class="c">${c}</div><div class="l">${l}</div></div></div>`;
+        $('panel').innerHTML = `
+        <div class="row g-3 mb-3">
+            ${kpi(g('Positive').share + '%', fmt(g('Positive').count) + ' reviews', 'Positive text', COLORS.Positive)}
+            ${kpi(negShare + '%', fmt(neg) + ' reviews', 'Negative + Mixed text', COLORS.Negative)}
+            ${kpi(g('Neutral').share + '%', fmt(g('Neutral').count) + ' reviews', 'Neutral / unclear', COLORS.Neutral)}
+            ${kpi(g('No text / unreadable').share + '%', fmt(g('No text / unreadable').count) + ' reviews', 'No text / unreadable', '#94a3b8')}
+        </div>
+        <div class="row g-3">
+            <div class="col-lg-5"><div class="sn-card"><h2>Sentiment of the review text</h2><div class="sub">Counts and share of reviews in view</div>
+                <canvas id="cDist" height="200"></canvas>
+                <table class="sn-table mt-2"><thead><tr><th>Sentiment</th><th class="num">Reviews</th><th class="num">Share</th></tr></thead><tbody>
+                ${d.distribution.map(x => `<tr><td>${pill(x.label, x.key)}</td><td class="num">${fmt(x.count)}</td><td class="num">${x.share}%</td></tr>`).join('')}
+                </tbody></table></div></div>
+            <div class="col-lg-7"><div class="sn-card"><h2>Monthly Positive %</h2><div class="sub">Share of that month's reviews whose text is Positive (hover for counts)</div><canvas id="cMonthly" height="130"></canvas></div></div>
+            <div class="col-12"><div class="sn-card"><h2>Star rating vs text sentiment</h2>
+                <div class="sub">Each bar = one star-rating group, split by what the text says. Disagreements are listed under Data Quality.</div>
+                <canvas id="cCompare" height="70"></canvas>
+                <div class="scroll mt-2"><table class="sn-table"><thead><tr><th>Star-rating group</th><th class="num">Reviews</th>${d.distribution.map(x => `<th class="num">${esc(x.label)}</th>`).join('')}</tr></thead><tbody>
+                ${d.rating_vs_text.map(r => `<tr><td>${esc(r.group)}</td><td class="num">${fmt(r.total)}</td>${r.items.map(i => `<td class="num">${fmt(i.count)} <span class="text-muted">(${i.share}%)</span></td>`).join('')}</tr>`).join('')}
+                </tbody></table></div></div></div>
+        </div>`;
+        charts.push(new Chart($('cDist'), {type: 'bar',
+            data: {labels: d.distribution.map(x => x.label), datasets: [{data: d.distribution.map(x => x.count), backgroundColor: d.distribution.map(x => COLORS[x.key])}]},
+            options: {indexAxis: 'y', plugins: {legend: {display: false}, tooltip: {callbacks: {label: c => `${fmt(c.raw)} reviews (${d.distribution[c.dataIndex].share}%)`}}}, scales: {x: {type: 'logarithmic', title: {display: true, text: 'Reviews (log scale)'}}}}}));
+        charts.push(new Chart($('cMonthly'), {type: 'line',
+            data: {labels: d.monthly.map(m => m.month), datasets: [{data: d.monthly.map(m => m.positive_pct), borderColor: COLORS.Positive, backgroundColor: 'rgba(22,163,74,.12)', fill: true, tension: .3, pointRadius: 3}]},
+            options: {plugins: {legend: {display: false}, tooltip: {callbacks: {label: c => `${c.raw}% Positive (${fmt(d.monthly[c.dataIndex].positive)} of ${fmt(d.monthly[c.dataIndex].reviews)})`}}}, scales: {y: {suggestedMin: 80, suggestedMax: 100, ticks: {callback: v => v + '%'}}}}}));
+        const keys = d.distribution.map(x => x.key);
+        charts.push(new Chart($('cCompare'), {type: 'bar',
+            data: {labels: d.rating_vs_text.map(r => `${r.group} · ${fmt(r.total)}`), datasets: keys.map((k, i) => ({label: d.distribution[i].label, backgroundColor: COLORS[k], data: d.rating_vs_text.map(r => r.items[i].share)}))},
+            options: {indexAxis: 'y', scales: {x: {stacked: true, max: 100, ticks: {callback: v => v + '%'}}, y: {stacked: true}},
+                      plugins: {tooltip: {callbacks: {label: c => { const it = d.rating_vs_text[c.dataIndex].items[c.datasetIndex]; return `${c.dataset.label}: ${fmt(it.count)} (${it.share}%)`; }}}}}}));
+    }
+
+    // ------------------------------------------------------------------ Stores & RBMs
+    function renderStores(d) {
+        const tbl = (title, rows, noun) => {
+            const max = Math.max(1, ...rows.filter(r => !r.small).map(r => r.rate));
+            return `<div class="sn-card"><h2>${title}</h2><div class="sub">Negative + Mixed rate = (Negative + Mixed) ÷ reviews. Greyed rows have fewer than ${d.small_threshold} reviews, so a single review swings the rate.</div>
+            <div class="scroll"><table class="sn-table"><thead><tr><th>${noun}</th><th class="num">Reviews</th><th class="num">Negative</th><th class="num">Mixed</th><th class="num">Neg + Mixed</th><th>Rate</th></tr></thead><tbody>
+            ${rows.map(r => `<tr class="${r.small ? 'small' : ''}"><td>${esc(r.name)}${r.small ? `<span class="tag warn">&lt;${d.small_threshold} reviews</span>` : ''}</td>
+                <td class="num">${fmt(r.reviews)}</td><td class="num">${fmt(r.negative)}</td><td class="num">${fmt(r.mixed)}</td><td class="num">${fmt(r.neg_mixed)}</td>
+                <td class="bar-cell"><div class="fill" style="width:${r.small ? 0 : (r.rate / max * 100)}%"></div><span>${r.rate}% <small class="text-muted">(${fmt(r.neg_mixed)}/${fmt(r.reviews)})</small></span></td></tr>`).join('')}
+            </tbody></table></div></div>`;
+        };
+        $('panel').innerHTML = `<div class="sn-note">Compare groups on the <b>rate</b>, not raw counts. Negative and Mixed text is rare overall, so always read the count next to the percentage.</div>
+            <div class="row g-3"><div class="col-lg-7">${tbl('Stores', d.stores, 'Store')}</div>
+            <div class="col-lg-5"><div class="mb-3">${tbl('RBMs (regions)', d.rbms, 'RBM')}</div>${tbl('BDMs', d.bdms, 'BDM')}</div></div>`;
+    }
+
+    // ------------------------------------------------------------------ Review queue
+    function renderQueue(d) {
+        const chip = (k, label, n) => `<button class="chip ${state.label === k ? 'active' : ''}" data-label="${k}">${label}${n != null ? ' · ' + fmt(n) : ''}</button>`;
+        $('panel').innerHTML = `<div class="sn-card">
+            <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                <div><h2 class="mb-0">Review queue</h2><div class="sub mb-0">Negative, Mixed and long Neutral texts that need a human read · ${fmt(d.total)} rows</div></div>
+                <div class="ms-auto d-flex gap-2 flex-wrap">
+                    <input id="qSearch" class="form-control form-control-sm" style="width:230px" placeholder="Search review text…" value="${esc(state.q)}">
+                    <button class="btn btn-sm btn-dark" id="qGo"><i class="bi bi-search"></i></button>
+                    <a class="btn btn-sm btn-success" href="/api/v1/sentiment/export/?${filterQS({label: state.label, q: state.q})}"><i class="bi bi-file-earmark-excel me-1"></i>Export to Excel</a>
+                </div></div>
+            <div class="d-flex gap-2 mb-2 flex-wrap">${chip('all', 'All')}${d.by_label.map(b => chip(b.key, b.label, b.count)).join('')}</div>
+            <div class="scroll" style="max-height:640px"><table class="sn-table"><thead><tr><th>Date</th><th>Store</th><th class="num">★</th><th>Text sentiment</th><th>Review</th></tr></thead><tbody>
+            ${d.rows.map(r => `<tr><td style="white-space:nowrap">${esc(r.date)}</td><td>${esc(r.store)}</td><td class="num">${r.rating}</td>
+                <td>${pill(r.label, r.key)}<div class="text-muted small">${r.score}</div></td>
+                <td><div class="rev">${esc(r.review)}</div>${r.conflict ? '<span class="tag warn">stars vs text disagree</span>' : ''}${r.dup ? '<span class="tag">duplicate text</span>' : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="text-center text-muted p-4">No reviews match.</td></tr>'}
+            </tbody></table></div>
+            <div class="d-flex justify-content-between align-items-center mt-2">
+                <button class="btn btn-sm btn-outline-secondary" id="pPrev" ${d.page <= 1 ? 'disabled' : ''}>← Prev</button>
+                <span class="small text-muted">Page ${d.page} of ${d.pages}</span>
+                <button class="btn btn-sm btn-outline-secondary" id="pNext" ${d.page >= d.pages ? 'disabled' : ''}>Next →</button></div></div>`;
+        document.querySelectorAll('.chip').forEach(b => b.onclick = () => { state.label = b.dataset.label; state.page = 1; load(); });
+        const go = () => { state.q = $('qSearch').value; state.page = 1; load(); };
+        $('qGo').onclick = go; $('qSearch').onkeydown = e => { if (e.key === 'Enter') go(); };
+        $('pPrev').onclick = () => { state.page--; load(); }; $('pNext').onclick = () => { state.page++; load(); };
+    }
+
+    // ------------------------------------------------------------------ Data quality
+    function renderQuality(d) {
+        const kpi = (v, c, l) => `<div class="col-md-4"><div class="sn-card kpi"><div class="v">${v}</div><div class="c">${c}</div><div class="l">${l}</div></div></div>`;
+        const list = rows => `<div class="scroll"><table class="sn-table"><thead><tr><th>Date</th><th>Store</th><th class="num">★</th><th>Text</th><th>Review</th></tr></thead><tbody>
+            ${rows.map(r => `<tr><td style="white-space:nowrap">${esc(r.date)}</td><td>${esc(r.store)}</td><td class="num">${r.rating}</td><td>${pill(r.label, r.key)}</td><td><div class="rev">${esc(r.review)}</div></td></tr>`).join('') || '<tr><td colspan="5" class="text-muted p-3">None.</td></tr>'}</tbody></table></div>`;
+        $('panel').innerHTML = `
+        <div class="row g-3 mb-3">
+            ${kpi(d.conflicts.share + '%', `${fmt(d.conflicts.total)} reviews`, 'Stars vs text disagree')}
+            ${kpi(d.duplicates.share + '%', `${fmt(d.duplicates.rows)} rows · ${fmt(d.duplicates.distinct_texts)} distinct texts`, 'Duplicate text (60+ chars)')}
+            ${kpi(d.unreadable.share + '%', `${fmt(d.unreadable.rows)} reviews`, 'No text / unreadable')}
+        </div>
+        <div class="row g-3 mb-3">
+            <div class="col-lg-6"><div class="sn-card"><h2>Low rating, positive text</h2><div class="sub">${fmt(d.conflicts.low_rating_positive_text)} reviews rated 1–2★ whose text reads Positive (latest 20). Many are real complaints that end politely, so read them.</div>${list(d.conflict_rows.low_rating_positive_text)}</div></div>
+            <div class="col-lg-6"><div class="sn-card"><h2>High rating, complaint in text</h2><div class="sub">${fmt(d.conflicts.high_rating_negative_text)} reviews rated 4–5★ whose text reads Negative or Mixed (latest 20).</div>${list(d.conflict_rows.high_rating_negative_text)}</div></div>
+        </div>
+        <div class="sn-card"><h2>Known limitations</h2><div class="sub">Keep these in mind before quoting any number from this page.</div>
+            <ul class="mb-0 small">${d.limitations.map(l => `<li class="mb-1">${esc(l)}</li>`).join('')}</ul></div>`;
+    }
+
+    // ------------------------------------------------------------------ wiring
+    document.querySelectorAll('.sn-tab').forEach(b => b.onclick = () => {
+        document.querySelectorAll('.sn-tab').forEach(x => x.classList.remove('active'));
+        b.classList.add('active'); state.tab = b.dataset.tab; state.page = 1; load();
+    });
+    $('fRbm').onchange = () => { $('fBdm').value = 'all'; $('fStore').value = 'all'; cascade(); };
+    $('fBdm').onchange = () => { $('fStore').value = 'all'; cascade(); };
+    $('btnApply').onclick = () => { state.page = 1; load(); };
+    load(true);
+})();
+</script>
+{% endverbatim %}
+{% endblock %}

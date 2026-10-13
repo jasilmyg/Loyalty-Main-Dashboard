@@ -192,6 +192,9 @@ function loadData(){
       if(json.status!=='success') throw new Error(json.message);
       var daily=json.data.daily, summary=json.data.summary, branches=json.data.branches;
       allData=daily;
+      // Sync date pickers to the actual dates the server used (auto-corrected to latest data)
+      if(summary.start_date) document.getElementById('startDate').value=summary.start_date;
+      if(summary.end_date)   document.getElementById('endDate').value=summary.end_date;
       var sel=document.getElementById('branchSelect');
       var cur=sel.value;
       sel.innerHTML='<option value="">All Branches</option>';
