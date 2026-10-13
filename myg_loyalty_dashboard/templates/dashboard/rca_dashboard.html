@@ -328,6 +328,8 @@
 .ld-bar > div { height: 8px; border-radius: 4px; }
 .ld-quote { border-left: 3px solid #cbd5e1; padding-left: 10px; font-size: .8rem; color: #334155; margin-bottom: 8px; }
 .ld-quote small { color: #64748b; }
+.cards-grid { transition: opacity .25s ease, filter .25s ease; }
+.cards-grid.rca-pending { opacity: .3; filter: blur(4px); pointer-events: none; user-select: none; }
 </style>
 {% endblock %}
 
@@ -339,7 +341,7 @@
         <div class="sub">AI-Powered Analysis of Customer Feedback, Sentiment & Root Causes Across All Reviews</div>
     </div>
     <div class="header-badge">
-        <span>⚠️</span> 5,791 Total Reviews Analyzed
+        <span>⚠️</span> Loading reviews...
     </div>
 </div>
 
@@ -372,7 +374,7 @@
 </div>
 
 <!-- ── Cards Grid ──────────────────────────────────────────────── -->
-<div class="cards-grid">
+<div class="cards-grid rca-pending">
     <!-- Card 1 -->
     <div class="rca-card red">
         <div class="card-header">
@@ -1000,6 +1002,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 updateCard('blue', data.communication, data.total_reviews);
                 updateCard('gray', data.other, data.total_reviews);
                 updateTakeaway(data);
+                document.querySelector('.cards-grid').classList.remove('rca-pending');
             } else if (data.status === 'empty') {
                 document.querySelector('.header-badge').innerHTML = `<span>⚠️</span> 0 Total Reviews Analyzed`;
                 const zeroData = {total: 0, delays: 0, warranty: 0, unresolved: 0, updates: 0, cost: 0, general: 0, unprofessional: 0, rude: 0, neglect: 0, bias: 0, chasing: 0, promises: 0, rude_phone: 0, unanswered: 0, zero_contact: 0};
@@ -1008,9 +1011,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 updateCard('blue', zeroData, 0);
                 updateCard('gray', {total: 0, praise: 0, ambiance: 0, service: 0, product: 0, unclassified: 0}, 0);
                 document.getElementById('keyTakeawayText').textContent = 'No complaint reviews match the selected filters.';
+                document.querySelector('.cards-grid').classList.remove('rca-pending');
             }
         } catch(e) {
             console.error('Error loading data', e);
+            document.querySelector('.header-badge').innerHTML = '<span>&#9888;&#65039;</span> Could not load reviews. Please refresh.';
         } finally {
             btnRefresh.innerHTML = '<i class="bi bi-funnel-fill me-1"></i> Apply Filters';
             btnRefresh.disabled = false;
