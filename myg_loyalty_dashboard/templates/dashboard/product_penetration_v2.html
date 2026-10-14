@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Product Penetration V2 | myG Loyalty{% endblock %}
+{% block content %}
+<style>
+.v2-hero{background:linear-gradient(135deg,#1e3a5f 0%,#1e40af 60%,#2563eb 100%);border-radius:20px;padding:1.8rem 2.2rem;color:#fff;margin-bottom:1.4rem;position:relative;overflow:hidden;}
+.v2-hero::before{content:"";position:absolute;top:-60px;right:-60px;width:260px;height:260px;background:rgba(255,255,255,.06);border-radius:50%;}
+.v2-hero h1{font-size:1.55rem;font-weight:800;margin:0;}
+.v2-hero p{margin:.3rem 0 0;opacity:.78;font-size:.88rem;}
+.v2-back{display:inline-flex;align-items:center;gap:.4rem;font-size:.82rem;font-weight:600;color:#1e40af;text-decoration:none;margin-bottom:.8rem;}
+.v2-back:hover{text-decoration:underline;}
+.v2-ctl{background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(30,58,95,.08);padding:1.1rem 1.4rem;margin-bottom:1.4rem;display:flex;flex-wrap:wrap;gap:1rem 1.5rem;align-items:flex-end;}
+.v2-ctl label{display:block;font-size:.68rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#64748b;margin-bottom:.3rem;}
+.v2-seg{display:inline-flex;background:#eef2ff;border-radius:11px;padding:3px;}
+.v2-seg button{border:0;background:transparent;padding:.5rem 1.05rem;border-radius:9px;font-size:.85rem;font-weight:700;color:#475569;cursor:pointer;transition:all .18s;}
+.v2-seg button.active{background:#1e40af;color:#fff;box-shadow:0 4px 12px rgba(30,64,175,.3);}
+.v2-ctl input[type=date]{border:1px solid #cbd5e1;border-radius:10px;padding:.5rem .7rem;font-size:.88rem;color:#0f172a;background:#fff;}
+.v2-go{border:0;background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;font-weight:700;padding:.58rem 1.3rem;border-radius:10px;font-size:.88rem;cursor:pointer;box-shadow:0 6px 16px rgba(249,115,22,.3);}
+.v2-go:disabled{opacity:.6;cursor:wait;}
+.v2-ghost{border:1px solid #cbd5e1;background:#fff;color:#334155;font-weight:600;padding:.55rem 1rem;border-radius:10px;font-size:.84rem;cursor:pointer;}
+.v2-ghost:hover{background:#f1f5f9;} .v2-ghost:disabled{opacity:.5;cursor:not-allowed;}
+.v2-wrap{background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(30,58,95,.08);overflow:hidden;margin-bottom:1.2rem;}
+.v2-wrap table{width:100%;border-collapse:collapse;}
+.v2-wrap thead th{background:#1e3a5f;color:#fff;font-size:.78rem;font-weight:800;letter-spacing:.4px;text-transform:uppercase;padding:.8rem 1rem .75rem;text-align:center;border-left:1px solid rgba(255,255,255,.18);vertical-align:middle;}
+.v2-wrap thead th:first-child{border-left:0;}
+.v2-wrap thead th small{display:block;margin-top:.2rem;font-size:.7rem;font-weight:600;letter-spacing:0;text-transform:none;color:#bfdbfe;}
+.v2-wrap tbody td{padding:.85rem 1rem;font-size:.95rem;border-bottom:1px solid #e2e8f0;color:#1e3a5f;text-align:center;}
+.v2-wrap tbody td.per{font-weight:800;color:#0f172a;}
+.v2-wrap tbody td.num{font-weight:700;font-variant-numeric:tabular-nums;}
+.v2-wrap tbody td .sub{display:block;font-size:.7rem;font-weight:600;color:#94a3b8;margin-top:.1rem;}
+.v2-wrap tbody tr:hover{background:#eff6ff;}
+.v2-wrap tfoot td{padding:.85rem 1rem;font-size:.95rem;font-weight:800;background:#f1f5f9;color:#0f172a;text-align:center;}
+.v2-partial{font-size:.64rem;font-weight:700;background:#fef3c7;color:#b45309;border-radius:5px;padding:1px 6px;margin-left:.4rem;vertical-align:middle;}
+.v2-note{font-size:.78rem;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:.8rem 1rem;line-height:1.55;}
+.v2-load{display:flex;align-items:center;justify-content:center;padding:3rem;color:#94a3b8;gap:.75rem;}
+.v2-spin{animation:v2spin 1s linear infinite;} @keyframes v2spin{to{transform:rotate(360deg);}}
+</style>
+
+<div class="container-fluid py-4 px-4">
+  <a class="v2-back" href="{% url 'product_penetration' %}"><i class="bi bi-arrow-left"></i> Product Penetration Report</a>
+
+  <div class="v2-hero">
+    <div class="d-flex align-items-center gap-3">
+      <i class="bi bi-phone-fill" style="font-size:2rem;opacity:.9;"></i>
+      <div>
+        <h1>Product Penetration &middot; V2 Report</h1>
+        <p>Customers who bought a <b>Mobile</b> but <b>not</b> AC, TV, Washing Machine or Refrigerator &mdash; and how many of them converted in each period</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="v2-ctl">
+    <div>
+      <label>View by</label>
+      <div class="v2-seg" id="v2-unit">
+        <button type="button" data-unit="month">Monthly</button>
+        <button type="button" data-unit="quarter" class="active">Quarterly</button>
+        <button type="button" data-unit="year">Yearly</button>
+      </div>
+    </div>
+    <div class="d-flex gap-2">
+      <button type="button" class="v2-ghost" id="v2-csv" disabled><i class="bi bi-download me-1"></i> CSV</button>
+    </div>
+  </div>
+
+  <div id="v2-range" class="mb-3" style="font-size:.84rem;color:#475569;"></div>
+  <div class="v2-wrap" id="v2-table"><div class="v2-load">Choose a period and press Apply&hellip;</div></div>
+
+  <div class="v2-note">
+    <b>How it is counted:</b>
+    <b>Database</b> = customers who bought a Mobile on or before the period end and have <i>not</i> bought a Washing Machine, Refrigerator, TV or AC on or before that date
+    (small grey text = the database at the start of the period).
+    <b>Purchased Count</b> = number of <i>customers</i> from the opening database who bought any of AC / TV / Washing Machine / Refrigerator during the period
+    (each customer is counted once, in the period of their first such purchase).
+    <b>Purchased Value</b> = sold-price total of those customers&rsquo; AC / TV / Washing Machine / Refrigerator purchases in the period.
+    Quarters are calendar quarters (JFM, AMJ, JAS, OND). Monthly shows the last 6 months, Quarterly the last 4 quarters, Yearly the last 3 years.
+  </div>
+</div>
+
+<script>
+(function(){
+  const API = "{% url 'product_penetration_v2_api' %}";
+  const f = n => Number(n||0).toLocaleString('en-IN');
+  const money = n => '\u20B9 ' + Math.round(Number(n||0)).toLocaleString('en-IN');
+  const iso = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const fromEl = {value:''}, toEl = {value:''};   // range is chosen automatically per view (no date inputs)
+  const csvBtn = document.getElementById('v2-csv');
+  const WORD = {month:'MONTH', quarter:'QUARTER', year:'YEAR'};
+  let unit = 'quarter', last = null;
+
+  function defaults(u){
+    const now = new Date(); let from;
+    if(u==='month') from = new Date(now.getFullYear(), now.getMonth()-5, 1);
+    else if(u==='quarter') from = new Date(now.getFullYear(), Math.floor(now.getMonth()/3)*3-9, 1);
+    else from = new Date(now.getFullYear()-2, 0, 1);
+    fromEl.value = iso(from); toEl.value = iso(now);
+  }
+
+  document.querySelectorAll('#v2-unit button').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('#v2-unit button').forEach(x => x.classList.remove('active'));
+    b.classList.add('active'); unit = b.dataset.unit; defaults(unit); load();
+  }));
+
+  function spinner(msg){
+    return '<div class="v2-load"><svg class="v2-spin" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5"><circle cx="12" cy="12" r="10" stroke-opacity=".25"/><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/></svg>'+msg+'</div>';
+  }
+
+  async function load(){
+    csvBtn.disabled = true;
+    document.getElementById('v2-table').innerHTML = spinner('Computing from ClickHouse&hellip; this can take 20-60 seconds');
+    try{
+      const q = new URLSearchParams({unit, from: fromEl.value, to: toEl.value});
+      const d = await (await fetch(API+'?'+q)).json();
+      if(d.status !== 'success') throw new Error(d.message || 'Request failed');
+      last = d; render(d);
+    }catch(e){
+      document.getElementById('v2-table').innerHTML = '<div class="p-3 text-danger"><i class="bi bi-exclamation-triangle me-2"></i>'+e.message+'</div>';
+    }
+  }
+
+  function render(d){
+    fromEl.value = d.from; toEl.value = d.to;   // show the range snapped to whole periods
+    const w = WORD[d.unit], nice = {month:'months', quarter:'quarters', year:'years'}[d.unit];
+    document.getElementById('v2-range').innerHTML =
+      '<i class="bi bi-calendar3 me-1"></i>Showing <b>'+d.rows.length+' '+nice+'</b> &middot; '+d.from+' to '+d.to;
+    const body = d.rows.map(r => '<tr>'+
+      '<td class="num">'+f(r.db_end)+'<span class="sub">opening: '+f(r.db_open)+'</span></td>'+
+      '<td class="per">'+r.label+(r.partial?'<span class="v2-partial">in progress</span>':'')+'</td>'+
+      '<td class="num" style="color:#0369a1;">'+f(r.purchased_count)+'</td>'+
+      '<td class="num">'+money(r.purchased_value)+'</td></tr>').join('');
+    document.getElementById('v2-table').innerHTML =
+      '<table><thead><tr>'+
+      '<th>DATA BASE '+w+' ENDING<small>Mobile purchased, not purchased AC, TV, Washing Machine, Refrigerator</small></th>'+
+      '<th>'+w+'</th>'+
+      '<th>Purchased Count<small>AC, TV, Washing Machine, Refrigerator (customers)</small></th>'+
+      '<th>Purchased Value<small>AC, TV, Washing Machine, Refrigerator</small></th>'+
+      '</tr></thead><tbody>'+body+'</tbody>'+
+      '<tfoot><tr><td>&mdash;</td><td>Total</td><td>'+f(d.total.purchased_count)+'</td><td>'+money(d.total.purchased_value)+'</td></tr></tfoot></table>';
+    csvBtn.disabled = false;
+  }
+
+  csvBtn.addEventListener('click', () => {
+    if(!last) return;
+    const w = {month:'Month', quarter:'Quarter', year:'Year'}[last.unit];
+    const head = ['Database '+w+' ending (Mobile purchased, not purchased AC/TV/WM/REF)', 'Opening database (start of '+w.toLowerCase()+')', w,
+                  'Purchased Count (customers)', 'Purchased Value'];
+    const all = [head].concat(last.rows.map(r => [r.db_end, r.db_open, r.label, r.purchased_count, r.purchased_value]),
+                              [['', '', 'Total', last.total.purchased_count, last.total.purchased_value]]);
+    const csv = all.map(r => r.map(v => '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8'}));
+    a.download = 'mobile_without_CE_'+last.unit+'_'+last.from+'_'+last.to+'.csv';
+    a.click(); URL.revokeObjectURL(a.href);
+  });
+
+  defaults(unit); load();
+})();
+</script>
+{% endblock %}

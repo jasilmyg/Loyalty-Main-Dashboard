@@ -20,7 +20,7 @@ class _AssistantAccessMixin(LoginRequiredMixin):
 
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated and request.user.username in RESTRICTED_USERNAMES:
-            return JsonResponse({"error": "You do not have access to the ClickHouse Assistant."}, status=403)
+            return JsonResponse({"error": "You do not have access to Jazz AI."}, status=403)
         return super().dispatch(request, *args, **kwargs)
 
 

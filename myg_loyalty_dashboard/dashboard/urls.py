@@ -2,6 +2,7 @@ from django.urls import path
 from django.views.generic import RedirectView
 from . import views
 from . import portal_views
+from . import product_penetration_v2 as ppv2
 from .ai_chat_views import AIChatView, AIChatAPIView
 
 urlpatterns = [
@@ -108,6 +109,8 @@ urlpatterns = [
     # Product Penetration Report
     path('product-penetration/', views.ProductPenetrationView.as_view(), name='product_penetration'),
     path('api/v1/product-penetration/', views.ProductPenetrationAPIView.as_view(), name='product_penetration_api'),
+    path('product-penetration/v2/', ppv2.ProductPenetrationV2View.as_view(), name='product_penetration_v2'),
+    path('api/v1/product-penetration/v2/', ppv2.ProductPenetrationV2APIView.as_view(), name='product_penetration_v2_api'),
 
     # 🔮 Smart Next-Visit Predictor
     path('smart-next-visit/', views.SmartNextVisitView.as_view(), name='smart_next_visit'),

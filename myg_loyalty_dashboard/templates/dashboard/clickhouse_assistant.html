@@ -50,6 +50,7 @@
     .chx-logo .bars i { width: 4px; background: var(--chx-yellow); border-radius: 2px; display: block; }
     .chx-logo .bars i:nth-child(1) { height: 100%; } .chx-logo .bars i:nth-child(2) { height: 100%; }
     .chx-logo .bars i:nth-child(3) { height: 100%; } .chx-logo .bars i:nth-child(4) { height: 45%; }
+    .chx-logo > i.bi-robot { color: var(--chx-yellow); font-size: 1.55rem; line-height: 1; }
     .chx-pulse {
         position: absolute; top: -3px; right: -3px; width: 12px; height: 12px; border-radius: 50%;
         background: #22c55e; border: 2px solid #fff; animation: chx-pulse 2s ease-in-out infinite;
@@ -235,11 +236,11 @@
     <header class="chx-header">
         <div class="chx-brand">
             <div class="chx-logo" aria-hidden="true">
-                <div class="bars"><i></i><i></i><i></i><i></i></div>
+                <i class="bi bi-robot"></i>
                 <span class="chx-pulse"></span>
             </div>
             <div class="chx-title">
-                <h1>ClickHouse Assistant</h1>
+                <h1>Jazz AI</h1>
                 <p>Ask anything about your ClickHouse database &middot; data, schema &amp; SQL help</p>
             </div>
         </div>
@@ -256,7 +257,7 @@
         <section class="chx-main">
             <div class="chx-scroll" id="chx-scroll">
                 <div class="chx-welcome" id="chx-welcome">
-                    <div class="hero"><i class="bi bi-database-fill"></i></div>
+                    <div class="hero"><i class="bi bi-robot"></i></div>
                     <h2>What would you like to know about <span>your data</span>?</h2>
                     <p class="sub">I turn your questions into ClickHouse SQL, run them safely (read-only) and explain the results. I can also explain tables, columns and any ClickHouse concept.</p>
                     <div class="chx-sugg-grid">
@@ -448,7 +449,7 @@
                     (m.ms ? '<span>' + (m.ms / 1000).toFixed(1) + 's</span>' : '') +
                     '<span class="grow"></span><button type="button" data-copy-answer="' + mi + '"><i class="bi bi-clipboard"></i> Copy answer</button></div>';
             }
-            wrap.innerHTML = '<div class="chx-avatar"><i class="bi bi-database-fill"></i></div><div class="chx-card' + (m.error ? ' error' : '') + '">' + inner + '</div>';
+            wrap.innerHTML = '<div class="chx-avatar"><i class="bi bi-robot"></i></div><div class="chx-card' + (m.error ? ' error' : '') + '">' + inner + '</div>';
         }
         streamEl.appendChild(wrap);
     }
@@ -467,7 +468,7 @@
     function showTyping() {
         const el = document.createElement('div');
         el.className = 'chx-msg'; el.id = 'chx-typing';
-        el.innerHTML = '<div class="chx-avatar"><i class="bi bi-database-fill"></i></div>' +
+        el.innerHTML = '<div class="chx-avatar"><i class="bi bi-robot"></i></div>' +
             '<div class="chx-card"><div class="chx-typing"><div class="chx-dots"><span></span><span></span><span></span></div><span id="chx-status">' + STATUS[0] + '</span></div></div>';
         streamEl.appendChild(el); toBottom();
         let n = 0;

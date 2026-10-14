@@ -11,6 +11,7 @@
     --red-light: #ffe4e6;
     --orange-main: #d97706;
     --orange-light: #fef3c7;
+    --blue-main: #0284c7;
     --blue-light: #e0f2fe;
     --gray-main: #64748b;
     --gray-light: #f1f5f9;
@@ -511,11 +512,6 @@
     </div>
 </div>
 
-<div class="key-takeaway">
-    <div class="takeaway-badge">Key Takeaway</div>
-    <div class="takeaway-text" id="keyTakeawayText">Analysing reviews…</div>
-</div>
-
 <!-- Sub-category explanation modal (opened by clicking a dot) -->
 <div class="modal fade" id="ldItemModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
@@ -886,25 +882,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         unanswered: 'unanswered / disconnected calls', zero_contact: 'zero contact on phone / WhatsApp'}
     };
 
-    function updateTakeaway(data) {
-        const el = document.getElementById('keyTakeawayText');
-        if (!el) return;
-        const cards = {after_sales: 'After-Sales & Service Friction', staff: 'Staff Interaction & Attitude', communication: 'Communication Breakdown'};
-        const issueTotal = ['after_sales', 'staff', 'communication'].reduce((a, k) => a + data[k].total, 0);
-        if (!issueTotal) { el.textContent = 'No complaint reviews match the selected filters.'; return; }
-        const rows = [];
-        Object.keys(cards).forEach(c => Object.keys(ISSUE_LABELS[c]).forEach(k => {
-            if (k !== 'general') rows.push({label: ISSUE_LABELS[c][k], n: data[c][k]});
-        }));
-        rows.sort((a, b) => b.n - a.n);
-        const top = rows.slice(0, 3).filter(r => r.n > 0).map(r => `${r.label} (${r.n.toLocaleString()})`);
-        const topCard = Object.keys(cards).sort((a, b) => data[b].total - data[a].total)[0];
-        const pct = (issueTotal / data.total_reviews * 100).toFixed(1);
-        el.textContent = `${issueTotal.toLocaleString()} reviews (${pct}% of ${data.total_reviews.toLocaleString()}) are genuine complaints; `
-            + `${cards[topCard]} is the largest group. Top specific causes: ${top.join(', ')}. `
-            + `The remaining ${(100 - pct).toFixed(1)}% is positive or general feedback.`;
-    }
-
     function updateCard(cardClass, data, total_reviews) {
         const card = document.querySelector(`.rca-card.${cardClass}`);
         if(!card) return;
@@ -1001,7 +978,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 updateCard('orange', data.staff, data.total_reviews);
                 updateCard('blue', data.communication, data.total_reviews);
                 updateCard('gray', data.other, data.total_reviews);
-                updateTakeaway(data);
                 document.querySelector('.cards-grid').classList.remove('rca-pending');
             } else if (data.status === 'empty') {
                 document.querySelector('.header-badge').innerHTML = `<span>⚠️</span> 0 Total Reviews Analyzed`;
@@ -1010,7 +986,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 updateCard('orange', zeroData, 0);
                 updateCard('blue', zeroData, 0);
                 updateCard('gray', {total: 0, praise: 0, ambiance: 0, service: 0, product: 0, unclassified: 0}, 0);
-                document.getElementById('keyTakeawayText').textContent = 'No complaint reviews match the selected filters.';
                 document.querySelector('.cards-grid').classList.remove('rca-pending');
             }
         } catch(e) {

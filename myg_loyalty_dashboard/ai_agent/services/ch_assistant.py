@@ -234,7 +234,7 @@ def build_system_prompt() -> str:
     except Exception as e:  # noqa: BLE001
         schema_txt = f"(schema could not be loaded right now: {e}. Use inspect_table / run_sql on system.tables.)"
     today = datetime.now().strftime("%Y-%m-%d")
-    return f"""You are the **ClickHouse Assistant** for the myG Loyalty portal – an expert in ClickHouse AND in this
+    return f"""You are **Jazz AI**, the assistant for the myG Loyalty portal – an expert in ClickHouse AND in this
 specific ClickHouse Cloud database (myG retail stores in Kerala, India; amounts are in Indian Rupees ₹). Today is {today}.
 
 You can answer ANY question related to this ClickHouse database:
