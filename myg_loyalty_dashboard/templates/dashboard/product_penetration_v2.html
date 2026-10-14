@@ -68,9 +68,8 @@
 
   <div class="v2-note">
     <b>How it is counted:</b>
-    <b>Database</b> = customers who bought a Mobile on or before the period end and have <i>not</i> bought a Washing Machine, Refrigerator, TV or AC on or before that date
-    (small grey text = the database at the start of the period).
-    <b>Purchased Count</b> = number of <i>customers</i> from the opening database who bought any of AC / TV / Washing Machine / Refrigerator during the period
+    <b>Database</b> = customers who bought a Mobile on or before the period end and have <i>not</i> bought a Washing Machine, Refrigerator, TV or AC on or before that date.
+    <b>Purchased Count</b> = number of <i>customers</i> from the database at the start of the period who bought any of AC / TV / Washing Machine / Refrigerator during the period
     (each customer is counted once, in the period of their first such purchase).
     <b>Purchased Value</b> = sold-price total of those customers&rsquo; AC / TV / Washing Machine / Refrigerator purchases in the period.
     Quarters are calendar quarters (JFM, AMJ, JAS, OND). Monthly shows the last 6 months, Quarterly the last 4 quarters, Yearly the last 3 years.
@@ -123,29 +122,33 @@
     const w = WORD[d.unit], nice = {month:'months', quarter:'quarters', year:'years'}[d.unit];
     document.getElementById('v2-range').innerHTML =
       '<i class="bi bi-calendar3 me-1"></i>Showing <b>'+d.rows.length+' '+nice+'</b> &middot; '+d.from+' to '+d.to;
+    const pct = (n, base) => base ? (n / base * 100).toFixed(2) + '%' : '0.00%';
     const body = d.rows.map(r => '<tr>'+
-      '<td class="num">'+f(r.db_end)+'<span class="sub">opening: '+f(r.db_open)+'</span></td>'+
+      '<td class="num">'+f(r.db_end)+'</td>'+
       '<td class="per">'+r.label+(r.partial?'<span class="v2-partial">in progress</span>':'')+'</td>'+
       '<td class="num" style="color:#0369a1;">'+f(r.purchased_count)+'</td>'+
+      '<td class="num" title="'+f(r.purchased_count)+' of '+f(r.db_open)+' customers in the database at the start of the '+d.unit+'"><span class="v2-pill">'+pct(r.purchased_count, r.db_open)+'</span></td>'+
       '<td class="num">'+money(r.purchased_value)+'</td></tr>').join('');
     document.getElementById('v2-table').innerHTML =
       '<table><thead><tr>'+
       '<th>DATA BASE '+w+' ENDING<small>Mobile purchased, not purchased AC, TV, Washing Machine, Refrigerator</small></th>'+
       '<th>'+w+'</th>'+
       '<th>Purchased Count<small>AC, TV, Washing Machine, Refrigerator (customers)</small></th>'+
+      '<th>% of Database<small>Purchased count &divide; database at start of '+w.toLowerCase()+'</small></th>'+
       '<th>Purchased Value<small>AC, TV, Washing Machine, Refrigerator</small></th>'+
       '</tr></thead><tbody>'+body+'</tbody>'+
-      '<tfoot><tr><td>&mdash;</td><td>Total</td><td>'+f(d.total.purchased_count)+'</td><td>'+money(d.total.purchased_value)+'</td></tr></tfoot></table>';
+      '<tfoot><tr><td>&mdash;</td><td>Total</td><td>'+f(d.total.purchased_count)+'</td><td>&mdash;</td><td>'+money(d.total.purchased_value)+'</td></tr></tfoot></table>';
     csvBtn.disabled = false;
   }
 
   csvBtn.addEventListener('click', () => {
     if(!last) return;
     const w = {month:'Month', quarter:'Quarter', year:'Year'}[last.unit];
-    const head = ['Database '+w+' ending (Mobile purchased, not purchased AC/TV/WM/REF)', 'Opening database (start of '+w.toLowerCase()+')', w,
-                  'Purchased Count (customers)', 'Purchased Value'];
-    const all = [head].concat(last.rows.map(r => [r.db_end, r.db_open, r.label, r.purchased_count, r.purchased_value]),
-                              [['', '', 'Total', last.total.purchased_count, last.total.purchased_value]]);
+    const head = ['Database '+w+' ending (Mobile purchased, not purchased AC/TV/WM/REF)', w,
+                  'Purchased Count (customers)', '% of Database (purchased count / database at start of '+w.toLowerCase()+')', 'Purchased Value'];
+    const pc = (n, b) => b ? (n / b * 100).toFixed(2) + '%' : '0.00%';
+    const all = [head].concat(last.rows.map(r => [r.db_end, r.label, r.purchased_count, pc(r.purchased_count, r.db_open), r.purchased_value]),
+                              [['', 'Total', last.total.purchased_count, '', last.total.purchased_value]]);
     const csv = all.map(r => r.map(v => '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8'}));
