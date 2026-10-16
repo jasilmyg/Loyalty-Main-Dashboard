@@ -109,17 +109,41 @@ def get_stock_filter_options():
     }
 
 
-def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, district=None):
+def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, district=None, price_type='mop'):
     """
     Returns product-wise and category-wise stock ageing breakdown,
     optionally filtered by RBM, BDM, Branch, and District using branch_master.
+    Supports valuation by:
+      - 'mop': Market Operating Price (Default)
+      - 'cost_price': Cost Price
+      - 'dealer_price': Dealer Price
+      - 'mrp': Maximum Retail Price
     """
+    norm_price = (price_type or 'mop').lower().strip()
+    if norm_price in ('cost', 'cost_price', 'cost price'):
+        selected_price_type = 'cost_price'
+        price_expr = 'COALESCE(s."COST PRICE", 0)'
+        price_label = 'Cost Price'
+    elif norm_price in ('dealer', 'dealer_price', 'dealer price', 'dp'):
+        selected_price_type = 'dealer_price'
+        price_expr = 'COALESCE(NULLIF(s."Dealer Price", 0), s."COST PRICE", 0)'
+        price_label = 'Dealer Price'
+    elif norm_price in ('mrp',):
+        selected_price_type = 'mrp'
+        price_expr = 'CASE WHEN s."MRP" > 1000000 OR s."MRP" <= 0 THEN COALESCE(NULLIF(s."MOP", 0), s."COST PRICE", 0) ELSE s."MRP" END'
+        price_label = 'MRP'
+    else:  # default 'mop'
+        selected_price_type = 'mop'
+        price_expr = 'COALESCE(NULLIF(s."MOP", 0), s."COST PRICE", 0)'
+        price_label = 'MOP'
+
     cache_key = (
         force_refresh,
         str(rbm or '').strip(),
         str(bdm or '').strip(),
         str(branch or '').strip(),
-        str(district or '').strip()
+        str(district or '').strip(),
+        selected_price_type
     )
 
     if not force_refresh and cache_key in _cached_results:
@@ -183,15 +207,15 @@ def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, 
     SELECT 
         COALESCE(m.CAT, 'OTHER') as category,
         s."PRODUCT" as product,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" < 30 THEN s."STOCK" * s."COST PRICE" ELSE 0 END) / 1e7, 2) as val_lt_30,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" >= 30 AND s."TOTAL AGE" < 60 THEN s."STOCK" * s."COST PRICE" ELSE 0 END) / 1e7, 2) as val_30_60,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" >= 60 AND s."TOTAL AGE" <= 90 THEN s."STOCK" * s."COST PRICE" ELSE 0 END) / 1e7, 2) as val_60_90,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" >= 30 AND s."TOTAL AGE" <= 90 THEN s."STOCK" * s."COST PRICE" ELSE 0 END) / 1e7, 2) as val_30_90,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" > 90 AND s."TOTAL AGE" <= 180 THEN s."STOCK" * s."COST PRICE" ELSE 0 END) / 1e7, 2) as val_90_180,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" > 180 THEN s."STOCK" * s."COST PRICE" ELSE 0 END) / 1e7, 2) as val_gt_180,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" > 180 AND s."TOTAL AGE" <= 365 THEN s."STOCK" * s."COST PRICE" ELSE 0 END) / 1e7, 2) as val_180_365,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" > 365 THEN s."STOCK" * s."COST PRICE" ELSE 0 END) / 1e7, 2) as val_gt_365,
-        ROUND(SUM(s."STOCK" * s."COST PRICE") / 1e7, 2) as total_val,
+        ROUND(SUM(CASE WHEN s."TOTAL AGE" < 30 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_lt_30,
+        ROUND(SUM(CASE WHEN s."TOTAL AGE" >= 30 AND s."TOTAL AGE" < 60 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_30_60,
+        ROUND(SUM(CASE WHEN s."TOTAL AGE" >= 60 AND s."TOTAL AGE" <= 90 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_60_90,
+        ROUND(SUM(CASE WHEN s."TOTAL AGE" >= 30 AND s."TOTAL AGE" <= 90 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_30_90,
+        ROUND(SUM(CASE WHEN s."TOTAL AGE" > 90 AND s."TOTAL AGE" <= 180 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_90_180,
+        ROUND(SUM(CASE WHEN s."TOTAL AGE" > 180 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_gt_180,
+        ROUND(SUM(CASE WHEN s."TOTAL AGE" > 180 AND s."TOTAL AGE" <= 365 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_180_365,
+        ROUND(SUM(CASE WHEN s."TOTAL AGE" > 365 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_gt_365,
+        ROUND(SUM(s."STOCK" * ({price_expr})) / 1e7, 2) as total_val,
         
         SUM(CASE WHEN s."TOTAL AGE" < 30 THEN s."STOCK" ELSE 0 END) as qty_lt_30,
         SUM(CASE WHEN s."TOTAL AGE" >= 30 AND s."TOTAL AGE" < 60 THEN s."STOCK" ELSE 0 END) as qty_30_60,
@@ -217,15 +241,15 @@ def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, 
         COALESCE(m.CAT, 'OTHER') as category,
         s."PRODUCT" as product,
         COALESCE(NULLIF(TRIM(s."BRAND"), ''), 'OTHERS') as brand,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" < 30 THEN s."STOCK" * s."COST PRICE" ELSE 0 END) / 1e7, 2) as val_lt_30,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" >= 30 AND s."TOTAL AGE" < 60 THEN s."STOCK" * s."COST PRICE" ELSE 0 END) / 1e7, 2) as val_30_60,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" >= 60 AND s."TOTAL AGE" <= 90 THEN s."STOCK" * s."COST PRICE" ELSE 0 END) / 1e7, 2) as val_60_90,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" >= 30 AND s."TOTAL AGE" <= 90 THEN s."STOCK" * s."COST PRICE" ELSE 0 END) / 1e7, 2) as val_30_90,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" > 90 AND s."TOTAL AGE" <= 180 THEN s."STOCK" * s."COST PRICE" ELSE 0 END) / 1e7, 2) as val_90_180,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" > 180 THEN s."STOCK" * s."COST PRICE" ELSE 0 END) / 1e7, 2) as val_gt_180,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" > 180 AND s."TOTAL AGE" <= 365 THEN s."STOCK" * s."COST PRICE" ELSE 0 END) / 1e7, 2) as val_180_365,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" > 365 THEN s."STOCK" * s."COST PRICE" ELSE 0 END) / 1e7, 2) as val_gt_365,
-        ROUND(SUM(s."STOCK" * s."COST PRICE") / 1e7, 2) as total_val,
+        ROUND(SUM(CASE WHEN s."TOTAL AGE" < 30 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_lt_30,
+        ROUND(SUM(CASE WHEN s."TOTAL AGE" >= 30 AND s."TOTAL AGE" < 60 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_30_60,
+        ROUND(SUM(CASE WHEN s."TOTAL AGE" >= 60 AND s."TOTAL AGE" <= 90 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_60_90,
+        ROUND(SUM(CASE WHEN s."TOTAL AGE" >= 30 AND s."TOTAL AGE" <= 90 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_30_90,
+        ROUND(SUM(CASE WHEN s."TOTAL AGE" > 90 AND s."TOTAL AGE" <= 180 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_90_180,
+        ROUND(SUM(CASE WHEN s."TOTAL AGE" > 180 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_gt_180,
+        ROUND(SUM(CASE WHEN s."TOTAL AGE" > 180 AND s."TOTAL AGE" <= 365 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_180_365,
+        ROUND(SUM(CASE WHEN s."TOTAL AGE" > 365 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_gt_365,
+        ROUND(SUM(s."STOCK" * ({price_expr})) / 1e7, 2) as total_val,
         
         SUM(CASE WHEN s."TOTAL AGE" < 30 THEN s."STOCK" ELSE 0 END) as qty_lt_30,
         SUM(CASE WHEN s."TOTAL AGE" >= 30 AND s."TOTAL AGE" < 60 THEN s."STOCK" ELSE 0 END) as qty_30_60,
@@ -370,6 +394,8 @@ def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, 
     result = {
         'status': 'success',
         'as_of_date': '15 October 2026',
+        'price_type': selected_price_type,
+        'price_label': price_label,
         'categories': sorted_categories,
         'grand_total': grand_total,
         'filter_options': get_stock_filter_options(),
@@ -377,7 +403,8 @@ def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, 
             'rbm': rbm or '',
             'bdm': bdm or '',
             'branch': branch or '',
-            'district': district or ''
+            'district': district or '',
+            'price_type': selected_price_type
         }
     }
     _cached_results[cache_key] = (result, time.time())

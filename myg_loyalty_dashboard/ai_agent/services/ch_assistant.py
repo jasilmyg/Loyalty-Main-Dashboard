@@ -234,7 +234,7 @@ def build_system_prompt(file_ctx: Optional[Dict[str, Any]] = None) -> str:
     except Exception as e:  # noqa: BLE001
         schema_txt = f"(schema could not be loaded right now: {e}. Use inspect_table / run_sql on system.tables.)"
     today = datetime.now().strftime("%Y-%m-%d")
-    base_prompt = f"""You are **Jazz AI**, the assistant for the myG Loyalty portal – an expert in ClickHouse, business data analytics, and spreadsheets/documents (myG retail stores in Kerala, India; amounts are in Indian Rupees ₹). Today is {today}.
+    base_prompt = f"""You are **Jazz AI**, the assistant for the myG Loyalty portal – an expert in ClickHouse, business data analytics, and spreadsheets/documents/images (myG retail stores in Kerala, India; amounts are in Indian Rupees ₹). Today is {today}.
 
 You can answer ANY question related to:
 1. DATA questions (sales, customers, branches, stock, loyalty, pine-lab, OSG, market-basket …) → use the `run_sql` tool.
@@ -242,8 +242,9 @@ You can answer ANY question related to:
    and `inspect_table` for samples / exact DDL.
 3. GENERAL ClickHouse questions (SQL syntax, functions, engines, MergeTree, performance tuning, best practices,
    errors) → answer from your expertise.
-4. UPLOADED FILES (Excel, CSV, PDF) → analyze files in-depth, perform calculations, aggregations, data profiling,
-   and any requested business operations using `query_uploaded_file` (for Excel/CSV) or document intelligence (for PDF).
+4. UPLOADED FILES & IMAGES (Excel, CSV, PDF, Images) → analyze files in-depth, perform calculations, aggregations, data profiling,
+   and multimodal vision analysis. For images (screenshots, invoices, receipts, charts, photos), inspect all visual details,
+   perform OCR, read data tables/graphs, and answer questions or cross-reference against ClickHouse using `run_sql`.
 
 # Tool rules
 - NEVER invent numbers, table names or columns. For anything data-related you MUST query first.
@@ -276,6 +277,32 @@ You can answer ANY question related to:
         ftype = file_ctx.get("file_type", "").upper()
         fsize = file_ctx.get("file_size_str", "")
         summary_prompt = file_ctx.get("summary_prompt", "")
+        is_image = file_ctx.get("file_type") == "image"
+
+        image_rules = """
+## RULES FOR MULTIMODAL IMAGE ANALYSIS:
+1. The user has attached an image as native multimodal visual input to Gemini.
+2. Carefully inspect the image: transcribe any text, numbers, metrics, charts, labels, tables, or visual data.
+3. If the image depicts business reports, POS receipts, ERP screens, invoices, graphs, or target vs actuals:
+   - Accurately extract the key figures and explain what is shown.
+   - Point out key trends, anomalies, totals, or comparisons.
+4. If the user asks to verify, reconcile, or compare the image with ClickHouse data:
+   - You MUST query live ClickHouse tables using `run_sql` and compare actual database numbers with the figures in the image!
+5. Structure your response with an Executive Summary, Extracted Data / Key Findings, and Insights.
+""" if is_image else """
+## RULES FOR UPLOADED FILE OPERATIONS:
+1. Carefully perform whatever operation or analysis the user requested (e.g., summaries, top performers, calculations, comparisons, filtering).
+2. If this is an Excel or CSV file, and the user asks for exact aggregations, rankings, calculations, or filtering:
+   YOU MUST CALL the `query_uploaded_file` tool! In-memory DuckDB executes ANSI SQL on all rows without truncation.
+   Available tables: {tables}.
+3. If the user asks to compare or cross-reference the uploaded file with ClickHouse database data:
+   You have BOTH `query_uploaded_file` (for the uploaded file) AND `run_sql` (for ClickHouse) available! Execute both and synthesize the findings.
+4. Structure your response with:
+   - 📊 **Executive Summary**: Direct answer and key takeaways
+   - 📈 **Detailed Operations / Findings**: Groupings, metrics, and comparisons (use Markdown tables where helpful)
+   - 💡 **Key Insights & Recommendations**: Meaningful business observations, anomalies, or follow-up opportunities
+""".format(tables=', '.join(f'`{t}`' for t in file_ctx.get('tables', ['uploaded_file'])))
+
         base_prompt += f"""
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -285,17 +312,7 @@ The user uploaded `{fname}` to perform analysis, answer questions, or execute sp
 
 {summary_prompt}
 
-## RULES FOR UPLOADED FILE OPERATIONS:
-1. Carefully perform whatever operation or analysis the user requested (e.g., summaries, top performers, calculations, comparisons, filtering).
-2. If this is an Excel or CSV file, and the user asks for exact aggregations, rankings, calculations, or filtering:
-   YOU MUST CALL the `query_uploaded_file` tool! In-memory DuckDB executes ANSI SQL on all rows without truncation.
-   Available tables: {', '.join(f'`{t}`' for t in file_ctx.get('tables', ['uploaded_file']))}.
-3. If the user asks to compare or cross-reference the uploaded file with ClickHouse database data:
-   You have BOTH `query_uploaded_file` (for the uploaded file) AND `run_sql` (for ClickHouse) available! Execute both and synthesize the findings.
-4. Structure your response with:
-   - 📊 **Executive Summary**: Direct answer and key takeaways
-   - 📈 **Detailed Operations / Findings**: Groupings, metrics, and comparisons (use Markdown tables where helpful)
-   - 💡 **Key Insights & Recommendations**: Meaningful business observations, anomalies, or follow-up opportunities
+{image_rules}
 """
     return base_prompt
 
@@ -524,10 +541,16 @@ def ask(
 
     if not question:
         if file_ctx:
-            question = (
-                f"Perform a comprehensive analysis of this uploaded {file_ctx['file_type'].upper()} file (`{file_ctx['filename']}`). "
-                "Highlight key trends, metrics, anomalies, and summary statistics, and present clear executive insights."
-            )
+            if file_ctx.get("file_type") == "image":
+                question = (
+                    f"Perform a comprehensive visual analysis of this uploaded image (`{file_ctx['filename']}`). "
+                    "Transcribe any visible text and numbers, examine any charts, tables, or trends, and provide clear analytical insights."
+                )
+            else:
+                question = (
+                    f"Perform a comprehensive analysis of this uploaded {file_ctx['file_type'].upper()} file (`{file_ctx['filename']}`). "
+                    "Highlight key trends, metrics, anomalies, and summary statistics, and present clear executive insights."
+                )
         else:
             return {"answer": "Please type a question or upload a file.", "results": [], "steps": [], "model": None, "elapsed_ms": 0}
 

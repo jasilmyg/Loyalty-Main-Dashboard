@@ -31,7 +31,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import duckdb
 import pandas as pd
-import pypdf
+try:
+    import pypdf
+except ImportError:
+    try:
+        import PyPDF2 as pypdf
+    except ImportError:
+        pypdf = None
 
 logger = logging.getLogger(__name__)
 
@@ -324,11 +330,81 @@ def _parse_pdf(file_bytes: bytes, filename: str) -> Dict[str, Any]:
     }
 
 
+def _parse_image(file_bytes: bytes, filename: str) -> Dict[str, Any]:
+    """
+    Parse an uploaded image (PNG, JPG, WebP, GIF, BMP) and prepare multimodal inline data for Gemini Vision.
+    Extracts image metadata (dimensions, format) and prepares base64 payload.
+    """
+    ext = os.path.splitext(filename.lower())[1]
+    mime_map = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+        ".bmp": "image/bmp",
+    }
+    mime_type = mime_map.get(ext, "image/jpeg")
+
+    width, height, img_format = None, None, None
+    try:
+        from PIL import Image
+        with Image.open(io.BytesIO(file_bytes)) as img:
+            width, height = img.size
+            img_format = img.format
+            # If the image is excessively large (> 15MB), optimize/compress to fit comfortably in LLM payload
+            if len(file_bytes) > 15 * 1024 * 1024:
+                out_bio = io.BytesIO()
+                # If format doesn't support RGB conversion directly
+                rgb_img = img.convert("RGB") if img.mode not in ("RGB", "L") else img
+                rgb_img.save(out_bio, format="JPEG", quality=85, optimize=True)
+                file_bytes = out_bio.getvalue()
+                mime_type = "image/jpeg"
+                width, height = rgb_img.size
+                img_format = "JPEG"
+    except Exception as e:
+        logger.warning("Could not inspect image metadata for %s: %s", filename, e)
+
+    b64_data = base64.b64encode(file_bytes).decode("utf-8")
+    inline_parts = [{
+        "inlineData": {
+            "mimeType": mime_type,
+            "data": b64_data,
+        }
+    }]
+
+    dim_str = f" ({width}x{height} px)" if width and height else ""
+    summary_text = (
+        f"**File Profile:** Uploaded Image `{filename}`{dim_str}\n"
+        f"- Format: {img_format or ext.lstrip('.').upper()}\n"
+        f"- Size: {_format_size(len(file_bytes))}\n"
+        f"- Multimodal Vision Analysis: Ready. High-resolution image is attached to Gemini for visual intelligence.\n"
+        f"- Supported Operations: Read charts, tables, numbers, receipts, invoices, error screens, and cross-reference with ClickHouse database data."
+    )
+
+    return {
+        "file_type": "image",
+        "filename": filename,
+        "file_size": len(file_bytes),
+        "file_size_str": _format_size(len(file_bytes)),
+        "duckdb_conn": None,
+        "tables": [],
+        "summary_prompt": summary_text,
+        "inline_parts": inline_parts,
+        "meta": {"width": width, "height": height, "format": img_format or ext.lstrip('.').upper()},
+    }
+
+
 def analyze_file(file_obj_or_bytes: Any, filename: str) -> Dict[str, Any]:
     """
-    Main entry point: analyzes uploaded file (Excel, CSV, or PDF)
+    Main entry point: analyzes uploaded file (Excel, CSV, PDF, or Image)
     and returns a structured file context dictionary.
     """
+    if hasattr(file_obj_or_bytes, "seek"):
+        try:
+            file_obj_or_bytes.seek(0)
+        except Exception:
+            pass
     if hasattr(file_obj_or_bytes, "read"):
         file_bytes = file_obj_or_bytes.read()
     elif isinstance(file_obj_or_bytes, bytes):
@@ -347,8 +423,12 @@ def analyze_file(file_obj_or_bytes: Any, filename: str) -> Dict[str, Any]:
         return _parse_csv(file_bytes, filename)
     elif ext == ".pdf":
         return _parse_pdf(file_bytes, filename)
+    elif ext in [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"]:
+        return _parse_image(file_bytes, filename)
     else:
-        raise ValueError(f"Unsupported file type '{ext}'. Please upload an Excel (.xlsx, .xls), CSV (.csv), or PDF (.pdf) file.")
+        raise ValueError(
+            f"Unsupported file type '{ext}'. Please upload an Excel (.xlsx, .xls), CSV (.csv), PDF (.pdf), or Image (.png, .jpg, .jpeg, .webp, .gif) file."
+        )
 
 
 def execute_file_query(con: duckdb.DuckDBPyConnection, sql: str, max_rows: int = 500) -> Dict[str, Any]:

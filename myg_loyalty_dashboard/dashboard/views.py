@@ -5801,12 +5801,14 @@ class StockAgeingReportAPIView(View):
         from .stock_report_service import get_stock_ageing_data
         try:
             refresh = request.GET.get('refresh', '0') == '1'
+            price_type = request.GET.get('price_type', 'mop').strip().lower()
             rbm = request.GET.get('rbm', '').strip()
             bdm = request.GET.get('bdm', '').strip()
             branch = request.GET.get('branch', '').strip()
             district = request.GET.get('district', '').strip()
             data = get_stock_ageing_data(
                 force_refresh=refresh,
+                price_type=price_type,
                 rbm=rbm or None,
                 bdm=bdm or None,
                 branch=branch or None,
@@ -5825,12 +5827,14 @@ class StockAgeingExportAPIView(View):
         from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
         from .stock_report_service import get_stock_ageing_data
 
+        price_type = request.GET.get('price_type', 'mop').strip().lower()
         rbm = request.GET.get('rbm', '').strip()
         bdm = request.GET.get('bdm', '').strip()
         branch = request.GET.get('branch', '').strip()
         district = request.GET.get('district', '').strip()
 
         data = get_stock_ageing_data(
+            price_type=price_type,
             rbm=rbm or None,
             bdm=bdm or None,
             branch=branch or None,
@@ -5838,6 +5842,7 @@ class StockAgeingExportAPIView(View):
         )
         categories = data.get('categories', [])
         grand_total = data.get('grand_total', {})
+        price_label = data.get('price_label', 'MOP')
 
         wb = openpyxl.Workbook()
 
@@ -5901,7 +5906,7 @@ class StockAgeingExportAPIView(View):
             ws.row_dimensions[1].height = 34
 
             ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=col_span)
-            sub_cell = ws.cell(row=2, column=1, value=f"Report as of 15 October 2026 | Filters: {filter_subtitle} | Generated from myG Dashboard")
+            sub_cell = ws.cell(row=2, column=1, value=f"Report as of 15 October 2026 | Valuation: {price_label} | Filters: {filter_subtitle} | Generated from myG Dashboard")
             sub_cell.font = sub_font
             sub_cell.alignment = Alignment(horizontal='center', vertical='center')
             ws.row_dimensions[2].height = 20
@@ -6033,7 +6038,7 @@ class StockAgeingExportAPIView(View):
             ("> 180 Days Total (Cr)", 'val_gt_180', '#,##0.00', 18),
             ("Grand Total Value (Cr)", 'total_val', '#,##0.00', 20)
         ]
-        setup_sheet_header(ws2, "myG - Stock Value Ageing Breakdown (₹ Crores) - All Buckets Including >365", len(val_cols_defs))
+        setup_sheet_header(ws2, f"myG - Stock Value Ageing Breakdown ({price_label} - ₹ Crores) - All Buckets Including >365", len(val_cols_defs))
         ws2.row_dimensions[4].height = 28
         for col_idx, (col_name, _, _, col_w) in enumerate(val_cols_defs, 1):
             cell = ws2.cell(row=4, column=col_idx, value=col_name)
@@ -6173,7 +6178,8 @@ class StockAgeingExportAPIView(View):
         wb.save(out)
         out.seek(0)
 
+        safe_label = price_label.replace(" ", "_")
         response = HttpResponse(out.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        response['Content-Disposition'] = 'attachment; filename="myG_Stock_Ageing_Complete_Report_15_Oct_2026.xlsx"'
+        response['Content-Disposition'] = f'attachment; filename="myG_Stock_Ageing_Report_{safe_label}_15_Oct_2026.xlsx"'
         return response
 

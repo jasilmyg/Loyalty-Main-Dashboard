@@ -421,6 +421,19 @@
           <input type="text" id="stock-search-input" onkeyup="filterStockRows()" placeholder="Search product / brand..." style="padding-left:26px; height:32px; font-size:0.78rem; border-radius:8px; border:1px solid var(--border); background:#f8fafc; width:100%;">
         </div>
 
+        <!-- Price Basis Selector: MOP (Default), Cost Price, Dealer Price, MRP -->
+        <div class="d-flex align-items-center bg-white rounded-2 px-2 border" style="height:32px; border-color:var(--border) !important;">
+          <label for="stock-price-type" class="mb-0 me-1 d-flex align-items-center text-muted" style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.3px;">
+            <i class="bi bi-tag-fill me-1" style="color:#ea580c; font-size:0.72rem;"></i>Price:
+          </label>
+          <select id="stock-price-type" onchange="onStockPriceTypeChange(this.value)" class="form-select form-select-sm border-0 shadow-none p-0 ps-1" style="height:28px; font-size:0.78rem; font-weight:700; color:#0f172a; width:auto; cursor:pointer; background-color:transparent;" title="Select Price Basis">
+            <option value="mop" selected>MOP</option>
+            <option value="cost_price">Cost Price</option>
+            <option value="dealer_price">Dealer Price</option>
+            <option value="mrp">MRP</option>
+          </select>
+        </div>
+
         <!-- Metric Toggle: Value (Cr) vs Qty -->
         <div class="btn-group" role="group" style="height:32px;">
           <button type="button" class="btn btn-sm btn-outline-secondary stock-metric-btn active" id="btn-stock-metric-val" onclick="setStockMetric('val')">
@@ -448,7 +461,10 @@
       <div class="row g-2">
         <div class="col-6 col-md-3">
           <div class="p-2 px-3 rounded-3" style="background:#ffffff; border:1px solid #e2e8f0; border-left:4px solid #3b82f6;">
-            <div style="font-size:0.68rem; font-weight:700; color:var(--text-3); text-transform:uppercase;">Total Stock Valuation</div>
+            <div class="d-flex align-items-center justify-content-between">
+              <div style="font-size:0.68rem; font-weight:700; color:var(--text-3); text-transform:uppercase;">Total Stock Valuation</div>
+              <span id="kpi-stock-price-badge" class="badge" style="background:#eff6ff; color:#2563eb; font-size:0.62rem; font-weight:700; border:1px solid #bfdbfe;">MOP</span>
+            </div>
             <div id="kpi-stock-total-val" style="font-size:1.25rem; font-weight:800; color:#1e293b;">₹ 0.00 Cr</div>
             <div id="kpi-stock-total-qty" style="font-size:0.72rem; color:var(--text-3);">0 units across all categories</div>
           </div>
@@ -516,6 +532,7 @@ const CAT_COLORS = {
 ══════════════════════════════════════════════════════════════════════════════ */
 window._stockData = null;
 window._stockMetric = 'val';      // 'val' (Cr) or 'qty' (Units)
+window._stockPriceType = 'mop';   // 'mop' (default), 'cost_price', 'dealer_price', 'mrp'
 window._stockExpandedCats = new Set();  // Default: all categories collapsed
 window._stockExpandedProds = new Set(); // Default: all subcategories collapsed
 window._stockAllExpanded = false;
@@ -523,6 +540,11 @@ window._stockSelectedCat = null;   // null for all categories, or 'MOBILE', 'CE'
 window._stockSelectedProd = null;  // null for all subcategories, or 'TV', etc.
 window._stock_ts = {};
 window._filterOptionsLoaded = false;
+
+function onStockPriceTypeChange(val) {
+  window._stockPriceType = val;
+  loadStockAgeingReport();
+}
 
 function initStockFilters() {
   const tsConfig = {
@@ -634,6 +656,7 @@ async function loadStockAgeingReport(forceRefresh = false) {
   const f = getSelectedStockFilters();
   const params = new URLSearchParams();
   if (forceRefresh) params.set('refresh', '1');
+  if (window._stockPriceType) params.set('price_type', window._stockPriceType);
   if (f.rbm) params.set('rbm', f.rbm);
   if (f.bdm) params.set('bdm', f.bdm);
   if (f.district) params.set('district', f.district);
@@ -685,6 +708,15 @@ function renderStockKPIs() {
 
   const agedVal = gt.val_gt_180 || 0;
   const agedQty = gt.qty_gt_180 || 0;
+
+  const priceLabel = window._stockData.price_label || (window._stockPriceType || 'MOP').toUpperCase();
+  const elPriceBadge = document.getElementById('kpi-stock-price-badge');
+  if (elPriceBadge) elPriceBadge.textContent = priceLabel;
+
+  const elPriceSelect = document.getElementById('stock-price-type');
+  if (elPriceSelect && window._stockData.price_type) {
+    elPriceSelect.value = window._stockData.price_type;
+  }
 
   const elTotalVal = document.getElementById('kpi-stock-total-val');
   const elTotalQty = document.getElementById('kpi-stock-total-qty');

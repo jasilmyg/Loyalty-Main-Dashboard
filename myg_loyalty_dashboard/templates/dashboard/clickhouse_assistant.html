@@ -154,6 +154,7 @@
     .chx-file-analyzed-badge i.excel { color: #16a34a; font-size: 1rem; }
     .chx-file-analyzed-badge i.csv { color: #0891b2; font-size: 1rem; }
     .chx-file-analyzed-badge i.pdf { color: #dc2626; font-size: 1rem; }
+    .chx-file-analyzed-badge i.image { color: #8b5cf6; font-size: 1rem; }
 
     /* markdown */
     .chx-md { font-size: .92rem; line-height: 1.62; word-break: break-word; }
@@ -208,6 +209,21 @@
     .chx-dots span:nth-child(2) { animation-delay: .15s; } .chx-dots span:nth-child(3) { animation-delay: .3s; }
     @keyframes chx-bounce { 0%,80%,100% { transform: scale(.6); opacity: .4;} 40% { transform: scale(1); opacity: 1; } }
 
+    /* user attachment pill & thumbnail */
+    .chx-user-file-pill {
+        display: inline-flex; align-items: center; gap: .6rem; padding: .35rem .7rem; margin-bottom: .45rem;
+        background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.28); border-radius: 10px; font-size: .78rem; text-align: left;
+    }
+    .chx-user-file-pill i { font-size: 1.2rem; line-height: 1; }
+    .chx-user-file-pill i.uf-excel { color: #86efac; }
+    .chx-user-file-pill i.uf-csv { color: #67e8f9; }
+    .chx-user-file-pill i.uf-pdf { color: #fca5a5; }
+    .chx-user-file-pill i.uf-image { color: #c4b5fd; }
+    .chx-user-file-pill .uf-meta { display: flex; flex-direction: column; }
+    .chx-user-file-pill .uf-name { font-weight: 600; font-size: .8rem; }
+    .chx-user-file-pill .uf-size { font-size: .68rem; opacity: .88; }
+    .chx-user-file-thumb { width: 34px; height: 34px; object-fit: cover; border-radius: 6px; border: 1px solid rgba(255,255,255,.35); }
+
     /* ── Composer & File Upload ────────────────────────────── */
     .chx-composer-wrap { padding: .4rem 1.75rem 1rem; flex-shrink: 0; }
 
@@ -217,10 +233,12 @@
         padding: .5rem .85rem; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 14px;
         box-shadow: 0 4px 14px rgba(15,23,42,.06); animation: chx-rise .2s ease-out;
     }
-    .chx-staged-icon { font-size: 1.45rem; line-height: 1; display: grid; place-items: center; }
+    .chx-staged-icon { font-size: 1.45rem; line-height: 1; display: grid; place-items: center; min-width: 36px; min-height: 36px; }
     .chx-staged-icon.excel { color: #10b981; }
     .chx-staged-icon.csv { color: #06b6d4; }
     .chx-staged-icon.pdf { color: #ef4444; }
+    .chx-staged-icon.image { color: #8b5cf6; }
+    .chx-staged-thumb { width: 38px; height: 38px; object-fit: cover; border-radius: 8px; border: 1.5px solid #cbd5e1; }
     .chx-staged-info { flex: 1; min-width: 0; }
     .chx-staged-name { font-size: .84rem; font-weight: 700; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .chx-staged-meta { font-size: .72rem; color: #64748b; font-weight: 500; }
@@ -329,11 +347,11 @@
                 <div class="chx-welcome" id="chx-welcome">
                     <div class="hero"><i class="bi bi-robot"></i></div>
                     <h2>What would you like to know about <span>your data</span>?</h2>
-                    <p class="sub">I turn your questions into ClickHouse SQL, run them safely, and explain results. You can also <strong>upload an Excel, CSV, or PDF file</strong> below to do calculations, rankings, anomaly detection, and deep data analysis.</p>
+                    <p class="sub">I turn your questions into ClickHouse SQL, run them safely, and explain results. You can also <strong>upload an Excel, CSV, PDF file, or Image</strong> below to do calculations, rankings, visual chart analysis, and deep intelligence.</p>
 
                     <div class="chx-welcome-actions">
                         <button type="button" class="chx-welcome-upload-btn" id="chx-welcome-upload-btn">
-                            <i class="bi bi-cloud-arrow-up-fill"></i> Upload Excel, CSV, or PDF to Analyze
+                            <i class="bi bi-cloud-arrow-up-fill"></i> Upload Excel, CSV, PDF, or Image to Analyze
                         </button>
                     </div>
 
@@ -345,9 +363,9 @@
                             <button class="chx-sugg" type="button">Which product categories sell the most, and how has that trended by month?</button>
                         </div>
                         <div class="chx-sugg-col">
-                            <h6><i class="bi bi-file-earmark-spreadsheet"></i> File analysis &amp; operations</h6>
+                            <h6><i class="bi bi-file-earmark-spreadsheet"></i> File &amp; Image Intelligence</h6>
                             <button class="chx-sugg" type="button">Upload an Excel target sheet to compare targets against actual sales</button>
-                            <button class="chx-sugg" type="button">Analyze customer reviews or feedback file for sentiment &amp; issues</button>
+                            <button class="chx-sugg" type="button">Upload an invoice screenshot or chart image to inspect &amp; extract data</button>
                             <button class="chx-sugg" type="button">Upload a PDF invoice or audit report to extract key metrics &amp; summary</button>
                         </div>
                         <div class="chx-sugg-col">
@@ -374,18 +392,18 @@
 
                 <form class="chx-composer" id="chx-form" autocomplete="off">
                     <!-- Hidden file input -->
-                    <input type="file" id="chx-file-input" accept=".xlsx,.xls,.csv,.pdf" style="display:none;">
+                    <input type="file" id="chx-file-input" accept=".xlsx,.xls,.csv,.pdf,.png,.jpg,.jpeg,.webp,.gif,.bmp,image/*" style="display:none;">
                     <!-- Paperclip attach button -->
-                    <button class="chx-attach-btn" id="chx-attach-btn" type="button" title="Upload file (Excel, CSV, PDF)">
+                    <button class="chx-attach-btn" id="chx-attach-btn" type="button" title="Attach file or image (Excel, CSV, PDF, PNG, JPG, WebP)">
                         <i class="bi bi-paperclip"></i>
                     </button>
-                    <textarea id="chx-input" rows="1" placeholder="Ask a question about ClickHouse or tell me what to analyze on your file… (Enter to send)" maxlength="4000"></textarea>
+                    <textarea id="chx-input" rows="1" placeholder="Ask a question about ClickHouse or tell me what to analyze on your file/image… (Enter to send)" maxlength="4000"></textarea>
                     <button class="chx-send" id="chx-send" type="submit" title="Send"><i class="bi bi-arrow-up"></i></button>
                 </form>
 
                 <div class="chx-foot">
-                    <span class="chx-foot-sec"><i class="bi bi-paperclip" style="color:var(--chx-indigo)"></i> Upload <strong>Excel (.xlsx, .xls)</strong>, <strong>CSV</strong>, or <strong>PDF</strong></span>
-                    <span class="chx-foot-sec"><i class="bi bi-lightning-charge-fill" style="color:#eab308"></i> In-Memory DuckDB &middot; Exact Group By &amp; Calculations</span>
+                    <span class="chx-foot-sec"><i class="bi bi-paperclip" style="color:var(--chx-indigo)"></i> Upload <strong>Excel</strong>, <strong>CSV</strong>, <strong>PDF</strong>, or <strong>Images</strong></span>
+                    <span class="chx-foot-sec"><i class="bi bi-lightning-charge-fill" style="color:#eab308"></i> In-Memory DuckDB &middot; Gemini Multimodal Vision</span>
                     <span class="chx-foot-sec"><i class="bi bi-shield-check" style="color:var(--chx-green)"></i> Safe Read-Only</span>
                 </div>
             </div>
@@ -456,6 +474,8 @@
             return { type: 'csv', label: 'CSV Data File', icon: 'bi bi-filetype-csv', cls: 'uf-csv', iconCls: 'csv' };
         } else if (ext === 'pdf') {
             return { type: 'pdf', label: 'PDF Document', icon: 'bi bi-file-earmark-pdf-fill', cls: 'uf-pdf', iconCls: 'pdf' };
+        } else if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'].includes(ext)) {
+            return { type: 'image', label: 'Image', icon: 'bi bi-file-earmark-image-fill', cls: 'uf-image', iconCls: 'image' };
         }
         return { type: 'file', label: 'File', icon: 'bi bi-file-earmark-fill', cls: '', iconCls: '' };
     }
@@ -581,7 +601,10 @@
             let uHtml = '';
             if (m.attachment) {
                 const finfo = getFileInfo(m.attachment.name);
-                uHtml += '<div class="chx-user-file-pill"><i class="' + finfo.icon + ' ' + finfo.cls + '"></i>' +
+                const iconOrThumb = m.attachment.thumb
+                    ? '<img src="' + m.attachment.thumb + '" class="chx-user-file-thumb" alt="Upload">'
+                    : '<i class="' + finfo.icon + ' ' + finfo.cls + '"></i>';
+                uHtml += '<div class="chx-user-file-pill">' + iconOrThumb +
                     '<div class="uf-meta"><span class="uf-name">' + esc(m.attachment.name) + '</span>' +
                     '<span class="uf-size">' + esc(m.attachment.size_str || '') + ' &middot; ' + finfo.label + '</span></div></div>';
             }
@@ -593,9 +616,15 @@
             let inner = '';
             if (m.file_info) {
                 const finfo = getFileInfo(m.file_info.name);
-                const metaExtra = m.file_info.meta && m.file_info.meta.rows ? (' &middot; ' + m.file_info.meta.rows.toLocaleString('en-IN') + ' rows') : (m.file_info.meta && m.file_info.meta.pages ? (' &middot; ' + m.file_info.meta.pages + ' pages') : '');
+                const metaExtra = m.file_info.meta && m.file_info.meta.rows
+                    ? (' &middot; ' + m.file_info.meta.rows.toLocaleString('en-IN') + ' rows')
+                    : (m.file_info.meta && m.file_info.meta.pages
+                        ? (' &middot; ' + m.file_info.meta.pages + ' pages')
+                        : (m.file_info.meta && m.file_info.meta.width
+                            ? (' &middot; ' + m.file_info.meta.width + '×' + m.file_info.meta.height + ' px')
+                            : ''));
                 inner += '<div class="chx-file-analyzed-badge"><i class="' + finfo.icon + ' ' + finfo.iconCls + '"></i>' +
-                    '<span>Analyzed file: <strong>' + esc(m.file_info.name) + '</strong> (' + esc(m.file_info.size_str) + metaExtra + ')</span></div>';
+                    '<span>Analyzed ' + (finfo.type === 'image' ? 'image' : 'file') + ': <strong>' + esc(m.file_info.name) + '</strong> (' + esc(m.file_info.size_str) + metaExtra + ')</span></div>';
             }
             inner += '<div class="chx-md">' + renderMarkdown(m.content) + '</div>';
             (m.results || []).forEach((r, ri) => { inner += resultHTML(r, mi + ':' + ri); });
@@ -631,9 +660,13 @@
 
     const STATUS_DEFAULT = ['Reading the schema…', 'Thinking about the best query…', 'Querying ClickHouse…', 'Analysing the results…'];
     const STATUS_FILE = ['Uploading and inspecting file…', 'Profiling data & registering in DuckDB…', 'Executing requested operations & calculations…', 'Generating analytical insights…'];
+    const STATUS_IMAGE = ['Uploading image to Gemini Vision…', 'Inspecting visual details & OCR…', 'Cross-referencing against ClickHouse…', 'Generating insights…'];
 
-    function showTyping(isFile) {
-        const statusList = isFile ? STATUS_FILE : STATUS_DEFAULT;
+    function showTyping(hasFile, fileType) {
+        let statusList = STATUS_DEFAULT;
+        if (hasFile) {
+            statusList = fileType === 'image' ? STATUS_IMAGE : STATUS_FILE;
+        }
         const el = document.createElement('div');
         el.className = 'chx-msg'; el.id = 'chx-typing';
         el.innerHTML = '<div class="chx-avatar"><i class="bi bi-robot"></i></div>' +
@@ -665,11 +698,13 @@
     }
 
     /* ───────────── File Staging & Handling ───────────── */
+    const ALLOWED_EXTS = ['xlsx', 'xls', 'csv', 'pdf', 'png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'];
+
     function stageFile(file) {
         if (!file) return;
-        const ext = file.name.split('.').pop().toLowerCase();
-        if (!['xlsx', 'xls', 'csv', 'pdf'].includes(ext)) {
-            alert('Unsupported file format. Please upload an Excel (.xlsx, .xls), CSV (.csv), or PDF (.pdf) file.');
+        const ext = (file.name || '').split('.').pop().toLowerCase();
+        if (!ALLOWED_EXTS.includes(ext) && !(file.type && file.type.startsWith('image/'))) {
+            alert('Unsupported file format. Please upload an Excel (.xlsx, .xls), CSV (.csv), PDF (.pdf), or Image (.png, .jpg, .jpeg, .webp, .gif) file.');
             return;
         }
         if (file.size > 50 * 1024 * 1024) {
@@ -681,11 +716,28 @@
         const finfo = getFileInfo(file.name);
         stagedNameEl.textContent = file.name;
         stagedMetaEl.textContent = formatBytes(file.size) + ' \u00b7 ' + finfo.label + ' \u00b7 Ready for analysis & operations';
-        stagedIconEl.className = 'chx-staged-icon ' + finfo.iconCls;
-        stagedIconEl.innerHTML = '<i class="' + finfo.icon + '"></i>';
+
+        if (finfo.type === 'image') {
+            try {
+                const previewUrl = URL.createObjectURL(file);
+                stagedIconEl.className = 'chx-staged-icon image';
+                stagedIconEl.innerHTML = '<img src="' + previewUrl + '" class="chx-staged-thumb" alt="Preview">';
+            } catch (e) {
+                stagedIconEl.className = 'chx-staged-icon ' + finfo.iconCls;
+                stagedIconEl.innerHTML = '<i class="' + finfo.icon + '"></i>';
+            }
+        } else {
+            stagedIconEl.className = 'chx-staged-icon ' + finfo.iconCls;
+            stagedIconEl.innerHTML = '<i class="' + finfo.icon + '"></i>';
+        }
+
         stagedFileEl.style.display = 'flex';
 
-        inputEl.placeholder = 'Tell Jazz AI what to analyze or calculate on ' + file.name + ' (or press Enter for full analysis)…';
+        if (finfo.type === 'image') {
+            inputEl.placeholder = 'Ask a question about this image, or press Enter for visual analysis…';
+        } else {
+            inputEl.placeholder = 'Tell Jazz AI what to analyze or calculate on ' + file.name + ' (or press Enter for full analysis)…';
+        }
         inputEl.focus();
     }
 
@@ -693,7 +745,7 @@
         stagedFile = null;
         fileInput.value = '';
         stagedFileEl.style.display = 'none';
-        inputEl.placeholder = 'Ask a question about ClickHouse or tell me what to analyze on your file… (Enter to send)';
+        inputEl.placeholder = 'Ask a question about ClickHouse or tell me what to analyze on your file/image… (Enter to send)';
     }
 
     attachBtn.addEventListener('click', () => fileInput.click());
@@ -704,6 +756,35 @@
         }
     });
     stagedRemoveBtn.addEventListener('click', clearStagedFile);
+
+    // Support clipboard paste for images (e.g. Win+Shift+S / Snipping Tool / copied image)
+    const handlePaste = (e) => {
+        const items = (e.clipboardData || window.clipboardData)?.items;
+        if (!items) return;
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            if (item.kind === 'file' && item.type.startsWith('image/')) {
+                const blob = item.getAsFile();
+                if (blob) {
+                    const ext = blob.type.split('/')[1] || 'png';
+                    const file = new File([blob], 'screenshot_' + new Date().toISOString().slice(11, 19).replace(/:/g, '') + '.' + ext, { type: blob.type });
+                    stageFile(file);
+                    e.preventDefault();
+                    break;
+                }
+            }
+        }
+    };
+    inputEl.addEventListener('paste', handlePaste);
+    window.addEventListener('paste', (e) => {
+        if (e.target !== inputEl && e.clipboardData && e.clipboardData.files && e.clipboardData.files.length) {
+            const file = e.clipboardData.files[0];
+            if (file && file.type.startsWith('image/')) {
+                stageFile(file);
+                e.preventDefault();
+            }
+        }
+    });
 
     // Drag and drop onto composer
     const composerEl = formEl;
@@ -739,17 +820,25 @@
         busy = true; sendBtn.disabled = true;
 
         const currentStaged = stagedFile;
+        const currentFinfo = currentStaged ? getFileInfo(currentStaged.name) : null;
+        let thumbUrl = null;
+        if (currentStaged && currentFinfo && currentFinfo.type === 'image') {
+            try {
+                thumbUrl = URL.createObjectURL(currentStaged);
+            } catch (e) {}
+        }
+
         clearStagedFile();
 
         // Construct user message
         const userMsg = {
             role: 'user',
             content: text,
-            attachment: currentStaged ? { name: currentStaged.name, size_str: formatBytes(currentStaged.size) } : null,
+            attachment: currentStaged ? { name: currentStaged.name, size_str: formatBytes(currentStaged.size), thumb: thumbUrl } : null,
         };
         messages.push(userMsg);
         renderAll();
-        showTyping(hasFile);
+        showTyping(hasFile, currentFinfo ? currentFinfo.type : null);
 
         inputEl.value = ''; autosize();
 
