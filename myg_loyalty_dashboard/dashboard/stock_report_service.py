@@ -15,8 +15,28 @@ try:
 except Exception:
     from dashboard.dashboard_api_logic import PRODUCT_CAT_MAPPING
 
-PARQUET_FILE = os.path.join(BASE_DIR, '.cache', 'stock_report_15_oct.parquet')
-EXCEL_FILE = os.path.join(os.path.dirname(BASE_DIR), 'stock_report_15_October_2026_all_products.xlsx')
+def get_parquet_path():
+    candidates = [
+        os.path.join(BASE_DIR, 'data', 'stock_report_15_oct.parquet'),
+        os.path.join(BASE_DIR, '.cache', 'stock_report_15_oct.parquet'),
+        os.path.join(os.path.dirname(BASE_DIR), 'data', 'stock_report_15_oct.parquet'),
+        os.path.join(os.path.dirname(BASE_DIR), '.cache', 'stock_report_15_oct.parquet'),
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+    return candidates[0]
+
+
+def get_excel_path():
+    candidates = [
+        os.path.join(os.path.dirname(BASE_DIR), 'stock_report_15_October_2026_all_products.xlsx'),
+        os.path.join(BASE_DIR, 'stock_report_15_October_2026_all_products.xlsx'),
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+    return candidates[0]
 
 _cached_results = {}
 _bm_cache = None
@@ -68,10 +88,12 @@ def get_stock_filter_options():
 
     # Get distinct branches from the stock report parquet file
     branches = []
-    if os.path.exists(PARQUET_FILE):
+    p_path = get_parquet_path()
+    if os.path.exists(p_path):
         try:
             con = duckdb.connect()
-            b_list = con.execute(f"SELECT DISTINCT TRIM(UPPER(\"BRANCH\")) as b FROM '{PARQUET_FILE}' WHERE \"BRANCH\" IS NOT NULL").df()['b'].dropna().tolist()
+            duck_p = p_path.replace('\\', '/')
+            b_list = con.execute(f"SELECT DISTINCT TRIM(UPPER(\"BRANCH\")) as b FROM '{duck_p}' WHERE \"BRANCH\" IS NOT NULL").df()['b'].dropna().tolist()
             branches = sorted(list(set(b_list)))
             con.close()
         except Exception:
@@ -106,12 +128,14 @@ def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, 
             return res
 
     # Ensure parquet cache exists
-    if not os.path.exists(PARQUET_FILE):
-        if not os.path.exists(EXCEL_FILE):
-            raise FileNotFoundError(f"Stock report file not found at {EXCEL_FILE}")
-        os.makedirs(os.path.dirname(PARQUET_FILE), exist_ok=True)
+    parquet_path = get_parquet_path()
+    if not os.path.exists(parquet_path):
+        excel_path = get_excel_path()
+        if not os.path.exists(excel_path):
+            raise FileNotFoundError(f"Stock report data not found. Looked for parquet at {parquet_path} and excel at {excel_path}")
+        os.makedirs(os.path.dirname(parquet_path), exist_ok=True)
         import python_calamine
-        reader = python_calamine.CalamineWorkbook.from_path(EXCEL_FILE)
+        reader = python_calamine.CalamineWorkbook.from_path(excel_path)
         sheet = reader.get_sheet_by_name("Detail")
         data = sheet.to_python()
         headers = data[0]
@@ -120,7 +144,9 @@ def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, 
         for num_col in ['STOCK', 'COST PRICE', 'PURCHASE PRICE', 'Dealer Price', 'MRP', 'TOTAL AGE', 'BRANCH AGE']:
             if num_col in df.columns:
                 df[num_col] = pd.to_numeric(df[num_col], errors='coerce').fillna(0)
-        df.to_parquet(PARQUET_FILE, index=False)
+        df.to_parquet(parquet_path, index=False, compression='zstd')
+
+    parquet_duck = parquet_path.replace('\\', '/')
 
     bm_df = get_branch_master_df(force_refresh=force_refresh)
 
@@ -176,7 +202,7 @@ def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, 
         SUM(CASE WHEN s."TOTAL AGE" > 180 AND s."TOTAL AGE" <= 365 THEN s."STOCK" ELSE 0 END) as qty_180_365,
         SUM(CASE WHEN s."TOTAL AGE" > 365 THEN s."STOCK" ELSE 0 END) as qty_gt_365,
         SUM(s."STOCK") as total_qty
-    FROM '{PARQUET_FILE}' s
+    FROM '{parquet_duck}' s
     LEFT JOIN cat_map m ON s."PRODUCT" = m."PRODUCT"
     LEFT JOIN bm ON UPPER(TRIM(s."BRANCH")) = bm.branch_name_clean
     WHERE {where_sql}
@@ -210,7 +236,7 @@ def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, 
         SUM(CASE WHEN s."TOTAL AGE" > 180 AND s."TOTAL AGE" <= 365 THEN s."STOCK" ELSE 0 END) as qty_180_365,
         SUM(CASE WHEN s."TOTAL AGE" > 365 THEN s."STOCK" ELSE 0 END) as qty_gt_365,
         SUM(s."STOCK") as total_qty
-    FROM '{PARQUET_FILE}' s
+    FROM '{parquet_duck}' s
     LEFT JOIN cat_map m ON s."PRODUCT" = m."PRODUCT"
     LEFT JOIN bm ON UPPER(TRIM(s."BRANCH")) = bm.branch_name_clean
     WHERE {where_sql}
