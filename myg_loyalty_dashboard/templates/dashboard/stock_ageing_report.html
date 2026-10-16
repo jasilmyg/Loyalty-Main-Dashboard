@@ -1,0 +1,1159 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css">
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+
+<style>
+  :root {
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text-1: #0f172a;
+    --text-2: #334155;
+    --text-3: #64748b;
+    --primary: #ea580c;
+  }
+
+  /* TomSelect styling */
+  .ts-wrapper.multi .ts-control {
+    border-radius: 8px !important;
+    border: 1px solid #cbd5e1 !important;
+    font-size: 0.78rem !important;
+    min-height: 34px !important;
+    padding: 3px 8px !important;
+    background-color: #f8fafc !important;
+    box-shadow: none !important;
+  }
+  .ts-wrapper.multi.focus .ts-control {
+    border-color: #ea580c !important;
+    background-color: #ffffff !important;
+    box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15) !important;
+  }
+  .ts-dropdown {
+    font-size: 0.78rem !important;
+    border-radius: 8px !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1) !important;
+    z-index: 1050 !important;
+  }
+  .ts-dropdown .option {
+    padding: 6px 10px !important;
+  }
+  .ts-dropdown .option.active {
+    background-color: #ffedd5 !important;
+    color: #ea580c !important;
+    font-weight: 600;
+  }
+  .ts-control .item {
+    background: #ffedd5 !important;
+    color: #ea580c !important;
+    border-radius: 5px !important;
+    font-weight: 600 !important;
+    font-size: 0.70rem !important;
+    padding: 1px 6px !important;
+    border: 1px solid #fed7aa !important;
+  }
+  .ts-control .item .remove {
+    border-left: 1px solid #fdba74 !important;
+    color: #ea580c !important;
+  }
+  .filter-label {
+    font-size: 0.71rem;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 0.35rem;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* Table styling */
+  .stock-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+  .stock-table th {
+    background: #0f172a;
+    color: #f8fafc;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    padding: 0.75rem 0.65rem;
+    text-align: right;
+    white-space: nowrap;
+    border-bottom: 2px solid #334155;
+  }
+  .stock-table th:first-child { text-align: left; }
+  .stock-table td {
+    padding: 0.62rem 0.65rem;
+    border-bottom: 1px solid #f1f5f9;
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .stock-table td:first-child { text-align: left; }
+  
+  .stock-cat-row {
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 600;
+    background: #ffffff;
+    transition: background 0.15s ease;
+  }
+  .stock-cat-row:hover { background: #f8fafc; }
+  .stock-cat-row.expanded { background: #fff7ed; }
+  .stock-cat-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    background: #f1f5f9;
+    color: #1e293b;
+    font-weight: 800;
+    font-size: 0.78rem;
+    margin-right: 8px;
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  .stock-cat-row.expanded .stock-cat-toggle {
+    background: #fed7aa;
+    color: #ea580c;
+  }
+  .stock-prod-row {
+    background: #ffffff;
+    cursor: pointer;
+    transition: background 0.12s ease;
+  }
+  .stock-prod-row:hover { background: #f8fafc; }
+  .stock-prod-row.expanded { background: #fefce8; }
+  .stock-prod-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 17px;
+    height: 17px;
+    border-radius: 3px;
+    background: #e2e8f0;
+    color: #1e293b;
+    font-weight: 800;
+    font-size: 0.70rem;
+    margin-right: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .stock-prod-row.expanded .stock-prod-toggle {
+    background: #fde68a;
+    color: #b45309;
+  }
+  .stock-prod-name {
+    padding-left: 28px !important;
+    color: #334155;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .stock-brand-row {
+    background: #fafafa;
+    font-size: 0.75rem;
+    transition: background 0.12s ease;
+  }
+  .stock-brand-row:hover { background: #f1f5f9; }
+  .stock-brand-name {
+    padding-left: 48px !important;
+    color: #475569;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .brand-rank-pill {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: #e2e8f0;
+    color: #475569;
+    font-size: 0.63rem;
+    font-weight: 700;
+    margin-right: 4px;
+  }
+  .stock-heat-pill {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.74rem;
+    font-weight: 600;
+  }
+  .stock-heat-alert {
+    background: #fef2f2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+  }
+  .stock-heat-warn {
+    background: #fffbeb;
+    color: #b45309;
+  }
+  .stock-heat-fresh {
+    background: #ecfdf5;
+    color: #047857;
+  }
+  .stock-metric-btn.active {
+    background: #ea580c !important;
+    border-color: #ea580c !important;
+    color: #ffffff !important;
+    font-weight: 700;
+  }
+
+  /* Breadcrumb Pill Navigation (Exact match to reference) */
+  .stock-breadcrumb-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+  }
+  .stock-breadcrumb-pill-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 13px;
+    border-radius: 9999px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    color: #475569;
+    font-size: 0.76rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    text-decoration: none;
+    line-height: 1.4;
+  }
+  .stock-breadcrumb-pill-all:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    color: #0f172a;
+  }
+  .stock-breadcrumb-pill-all.active {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+    color: #2563eb;
+    font-weight: 700;
+  }
+  .stock-breadcrumb-sep {
+    color: #94a3b8;
+    font-size: 0.72rem;
+    font-weight: 600;
+    user-select: none;
+  }
+  .stock-breadcrumb-pill-cat {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 14px;
+    border-radius: 9999px;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #2563eb;
+    font-size: 0.76rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    box-shadow: 0 1px 2px rgba(37, 99, 235, 0.06);
+    line-height: 1.4;
+  }
+  .stock-breadcrumb-pill-cat:hover {
+    background: #dbeafe;
+    border-color: #93c5fd;
+    color: #1d4ed8;
+  }
+  .stock-breadcrumb-pill-cat .cat-pill-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #38bdf8;
+    box-shadow: 0 0 4px rgba(56, 189, 248, 0.6);
+  }
+  .stock-breadcrumb-pill-sub {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 12px;
+    border-radius: 9999px;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #16a34a;
+    font-size: 0.74rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    line-height: 1.4;
+  }
+  .stock-breadcrumb-pill-sub:hover {
+    background: #dcfce7;
+    border-color: #86efac;
+  }
+  .stock-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.73rem;
+    font-weight: 700;
+    color: #2563eb;
+    cursor: pointer;
+    padding: 2px 9px;
+    border-radius: 6px;
+    background: #eff6ff;
+    border: 1px solid #dbeafe;
+    transition: all 0.15s ease;
+    text-decoration: none;
+  }
+  .stock-back-btn:hover {
+    background: #dbeafe;
+    color: #1d4ed8;
+  }
+
+  .btn-exp {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 0.9rem;
+    height: 32px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #334155;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: all 0.15s ease;
+  }
+  .btn-exp:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    color: #0f172a;
+  }
+</style>
+
+<div class="dash-wrap py-3 px-2 px-md-3">
+
+  <!-- ══ FILTERS BAR: RBM, BDM, District, Branch ══ -->
+  <div class="card shadow-sm border-0 rounded-3 mb-3" style="background:#ffffff; border:1px solid #e2e8f0 !important;">
+    <div class="p-2 px-3">
+      <div class="row g-2 align-items-end">
+        <!-- RBM Filter -->
+        <div class="col-12 col-sm-6 col-lg-3">
+          <label class="filter-label">
+            <i class="bi bi-person-badge text-primary"></i> RBM
+          </label>
+          <select id="filter-stock-rbm" multiple placeholder="All RBMs..."></select>
+        </div>
+
+        <!-- BDM Filter -->
+        <div class="col-12 col-sm-6 col-lg-3">
+          <label class="filter-label">
+            <i class="bi bi-person-workspace text-warning"></i> BDM
+          </label>
+          <select id="filter-stock-bdm" multiple placeholder="All BDMs..."></select>
+        </div>
+
+        <!-- District Filter -->
+        <div class="col-12 col-sm-6 col-lg-2">
+          <label class="filter-label">
+            <i class="bi bi-geo-alt-fill text-danger"></i> District
+          </label>
+          <select id="filter-stock-district" multiple placeholder="All Districts..."></select>
+        </div>
+
+        <!-- Branch Filter -->
+        <div class="col-12 col-sm-6 col-lg-2">
+          <label class="filter-label">
+            <i class="bi bi-shop text-success"></i> Branch
+          </label>
+          <select id="filter-stock-branch" multiple placeholder="All Branches..."></select>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="col-12 col-lg-2 d-flex gap-2">
+          <button type="button" class="btn btn-sm btn-outline-secondary flex-grow-1" onclick="resetStockFilters()" style="height:34px; font-size:0.75rem; font-weight:600; border-radius:8px;" title="Clear Filters">
+            Clear
+          </button>
+          <button type="button" class="btn btn-sm flex-grow-1" onclick="applyStockFilters()" style="height:34px; background:#ea580c; color:#ffffff; font-size:0.75rem; font-weight:700; border-radius:8px; box-shadow:0 2px 6px rgba(234,88,12,0.25);">
+            Apply
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stock Ageing Report Main Card -->
+  <div class="card shadow-sm border-0 rounded-3 mb-4" style="background:#ffffff; overflow:hidden;" id="section-stock-ageing">
+    
+    <!-- Card Header -->
+    <div class="p-3 d-flex justify-content-between align-items-center flex-wrap gap-3" style="background:#ffffff; border-bottom:1px solid #f1f5f9;">
+      <div class="d-flex align-items-center gap-2">
+        <div style="width:38px; height:38px; border-radius:10px; background:linear-gradient(135deg, #fff7ed, #ffedd5); display:flex; align-items:center; justify-content:center; color:#ea580c; font-size:1.2rem; box-shadow:0 2px 6px rgba(234,88,12,0.15);">
+          <i class="bi bi-boxes"></i>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <h3 style="font-size:1.08rem; font-weight:800; color:var(--text-1); margin:0;">Product Wise Stock Ageing Report</h3>
+          <span class="badge" style="background:#ffedd5; color:#ea580c; font-size:0.7rem; font-weight:700; border:1px solid #fed7aa;">15 October 2026</span>
+          <span id="stock-back-btn-container" style="display:none;">
+            <span class="stock-back-btn" onclick="resetStockToAll()" title="Back to All Categories">
+              <i class="bi bi-chevron-left"></i> Back
+            </span>
+          </span>
+        </div>
+      </div>
+
+      <!-- Center: Breadcrumb Navigation Pill: [ 🏠 All ] > [ • Category ] -->
+      <div id="stock-breadcrumb-container" class="d-flex align-items-center my-1">
+        <!-- Dynamically rendered -->
+      </div>
+
+      <!-- Controls -->
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <!-- Search -->
+        <div style="position:relative; width:190px;">
+          <i class="bi bi-search" style="position:absolute; left:9px; top:50%; transform:translateY(-50%); font-size:0.75rem; color:var(--text-3);"></i>
+          <input type="text" id="stock-search-input" onkeyup="filterStockRows()" placeholder="Search product / brand..." style="padding-left:26px; height:32px; font-size:0.78rem; border-radius:8px; border:1px solid var(--border); background:#f8fafc; width:100%;">
+        </div>
+
+        <!-- Metric Toggle: Value (Cr) vs Qty -->
+        <div class="btn-group" role="group" style="height:32px;">
+          <button type="button" class="btn btn-sm btn-outline-secondary stock-metric-btn active" id="btn-stock-metric-val" onclick="setStockMetric('val')">
+            <i class="bi bi-currency-rupee"></i> Value (Cr)
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary stock-metric-btn" id="btn-stock-metric-qty" onclick="setStockMetric('qty')">
+            <i class="bi bi-stack"></i> Qty
+          </button>
+        </div>
+
+        <!-- Refresh -->
+        <button class="btn btn-sm btn-light border" onclick="loadStockAgeingReport(true)" title="Reload Data" style="height:32px; font-size:0.75rem; font-weight:600; color:var(--text-2);">
+          <i class="bi bi-arrow-clockwise"></i>
+        </button>
+
+        <!-- Export Excel -->
+        <a href="/api/v1/stock-ageing-report/export/" class="btn-exp" style="height:32px; padding:0 0.85rem; font-size:0.78rem; display:inline-flex; align-items:center; text-decoration:none;">
+          <i class="bi bi-file-earmark-excel me-1" style="color:#10b981;"></i> Export Excel
+        </a>
+      </div>
+    </div>
+
+    <!-- Summary KPI cards -->
+    <div class="p-3 pb-2" style="background:#fafafa; border-bottom:1px solid #f1f5f9;">
+      <div class="row g-2">
+        <div class="col-6 col-md-3">
+          <div class="p-2 px-3 rounded-3" style="background:#ffffff; border:1px solid #e2e8f0; border-left:4px solid #3b82f6;">
+            <div style="font-size:0.68rem; font-weight:700; color:var(--text-3); text-transform:uppercase;">Total Stock Valuation</div>
+            <div id="kpi-stock-total-val" style="font-size:1.25rem; font-weight:800; color:#1e293b;">₹ 0.00 Cr</div>
+            <div id="kpi-stock-total-qty" style="font-size:0.72rem; color:var(--text-3);">0 units across all categories</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="p-2 px-3 rounded-3" style="background:#ffffff; border:1px solid #e2e8f0; border-left:4px solid #10b981;">
+            <div style="font-size:0.68rem; font-weight:700; color:var(--text-3); text-transform:uppercase;">Fresh Stock (&lt; 30 Days)</div>
+            <div id="kpi-stock-fresh-val" style="font-size:1.25rem; font-weight:800; color:#059669;">₹ 0.00 Cr</div>
+            <div id="kpi-stock-fresh-pct" style="font-size:0.72rem; color:#059669;">0% of total</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="p-2 px-3 rounded-3" style="background:#ffffff; border:1px solid #e2e8f0; border-left:4px solid #f59e0b;">
+            <div style="font-size:0.68rem; font-weight:700; color:var(--text-3); text-transform:uppercase;">Mid Ageing (30 - 90 Days)</div>
+            <div id="kpi-stock-mid-val" style="font-size:1.25rem; font-weight:800; color:#d97706;">₹ 0.00 Cr</div>
+            <div id="kpi-stock-mid-pct" style="font-size:0.72rem; color:#d97706;">0% of total</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="p-2 px-3 rounded-3" style="background:#ffffff; border:1px solid #e2e8f0; border-left:4px solid #ef4444;">
+            <div style="font-size:0.68rem; font-weight:700; color:var(--text-3); text-transform:uppercase;">Critical Ageing (&gt; 180 Days)</div>
+            <div id="kpi-stock-aged-val" style="font-size:1.25rem; font-weight:800; color:#dc2626;">₹ 0.00 Cr</div>
+            <div id="kpi-stock-aged-qty" style="font-size:0.72rem; color:#dc2626;">0 units aged</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table Container -->
+    <div style="overflow-x:auto; max-height:800px; position:relative;">
+      <table class="stock-table" id="stock-ageing-table">
+        <thead id="stock-table-head" style="position:sticky; top:0; z-index:10;">
+          <!-- Dynamically generated header -->
+        </thead>
+        <tbody id="stock-table-body">
+          <tr><td colspan="8" class="text-center py-5 text-muted"><div class="spinner-border text-primary spinner-border-sm me-2"></div> Loading Stock Report...</td></tr>
+        </tbody>
+        <tfoot id="stock-table-foot" style="position:sticky; bottom:0; z-index:10; background:#0f172a; color:#ffffff;">
+          <!-- Dynamically generated Grand Total -->
+        </tfoot>
+      </table>
+    </div>
+
+  </div><!-- /.card -->
+
+</div><!-- /.dash-wrap -->
+
+<script>
+/* Category Colors Map */
+const CAT_COLORS = {
+  'MOBILE': '#3b82f6',
+  'CE': '#10b981',
+  'LAPTOP': '#8b5cf6',
+  'ACC': '#f59e0b',
+  'TABLET': '#06b6d4',
+  'RIG': '#ec4899',
+  'DEMO': '#6366f1',
+  'SPARE': '#14b8a6',
+  'OTHER': '#64748b',
+  'VALUE ADDED SERVICE': '#84cc16'
+};
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Stock Ageing Report State, Filters & Logic
+══════════════════════════════════════════════════════════════════════════════ */
+window._stockData = null;
+window._stockMetric = 'val';      // 'val' (Cr) or 'qty' (Units)
+window._stockExpandedCats = new Set();  // Default: all categories collapsed
+window._stockExpandedProds = new Set(); // Default: all subcategories collapsed
+window._stockAllExpanded = false;
+window._stockSelectedCat = null;   // null for all categories, or 'MOBILE', 'CE', etc.
+window._stockSelectedProd = null;  // null for all subcategories, or 'TV', etc.
+window._stock_ts = {};
+window._filterOptionsLoaded = false;
+
+function initStockFilters() {
+  const tsConfig = {
+    plugins: ['remove_button', 'clear_button'],
+    maxItems: null,
+    maxOptions: 600,
+    dropdownParent: 'body',
+    placeholder: 'All...',
+  };
+
+  const fields = [
+    { id: 'filter-stock-rbm', key: 'rbm', placeholder: 'All RBMs...' },
+    { id: 'filter-stock-bdm', key: 'bdm', placeholder: 'All BDMs...' },
+    { id: 'filter-stock-district', key: 'district', placeholder: 'All Districts...' },
+    { id: 'filter-stock-branch', key: 'branch', placeholder: 'All Branches...' }
+  ];
+
+  fields.forEach(f => {
+    const el = document.getElementById(f.id);
+    if (el && !window._stock_ts[f.key] && typeof TomSelect !== 'undefined') {
+      window._stock_ts[f.key] = new TomSelect(el, {
+        ...tsConfig,
+        placeholder: f.placeholder
+      });
+      window._stock_ts[f.key].on('change', () => {
+        updateFilterSummaryBadge();
+      });
+    }
+  });
+}
+
+function populateStockFilterOptions(opts) {
+  if (!opts || window._filterOptionsLoaded) return;
+
+  const mapping = [
+    { key: 'rbm', list: opts.rbms || [] },
+    { key: 'bdm', list: opts.bdms || [] },
+    { key: 'district', list: opts.districts || [] },
+    { key: 'branch', list: opts.branches || [] }
+  ];
+
+  mapping.forEach(m => {
+    const ts = window._stock_ts[m.key];
+    if (ts) {
+      m.list.forEach(item => {
+        if (item) ts.addOption({ value: item, text: item });
+      });
+      ts.refreshOptions(false);
+    }
+  });
+
+  window._filterOptionsLoaded = true;
+}
+
+function getSelectedStockFilters() {
+  const getVal = key => {
+    if (window._stock_ts && window._stock_ts[key]) {
+      const v = window._stock_ts[key].getValue();
+      return Array.isArray(v) ? v.join(',') : (v || '');
+    }
+    return '';
+  };
+  return {
+    rbm: getVal('rbm'),
+    bdm: getVal('bdm'),
+    district: getVal('district'),
+    branch: getVal('branch')
+  };
+}
+
+function updateFilterSummaryBadge() {
+  const f = getSelectedStockFilters();
+  const chipsContainer = document.getElementById('stock-filter-active-chips');
+  if (!chipsContainer) return;
+
+  const parts = [];
+  if (f.rbm) parts.push(`<span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="bi bi-person-badge me-1"></i>RBM: ${f.rbm}</span>`);
+  if (f.bdm) parts.push(`<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="bi bi-person-workspace me-1"></i>BDM: ${f.bdm}</span>`);
+  if (f.district) parts.push(`<span class="badge bg-danger-subtle text-danger border border-danger-subtle"><i class="bi bi-geo-alt-fill me-1"></i>District: ${f.district}</span>`);
+  if (f.branch) parts.push(`<span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-shop me-1"></i>Branch: ${f.branch}</span>`);
+
+  if (parts.length > 0) {
+    chipsContainer.innerHTML = parts.join(' ');
+  } else {
+    chipsContainer.innerHTML = `<span class="badge" style="background:#f8fafc; color:#64748b; border:1px solid #e2e8f0; font-weight:600;"><i class="bi bi-globe me-1"></i>All Stores (Company-wide: 251 branches)</span>`;
+  }
+}
+
+function applyStockFilters() {
+  loadStockAgeingReport();
+}
+
+function resetStockFilters() {
+  ['rbm', 'bdm', 'district', 'branch'].forEach(k => {
+    if (window._stock_ts && window._stock_ts[k]) {
+      window._stock_ts[k].clear();
+    }
+  });
+  updateFilterSummaryBadge();
+  loadStockAgeingReport();
+}
+
+async function loadStockAgeingReport(forceRefresh = false) {
+  const tbody = document.getElementById('stock-table-body');
+  if (tbody) {
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-muted"><div class="spinner-border text-primary spinner-border-sm me-2"></div> Loading Stock Report...</td></tr>`;
+  }
+
+  const f = getSelectedStockFilters();
+  const params = new URLSearchParams();
+  if (forceRefresh) params.set('refresh', '1');
+  if (f.rbm) params.set('rbm', f.rbm);
+  if (f.bdm) params.set('bdm', f.bdm);
+  if (f.district) params.set('district', f.district);
+  if (f.branch) params.set('branch', f.branch);
+
+  const queryStr = params.toString() ? '?' + params.toString() : '';
+  const url = `/api/v1/stock-ageing-report/${queryStr}`;
+
+  // Sync export buttons
+  const exportUrl = `/api/v1/stock-ageing-report/export/${queryStr}`;
+  document.querySelectorAll('a[href*="/api/v1/stock-ageing-report/export/"]').forEach(a => {
+    a.href = exportUrl;
+  });
+
+  try {
+    const res = await fetch(url);
+    const json = await res.json();
+    if (json.status !== 'success') {
+      console.error('Stock Report API error:', json.message);
+      if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="text-danger text-center py-3">Error loading stock data: ${json.message}</td></tr>`;
+      return;
+    }
+    window._stockData = json;
+
+    if (json.filter_options) {
+      populateStockFilterOptions(json.filter_options);
+    }
+    updateFilterSummaryBadge();
+    renderStockKPIs();
+    renderStockBreadcrumb();
+    renderStockAgeingTable();
+  } catch (err) {
+    console.error('Failed to load stock report:', err);
+    if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="text-danger text-center py-3">Failed to load stock report</td></tr>`;
+  }
+}
+
+function renderStockKPIs() {
+  if (!window._stockData || !window._stockData.grand_total) return;
+  const gt = window._stockData.grand_total;
+  const totalVal = gt.total_val || 0;
+  const totalQty = gt.total_qty || 0;
+
+  const freshVal = gt.val_lt_30 || 0;
+  const freshPct = totalVal > 0 ? ((freshVal / totalVal) * 100).toFixed(1) : 0;
+
+  const midVal = (gt.val_30_60 || 0) + (gt.val_60_90 || 0);
+  const midPct = totalVal > 0 ? ((midVal / totalVal) * 100).toFixed(1) : 0;
+
+  const agedVal = gt.val_gt_180 || 0;
+  const agedQty = gt.qty_gt_180 || 0;
+
+  const elTotalVal = document.getElementById('kpi-stock-total-val');
+  const elTotalQty = document.getElementById('kpi-stock-total-qty');
+  const elFreshVal = document.getElementById('kpi-stock-fresh-val');
+  const elFreshPct = document.getElementById('kpi-stock-fresh-pct');
+  const elMidVal = document.getElementById('kpi-stock-mid-val');
+  const elMidPct = document.getElementById('kpi-stock-mid-pct');
+  const elAgedVal = document.getElementById('kpi-stock-aged-val');
+  const elAgedQty = document.getElementById('kpi-stock-aged-qty');
+
+  if (elTotalVal) elTotalVal.textContent = `₹ ${totalVal.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})} Cr`;
+  if (elTotalQty) elTotalQty.textContent = `${totalQty.toLocaleString('en-IN')} units total`;
+  if (elFreshVal) elFreshVal.textContent = `₹ ${freshVal.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})} Cr`;
+  if (elFreshPct) elFreshPct.textContent = `${freshPct}% of total inventory`;
+  if (elMidVal) elMidVal.textContent = `₹ ${midVal.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})} Cr`;
+  if (elMidPct) elMidPct.textContent = `${midPct}% of total inventory`;
+  if (elAgedVal) elAgedVal.textContent = `₹ ${agedVal.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})} Cr`;
+  if (elAgedQty) elAgedQty.textContent = `${agedQty.toLocaleString('en-IN')} units aged`;
+}
+
+function setStockMetric(metric) {
+  window._stockMetric = metric;
+  document.getElementById('btn-stock-metric-val')?.classList.toggle('active', metric === 'val');
+  document.getElementById('btn-stock-metric-qty')?.classList.toggle('active', metric === 'qty');
+  renderStockAgeingTable();
+}
+
+function renderStockBreadcrumb() {
+  const container = document.getElementById('stock-breadcrumb-container');
+  if (!container) return;
+
+  const categories = (window._stockData && window._stockData.categories) ? window._stockData.categories : [];
+  
+  // Determine effective category to show in breadcrumb
+  let activeCat = window._stockSelectedCat;
+  if (!activeCat && window._stockExpandedCats && window._stockExpandedCats.size === 1) {
+    activeCat = Array.from(window._stockExpandedCats)[0];
+  }
+
+  // Determine effective product to show in breadcrumb
+  let activeProd = window._stockSelectedProd;
+  if (activeCat && !activeProd && window._stockExpandedProds && window._stockExpandedProds.size > 0) {
+    const matchingProds = Array.from(window._stockExpandedProds)
+      .filter(k => k.startsWith(activeCat + ':::'))
+      .map(k => k.split(':::')[1]);
+    if (matchingProds.length === 1) {
+      activeProd = matchingProds[0];
+    }
+  }
+
+  let html = '<div class="stock-breadcrumb-wrap">';
+
+  // 1. All Button / Dropdown
+  if (!activeCat) {
+    html += `
+      <div class="dropdown d-inline-block">
+        <button type="button" class="stock-breadcrumb-pill-all active dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Click to filter by category">
+          <i class="bi bi-house-door" style="font-size:0.75rem;"></i>
+          <span>All</span>
+        </button>
+        <ul class="dropdown-menu shadow-sm" style="font-size:0.78rem; max-height:320px; overflow-y:auto; border-radius:10px;">
+          <li><h6 class="dropdown-header" style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">Filter by Category</h6></li>
+          <li><a class="dropdown-item active" href="javascript:void(0)" onclick="resetStockToAll()"><i class="bi bi-grid-fill me-1"></i> All Categories (${categories.length})</a></li>
+          <li><hr class="dropdown-divider my-1"></li>
+          ${categories.map(c => {
+            const col = (typeof CAT_COLORS !== 'undefined' && CAT_COLORS[c.category]) ? CAT_COLORS[c.category] : '#64748b';
+            return `<li><a class="dropdown-item d-flex align-items-center justify-content-between py-1" href="javascript:void(0)" onclick="setStockCategoryFilter('${c.category}')">
+              <span><span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:${col}; margin-right:6px;"></span>${c.category}</span>
+              <span class="badge ms-2" style="background:#f1f5f9; color:#475569; font-size:0.65rem;">${(c.products||[]).length} items</span>
+            </a></li>`;
+          }).join('')}
+        </ul>
+      </div>
+    `;
+  } else {
+    html += `
+      <button type="button" class="stock-breadcrumb-pill-all" onclick="resetStockToAll()" title="Back to All Categories">
+        <i class="bi bi-house-door" style="font-size:0.75rem;"></i>
+        <span>All</span>
+      </button>
+      <span class="stock-breadcrumb-sep">&gt;</span>
+    `;
+
+    // 2. Category Pill
+    const catColor = (typeof CAT_COLORS !== 'undefined' && CAT_COLORS[activeCat]) ? CAT_COLORS[activeCat] : '#38bdf8';
+    html += `
+      <div class="dropdown d-inline-block">
+        <button class="stock-breadcrumb-pill-cat dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Click to switch category">
+          <span class="cat-pill-dot" style="background:${catColor};"></span>
+          <span>${activeCat}</span>
+        </button>
+        <ul class="dropdown-menu shadow-sm" style="font-size:0.78rem; max-height:320px; overflow-y:auto; border-radius:10px;">
+          <li><a class="dropdown-item" href="javascript:void(0)" onclick="resetStockToAll()"><i class="bi bi-grid me-1"></i> All Categories</a></li>
+          <li><hr class="dropdown-divider my-1"></li>
+          ${categories.map(c => {
+            const col = (typeof CAT_COLORS !== 'undefined' && CAT_COLORS[c.category]) ? CAT_COLORS[c.category] : '#64748b';
+            const isSel = c.category === activeCat;
+            return `<li><a class="dropdown-item d-flex align-items-center justify-content-between py-1 ${isSel ? 'active' : ''}" href="javascript:void(0)" onclick="setStockCategoryFilter('${c.category}')">
+              <span><span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:${col}; margin-right:6px;"></span>${c.category}</span>
+              <span class="badge ms-2" style="background:#f1f5f9; color:#475569; font-size:0.65rem;">${(c.products||[]).length} items</span>
+            </a></li>`;
+          }).join('')}
+        </ul>
+      </div>
+    `;
+
+    // 3. Subcategory Pill (if any)
+    if (activeProd) {
+      html += `
+        <span class="stock-breadcrumb-sep">&gt;</span>
+        <button class="stock-breadcrumb-pill-sub" type="button" onclick="setStockProductFilter('${activeProd}')" title="Subcategory">
+          <i class="bi bi-tag-fill me-1" style="font-size:0.68rem;"></i>
+          <span>${activeProd}</span>
+        </button>
+      `;
+    }
+  }
+
+  html += '</div>';
+  container.innerHTML = html;
+
+  // Back button visibility
+  const backContainer = document.getElementById('stock-back-btn-container');
+  if (backContainer) {
+    backContainer.style.display = activeCat ? 'inline-flex' : 'none';
+  }
+}
+
+function setStockCategoryFilter(catName) {
+  window._stockSelectedCat = catName;
+  window._stockSelectedProd = null;
+  if (catName) {
+    window._stockExpandedCats.clear();
+    window._stockExpandedCats.add(catName);
+  } else {
+    window._stockExpandedCats.clear();
+    window._stockExpandedProds.clear();
+  }
+  renderStockBreadcrumb();
+  renderStockAgeingTable();
+}
+
+function setStockProductFilter(prodName) {
+  if (window._stockSelectedProd === prodName) {
+    window._stockSelectedProd = null;
+  } else {
+    window._stockSelectedProd = prodName;
+  }
+  renderStockBreadcrumb();
+  renderStockAgeingTable();
+}
+
+function resetStockToAll() {
+  window._stockSelectedCat = null;
+  window._stockSelectedProd = null;
+  window._stockExpandedCats.clear();
+  window._stockExpandedProds.clear();
+  renderStockBreadcrumb();
+  renderStockAgeingTable();
+}
+
+function toggleStockCategory(catName) {
+  if (window._stockExpandedCats.has(catName)) {
+    window._stockExpandedCats.delete(catName);
+    if (window._stockSelectedCat === catName) {
+      window._stockSelectedCat = null;
+    }
+  } else {
+    window._stockExpandedCats.add(catName);
+  }
+  renderStockBreadcrumb();
+  renderStockAgeingTable();
+}
+
+function toggleStockProduct(catName, prodName, event) {
+  if (event) event.stopPropagation();
+  const key = `${catName}:::${prodName}`;
+  if (window._stockExpandedProds.has(key)) {
+    window._stockExpandedProds.delete(key);
+    if (window._stockSelectedProd === prodName) {
+      window._stockSelectedProd = null;
+    }
+  } else {
+    window._stockExpandedProds.add(key);
+  }
+  renderStockBreadcrumb();
+  renderStockAgeingTable();
+}
+
+function filterStockRows() {
+  const query = (document.getElementById('stock-search-input')?.value || '').toLowerCase().trim();
+  if (!query) {
+    renderStockAgeingTable();
+    return;
+  }
+  // Auto-expand categories and subcategories when searching
+  if (window._stockData && window._stockData.categories) {
+    window._stockData.categories.forEach(cat => {
+      const catMatches = cat.category.toLowerCase().includes(query);
+      let catHasMatchingChild = false;
+
+      (cat.products || []).forEach(p => {
+        const prodMatches = p.product.toLowerCase().includes(query);
+        const brandMatches = (p.top_brands || []).some(b => b.brand.toLowerCase().includes(query));
+        if (prodMatches || brandMatches) {
+          catHasMatchingChild = true;
+          window._stockExpandedCats.add(cat.category);
+          if (brandMatches) {
+            window._stockExpandedProds.add(`${cat.category}:::${p.product}`);
+          }
+        }
+      });
+
+      const catBrandMatches = (cat.top_brands || []).some(b => b.brand.toLowerCase().includes(query));
+      if (catMatches || catBrandMatches || catHasMatchingChild) {
+        window._stockExpandedCats.add(cat.category);
+      }
+    });
+  }
+  renderStockAgeingTable(query);
+}
+
+function formatStockVal(num, isQty = false) {
+  if (num === null || num === undefined) return isQty ? '0' : '0.00';
+  if (isQty) {
+    return Math.round(num).toLocaleString('en-IN');
+  }
+  return Number(num).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function getBrandRankBadge(rank) {
+  if (rank === 1) return '<span class="brand-rank-pill" style="background:#fef3c7; color:#b45309; border:1px solid #fde68a;">#1</span>';
+  if (rank === 2) return '<span class="brand-rank-pill" style="background:#f1f5f9; color:#334155; border:1px solid #cbd5e1;">#2</span>';
+  if (rank === 3) return '<span class="brand-rank-pill" style="background:#ffedd5; color:#c2410c; border:1px solid #fed7aa;">#3</span>';
+  return `<span class="brand-rank-pill" style="background:#f8fafc; color:#64748b; border:1px solid #e2e8f0;">#${rank}</span>`;
+}
+
+function renderBrandRow(brand, rank, indentPx, k1, k2, k3, k4, k5, k6, kTot, isQty) {
+  return `
+    <tr class="stock-brand-row">
+      <td class="stock-brand-name" style="padding-left: ${indentPx}px !important;">
+        ${getBrandRankBadge(rank)}
+        <i class="bi bi-tag-fill text-muted" style="font-size:0.72rem; opacity:0.65;"></i>
+        <span style="font-weight:600; color:#334155;">${brand.brand}</span>
+      </td>
+      <td>${formatStockVal(brand[k1], isQty)}</td>
+      <td>${formatStockVal(brand[k2], isQty)}</td>
+      <td>${formatStockVal(brand[k3], isQty)}</td>
+      <td>${formatStockVal(brand[k4], isQty)}</td>
+      <td>
+        <span class="${brand[k5] > 0 ? 'text-warning fw-bold' : 'text-muted'}">
+          ${formatStockVal(brand[k5], isQty)}
+        </span>
+      </td>
+      <td>
+        <span class="${brand[k6] > 0 ? 'text-danger fw-bold' : 'text-muted'}">
+          ${formatStockVal(brand[k6], isQty)}
+        </span>
+      </td>
+      <td style="font-weight:700; color:#0f172a; background:#f8fafc;">${formatStockVal(brand[kTot], isQty)}</td>
+    </tr>
+  `;
+}
+
+function renderStockAgeingTable(searchFilter = '') {
+  if (!window._stockData) return;
+  const isQty = window._stockMetric === 'qty';
+  const allCategories = window._stockData.categories || [];
+  const grandTotal = window._stockData.grand_total || {};
+
+  // Filter categories if specific category is selected
+  let categories = allCategories;
+  if (window._stockSelectedCat) {
+    categories = allCategories.filter(c => c.category === window._stockSelectedCat);
+  }
+
+  // Headers (ALL PERIODS INCLUDED)
+  const thead = document.getElementById('stock-table-head');
+  const unitSuffix = isQty ? ' (Qty)' : ' (Cr)';
+  
+  let headerHtml = `
+    <tr>
+      <th style="width: 25%; min-width: 210px;">Product Category / Name</th>
+      <th style="width: 10%;">1_ &lt;30${unitSuffix}</th>
+      <th style="width: 10%;">2_ 30-60${unitSuffix}</th>
+      <th style="width: 10%;">3_ 60-90${unitSuffix}</th>
+      <th style="width: 11%;">4_ 90-180${unitSuffix}</th>
+      <th style="width: 11%;">5_ 180-365${unitSuffix}</th>
+      <th style="width: 10%;">6_ &gt;365${unitSuffix}</th>
+      <th style="width: 13%; font-weight:800; background:#0f172a; color:#f8fafc;">Grand Total${unitSuffix}</th>
+    </tr>
+  `;
+  if (thead) thead.innerHTML = headerHtml;
+
+  // Body
+  const tbody = document.getElementById('stock-table-body');
+  if (!tbody) return;
+
+  const keyPrefix = isQty ? 'qty_' : 'val_';
+  const k1 = keyPrefix + 'lt_30';
+  const k2 = keyPrefix + '30_60';
+  const k3 = keyPrefix + '60_90';
+  const k4 = keyPrefix + '90_180';
+  const k5 = keyPrefix + '180_365';
+  const k6 = keyPrefix + 'gt_365';
+  const kTot = isQty ? 'total_qty' : 'total_val';
+
+  let bodyHtml = '';
+  let matchFound = false;
+
+  categories.forEach(cat => {
+    const catName = cat.category;
+    const catColor = (typeof CAT_COLORS !== 'undefined' && CAT_COLORS[catName]) ? CAT_COLORS[catName] : '#64748b';
+    const isExpanded = window._stockExpandedCats.has(catName) || (window._stockSelectedCat === catName);
+    const prodList = cat.products || [];
+    const isSingleProd = prodList.length === 1;
+
+    // Filter products and brands if search or subcategory filter is active
+    let visibleProducts = prodList;
+    if (window._stockSelectedProd && window._stockSelectedCat === catName) {
+      visibleProducts = prodList.filter(p => p.product === window._stockSelectedProd);
+    }
+    let singleProdBrands = isSingleProd ? (prodList[0].top_brands || cat.top_brands || []) : [];
+    
+    if (searchFilter) {
+      const q = searchFilter.toLowerCase();
+      const catMatches = catName.toLowerCase().includes(q);
+      
+      if (!catMatches) {
+        if (isSingleProd) {
+          singleProdBrands = singleProdBrands.filter(b => b.brand.toLowerCase().includes(q));
+          if (singleProdBrands.length === 0 && !prodList[0].product.toLowerCase().includes(q)) {
+            return; // Skip category entirely if neither matches
+          }
+        } else {
+          visibleProducts = prodList.filter(p => {
+            const pMatch = p.product.toLowerCase().includes(q);
+            const bMatch = (p.top_brands || []).some(b => b.brand.toLowerCase().includes(q));
+            return pMatch || bMatch;
+          });
+          if (visibleProducts.length === 0) return; // Skip category
+        }
+      }
+    }
+    matchFound = true;
+
+    // Category Row
+    bodyHtml += `
+      <tr class="stock-cat-row ${isExpanded ? 'expanded' : ''}" onclick="toggleStockCategory('${catName}')">
+        <td style="font-weight:700; color:#0f172a;">
+          <span class="stock-cat-toggle">${isExpanded ? '−' : '+'}</span>
+          <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${catColor}; margin-right:6px;"></span>
+          <span style="font-size:0.84rem;">${catName}</span>
+          <span class="badge ms-2" style="background:#f1f5f9; color:#475569; font-size:0.65rem; font-weight:600; border:1px solid #e2e8f0; cursor:pointer;" onclick="setStockCategoryFilter('${catName}'); event.stopPropagation();" title="Filter to ${catName}">
+            ${isSingleProd ? '1 item' : prodList.length + ' items'}
+          </span>
+          ${isSingleProd ? '<span class="badge ms-1" style="background:#e0f2fe; color:#0284c7; font-size:0.60rem; font-weight:600; border:1px solid #bae6fd;">Top 10 Brands</span>' : ''}
+        </td>
+        <td>${formatStockVal(cat[k1], isQty)}</td>
+        <td>${formatStockVal(cat[k2], isQty)}</td>
+        <td>${formatStockVal(cat[k3], isQty)}</td>
+        <td>${formatStockVal(cat[k4], isQty)}</td>
+        <td>
+          <span class="${cat[k5] > 0 ? 'stock-heat-warn stock-heat-pill' : ''}">
+            ${formatStockVal(cat[k5], isQty)}
+          </span>
+        </td>
+        <td>
+          <span class="${cat[k6] > 0 ? 'stock-heat-alert stock-heat-pill' : ''}">
+            ${formatStockVal(cat[k6], isQty)}
+          </span>
+        </td>
+        <td style="font-weight:800; color:#0f172a; background:#f8fafc;">${formatStockVal(cat[kTot], isQty)}</td>
+      </tr>
+    `;
+
+    // Children Rows (Top 10 brands or subcategories)
+    if (isExpanded) {
+      if (isSingleProd) {
+        // Direct Top 10 Brands under single-product category (e.g. MOBILE, LAPTOP, TABLET)
+        singleProdBrands.forEach((b, idx) => {
+          bodyHtml += renderBrandRow(b, idx + 1, 36, k1, k2, k3, k4, k5, k6, kTot, isQty);
+        });
+      } else {
+        // Subcategories with their own toggle (e.g. CE -> TV, REFRIGERATORS, etc.)
+        visibleProducts.forEach(prod => {
+          const prodKey = `${catName}:::${prod.product}`;
+          const isProdExpanded = window._stockExpandedProds.has(prodKey) || (window._stockSelectedProd === prod.product);
+          const brandList = prod.top_brands || [];
+          let visibleSubBrands = brandList;
+          if (searchFilter && !catName.toLowerCase().includes(searchFilter.toLowerCase()) && !prod.product.toLowerCase().includes(searchFilter.toLowerCase())) {
+            visibleSubBrands = brandList.filter(b => b.brand.toLowerCase().includes(searchFilter.toLowerCase()));
+          }
+
+          bodyHtml += `
+            <tr class="stock-prod-row ${isProdExpanded ? 'expanded' : ''}" onclick="toggleStockProduct('${catName}', '${prod.product}', event)">
+              <td class="stock-prod-name">
+                <span class="stock-prod-toggle">${isProdExpanded ? '−' : '+'}</span>
+                <span>${prod.product}</span>
+                <span class="badge ms-1" style="font-size:0.62rem; background:#f8fafc; color:#64748b; border:1px solid #e2e8f0; cursor:pointer;" onclick="setStockProductFilter('${prod.product}'); event.stopPropagation();" title="Filter to ${prod.product}">
+                  ${brandList.length} brands
+                </span>
+              </td>
+              <td style="color:#334155;">${formatStockVal(prod[k1], isQty)}</td>
+              <td style="color:#334155;">${formatStockVal(prod[k2], isQty)}</td>
+              <td style="color:#334155;">${formatStockVal(prod[k3], isQty)}</td>
+              <td style="color:#334155;">${formatStockVal(prod[k4], isQty)}</td>
+              <td>
+                <span class="${prod[k5] > 0 ? 'text-warning fw-bold' : 'text-muted'}">
+                  ${formatStockVal(prod[k5], isQty)}
+                </span>
+              </td>
+              <td>
+                <span class="${prod[k6] > 0 ? 'text-danger fw-bold' : 'text-muted'}">
+                  ${formatStockVal(prod[k6], isQty)}
+                </span>
+              </td>
+              <td style="font-weight:700; color:#0f172a;">${formatStockVal(prod[kTot], isQty)}</td>
+            </tr>
+          `;
+
+          if (isProdExpanded) {
+            visibleSubBrands.forEach((b, idx) => {
+              bodyHtml += renderBrandRow(b, idx + 1, 56, k1, k2, k3, k4, k5, k6, kTot, isQty);
+            });
+          }
+        });
+      }
+    }
+  });
+
+  if (!matchFound && searchFilter) {
+    bodyHtml = `<tr><td colspan="8" class="text-center py-4 text-muted">No products, categories, or brands matching "${searchFilter}"</td></tr>`;
+  }
+  tbody.innerHTML = bodyHtml;
+
+  // Footer (Grand Total or Filtered Category Total)
+  const tfoot = document.getElementById('stock-table-foot');
+  if (tfoot) {
+    let f1 = grandTotal[k1], f2 = grandTotal[k2], f3 = grandTotal[k3], f4 = grandTotal[k4], f5 = grandTotal[k5], f6 = grandTotal[k6], fTot = grandTotal[kTot];
+    let label = 'GRAND TOTAL';
+
+    if (window._stockSelectedCat && categories.length === 1) {
+      const c = categories[0];
+      f1 = c[k1]; f2 = c[k2]; f3 = c[k3]; f4 = c[k4]; f5 = c[k5]; f6 = c[k6]; fTot = c[kTot];
+      label = `TOTAL (${c.category})`;
+    }
+
+    tfoot.innerHTML = `
+      <tr style="border-top:2px solid #334155; font-size:0.82rem;">
+        <td style="padding:0.7rem 0.75rem; text-align:left; font-weight:800; letter-spacing:0.04em;">${label}</td>
+        <td style="padding:0.7rem 0.75rem; text-align:right;">${formatStockVal(f1, isQty)}</td>
+        <td style="padding:0.7rem 0.75rem; text-align:right;">${formatStockVal(f2, isQty)}</td>
+        <td style="padding:0.7rem 0.75rem; text-align:right;">${formatStockVal(f3, isQty)}</td>
+        <td style="padding:0.7rem 0.75rem; text-align:right;">${formatStockVal(f4, isQty)}</td>
+        <td style="padding:0.7rem 0.75rem; text-align:right; color:#fde68a;">${formatStockVal(f5, isQty)}</td>
+        <td style="padding:0.7rem 0.75rem; text-align:right; color:#fca5a5;">${formatStockVal(f6, isQty)}</td>
+        <td style="padding:0.7rem 0.75rem; text-align:right; font-weight:900; background:#020617; color:#fb923c;">${formatStockVal(fTot, isQty)}</td>
+      </tr>
+    `;
+  }
+
+  // Update Breadcrumb Pill
+  renderStockBreadcrumb();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initStockFilters();
+  loadStockAgeingReport();
+});
+</script>
+{% endblock %}

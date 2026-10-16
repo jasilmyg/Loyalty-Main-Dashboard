@@ -44,6 +44,22 @@ def _get_ch_client():
     )
 
 
+# Source of truth for transactions: azure_invoice_report (one row per invoice), aliased to the legacy
+# sales_data column names so the queries below are unchanged. Same exclusions as rfm_engine.py and
+# analytics/management/commands/sync_daily_azure_blob.py.
+SALES_SRC = """(
+    SELECT customer_mobile, toDate(date) AS parsed_date, invoice_total AS total_value
+    FROM azure_invoice_report
+    WHERE invoice_no NOT LIKE '%SMC%' AND invoice_no NOT LIKE '%EI%'
+      AND branch NOT IN ('HEAD OFFICE', 'UG SMART CHOICE')
+)"""
+
+
+def _q(client, sql):
+    """Run a query written against the legacy `sales_data` name on the Azure invoice table instead."""
+    return client.query(sql.replace('FROM sales_data', 'FROM ' + SALES_SRC))
+
+
 def _query_all_metrics(client) -> dict:
     """
     Run all direct historical rate queries in sequence.
@@ -55,7 +71,7 @@ def _query_all_metrics(client) -> dict:
     # ── 1. True Resurrection Rate ──────────────────────────────────────────────
     # "Of customers dormant 180+ days before 2024, what % returned in 2024?"
     logger.info("[NeuralEngine] Query 1: True resurrection rate...")
-    r = client.query("""
+    r = _q(client, """
     WITH
     last_before_2024 AS (
         SELECT customer_mobile, max(parsed_date) as last_date
@@ -90,7 +106,7 @@ def _query_all_metrics(client) -> dict:
     # ── 2. Current Dormant Pool Breakdown ──────────────────────────────────────
     # "How many customers are at-risk now?"
     logger.info("[NeuralEngine] Query 2: Current dormant pool...")
-    r2 = client.query("""
+    r2 = _q(client, """
     WITH last_purchase AS (
         SELECT customer_mobile, max(parsed_date) as last_date
         FROM sales_data
@@ -124,7 +140,7 @@ def _query_all_metrics(client) -> dict:
     # ── 3. Repeat Purchase Probability (After Return) ──────────────────────────
     # "Of customers who returned in 2025 after dormancy, how many bought again?"
     logger.info("[NeuralEngine] Query 3: Repeat purchase probability...")
-    r3 = client.query("""
+    r3 = _q(client, """
     WITH dormant_returners AS (
         SELECT DISTINCT customer_mobile
         FROM sales_data
@@ -158,7 +174,7 @@ def _query_all_metrics(client) -> dict:
 
     # ── 4. Average Revenue of Returning Dormant Customers ─────────────────────
     logger.info("[NeuralEngine] Query 4: Avg returner revenue...")
-    r4 = client.query("""
+    r4 = _q(client, """
     SELECT round(avg(total_value), 0) as avg_cart
     FROM sales_data
     WHERE customer_mobile != ''
@@ -177,7 +193,7 @@ def _query_all_metrics(client) -> dict:
 
     # ── 5. Monthly 2026 Purchaser Counts (for chart) ───────────────────────────
     logger.info("[NeuralEngine] Query 5: Monthly 2026 data...")
-    r5 = client.query("""
+    r5 = _q(client, """
     SELECT toMonth(parsed_date) as m, count() as cnt
     FROM sales_data
     WHERE customer_mobile != '' AND length(customer_mobile) = 10

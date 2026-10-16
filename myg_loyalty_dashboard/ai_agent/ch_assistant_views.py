@@ -12,7 +12,7 @@ from .services import ch_assistant
 logger = logging.getLogger(__name__)
 
 # Same restricted accounts that are hidden from the "Enterprise Intelligence" menu.
-RESTRICTED_USERNAMES = {"mygusers", "shestart"}
+RESTRICTED_USERNAMES = {"mygusers", "myguser", "shestart"}
 
 
 class _AssistantAccessMixin(LoginRequiredMixin):
@@ -29,21 +29,71 @@ class ClickHouseAssistantPage(_AssistantAccessMixin, TemplateView):
 
 
 class ClickHouseAssistantChatAPI(_AssistantAccessMixin, View):
-    """POST {question, history:[{role, content}]} → {answer, results, steps, model, elapsed_ms}"""
+    """
+    POST either:
+      1. multipart/form-data: { question: str, file: UploadedFile (optional), history: JSON str, session_id: str, clear_file: bool }
+      2. application/json: { question: str, history: list, session_id: str, clear_file: bool }
+    → { answer, results, steps, model, elapsed_ms, file_info }
+    """
 
     def post(self, request, *args, **kwargs):
-        try:
-            payload = json.loads(request.body or b"{}")
-        except json.JSONDecodeError:
-            return JsonResponse({"error": "Invalid JSON body."}, status=400)
-        question = str(payload.get("question", "")).strip()
-        if not question:
-            return JsonResponse({"error": "Question is required."}, status=400)
-        history = payload.get("history") or []
+        uploaded_file = None
+        question = ""
+        history = []
+        clear_file = False
+        session_id = request.session.session_key or ""
+        if not session_id:
+            try:
+                request.session.save()
+                session_id = request.session.session_key or ""
+            except Exception:
+                pass
+
+        if request.content_type and "multipart/form-data" in request.content_type:
+            uploaded_file = request.FILES.get("file")
+            question = str(request.POST.get("question", "")).strip()
+            history_raw = request.POST.get("history", "[]")
+            client_sid = request.POST.get("session_id")
+            if client_sid:
+                session_id = client_sid
+            clear_file = str(request.POST.get("clear_file", "")).lower() in ("true", "1")
+            try:
+                history = json.loads(history_raw) if isinstance(history_raw, str) else []
+            except Exception:
+                history = []
+        else:
+            try:
+                payload = json.loads(request.body or b"{}")
+            except json.JSONDecodeError:
+                return JsonResponse({"error": "Invalid JSON body."}, status=400)
+            question = str(payload.get("question", "")).strip()
+            history = payload.get("history") or []
+            client_sid = payload.get("session_id")
+            if client_sid:
+                session_id = client_sid
+            clear_file = bool(payload.get("clear_file"))
+
         if not isinstance(history, list):
             history = []
+
+        if clear_file and session_id:
+            from .services import file_analyzer
+            file_analyzer.clear_cached_file_context(session_id)
+            if not question and not uploaded_file:
+                return JsonResponse({"status": "cleared"})
+
+        if not question and not uploaded_file:
+            return JsonResponse({"error": "Please provide a question or upload a file."}, status=400)
+
         try:
-            return JsonResponse(ch_assistant.ask(question, history))
+            return JsonResponse(
+                ch_assistant.ask(
+                    question=question,
+                    history=history,
+                    uploaded_file=uploaded_file,
+                    session_id=session_id,
+                )
+            )
         except ch_assistant.LLMError as e:
             return JsonResponse({"error": str(e)}, status=503)
         except Exception:  # noqa: BLE001

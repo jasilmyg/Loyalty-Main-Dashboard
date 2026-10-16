@@ -1,20 +1,21 @@
 """
-ClickHouse Assistant — engine
-------------------------------
-A chatbot brain that can answer ANY question about the ClickHouse database:
+ClickHouse Assistant — engine with File Intelligence
+-----------------------------------------------------
+A chatbot brain that can answer questions about:
+  • ClickHouse database: live queries, schema exploration, system diagnostics.
+  • Uploaded files: Excel (.xlsx, .xls), CSV (.csv), and PDF (.pdf) documents.
+    - Tabular files (Excel, CSV) are loaded into in-memory DuckDB for exact, zero-truncation
+      calculations, groupings, filtering, and cross-referencing with ClickHouse.
+    - PDF documents are parsed page-by-page and processed with multimodal document intelligence.
+    - In-memory cache retains file context across chat turns for seamless follow-ups.
 
-  • Data questions   → Gemini writes SQL, we run it READ-ONLY, Gemini explains the result.
-  • Schema questions → the live schema (tables / columns / sizes) is injected into the prompt
-                       and can be re-inspected on demand via the `inspect_table` tool.
-  • General ClickHouse knowledge (syntax, functions, engines, tuning) → answered directly by
-                       the model, and verified against `system.*` tables when useful.
+Safety (defence in depth):
+  1. Static SQL validation for ClickHouse (single statement, read-only verbs only).
+  2. Every ClickHouse query is sent with `readonly=1`.
+  3. DuckDB queries on uploaded files are restricted to read-only statements.
+  4. Execution-time and row caps on all queries.
 
-Safety (defence in depth)
-  1. Static SQL validation (single statement, read-only verbs only, no table functions).
-  2. Every query is sent with the ClickHouse setting `readonly=1` – the SERVER itself rejects writes.
-  3. Execution-time / result-row caps on every query.
-
-LLM: Google Gemini REST API (free tier) – no extra SDK needed, only `requests`.
+LLM: Google Gemini REST API (with free-tier model fallback list).
 """
 
 import json
@@ -28,15 +29,20 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
+from dotenv import load_dotenv
+
+load_dotenv()
+
+from . import file_analyzer
 
 logger = logging.getLogger(__name__)
 
 # ── Configuration ─────────────────────────────────────────────────────────────
-# Ordered fallback list – first model that answers wins (free-tier models can be busy / rate limited).
+# Ordered fallback list – prioritize models with active available quota.
 GEMINI_MODELS = [
     m.strip() for m in os.environ.get(
         "GEMINI_MODELS",
-        "gemini-3.6-flash,gemini-3-flash-preview,gemini-3.7-flash,gemini-3.1-flash-lite,gemini-3.5-flash",
+        "gemini-3.7-flash,gemini-3.1-flash-lite,gemini-3.6-flash,gemini-3-flash-preview,gemini-3.5-flash",
     ).split(",") if m.strip()
 ]
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
@@ -98,95 +104,89 @@ def validate_sql(sql: str) -> Tuple[bool, str, str]:
     m = _TABLE_FUNCS.search(probe)
     if m:
         return False, "", f"Table function '{m.group(1)}()' is not allowed."
-    if re.search(r"\bINTO\s+OUTFILE\b", probe, re.IGNORECASE):
-        return False, "", "INTO OUTFILE is not allowed."
     return True, cleaned, ""
 
 
-# ── ClickHouse execution ──────────────────────────────────────────────────────
-def _json_safe(v: Any) -> Any:
-    if v is None or isinstance(v, (bool, int, str)):
-        return v
-    if isinstance(v, float):
-        return None if v != v else v  # NaN → null
+# ── ClickHouse execution (low level) ──────────────────────────────────────────
+def _clean_val(v: Any) -> Any:
+    if v is None:
+        return None
+    if isinstance(v, (datetime, date)):
+        return v.isoformat()
     if isinstance(v, Decimal):
         return float(v)
-    if isinstance(v, (datetime, date)):
-        return v.isoformat(sep=" ") if isinstance(v, datetime) else v.isoformat()
-    if isinstance(v, bytes):
-        return v.decode("utf-8", errors="replace")
-    if isinstance(v, (list, tuple, set)):
-        return [_json_safe(x) for x in v]
-    if isinstance(v, dict):
-        return {str(k): _json_safe(x) for k, x in v.items()}
-    return str(v)
+    return v
 
 
 def run_readonly_query(sql: str) -> Dict[str, Any]:
-    """Validate + execute a query read-only. Never raises; returns {'error': ...} on failure."""
-    ok, cleaned, err = validate_sql(sql)
+    """Execute one read-only ClickHouse SQL statement. Returns a JSON-serializable dict."""
+    ok, cleaned_sql, err = validate_sql(sql)
     if not ok:
-        return {"error": err, "sql": sql}
+        return {"error": err, "sql": sql, "row_count": 0, "columns": [], "rows": [], "elapsed_ms": 0}
 
-    from analytics.clickhouse_service import get_ch_client, reset_client
-
-    client = get_ch_client()
-    if client is None:
-        return {"error": "Could not connect to ClickHouse.", "sql": cleaned}
     t0 = time.time()
     try:
-        res = client.query(cleaned, settings=CH_QUERY_SETTINGS)
+        from analytics.clickhouse_service import get_ch_client
+        client = get_ch_client()
+        if not client:
+            raise RuntimeError("ClickHouse client could not connect.")
+        result = client.query(cleaned_sql, settings=CH_QUERY_SETTINGS)
     except Exception as e:  # noqa: BLE001
-        msg = str(e)
-        if "Connection" in msg or "timed out" in msg.lower():
-            reset_client()
-        # ClickHouse errors are verbose – keep the first meaningful part so the LLM can self-correct.
-        return {"error": msg[:900], "sql": cleaned}
-    elapsed = int((time.time() - t0) * 1000)
-    cols = list(res.column_names)
-    rows_all = res.result_rows
-    total = len(rows_all)
-    rows = [[_json_safe(c) for c in r] for r in rows_all[:UI_ROWS_LIMIT]]
+        logger.warning("ClickHouse query failed: %s; SQL: %s", e, cleaned_sql[:300])
+        return {
+            "error": str(e),
+            "sql": cleaned_sql,
+            "row_count": 0,
+            "columns": [],
+            "rows": [],
+            "elapsed_ms": int((time.time() - t0) * 1000),
+        }
+
+    elapsed_ms = int((time.time() - t0) * 1000)
+    cols = list(result.column_names)
+    raw_rows = result.result_rows or []
+    truncated = len(raw_rows) > UI_ROWS_LIMIT
+    rows = [[_clean_val(c) for c in r] for r in raw_rows[:UI_ROWS_LIMIT]]
     return {
-        "sql": cleaned,
         "columns": cols,
         "rows": rows,
-        "row_count": total,
-        "truncated": total > UI_ROWS_LIMIT,
-        "elapsed_ms": elapsed,
+        "row_count": len(raw_rows),
+        "truncated": truncated,
+        "elapsed_ms": elapsed_ms,
+        "sql": cleaned_sql,
+        "source": "ClickHouse Cloud",
     }
 
 
-# ── Schema catalog (cached) ───────────────────────────────────────────────────
-_schema_lock = threading.Lock()
+# ── Schema metadata cache ─────────────────────────────────────────────────────
 _schema_cache: Dict[str, Any] = {"ts": 0.0, "data": None}
-SCHEMA_TTL_SEC = 600
+_schema_lock = threading.Lock()
+SCHEMA_TTL_SEC = 600  # 10 minutes
 
 
-def _human(n: Optional[float]) -> str:
+def _human(n: Optional[int]) -> str:
     if n is None:
-        return "?"
-    n = float(n)
-    for unit in ("", "K", "M", "B"):
+        return "–"
+    for unit in ["", "K", "M", "B"]:
         if abs(n) < 1000:
-            return f"{n:.0f}{unit}" if unit == "" else f"{n:.1f}{unit}"
-        n /= 1000
+            return f"{n:.1f}{unit}".rstrip("0").rstrip(".") if unit else f"{n}"
+        n /= 1000.0
     return f"{n:.1f}T"
 
 
 def get_schema(force: bool = False) -> Dict[str, Any]:
-    """Returns {'tables': [{database,name,engine,rows,bytes,sorting_key,partition_key,comment,columns:[{name,type,comment}]}]}"""
+    """Return catalog of all non-system tables, engines, rows, sizes and columns."""
     with _schema_lock:
-        if not force and _schema_cache["data"] and time.time() - _schema_cache["ts"] < SCHEMA_TTL_SEC:
+        if not force and _schema_cache["data"] and (time.time() - _schema_cache["ts"]) < SCHEMA_TTL_SEC:
             return _schema_cache["data"]
 
-    skip = ",".join(f"'{d}'" for d in SYSTEM_DBS)
+    skip = ", ".join(f"'{d}'" for d in SYSTEM_DBS)
     t = run_readonly_query(
-        "SELECT database, name, engine, total_rows, total_bytes, sorting_key, partition_key, comment "
-        f"FROM system.tables WHERE database NOT IN ({skip}) AND NOT startsWith(name, '.inner') ORDER BY database, name"
+        f"SELECT database, name, engine, total_rows, total_bytes, sorting_key, partition_key, comment "
+        f"FROM system.tables WHERE database NOT IN ({skip}) ORDER BY database, name"
     )
     c = run_readonly_query(
-        "SELECT database, `table`, name, type, comment "
+        f"SELECT database, `table`, name, type, comment "
         f"FROM system.columns WHERE database NOT IN ({skip}) ORDER BY database, `table`, position"
     )
     if "error" in t or "error" in c:
@@ -228,65 +228,86 @@ def schema_as_prompt_text() -> str:
 
 
 # ── Prompt ────────────────────────────────────────────────────────────────────
-def build_system_prompt() -> str:
+def build_system_prompt(file_ctx: Optional[Dict[str, Any]] = None) -> str:
     try:
         schema_txt = schema_as_prompt_text()
     except Exception as e:  # noqa: BLE001
         schema_txt = f"(schema could not be loaded right now: {e}. Use inspect_table / run_sql on system.tables.)"
     today = datetime.now().strftime("%Y-%m-%d")
-    return f"""You are **Jazz AI**, the assistant for the myG Loyalty portal – an expert in ClickHouse AND in this
-specific ClickHouse Cloud database (myG retail stores in Kerala, India; amounts are in Indian Rupees ₹). Today is {today}.
+    base_prompt = f"""You are **Jazz AI**, the assistant for the myG Loyalty portal – an expert in ClickHouse, business data analytics, and spreadsheets/documents (myG retail stores in Kerala, India; amounts are in Indian Rupees ₹). Today is {today}.
 
-You can answer ANY question related to this ClickHouse database:
+You can answer ANY question related to:
 1. DATA questions (sales, customers, branches, stock, loyalty, pine-lab, OSG, market-basket …) → use the `run_sql` tool.
 2. SCHEMA / STRUCTURE questions (what tables exist, columns, sizes, engines, keys, relationships) → use the schema below,
    and `inspect_table` for samples / exact DDL.
 3. GENERAL ClickHouse questions (SQL syntax, functions, engines, MergeTree, performance tuning, best practices,
-   errors) → answer from your expertise. If you are not 100% sure a function exists or how it behaves in this
-   server version, verify with `run_sql` (e.g. SELECT name FROM system.functions WHERE name ILIKE '%x%').
-   Server-side questions (table sizes on disk, parts, running queries, settings) can be answered from `system.*` tables.
+   errors) → answer from your expertise.
+4. UPLOADED FILES (Excel, CSV, PDF) → analyze files in-depth, perform calculations, aggregations, data profiling,
+   and any requested business operations using `query_uploaded_file` (for Excel/CSV) or document intelligence (for PDF).
 
 # Tool rules
 - NEVER invent numbers, table names or columns. For anything data-related you MUST query first.
-- Only read-only SQL is possible (SELECT / WITH / DESCRIBE / SHOW / EXPLAIN). If the user asks to modify data or
-  schema, politely refuse and explain this assistant is read-only; you may show the SQL they could run themselves.
-- Use ClickHouse SQL dialect only. Always qualify with correct column names from the schema; check column TYPES:
-  numeric values stored as String need toFloat64OrZero()/toInt64OrZero(); dates stored as String need toDate().
-- Prefer aggregations, add ORDER BY and LIMIT (default LIMIT 50 unless the user wants everything). Never SELECT * on the
-  big tables without LIMIT. Avoid expensive cross joins on tables with tens of millions of rows.
+- Only read-only queries are permitted.
+- Use ClickHouse SQL dialect for `run_sql`.
+- Prefer aggregations, add ORDER BY and LIMIT (default LIMIT 50 unless the user wants everything). Never SELECT * on big tables without LIMIT.
 - If a query fails, read the error, fix the SQL and retry (you have at most {MAX_TOOL_STEPS} tool calls per question).
-- If the question is ambiguous (unknown period, metric or table) pick the most sensible interpretation, state the
-  assumption in one line, and answer – only ask a clarifying question when truly impossible to proceed.
 
 # Business conventions of this database
 - Placeholder rows with date = '1970-01-01' are invalid – exclude them from time-based analysis.
 - The main dashboards EXCLUDE internal/transfer data: invoices whose invoice_no contains 'SMC' or 'EI' and branches
   'HEAD OFFICE', 'UG SMART CHOICE', '3GH'. For sales/revenue questions on azure_invoice_report / azure_sales_report apply:
     NOT (upper(invoice_no) LIKE '%SMC%' OR upper(invoice_no) LIKE '%EI%' OR upper(branch) IN ('HEAD OFFICE','UG SMART CHOICE','3GH'))
-  and mention that this standard filter was applied (skip it only if the user asks for raw/all data).
 - azure_invoice_report = one row per invoice; azure_sales_report = one row per item sold (join on invoice_no);
   item_master (item_code → product/brand/category); branch_master (branch code → name, RBM, BDM, district).
 
 # Answer style
-- Be concise and business-friendly. Lead with the direct answer, then key insights. Use Markdown (short tables ok).
+- Be concise, analytical, and executive-ready. Lead with the direct answer, followed by key metrics & insights.
 - Format money as ₹ with Indian grouping when natural (₹12,34,567), large totals may use Lakh/Crore in brackets.
 - The raw result table is shown to the user automatically below your answer – do NOT repeat all rows; summarise
-  or show only the top few. Mention the date range / filters you used.
+  or show only the top few in your markdown.
 - Customer mobile numbers are personal data: show them only if explicitly asked, otherwise aggregate.
 
 # Live database schema (ClickHouse server, database `default`)
 {schema_txt}
 """
 
+    if file_ctx:
+        fname = file_ctx.get("filename", "Uploaded File")
+        ftype = file_ctx.get("file_type", "").upper()
+        fsize = file_ctx.get("file_size_str", "")
+        summary_prompt = file_ctx.get("summary_prompt", "")
+        base_prompt += f"""
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ACTIVE UPLOADED FILE CONTEXT: `{fname}` ({ftype}, {fsize})
+# ══════════════════════════════════════════════════════════════════════════════
+The user uploaded `{fname}` to perform analysis, answer questions, or execute specific operations on it.
+
+{summary_prompt}
+
+## RULES FOR UPLOADED FILE OPERATIONS:
+1. Carefully perform whatever operation or analysis the user requested (e.g., summaries, top performers, calculations, comparisons, filtering).
+2. If this is an Excel or CSV file, and the user asks for exact aggregations, rankings, calculations, or filtering:
+   YOU MUST CALL the `query_uploaded_file` tool! In-memory DuckDB executes ANSI SQL on all rows without truncation.
+   Available tables: {', '.join(f'`{t}`' for t in file_ctx.get('tables', ['uploaded_file']))}.
+3. If the user asks to compare or cross-reference the uploaded file with ClickHouse database data:
+   You have BOTH `query_uploaded_file` (for the uploaded file) AND `run_sql` (for ClickHouse) available! Execute both and synthesize the findings.
+4. Structure your response with:
+   - 📊 **Executive Summary**: Direct answer and key takeaways
+   - 📈 **Detailed Operations / Findings**: Groupings, metrics, and comparisons (use Markdown tables where helpful)
+   - 💡 **Key Insights & Recommendations**: Meaningful business observations, anomalies, or follow-up opportunities
+"""
+    return base_prompt
+
 
 # ── Tools exposed to Gemini ───────────────────────────────────────────────────
-TOOL_DECLARATIONS = [{
-    "functionDeclarations": [
+def get_tools_declaration(file_ctx: Optional[Dict[str, Any]] = None) -> List[Dict]:
+    funcs = [
         {
             "name": "run_sql",
             "description": (
                 "Run ONE read-only ClickHouse SQL query (SELECT/WITH/DESCRIBE/SHOW/EXPLAIN) and get columns + rows. "
-                "Server enforces readonly mode; results are capped. Use for all data/system-table questions."
+                "Server enforces readonly mode; results are capped. Use for all ClickHouse database questions."
             ),
             "parameters": {
                 "type": "OBJECT",
@@ -296,7 +317,7 @@ TOOL_DECLARATIONS = [{
         },
         {
             "name": "inspect_table",
-            "description": "Get the exact CREATE TABLE DDL, columns and a few sample rows of one table (e.g. 'azure_sales_report').",
+            "description": "Get the exact CREATE TABLE DDL, columns and a few sample rows of one ClickHouse table (e.g. 'azure_sales_report').",
             "parameters": {
                 "type": "OBJECT",
                 "properties": {
@@ -307,7 +328,31 @@ TOOL_DECLARATIONS = [{
             },
         },
     ]
-}]
+
+    if file_ctx and file_ctx.get("duckdb_conn"):
+        tables_str = ", ".join(f"'{t}'" for t in file_ctx.get("tables", ["uploaded_file"]))
+        funcs.append({
+            "name": "query_uploaded_file",
+            "description": (
+                f"Run an in-memory ANSI SQL query (DuckDB) on the uploaded spreadsheet or CSV tables ({tables_str}). "
+                "Use this to compute exact sums, averages, rankings, counts, group bys, and filters across ALL rows."
+            ),
+            "parameters": {
+                "type": "OBJECT",
+                "properties": {
+                    "sql": {
+                        "type": "STRING",
+                        "description": (
+                            "DuckDB ANSI SQL query on 'uploaded_file' or sheet tables "
+                            "(e.g., SELECT column_name, SUM(amount) FROM uploaded_file GROUP BY column_name ORDER BY 2 DESC LIMIT 50)."
+                        ),
+                    }
+                },
+                "required": ["sql"],
+            },
+        })
+
+    return [{"functionDeclarations": funcs}]
 
 
 def _result_for_llm(res: Dict[str, Any]) -> Dict[str, Any]:
@@ -358,7 +403,14 @@ def _tool_inspect_table(args: Dict[str, Any], ui_results: List[Dict[str, Any]]) 
     return out
 
 
-_TOOLS = {"run_sql": _tool_run_sql, "inspect_table": _tool_inspect_table}
+def _tool_query_uploaded_file(args: Dict[str, Any], ui_results: List[Dict[str, Any]], file_ctx: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if not file_ctx or not file_ctx.get("duckdb_conn"):
+        return {"error": "No uploaded file is active in this session."}
+    sql = str(args.get("sql", ""))
+    res = file_analyzer.execute_file_query(file_ctx["duckdb_conn"], sql)
+    if "error" not in res and res.get("columns"):
+        ui_results.append(res)
+    return _result_for_llm(res)
 
 
 # ── Gemini REST client ────────────────────────────────────────────────────────
@@ -366,7 +418,7 @@ class LLMError(Exception):
     pass
 
 
-def _gemini_generate(contents: List[Dict], system_prompt: str, allow_tools: bool, deadline: float) -> Tuple[Dict, str]:
+def _gemini_generate(contents: List[Dict], system_prompt: str, allow_tools: bool, deadline: float, tools: List[Dict]) -> Tuple[Dict, str]:
     api_key = os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
         raise LLMError("GEMINI_API_KEY is not configured. Add it to the .env file (free key: https://aistudio.google.com/apikey).")
@@ -376,9 +428,9 @@ def _gemini_generate(contents: List[Dict], system_prompt: str, allow_tools: bool
         "generationConfig": {"temperature": 0.1, "maxOutputTokens": 8192, "thinkingConfig": {"thinkingLevel": "low"}},
     }
     if allow_tools:
-        body["tools"] = TOOL_DECLARATIONS
+        body["tools"] = tools
     else:
-        body["tools"] = TOOL_DECLARATIONS
+        body["tools"] = tools
         body["toolConfig"] = {"functionCallingConfig": {"mode": "NONE"}}
 
     last_err = "unknown error"
@@ -404,10 +456,10 @@ def _gemini_generate(contents: List[Dict], system_prompt: str, allow_tools: bool
                 last_err = f"{model}: empty response ({data.get('promptFeedback') or data['candidates'][0].get('finishReason', '')})"
                 break
             last_err = f"{model}: HTTP {r.status_code} {r.text[:200]}"
-            if r.status_code in (429, 500, 502, 503, 504) and attempt == 0:
-                time.sleep(1.5)  # brief retry once, then fall through to next model
+            if r.status_code in (500, 502, 503, 504) and attempt == 0:
+                time.sleep(1.0)
                 continue
-            break  # 400/403/404 etc. → next model
+            break  # 429, 400, 403, 404 etc. → immediately try next model
     logger.warning("Gemini failed on all models: %s", last_err)
     if "429" in last_err:
         raise LLMError("The free Gemini quota is exhausted for the moment. Please wait a minute and try again.")
@@ -435,19 +487,63 @@ def _text_of(content: Dict) -> str:
     return "".join(p.get("text", "") for p in content.get("parts", []) if p.get("text") and not p.get("thought")).strip()
 
 
-def ask(question: str, history: Optional[List[Dict[str, str]]] = None) -> Dict[str, Any]:
-    """Answer one question. Returns {answer, results[], steps[], model, elapsed_ms}."""
+def ask(
+    question: str,
+    history: Optional[List[Dict[str, str]]] = None,
+    uploaded_file: Optional[Any] = None,
+    session_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Answer one question, optionally analyzing an uploaded file (Excel, CSV, or PDF)
+    or executing operations requested on it.
+    Returns {answer, results[], steps[], model, elapsed_ms, file_info}.
+    """
     started = time.time()
     deadline = started + OVERALL_DEADLINE_SEC
     question = (question or "").strip()
-    if not question:
-        return {"answer": "Please type a question.", "results": [], "steps": [], "model": None, "elapsed_ms": 0}
 
-    system_prompt = build_system_prompt()
+    file_ctx = None
+    if uploaded_file is not None:
+        try:
+            filename = getattr(uploaded_file, "name", "uploaded_file")
+            file_ctx = file_analyzer.analyze_file(uploaded_file, filename)
+            if session_id:
+                file_analyzer.set_cached_file_context(session_id, file_ctx)
+        except Exception as e:
+            logger.exception("Failed to process uploaded file: %s", e)
+            return {
+                "answer": f"⚠️ Could not process uploaded file: {str(e)}",
+                "results": [],
+                "steps": [],
+                "model": None,
+                "elapsed_ms": int((time.time() - started) * 1000),
+                "file_info": None,
+            }
+    elif session_id:
+        file_ctx = file_analyzer.get_cached_file_context(session_id)
+
+    if not question:
+        if file_ctx:
+            question = (
+                f"Perform a comprehensive analysis of this uploaded {file_ctx['file_type'].upper()} file (`{file_ctx['filename']}`). "
+                "Highlight key trends, metrics, anomalies, and summary statistics, and present clear executive insights."
+            )
+        else:
+            return {"answer": "Please type a question or upload a file.", "results": [], "steps": [], "model": None, "elapsed_ms": 0}
+
+    system_prompt = build_system_prompt(file_ctx)
+    tools_decl = get_tools_declaration(file_ctx)
+
     contents = _history_to_contents(history or [])
     if contents and contents[-1]["role"] == "user":
         contents.pop()  # the new question replaces a dangling user turn
-    contents.append({"role": "user", "parts": [{"text": question[:4000]}]})
+
+    user_parts: List[Dict[str, Any]] = []
+    # If PDF has inline_parts (base64)
+    if file_ctx and file_ctx.get("inline_parts"):
+        user_parts.extend(file_ctx["inline_parts"])
+    user_parts.append({"text": question[:4000]})
+    contents.append({"role": "user", "parts": user_parts})
 
     ui_results: List[Dict[str, Any]] = []
     steps: List[Dict[str, Any]] = []
@@ -455,7 +551,9 @@ def ask(question: str, history: Optional[List[Dict[str, str]]] = None) -> Dict[s
 
     for _ in range(MAX_TOOL_STEPS + 1):
         force_answer = len(steps) >= MAX_TOOL_STEPS
-        data, used_model = _gemini_generate(contents, system_prompt, allow_tools=not force_answer, deadline=deadline)
+        data, used_model = _gemini_generate(
+            contents, system_prompt, allow_tools=not force_answer, deadline=deadline, tools=tools_decl
+        )
         content = data["candidates"][0]["content"]
         calls = [p["functionCall"] for p in content.get("parts", []) if "functionCall" in p]
 
@@ -467,23 +565,44 @@ def ask(question: str, history: Optional[List[Dict[str, str]]] = None) -> Dict[s
         responses = []
         for call in calls:
             name, args = call.get("name"), call.get("args") or {}
-            fn = _TOOLS.get(name)
-            result = fn(args, ui_results) if fn else {"error": f"Unknown tool {name}"}
-            step = {"tool": name, "sql": args.get("sql") or f"inspect {args.get('table', '')}"}
+            if name == "run_sql":
+                result = _tool_run_sql(args, ui_results)
+                step = {"tool": name, "sql": args.get("sql") or "", "source": "ClickHouse Cloud"}
+            elif name == "inspect_table":
+                result = _tool_inspect_table(args, ui_results)
+                step = {"tool": name, "sql": f"inspect {args.get('table', '')}", "source": "ClickHouse Cloud"}
+            elif name == "query_uploaded_file":
+                result = _tool_query_uploaded_file(args, ui_results, file_ctx)
+                step = {"tool": name, "sql": args.get("sql") or "", "source": "Uploaded File (DuckDB)"}
+            else:
+                result = {"error": f"Unknown tool {name}"}
+                step = {"tool": name, "sql": "", "source": "Unknown"}
+
             if "error" in result:
                 step["error"] = result["error"]
             steps.append(step)
             responses.append({"functionResponse": {"name": name, "response": {"result": result}}})
         contents.append({"role": "user", "parts": responses})
     else:  # pragma: no cover
-        answer = "I ran out of steps before finishing. Please narrow the question."
+        answer = "I reached the maximum number of steps before finishing. Please narrow the question."
 
-    # Only surface successful results to the UI (errors are shown in the 'steps' trail).
+    # Surface successful results to the UI (last successful result shown in table)
     shown = [r for r in ui_results if "error" not in r and r.get("columns")]
+
+    file_info = None
+    if file_ctx:
+        file_info = {
+            "name": file_ctx["filename"],
+            "type": file_ctx["file_type"],
+            "size_str": file_ctx["file_size_str"],
+            "meta": file_ctx.get("meta", {}),
+        }
+
     return {
         "answer": answer,
         "results": shown[-1:],
         "steps": steps,
         "model": used_model,
         "elapsed_ms": int((time.time() - started) * 1000),
+        "file_info": file_info,
     }

@@ -472,7 +472,7 @@
             </span>
         </div>
 
-        {% if request.user.username != 'shestart' and request.user.username != 'mygusers' %}
+        {% if request.user.username != 'shestart' and request.user.username != 'mygusers' and request.user.username != 'myguser' %}
         <!-- === LEGACY MODULES === -->
         <div class="mb-2 mt-4" style="padding-left: 2.5rem;">
             <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">Legacy Operations</small>
@@ -518,7 +518,6 @@
             </li>
         </ul>
 
-        {% if request.user.username != 'mygusers' %}
         <div class="mb-2 mt-3" style="padding-left: 2.5rem;">
             <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">Predictive AI (Level 3)</small>
         </div>
@@ -544,6 +543,7 @@
         </ul>
         {% endif %}
 
+        {% if request.user.username != 'shestart' %}
         <div class="mb-2 mt-3" style="padding-left: 2.5rem;">
             <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">Analytics Platform</small>
         </div>
@@ -553,7 +553,7 @@
                     <i class="bi bi-graph-up-arrow"></i> Executive Dashboard
                 </a>
             </li>
-            {% if request.user.username != 'mygusers' %}
+            {% if request.user.username != 'mygusers' and request.user.username != 'myguser' %}
             <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'special_event_reports' %}active{% endif %}" href="{% url 'special_event_reports' %}">
                     <i class="bi bi-lightning-charge text-warning"></i> Special Event Reports
@@ -565,10 +565,24 @@
                     <span class="badge ms-1" style="background:linear-gradient(135deg,#10b981,#34d399);font-size:8px;font-weight:800;vertical-align:middle;">NEW</span>
                 </a>
             </li>
+            {% endif %}
+        </ul>
+
+        <!-- === INVENTORY OPERATIONS === -->
+        <div class="mb-2 mt-3" style="padding-left: 2.5rem;">
+            <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">Inventory Operations</small>
+        </div>
+        <ul class="nav flex-column mb-4">
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'stock_ageing_report' %}active{% endif %}" href="{% url 'stock_ageing_report' %}" style="border-left: 4px solid #ea580c; color: #ea580c; background: rgba(234, 88, 12, 0.06); font-weight: 600;">
+                    <i class="bi bi-boxes" style="color: #ea580c; font-size: 1.15rem; margin-right: 12px !important;"></i> Stock Ageing Report
+                    <span class="badge ms-1" style="background: linear-gradient(135deg, #ea580c, #f97316); font-size: 8px; font-weight: 800; vertical-align: middle; box-shadow: 0 0 6px rgba(234, 88, 12, 0.4);">LIVE</span>
+                </a>
+            </li>
         </ul>
         {% endif %}
 
-        {% if request.user.username != 'mygusers' %}
+        {% if request.user.username != 'shestart' and request.user.username != 'mygusers' and request.user.username != 'myguser' %}
         <div class="mb-2 mt-3" style="padding-left: 2.5rem;">
             <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">Enterprise Intelligence</small>
         </div>
@@ -586,11 +600,9 @@
                 </a>
             </li>
         </ul>
-
-        {% endif %}
         {% endif %}
 
-        {% if request.user.username != 'shestart' and request.user.username != 'mygusers' %}
+        {% if request.user.username != 'shestart' and request.user.username != 'mygusers' and request.user.username != 'myguser' %}
         <!-- Future Stores Sale Analysis -->
         <div class="mb-2 mt-3" style="padding-left: 2.5rem;">
             <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">Future Stores</small>
@@ -608,7 +620,7 @@
         </ul>
         {% endif %}
 
-        {% if request.user.username != 'shestart' and request.user.username != 'mygusers' %}
+        {% if request.user.username != 'shestart' and request.user.username != 'mygusers' and request.user.username != 'myguser' %}
         <div class="mb-2 mt-3" style="padding-left: 2.5rem;">
             <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">Store Analytics</small>
         </div>
@@ -644,7 +656,7 @@
         </ul>
         {% endif %}
 
-        {% if request.user.username != 'shestart' and request.user.username != 'mygusers' %}
+        {% if request.user.username != 'shestart' and request.user.username != 'mygusers' and request.user.username != 'myguser' %}
         <!-- Cross-Sell Intelligence Section -->
         <div class="mb-2 mt-3" style="padding-left: 2.5rem;">
             <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">Cross-Sell Intelligence</small>
@@ -662,7 +674,7 @@
         </ul>
         {% endif %}
 
-        {% if request.user.username != 'shestart' and request.user.username != 'mygusers' %}
+        {% if request.user.username != 'shestart' and request.user.username != 'mygusers' and request.user.username != 'myguser' %}
         <!-- Branch Customer Download Section -->
         <div class="mb-2 mt-3" style="padding-left: 2.5rem;">
             <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">Data Export</small>
@@ -724,7 +736,7 @@
         </div>
         {% endif %}
 
-        {% if request.user.username != 'shestart' and request.user.username != 'mygusers' %}
+        {% if request.user.username != 'shestart' and request.user.username != 'mygusers' and request.user.username != 'myguser' %}
         <!-- Dormant High-Value Customer Download -->
         <div class="mb-2 mt-2" style="padding-left: 2.5rem;">
             <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">Dormant Customer Export</small>
@@ -798,8 +810,8 @@
         </ul>
         {% endif %}
 
-        {% if request.user.username == 'mygusers' %}
-        <!-- Logout button pinned to sidebar bottom for mygusers -->
+        {% if request.user.username == 'mygusers' or request.user.username == 'myguser' %}
+        <!-- Logout button pinned to sidebar bottom for myguser/mygusers -->
         <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 1rem; border-top: 1px solid #f1f5f9; background: #ffffff;">
             <form method="post" action="{% url 'logout' %}" class="m-0 p-0">
                 {% csrf_token %}

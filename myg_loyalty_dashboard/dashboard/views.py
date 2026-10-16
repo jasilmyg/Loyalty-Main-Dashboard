@@ -67,7 +67,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
     def get(self, request, *args, **kwargs):
         if request.user.username == 'shestart':
             return redirect('she_start')
-        if request.user.username == 'mygusers':
+        if request.user.username in ['mygusers', 'myguser']:
             return redirect('enterprise_dashboard')
         return super().get(request, *args, **kwargs)
 
@@ -5784,3 +5784,396 @@ class SentimentQueueExportView(LoginRequiredMixin, View):
         resp = HttpResponse(data, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         resp['Content-Disposition'] = 'attachment; filename="review_queue_sentiment.xlsx"'
         return resp
+
+
+# ---- Stock Ageing Report (Product-wise & Category-wise) -----------------------------
+class StockAgeingReportPageView(LoginRequiredMixin, View):
+    """Dedicated full-page view for the Product Wise Stock Ageing Report."""
+    template_name = 'dashboard/stock_ageing_report.html'
+
+    def get(self, request):
+        return render(request, self.template_name)
+
+
+class StockAgeingReportAPIView(View):
+    """Returns product-wise stock ageing data (<30, 30-60, 60-90, 90-180, >180 days)."""
+    def get(self, request):
+        from .stock_report_service import get_stock_ageing_data
+        try:
+            refresh = request.GET.get('refresh', '0') == '1'
+            rbm = request.GET.get('rbm', '').strip()
+            bdm = request.GET.get('bdm', '').strip()
+            branch = request.GET.get('branch', '').strip()
+            district = request.GET.get('district', '').strip()
+            data = get_stock_ageing_data(
+                force_refresh=refresh,
+                rbm=rbm or None,
+                bdm=bdm or None,
+                branch=branch or None,
+                district=district or None
+            )
+            return JsonResponse(data)
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+class StockAgeingExportAPIView(View):
+    """Exports product-wise stock ageing report as formatted Excel with ALL columns including >365, 180-365, etc."""
+    def get(self, request):
+        import io
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from .stock_report_service import get_stock_ageing_data
+
+        rbm = request.GET.get('rbm', '').strip()
+        bdm = request.GET.get('bdm', '').strip()
+        branch = request.GET.get('branch', '').strip()
+        district = request.GET.get('district', '').strip()
+
+        data = get_stock_ageing_data(
+            rbm=rbm or None,
+            bdm=bdm or None,
+            branch=branch or None,
+            district=district or None
+        )
+        categories = data.get('categories', [])
+        grand_total = data.get('grand_total', {})
+
+        wb = openpyxl.Workbook()
+
+        # Common styles
+        title_font = Font(name='Segoe UI', size=13, bold=True, color='FFFFFF')
+        title_fill = PatternFill('solid', fgColor='0F172A')
+        sub_font   = Font(name='Segoe UI', size=9, italic=True, color='64748B')
+
+        th_val_font = Font(name='Segoe UI', size=9, bold=True, color='FFFFFF')
+        th_val_fill = PatternFill('solid', fgColor='EA580C')
+
+        th_qty_font = Font(name='Segoe UI', size=9, bold=True, color='FFFFFF')
+        th_qty_fill = PatternFill('solid', fgColor='2563EB')
+
+        cat_font = Font(name='Segoe UI', size=9, bold=True, color='0F172A')
+        cat_fill = PatternFill('solid', fgColor='FED7AA')
+
+        prod_font = Font(name='Segoe UI', size=9, color='334155')
+        brand_font = Font(name='Segoe UI', size=8.5, italic=True, color='475569')
+        brand_fill = PatternFill('solid', fgColor='F8FAFC')
+        gt_font   = Font(name='Segoe UI', size=10, bold=True, color='FFFFFF')
+        gt_fill   = PatternFill('solid', fgColor='0F172A')
+
+        thin_border = Border(
+            left=Side(style='thin', color='CBD5E1'),
+            right=Side(style='thin', color='CBD5E1'),
+            top=Side(style='thin', color='CBD5E1'),
+            bottom=Side(style='thin', color='CBD5E1')
+        )
+
+        def write_brand_rows(ws, cur_row, brands, cols_defs, indent="        🏷️ "):
+            for b_idx, b in enumerate(brands, 1):
+                ws.cell(row=cur_row, column=1, value=f"{indent}#{b_idx} {b['brand']}").font = brand_font
+                for c_idx, (_, fld, num_fmt, _) in enumerate(cols_defs[1:], 2):
+                    c = ws.cell(row=cur_row, column=c_idx, value=b.get(fld, 0))
+                    c.number_format = num_fmt
+                for c in range(1, len(cols_defs) + 1):
+                    cell = ws.cell(row=cur_row, column=c)
+                    cell.fill = brand_fill
+                    cell.font = brand_font
+                    cell.border = thin_border
+                    if c > 1:
+                        cell.alignment = Alignment(horizontal='right', vertical='center')
+                ws.row_dimensions[cur_row].height = 18
+                cur_row += 1
+            return cur_row
+
+        active_filter_texts = []
+        if rbm: active_filter_texts.append(f"RBM: {rbm}")
+        if bdm: active_filter_texts.append(f"BDM: {bdm}")
+        if district: active_filter_texts.append(f"District: {district}")
+        if branch: active_filter_texts.append(f"Branch: {branch}")
+        filter_subtitle = " | ".join(active_filter_texts) if active_filter_texts else "All Branches (Company-wide)"
+
+        def setup_sheet_header(ws, title_text, col_span):
+            ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=col_span)
+            t_cell = ws.cell(row=1, column=1, value=title_text)
+            t_cell.font = title_font
+            t_cell.fill = title_fill
+            t_cell.alignment = Alignment(horizontal='center', vertical='center')
+            ws.row_dimensions[1].height = 34
+
+            ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=col_span)
+            sub_cell = ws.cell(row=2, column=1, value=f"Report as of 15 October 2026 | Filters: {filter_subtitle} | Generated from myG Dashboard")
+            sub_cell.font = sub_font
+            sub_cell.alignment = Alignment(horizontal='center', vertical='center')
+            ws.row_dimensions[2].height = 20
+
+        # ══════════════════════════════════════════════════════════════════════
+        # SHEET 1: Complete Ageing (All Columns: Value Cr + Qty Units)
+        # ══════════════════════════════════════════════════════════════════════
+        ws1 = wb.active
+        ws1.title = "Complete Ageing (All Columns)"
+        
+        all_cols_defs = [
+            ("Category / Product", None, '@', 32),
+            ("< 30 Days (Cr)", 'val_lt_30', '#,##0.00', 14),
+            ("30-60 Days (Cr)", 'val_30_60', '#,##0.00', 14),
+            ("60-90 Days (Cr)", 'val_60_90', '#,##0.00', 14),
+            ("30-90 Days (Cr)", 'val_30_90', '#,##0.00', 14),
+            ("90-180 Days (Cr)", 'val_90_180', '#,##0.00', 15),
+            ("180-365 Days (Cr)", 'val_180_365', '#,##0.00', 16),
+            ("> 365 Days (Cr)", 'val_gt_365', '#,##0.00', 15),
+            ("> 180 Days Total (Cr)", 'val_gt_180', '#,##0.00', 18),
+            ("Grand Total Value (Cr)", 'total_val', '#,##0.00', 20),
+            ("< 30 Days Qty", 'qty_lt_30', '#,##0', 13),
+            ("30-60 Days Qty", 'qty_30_60', '#,##0', 13),
+            ("60-90 Days Qty", 'qty_60_90', '#,##0', 13),
+            ("30-90 Days Qty", 'qty_30_90', '#,##0', 13),
+            ("90-180 Days Qty", 'qty_90_180', '#,##0', 14),
+            ("180-365 Days Qty", 'qty_180_365', '#,##0', 15),
+            ("> 365 Days Qty", 'qty_gt_365', '#,##0', 14),
+            ("> 180 Days Qty", 'qty_gt_180', '#,##0', 14),
+            ("Grand Total Qty", 'total_qty', '#,##0', 16)
+        ]
+        
+        setup_sheet_header(ws1, "myG - Complete Product Wise Stock Ageing Report (All Columns & Age Brackets)", len(all_cols_defs))
+        
+        # Super-headers on Row 4 (Value section vs Qty section)
+        ws1.merge_cells('B4:J4')
+        top_v = ws1['B4']
+        top_v.value = "INVENTORY VALUE (₹ CRORES)"
+        top_v.font = Font(name='Segoe UI', size=10, bold=True, color='FFFFFF')
+        top_v.fill = th_val_fill
+        top_v.alignment = Alignment(horizontal='center', vertical='center')
+
+        ws1.merge_cells('K4:S4')
+        top_q = ws1['K4']
+        top_q.value = "STOCK QUANTITY (UNITS)"
+        top_q.font = Font(name='Segoe UI', size=10, bold=True, color='FFFFFF')
+        top_q.fill = th_qty_fill
+        top_q.alignment = Alignment(horizontal='center', vertical='center')
+        ws1.row_dimensions[4].height = 22
+
+        # Column headers on Row 5
+        ws1.row_dimensions[5].height = 28
+        for col_idx, (col_name, _, _, col_w) in enumerate(all_cols_defs, 1):
+            cell = ws1.cell(row=5, column=col_idx, value=col_name)
+            is_qty = col_idx >= 11
+            cell.font = th_qty_font if is_qty else th_val_font
+            cell.fill = th_qty_fill if is_qty else th_val_fill
+            cell.alignment = Alignment(horizontal='left' if col_idx == 1 else 'center', vertical='center', wrap_text=True)
+            cell.border = thin_border
+            ws1.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = col_w
+
+        r_idx = 6
+        for cat in categories:
+            # Category Row
+            ws1.cell(row=r_idx, column=1, value=f"▶ {cat['category']}").font = cat_font
+            for c_idx, (_, fld, num_fmt, _) in enumerate(all_cols_defs[1:], 2):
+                c = ws1.cell(row=r_idx, column=c_idx, value=cat.get(fld, 0))
+                c.number_format = num_fmt
+            for c in range(1, len(all_cols_defs) + 1):
+                cell = ws1.cell(row=r_idx, column=c)
+                cell.fill = cat_fill
+                cell.font = cat_font
+                cell.border = thin_border
+                if c > 1:
+                    cell.alignment = Alignment(horizontal='right', vertical='center')
+            ws1.row_dimensions[r_idx].height = 23
+            r_idx += 1
+
+            # Product / Subcategory Rows + Top 10 Brands
+            prods = cat.get('products', [])
+            if len(prods) == 1:
+                # Single category -> Direct Top 10 Brands
+                cat_brands = prods[0].get('top_brands', []) or cat.get('top_brands', [])
+                r_idx = write_brand_rows(ws1, r_idx, cat_brands, all_cols_defs, indent="      🏷️ ")
+            else:
+                for prod in prods:
+                    ws1.cell(row=r_idx, column=1, value=f"    • {prod['product']}").font = prod_font
+                    for c_idx, (_, fld, num_fmt, _) in enumerate(all_cols_defs[1:], 2):
+                        c = ws1.cell(row=r_idx, column=c_idx, value=prod.get(fld, 0))
+                        c.number_format = num_fmt
+                    for c in range(1, len(all_cols_defs) + 1):
+                        cell = ws1.cell(row=r_idx, column=c)
+                        cell.border = thin_border
+                        if c > 1:
+                            cell.alignment = Alignment(horizontal='right', vertical='center')
+                    ws1.row_dimensions[r_idx].height = 19
+                    r_idx += 1
+
+                    prod_brands = prod.get('top_brands', [])
+                    r_idx = write_brand_rows(ws1, r_idx, prod_brands, all_cols_defs, indent="          🏷️ ")
+
+        # Grand Total Row
+        ws1.cell(row=r_idx, column=1, value="GRAND TOTAL").font = gt_font
+        for c_idx, (_, fld, num_fmt, _) in enumerate(all_cols_defs[1:], 2):
+            c = ws1.cell(row=r_idx, column=c_idx, value=grand_total.get(fld, 0))
+            c.number_format = num_fmt
+        for c in range(1, len(all_cols_defs) + 1):
+            cell = ws1.cell(row=r_idx, column=c)
+            cell.fill = gt_fill
+            cell.font = gt_font
+            cell.border = thin_border
+            if c > 1:
+                cell.alignment = Alignment(horizontal='right', vertical='center')
+        ws1.row_dimensions[r_idx].height = 26
+
+        # ══════════════════════════════════════════════════════════════════════
+        # SHEET 2: Value Ageing (Cr) - All Buckets
+        # ══════════════════════════════════════════════════════════════════════
+        ws2 = wb.create_sheet(title="Value Ageing (Cr)")
+        val_cols_defs = [
+            ("Category / Product", None, '@', 32),
+            ("1_ <30 Days (Cr)", 'val_lt_30', '#,##0.00', 15),
+            ("2_ 30-60 Days (Cr)", 'val_30_60', '#,##0.00', 15),
+            ("3_ 60-90 Days (Cr)", 'val_60_90', '#,##0.00', 15),
+            ("30-90 Days Total (Cr)", 'val_30_90', '#,##0.00', 17),
+            ("4_ 90-180 Days (Cr)", 'val_90_180', '#,##0.00', 16),
+            ("5_ 180-365 Days (Cr)", 'val_180_365', '#,##0.00', 17),
+            ("6_ >365 Days (Cr)", 'val_gt_365', '#,##0.00', 16),
+            ("> 180 Days Total (Cr)", 'val_gt_180', '#,##0.00', 18),
+            ("Grand Total Value (Cr)", 'total_val', '#,##0.00', 20)
+        ]
+        setup_sheet_header(ws2, "myG - Stock Value Ageing Breakdown (₹ Crores) - All Buckets Including >365", len(val_cols_defs))
+        ws2.row_dimensions[4].height = 28
+        for col_idx, (col_name, _, _, col_w) in enumerate(val_cols_defs, 1):
+            cell = ws2.cell(row=4, column=col_idx, value=col_name)
+            cell.font = th_val_font
+            cell.fill = th_val_fill
+            cell.alignment = Alignment(horizontal='left' if col_idx == 1 else 'center', vertical='center', wrap_text=True)
+            cell.border = thin_border
+            ws2.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = col_w
+
+        r_idx = 5
+        for cat in categories:
+            ws2.cell(row=r_idx, column=1, value=f"▶ {cat['category']}").font = cat_font
+            for c_idx, (_, fld, num_fmt, _) in enumerate(val_cols_defs[1:], 2):
+                c = ws2.cell(row=r_idx, column=c_idx, value=cat.get(fld, 0))
+                c.number_format = num_fmt
+            for c in range(1, len(val_cols_defs) + 1):
+                cell = ws2.cell(row=r_idx, column=c)
+                cell.fill = cat_fill
+                cell.font = cat_font
+                cell.border = thin_border
+                if c > 1:
+                    cell.alignment = Alignment(horizontal='right', vertical='center')
+            ws2.row_dimensions[r_idx].height = 23
+            r_idx += 1
+
+            prods = cat.get('products', [])
+            if len(prods) == 1:
+                cat_brands = prods[0].get('top_brands', []) or cat.get('top_brands', [])
+                r_idx = write_brand_rows(ws2, r_idx, cat_brands, val_cols_defs, indent="      🏷️ ")
+            else:
+                for prod in prods:
+                    ws2.cell(row=r_idx, column=1, value=f"    • {prod['product']}").font = prod_font
+                    for c_idx, (_, fld, num_fmt, _) in enumerate(val_cols_defs[1:], 2):
+                        c = ws2.cell(row=r_idx, column=c_idx, value=prod.get(fld, 0))
+                        c.number_format = num_fmt
+                    for c in range(1, len(val_cols_defs) + 1):
+                        cell = ws2.cell(row=r_idx, column=c)
+                        cell.border = thin_border
+                        if c > 1:
+                            cell.alignment = Alignment(horizontal='right', vertical='center')
+                    ws2.row_dimensions[r_idx].height = 19
+                    r_idx += 1
+
+                    prod_brands = prod.get('top_brands', [])
+                    r_idx = write_brand_rows(ws2, r_idx, prod_brands, val_cols_defs, indent="          🏷️ ")
+
+        ws2.cell(row=r_idx, column=1, value="GRAND TOTAL").font = gt_font
+        for c_idx, (_, fld, num_fmt, _) in enumerate(val_cols_defs[1:], 2):
+            c = ws2.cell(row=r_idx, column=c_idx, value=grand_total.get(fld, 0))
+            c.number_format = num_fmt
+        for c in range(1, len(val_cols_defs) + 1):
+            cell = ws2.cell(row=r_idx, column=c)
+            cell.fill = gt_fill
+            cell.font = gt_font
+            cell.border = thin_border
+            if c > 1:
+                cell.alignment = Alignment(horizontal='right', vertical='center')
+        ws2.row_dimensions[r_idx].height = 26
+
+        # ══════════════════════════════════════════════════════════════════════
+        # SHEET 3: Quantity Ageing (Units) - All Buckets
+        # ══════════════════════════════════════════════════════════════════════
+        ws3 = wb.create_sheet(title="Quantity Ageing (Units)")
+        qty_cols_defs = [
+            ("Category / Product", None, '@', 32),
+            ("1_ <30 Days Qty", 'qty_lt_30', '#,##0', 14),
+            ("2_ 30-60 Days Qty", 'qty_30_60', '#,##0', 14),
+            ("3_ 60-90 Days Qty", 'qty_60_90', '#,##0', 14),
+            ("30-90 Days Total Qty", 'qty_30_90', '#,##0', 16),
+            ("4_ 90-180 Days Qty", 'qty_90_180', '#,##0', 15),
+            ("5_ 180-365 Days Qty", 'qty_180_365', '#,##0', 16),
+            ("6_ >365 Days Qty", 'qty_gt_365', '#,##0', 15),
+            ("> 180 Days Total Qty", 'qty_gt_180', '#,##0', 16),
+            ("Grand Total Qty", 'total_qty', '#,##0', 18)
+        ]
+        setup_sheet_header(ws3, "myG - Stock Quantity Ageing Breakdown (Units) - All Buckets Including >365", len(qty_cols_defs))
+        ws3.row_dimensions[4].height = 28
+        for col_idx, (col_name, _, _, col_w) in enumerate(qty_cols_defs, 1):
+            cell = ws3.cell(row=4, column=col_idx, value=col_name)
+            cell.font = th_qty_font
+            cell.fill = th_qty_fill
+            cell.alignment = Alignment(horizontal='left' if col_idx == 1 else 'center', vertical='center', wrap_text=True)
+            cell.border = thin_border
+            ws3.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = col_w
+
+        r_idx = 5
+        for cat in categories:
+            ws3.cell(row=r_idx, column=1, value=f"▶ {cat['category']}").font = cat_font
+            for c_idx, (_, fld, num_fmt, _) in enumerate(qty_cols_defs[1:], 2):
+                c = ws3.cell(row=r_idx, column=c_idx, value=cat.get(fld, 0))
+                c.number_format = num_fmt
+            for c in range(1, len(qty_cols_defs) + 1):
+                cell = ws3.cell(row=r_idx, column=c)
+                cell.fill = cat_fill
+                cell.font = cat_font
+                cell.border = thin_border
+                if c > 1:
+                    cell.alignment = Alignment(horizontal='right', vertical='center')
+            ws3.row_dimensions[r_idx].height = 23
+            r_idx += 1
+
+            prods = cat.get('products', [])
+            if len(prods) == 1:
+                cat_brands = prods[0].get('top_brands', []) or cat.get('top_brands', [])
+                r_idx = write_brand_rows(ws3, r_idx, cat_brands, qty_cols_defs, indent="      🏷️ ")
+            else:
+                for prod in prods:
+                    ws3.cell(row=r_idx, column=1, value=f"    • {prod['product']}").font = prod_font
+                    for c_idx, (_, fld, num_fmt, _) in enumerate(qty_cols_defs[1:], 2):
+                        c = ws3.cell(row=r_idx, column=c_idx, value=prod.get(fld, 0))
+                        c.number_format = num_fmt
+                    for c in range(1, len(qty_cols_defs) + 1):
+                        cell = ws3.cell(row=r_idx, column=c)
+                        cell.border = thin_border
+                        if c > 1:
+                            cell.alignment = Alignment(horizontal='right', vertical='center')
+                    ws3.row_dimensions[r_idx].height = 19
+                    r_idx += 1
+
+                    prod_brands = prod.get('top_brands', [])
+                    r_idx = write_brand_rows(ws3, r_idx, prod_brands, qty_cols_defs, indent="          🏷️ ")
+
+        ws3.cell(row=r_idx, column=1, value="GRAND TOTAL").font = gt_font
+        for c_idx, (_, fld, num_fmt, _) in enumerate(qty_cols_defs[1:], 2):
+            c = ws3.cell(row=r_idx, column=c_idx, value=grand_total.get(fld, 0))
+            c.number_format = num_fmt
+        for c in range(1, len(qty_cols_defs) + 1):
+            cell = ws3.cell(row=r_idx, column=c)
+            cell.fill = gt_fill
+            cell.font = gt_font
+            cell.border = thin_border
+            if c > 1:
+                cell.alignment = Alignment(horizontal='right', vertical='center')
+        ws3.row_dimensions[r_idx].height = 26
+
+        out = io.BytesIO()
+        wb.save(out)
+        out.seek(0)
+
+        response = HttpResponse(out.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = 'attachment; filename="myG_Stock_Ageing_Complete_Report_15_Oct_2026.xlsx"'
+        return response
+

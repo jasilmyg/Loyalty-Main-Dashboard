@@ -19,6 +19,7 @@
         --chx-violet: #8b5cf6;
         --chx-green: #16a34a;
         --chx-red: #dc2626;
+        --chx-cyan: #06b6d4;
     }
 
     /* ── Shell ─────────────────────────────────────────────── */
@@ -46,10 +47,6 @@
         display: grid; place-items: center;
         box-shadow: 0 6px 18px rgba(49,46,129,.35);
     }
-    .chx-logo .bars { display: flex; gap: 3px; align-items: flex-end; height: 20px; }
-    .chx-logo .bars i { width: 4px; background: var(--chx-yellow); border-radius: 2px; display: block; }
-    .chx-logo .bars i:nth-child(1) { height: 100%; } .chx-logo .bars i:nth-child(2) { height: 100%; }
-    .chx-logo .bars i:nth-child(3) { height: 100%; } .chx-logo .bars i:nth-child(4) { height: 45%; }
     .chx-logo > i.bi-robot { color: var(--chx-yellow); font-size: 1.55rem; line-height: 1; }
     .chx-pulse {
         position: absolute; top: -3px; right: -3px; width: 12px; height: 12px; border-radius: 50%;
@@ -64,6 +61,8 @@
         padding: .32rem .7rem; border-radius: 99px; background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0;
     }
     .chx-chip.model { background: #eef2ff; color: #4338ca; border-color: #c7d2fe; font-family: 'JetBrains Mono', monospace; font-weight: 500; }
+    .chx-chip.file-active { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; max-width: 220px; }
+    .chx-chip.file-active span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .chx-btn {
         display: inline-flex; align-items: center; gap: .45rem; font-size: .8rem; font-weight: 600;
         padding: .5rem .9rem; border-radius: 10px; border: 1px solid var(--chx-line);
@@ -73,7 +72,7 @@
 
     /* ── Body layout ───────────────────────────────────────── */
     .chx-body { flex: 1; display: flex; min-height: 0; }
-    .chx-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .chx-main { flex: 1; display: flex; flex-direction: column; min-width: 0; position: relative; }
     .chx-scroll { flex: 1; overflow-y: auto; padding: 1.5rem 1.75rem 1rem; scroll-behavior: smooth; }
     .chx-scroll::-webkit-scrollbar, .chx-schema-list::-webkit-scrollbar, .chx-tablewrap::-webkit-scrollbar { width: 8px; height: 8px; }
     .chx-scroll::-webkit-scrollbar-thumb, .chx-schema-list::-webkit-scrollbar-thumb, .chx-tablewrap::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
@@ -89,7 +88,14 @@
     .chx-welcome .hero i { color: var(--chx-yellow); font-size: 1.9rem; }
     .chx-welcome h2 { font-size: 1.65rem; font-weight: 800; letter-spacing: -.02em; margin-bottom: .35rem; }
     .chx-welcome h2 span { background: linear-gradient(90deg, #4338ca, #a855f7); -webkit-background-clip: text; background-clip: text; color: transparent; }
-    .chx-welcome p.sub { color: var(--chx-muted); font-size: .92rem; max-width: 620px; margin: 0 auto 1.6rem; }
+    .chx-welcome p.sub { color: var(--chx-muted); font-size: .92rem; max-width: 680px; margin: 0 auto 1.3rem; line-height: 1.55; }
+    .chx-welcome-actions { display: flex; justify-content: center; gap: .75rem; margin-bottom: 1.6rem; flex-wrap: wrap; }
+    .chx-welcome-upload-btn {
+        display: inline-flex; align-items: center; gap: .5rem; font-size: .85rem; font-weight: 700;
+        padding: .55rem 1.1rem; border-radius: 12px; border: 1.5px dashed #818cf8;
+        background: #eef2ff; color: #4338ca; cursor: pointer; transition: all .2s;
+    }
+    .chx-welcome-upload-btn:hover { background: #e0e7ff; border-color: #6366f1; transform: translateY(-1px); box-shadow: 0 6px 16px rgba(99,102,241,.18); }
     .chx-sugg-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; text-align: left; }
     @media (max-width: 1100px) { .chx-sugg-grid { grid-template-columns: 1fr; } }
     .chx-sugg-col h6 {
@@ -114,9 +120,22 @@
     }
     .chx-bubble-user {
         max-width: 78%; padding: .75rem 1.05rem; border-radius: 16px 16px 4px 16px; font-size: .9rem; line-height: 1.5;
-        background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; white-space: pre-wrap; word-break: break-word;
+        background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; word-break: break-word;
         box-shadow: 0 6px 18px rgba(99,102,241,.28);
     }
+    .chx-user-file-pill {
+        display: flex; align-items: center; gap: .6rem; padding: .45rem .75rem; margin-bottom: .45rem;
+        background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.3); border-radius: 10px;
+        backdrop-filter: blur(4px); font-size: .82rem;
+    }
+    .chx-user-file-pill i { font-size: 1.15rem; }
+    .chx-user-file-pill i.uf-excel { color: #86efac; }
+    .chx-user-file-pill i.uf-csv { color: #67e8f9; }
+    .chx-user-file-pill i.uf-pdf { color: #fca5a5; }
+    .chx-user-file-pill .uf-meta { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+    .chx-user-file-pill .uf-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 360px; }
+    .chx-user-file-pill .uf-size { font-size: .7rem; opacity: .85; }
+
     .chx-card {
         flex: 1; min-width: 0; background: var(--chx-card); border: 1px solid var(--chx-line);
         border-radius: 4px 16px 16px 16px; padding: 1rem 1.2rem; box-shadow: 0 2px 14px rgba(15,23,42,.04);
@@ -127,6 +146,14 @@
     .chx-meta .grow { flex: 1; }
     .chx-meta button { border: 0; background: transparent; color: var(--chx-muted); cursor: pointer; font-size: .7rem; padding: .15rem .35rem; border-radius: 6px; }
     .chx-meta button:hover { background: #f1f5f9; color: var(--chx-ink); }
+
+    .chx-file-analyzed-badge {
+        display: inline-flex; align-items: center; gap: .55rem; padding: .35rem .75rem; margin-bottom: .85rem;
+        background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; font-size: .78rem; color: #166534;
+    }
+    .chx-file-analyzed-badge i.excel { color: #16a34a; font-size: 1rem; }
+    .chx-file-analyzed-badge i.csv { color: #0891b2; font-size: 1rem; }
+    .chx-file-analyzed-badge i.pdf { color: #dc2626; font-size: 1rem; }
 
     /* markdown */
     .chx-md { font-size: .92rem; line-height: 1.62; word-break: break-word; }
@@ -153,6 +180,9 @@
     .chx-result { margin-top: .9rem; border: 1px solid var(--chx-line); border-radius: 12px; overflow: hidden; }
     .chx-result-head { display: flex; align-items: center; gap: .6rem; padding: .5rem .8rem; background: #f8fafc; border-bottom: 1px solid var(--chx-line); font-size: .74rem; font-weight: 600; color: #334155; }
     .chx-result-head .grow { flex: 1; }
+    .chx-source-tag { font-size: .66rem; padding: .15rem .45rem; border-radius: 5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+    .chx-source-tag.ch { background: #ede9fe; color: #6d28d9; }
+    .chx-source-tag.file { background: #dcfce7; color: #15803d; }
     .chx-result-head button { border: 1px solid var(--chx-line); background: #fff; font-size: .7rem; font-weight: 600; padding: .22rem .6rem; border-radius: 7px; cursor: pointer; color: #334155; }
     .chx-result-head button:hover { border-color: var(--chx-indigo); color: var(--chx-indigo); }
     .chx-tablewrap { max-height: 340px; overflow: auto; }
@@ -178,24 +208,61 @@
     .chx-dots span:nth-child(2) { animation-delay: .15s; } .chx-dots span:nth-child(3) { animation-delay: .3s; }
     @keyframes chx-bounce { 0%,80%,100% { transform: scale(.6); opacity: .4;} 40% { transform: scale(1); opacity: 1; } }
 
-    /* ── Composer ──────────────────────────────────────────── */
+    /* ── Composer & File Upload ────────────────────────────── */
     .chx-composer-wrap { padding: .4rem 1.75rem 1rem; flex-shrink: 0; }
+
+    /* Staged file pill */
+    .chx-staged-file {
+        max-width: 980px; margin: 0 auto .6rem; display: flex; align-items: center; gap: .75rem;
+        padding: .5rem .85rem; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 14px;
+        box-shadow: 0 4px 14px rgba(15,23,42,.06); animation: chx-rise .2s ease-out;
+    }
+    .chx-staged-icon { font-size: 1.45rem; line-height: 1; display: grid; place-items: center; }
+    .chx-staged-icon.excel { color: #10b981; }
+    .chx-staged-icon.csv { color: #06b6d4; }
+    .chx-staged-icon.pdf { color: #ef4444; }
+    .chx-staged-info { flex: 1; min-width: 0; }
+    .chx-staged-name { font-size: .84rem; font-weight: 700; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .chx-staged-meta { font-size: .72rem; color: #64748b; font-weight: 500; }
+    .chx-staged-remove {
+        border: 0; background: #f1f5f9; color: #475569; width: 28px; height: 28px; border-radius: 50%;
+        display: grid; place-items: center; cursor: pointer; font-size: .8rem; transition: all .15s;
+    }
+    .chx-staged-remove:hover { background: #fee2e2; color: #ef4444; transform: scale(1.08); }
+
     .chx-composer {
-        max-width: 980px; margin: 0 auto; display: flex; align-items: flex-end; gap: .6rem;
-        background: #fff; border: 1.5px solid var(--chx-line); border-radius: 18px; padding: .55rem .6rem .55rem 1.05rem;
+        max-width: 980px; margin: 0 auto; display: flex; align-items: flex-end; gap: .55rem;
+        background: #fff; border: 1.5px solid var(--chx-line); border-radius: 18px; padding: .45rem .6rem .45rem .65rem;
         box-shadow: 0 10px 32px rgba(15,23,42,.07); transition: border-color .2s, box-shadow .2s;
     }
     .chx-composer:focus-within { border-color: var(--chx-indigo); box-shadow: 0 10px 32px rgba(99,102,241,.18); }
-    .chx-composer textarea { flex: 1; border: 0; outline: 0; resize: none; font-family: inherit; font-size: .92rem; line-height: 1.5; padding: .4rem 0; max-height: 160px; background: transparent; }
+    .chx-composer.dragover { border-color: var(--chx-indigo); background: #f5f7ff; box-shadow: 0 0 0 4px rgba(99,102,241,.2); }
+
+    .chx-attach-btn {
+        width: 38px; height: 38px; flex-shrink: 0; border: 0; border-radius: 12px; cursor: pointer;
+        display: grid; place-items: center; background: #f1f5f9; color: #64748b; font-size: 1.15rem;
+        transition: all .18s ease; margin-bottom: 2px;
+    }
+    .chx-attach-btn:hover { background: #e0e7ff; color: var(--chx-indigo); transform: translateY(-1px); }
+
+    .chx-composer textarea {
+        flex: 1; border: 0; outline: 0; resize: none; font-family: inherit; font-size: .92rem;
+        line-height: 1.5; padding: .45rem .3rem; max-height: 160px; background: transparent;
+    }
     .chx-send {
         width: 42px; height: 42px; flex-shrink: 0; border: 0; border-radius: 12px; cursor: pointer; display: grid; place-items: center;
         background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; font-size: 1.05rem; transition: transform .15s, opacity .15s;
-        box-shadow: 0 6px 16px rgba(99,102,241,.4);
+        box-shadow: 0 6px 16px rgba(99,102,241,.4); margin-bottom: 0;
     }
     .chx-send:hover:not(:disabled) { transform: translateY(-2px) scale(1.04); }
     .chx-send:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
-    .chx-foot { max-width: 980px; margin: .5rem auto 0; text-align: center; font-size: .68rem; color: #94a3b8; }
-    .chx-foot i { color: var(--chx-green); }
+
+    .chx-foot {
+        max-width: 980px; margin: .5rem auto 0; text-align: center; font-size: .7rem; color: #94a3b8;
+        display: flex; justify-content: center; align-items: center; gap: 1rem; flex-wrap: wrap;
+    }
+    .chx-foot-sec { display: inline-flex; align-items: center; gap: .35rem; }
+    .chx-foot-sec strong { color: #475569; }
 
     /* ── Schema panel ──────────────────────────────────────── */
     .chx-schema { width: 330px; flex-shrink: 0; display: flex; flex-direction: column; background: rgba(255,255,255,.9); border-left: 1px solid var(--chx-line); transition: margin .25s ease; }
@@ -241,10 +308,13 @@
             </div>
             <div class="chx-title">
                 <h1>Jazz AI</h1>
-                <p>Ask anything about your ClickHouse database &middot; data, schema &amp; SQL help</p>
+                <p>ClickHouse intelligence &middot; File Analysis (Excel, CSV, PDF) &middot; Operations &amp; SQL</p>
             </div>
         </div>
         <div class="chx-actions">
+            <span class="chx-chip file-active" id="chx-active-file-chip" title="Active uploaded file in session" style="display:none;">
+                <i class="bi bi-paperclip"></i> <span id="chx-active-file-label"></span>
+            </span>
             <span class="chx-chip"><i class="bi bi-shield-check"></i> Read-only</span>
             <span class="chx-chip model" id="chx-model" title="AI model used for the last answer" style="display:none;"></span>
             <button class="chx-btn" id="chx-toggle-schema" type="button" title="Show / hide the schema explorer"><i class="bi bi-layout-sidebar-inset-reverse"></i> Schema</button>
@@ -259,7 +329,14 @@
                 <div class="chx-welcome" id="chx-welcome">
                     <div class="hero"><i class="bi bi-robot"></i></div>
                     <h2>What would you like to know about <span>your data</span>?</h2>
-                    <p class="sub">I turn your questions into ClickHouse SQL, run them safely (read-only) and explain the results. I can also explain tables, columns and any ClickHouse concept.</p>
+                    <p class="sub">I turn your questions into ClickHouse SQL, run them safely, and explain results. You can also <strong>upload an Excel, CSV, or PDF file</strong> below to do calculations, rankings, anomaly detection, and deep data analysis.</p>
+
+                    <div class="chx-welcome-actions">
+                        <button type="button" class="chx-welcome-upload-btn" id="chx-welcome-upload-btn">
+                            <i class="bi bi-cloud-arrow-up-fill"></i> Upload Excel, CSV, or PDF to Analyze
+                        </button>
+                    </div>
+
                     <div class="chx-sugg-grid">
                         <div class="chx-sugg-col">
                             <h6><i class="bi bi-graph-up-arrow"></i> Your data</h6>
@@ -268,16 +345,16 @@
                             <button class="chx-sugg" type="button">Which product categories sell the most, and how has that trended by month?</button>
                         </div>
                         <div class="chx-sugg-col">
+                            <h6><i class="bi bi-file-earmark-spreadsheet"></i> File analysis &amp; operations</h6>
+                            <button class="chx-sugg" type="button">Upload an Excel target sheet to compare targets against actual sales</button>
+                            <button class="chx-sugg" type="button">Analyze customer reviews or feedback file for sentiment &amp; issues</button>
+                            <button class="chx-sugg" type="button">Upload a PDF invoice or audit report to extract key metrics &amp; summary</button>
+                        </div>
+                        <div class="chx-sugg-col">
                             <h6><i class="bi bi-diagram-3"></i> Database &amp; schema</h6>
                             <button class="chx-sugg" type="button">List all tables with their row counts and size on disk</button>
                             <button class="chx-sugg" type="button">Explain the azure_invoice_report table and how it relates to azure_sales_report</button>
                             <button class="chx-sugg" type="button">Which tables were updated most recently?</button>
-                        </div>
-                        <div class="chx-sugg-col">
-                            <h6><i class="bi bi-mortarboard"></i> ClickHouse know-how</h6>
-                            <button class="chx-sugg" type="button">What is the difference between MergeTree and ReplacingMergeTree?</button>
-                            <button class="chx-sugg" type="button">How do I write a running total / moving average in ClickHouse?</button>
-                            <button class="chx-sugg" type="button">How can I make my slow queries on azure_sales_report faster?</button>
                         </div>
                     </div>
                 </div>
@@ -285,11 +362,32 @@
             </div>
 
             <div class="chx-composer-wrap">
+                <!-- Staged file banner (appears when a file is selected) -->
+                <div class="chx-staged-file" id="chx-staged-file" style="display:none;">
+                    <div class="chx-staged-icon" id="chx-staged-icon"><i class="bi bi-file-earmark-spreadsheet-fill"></i></div>
+                    <div class="chx-staged-info">
+                        <div class="chx-staged-name" id="chx-staged-name">file.xlsx</div>
+                        <div class="chx-staged-meta" id="chx-staged-meta">120 KB &middot; Ready for analysis &amp; operations</div>
+                    </div>
+                    <button type="button" class="chx-staged-remove" id="chx-staged-remove" title="Remove attached file"><i class="bi bi-x-lg"></i></button>
+                </div>
+
                 <form class="chx-composer" id="chx-form" autocomplete="off">
-                    <textarea id="chx-input" rows="1" placeholder="Ask a question about your ClickHouse database…  (Enter to send, Shift+Enter for a new line)" maxlength="4000"></textarea>
+                    <!-- Hidden file input -->
+                    <input type="file" id="chx-file-input" accept=".xlsx,.xls,.csv,.pdf" style="display:none;">
+                    <!-- Paperclip attach button -->
+                    <button class="chx-attach-btn" id="chx-attach-btn" type="button" title="Upload file (Excel, CSV, PDF)">
+                        <i class="bi bi-paperclip"></i>
+                    </button>
+                    <textarea id="chx-input" rows="1" placeholder="Ask a question about ClickHouse or tell me what to analyze on your file… (Enter to send)" maxlength="4000"></textarea>
                     <button class="chx-send" id="chx-send" type="submit" title="Send"><i class="bi bi-arrow-up"></i></button>
                 </form>
-                <div class="chx-foot"><i class="bi bi-lock-fill"></i> Queries run in read-only mode with time &amp; row limits. AI can make mistakes &mdash; check the SQL under &ldquo;How I got this&rdquo;.</div>
+
+                <div class="chx-foot">
+                    <span class="chx-foot-sec"><i class="bi bi-paperclip" style="color:var(--chx-indigo)"></i> Upload <strong>Excel (.xlsx, .xls)</strong>, <strong>CSV</strong>, or <strong>PDF</strong></span>
+                    <span class="chx-foot-sec"><i class="bi bi-lightning-charge-fill" style="color:#eab308"></i> In-Memory DuckDB &middot; Exact Group By &amp; Calculations</span>
+                    <span class="chx-foot-sec"><i class="bi bi-shield-check" style="color:var(--chx-green)"></i> Safe Read-Only</span>
+                </div>
             </div>
         </section>
 
@@ -313,19 +411,54 @@
     const CSRF = '{{ csrf_token }}';
     const CHAT_URL = '{% url "clickhouse_assistant_chat_api" %}';
     const SCHEMA_URL = '{% url "clickhouse_assistant_schema_api" %}';
-    const STORE_KEY = 'chx_assistant_chat_v1';
+    const STORE_KEY = 'chx_assistant_chat_v2';
+    const SESSION_ID_KEY = 'chx_assistant_session_id';
 
     const $ = (id) => document.getElementById(id);
     const scrollEl = $('chx-scroll'), streamEl = $('chx-stream'), welcomeEl = $('chx-welcome');
     const inputEl = $('chx-input'), sendBtn = $('chx-send'), formEl = $('chx-form');
+    const attachBtn = $('chx-attach-btn'), fileInput = $('chx-file-input');
+    const stagedFileEl = $('chx-staged-file'), stagedNameEl = $('chx-staged-name'), stagedMetaEl = $('chx-staged-meta');
+    const stagedIconEl = $('chx-staged-icon'), stagedRemoveBtn = $('chx-staged-remove');
+    const activeFileChip = $('chx-active-file-chip'), activeFileLabel = $('chx-active-file-label');
+    const welcomeUploadBtn = $('chx-welcome-upload-btn');
 
-    let messages = [];      // [{role:'user'|'assistant', content, results, steps, model, ms, error}]
+    let messages = [];      // [{role:'user'|'assistant', content, results, steps, model, ms, error, attachment, file_info}]
     let busy = false;
+    let stagedFile = null;
+    let activeFileName = '';
+
+    // Generate or load unique client session ID
+    let sessionId = localStorage.getItem(SESSION_ID_KEY);
+    if (!sessionId) {
+        sessionId = 'chx_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+        localStorage.setItem(SESSION_ID_KEY, sessionId);
+    }
 
     /* ───────────── helpers ───────────── */
-    const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const toBottom = () => { scrollEl.scrollTop = scrollEl.scrollHeight; };
     const NON_NUM_COLS = /mobile|phone|pin|hsn|code|_no$|^no$|id$|year|month|day|week|quarter|hour/i;
+
+    function formatBytes(bytes) {
+        if (!bytes) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function getFileInfo(filename) {
+        const ext = (filename || '').split('.').pop().toLowerCase();
+        if (ext === 'xlsx' || ext === 'xls') {
+            return { type: 'excel', label: 'Excel Spreadsheet', icon: 'bi bi-file-earmark-spreadsheet-fill', cls: 'uf-excel', iconCls: 'excel' };
+        } else if (ext === 'csv') {
+            return { type: 'csv', label: 'CSV Data File', icon: 'bi bi-filetype-csv', cls: 'uf-csv', iconCls: 'csv' };
+        } else if (ext === 'pdf') {
+            return { type: 'pdf', label: 'PDF Document', icon: 'bi bi-file-earmark-pdf-fill', cls: 'uf-pdf', iconCls: 'pdf' };
+        }
+        return { type: 'file', label: 'File', icon: 'bi bi-file-earmark-fill', cls: '', iconCls: '' };
+    }
 
     function fmtCell(v, col) {
         if (v === null || v === undefined) return { t: 'NULL', cls: 'null' };
@@ -348,7 +481,7 @@
     }
 
     function codeBlock(code, lang) {
-        const isSql = !lang || /sql|clickhouse/i.test(lang);
+        const isSql = !lang || /sql|clickhouse|duckdb/i.test(lang);
         const body = isSql ? highlightSQL(code) : esc(code);
         const id = 'c' + Math.random().toString(36).slice(2, 9);
         return '<div class="chx-code"><div class="bar"><span>' + esc(lang || 'sql') + '</span>' +
@@ -356,7 +489,7 @@
             '<pre id="' + id + '">' + body + '</pre></div>';
     }
 
-    /* ───────────── tiny safe markdown renderer ───────────── */
+    /* ───────────── Markdown renderer ───────────── */
     function inline(s) {
         s = esc(s);
         s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
@@ -365,6 +498,7 @@
         s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
         return s;
     }
+
     function renderMarkdown(src) {
         const lines = String(src || '').replace(/\r\n/g, '\n').split('\n');
         let out = [], i = 0;
@@ -401,13 +535,13 @@
             const para = [];
             while (i < lines.length && lines[i].trim() && !/^(```|#{1,4}\s|\s*[-*•]\s+|\s*\d+[.)]\s+)/.test(lines[i]) &&
                    !(lines[i].includes('|') && i + 1 < lines.length && isTableSep(lines[i + 1]))) para.push(inline(lines[i++]));
-            if (!para.length) { para.push(inline(lines[i++])); }  // safety: always make progress
+            if (!para.length) { para.push(inline(lines[i++])); }
             out.push('<p>' + para.join('<br>') + '</p>');
         }
         return out.join('');
     }
 
-    /* ───────────── rendering ───────────── */
+    /* ───────────── Results & Steps ───────────── */
     function resultHTML(res, idx) {
         const head = '<tr>' + res.columns.map((c) => '<th>' + esc(c) + '</th>').join('') + '</tr>';
         const body = res.rows.map((r) => '<tr>' + r.map((v, ci) => {
@@ -415,8 +549,12 @@
             return '<td class="' + f.cls + '" title="' + esc(f.t) + '">' + esc(f.t) + '</td>';
         }).join('') + '</tr>').join('');
         const note = res.truncated ? ' (showing first ' + res.rows.length.toLocaleString('en-IN') + ')' : '';
+        const isFile = (res.source || '').includes('Uploaded');
+        const srcTag = '<span class="chx-source-tag ' + (isFile ? 'file' : 'ch') + '">' + (isFile ? 'DuckDB &middot; File' : 'ClickHouse') + '</span>';
+
         return '<div class="chx-result"><div class="chx-result-head"><i class="bi bi-table"></i>' +
-            '<span>' + res.row_count.toLocaleString('en-IN') + ' row' + (res.row_count === 1 ? '' : 's') + note + ' &middot; ' + res.elapsed_ms + ' ms</span><span class="grow"></span>' +
+            '<span>' + res.row_count.toLocaleString('en-IN') + ' row' + (res.row_count === 1 ? '' : 's') + note + ' &middot; ' + res.elapsed_ms + ' ms</span>' +
+            srcTag + '<span class="grow"></span>' +
             '<button type="button" data-csv="' + idx + '"><i class="bi bi-download"></i> CSV</button></div>' +
             '<div class="chx-tablewrap"><table class="chx-table"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div></div>';
     }
@@ -425,8 +563,10 @@
         if (!steps || !steps.length) return '';
         let h = '<details class="chx-steps"><summary><i class="bi bi-chevron-right"></i> How I got this (' + steps.length + ' step' + (steps.length > 1 ? 's' : '') + ')</summary>';
         steps.forEach((s, n) => {
-            const isSql = s.tool === 'run_sql';
-            h += '<div class="chx-step"><div class="lbl">' + (n + 1) + '. ' + (isSql ? 'SQL query' : 'Inspected table') +
+            const isSql = s.tool === 'run_sql' || s.tool === 'query_uploaded_file';
+            const srcLabel = s.source ? ' [' + esc(s.source) + ']' : '';
+            const toolName = s.tool === 'query_uploaded_file' ? 'Queried Uploaded File' : (s.tool === 'run_sql' ? 'ClickHouse SQL' : 'Inspected Table');
+            h += '<div class="chx-step"><div class="lbl">' + (n + 1) + '. ' + toolName + srcLabel +
                 (s.error ? ' <span class="bad"><i class="bi bi-x-circle-fill"></i> failed — retried</span>' : ' <span style="color:#16a34a"><i class="bi bi-check-circle-fill"></i></span>') + '</div>' +
                 codeBlock(s.sql || '', isSql ? 'sql' : 'text') +
                 (s.error ? '<div style="font-size:.72rem;color:#b91c1c;margin-top:-.5rem;margin-bottom:.6rem;">' + esc(s.error.slice(0, 300)) + '</div>' : '') + '</div>';
@@ -438,9 +578,26 @@
         const wrap = document.createElement('div');
         wrap.className = 'chx-msg ' + (m.role === 'user' ? 'user' : 'assistant');
         if (m.role === 'user') {
-            wrap.innerHTML = '<div class="chx-bubble-user">' + esc(m.content) + '</div>';
+            let uHtml = '';
+            if (m.attachment) {
+                const finfo = getFileInfo(m.attachment.name);
+                uHtml += '<div class="chx-user-file-pill"><i class="' + finfo.icon + ' ' + finfo.cls + '"></i>' +
+                    '<div class="uf-meta"><span class="uf-name">' + esc(m.attachment.name) + '</span>' +
+                    '<span class="uf-size">' + esc(m.attachment.size_str || '') + ' &middot; ' + finfo.label + '</span></div></div>';
+            }
+            if (m.content) {
+                uHtml += '<div>' + esc(m.content) + '</div>';
+            }
+            wrap.innerHTML = '<div class="chx-bubble-user">' + uHtml + '</div>';
         } else {
-            let inner = '<div class="chx-md">' + renderMarkdown(m.content) + '</div>';
+            let inner = '';
+            if (m.file_info) {
+                const finfo = getFileInfo(m.file_info.name);
+                const metaExtra = m.file_info.meta && m.file_info.meta.rows ? (' &middot; ' + m.file_info.meta.rows.toLocaleString('en-IN') + ' rows') : (m.file_info.meta && m.file_info.meta.pages ? (' &middot; ' + m.file_info.meta.pages + ' pages') : '');
+                inner += '<div class="chx-file-analyzed-badge"><i class="' + finfo.icon + ' ' + finfo.iconCls + '"></i>' +
+                    '<span>Analyzed file: <strong>' + esc(m.file_info.name) + '</strong> (' + esc(m.file_info.size_str) + metaExtra + ')</span></div>';
+            }
+            inner += '<div class="chx-md">' + renderMarkdown(m.content) + '</div>';
             (m.results || []).forEach((r, ri) => { inner += resultHTML(r, mi + ':' + ri); });
             inner += stepsHTML(m.steps);
             if (!m.error) {
@@ -461,18 +618,29 @@
         const last = [...messages].reverse().find((m) => m.model);
         const chip = $('chx-model');
         if (last) { chip.textContent = last.model; chip.style.display = ''; } else chip.style.display = 'none';
+
+        // Update active file chip in header
+        if (activeFileName) {
+            activeFileLabel.textContent = activeFileName;
+            activeFileChip.style.display = 'inline-flex';
+        } else {
+            activeFileChip.style.display = 'none';
+        }
         toBottom();
     }
 
-    const STATUS = ['Reading the schema…', 'Thinking about the best query…', 'Querying ClickHouse…', 'Analysing the results…'];
-    function showTyping() {
+    const STATUS_DEFAULT = ['Reading the schema…', 'Thinking about the best query…', 'Querying ClickHouse…', 'Analysing the results…'];
+    const STATUS_FILE = ['Uploading and inspecting file…', 'Profiling data & registering in DuckDB…', 'Executing requested operations & calculations…', 'Generating analytical insights…'];
+
+    function showTyping(isFile) {
+        const statusList = isFile ? STATUS_FILE : STATUS_DEFAULT;
         const el = document.createElement('div');
         el.className = 'chx-msg'; el.id = 'chx-typing';
         el.innerHTML = '<div class="chx-avatar"><i class="bi bi-robot"></i></div>' +
-            '<div class="chx-card"><div class="chx-typing"><div class="chx-dots"><span></span><span></span><span></span></div><span id="chx-status">' + STATUS[0] + '</span></div></div>';
+            '<div class="chx-card"><div class="chx-typing"><div class="chx-dots"><span></span><span></span><span></span></div><span id="chx-status">' + statusList[0] + '</span></div></div>';
         streamEl.appendChild(el); toBottom();
         let n = 0;
-        el._t = setInterval(() => { n = Math.min(n + 1, STATUS.length - 1); const s = $('chx-status'); if (s) s.textContent = STATUS[n]; }, 4500);
+        el._t = setInterval(() => { n = Math.min(n + 1, statusList.length - 1); const s = $('chx-status'); if (s) s.textContent = statusList[n]; }, 3500);
     }
     function hideTyping() { const el = $('chx-typing'); if (el) { clearInterval(el._t); el.remove(); } }
 
@@ -483,51 +651,200 @@
                 ? { ...m, results: (m.results || []).map((r) => ({ ...r, rows: r.rows.slice(0, 100), truncated: r.truncated || r.rows.length > 100 })) }
                 : m);
             sessionStorage.setItem(STORE_KEY, JSON.stringify(slim));
+            sessionStorage.setItem(STORE_KEY + '_file', activeFileName || '');
         } catch (e) { /* storage full – ignore */ }
     }
-    function load() { try { messages = JSON.parse(sessionStorage.getItem(STORE_KEY) || '[]'); } catch (e) { messages = []; } }
+    function load() {
+        try {
+            messages = JSON.parse(sessionStorage.getItem(STORE_KEY) || '[]');
+            activeFileName = sessionStorage.getItem(STORE_KEY + '_file') || '';
+        } catch (e) {
+            messages = [];
+            activeFileName = '';
+        }
+    }
 
-    /* ───────────── send ───────────── */
+    /* ───────────── File Staging & Handling ───────────── */
+    function stageFile(file) {
+        if (!file) return;
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (!['xlsx', 'xls', 'csv', 'pdf'].includes(ext)) {
+            alert('Unsupported file format. Please upload an Excel (.xlsx, .xls), CSV (.csv), or PDF (.pdf) file.');
+            return;
+        }
+        if (file.size > 50 * 1024 * 1024) {
+            alert('File is too large (' + formatBytes(file.size) + '). Maximum allowed file size is 50 MB.');
+            return;
+        }
+
+        stagedFile = file;
+        const finfo = getFileInfo(file.name);
+        stagedNameEl.textContent = file.name;
+        stagedMetaEl.textContent = formatBytes(file.size) + ' \u00b7 ' + finfo.label + ' \u00b7 Ready for analysis & operations';
+        stagedIconEl.className = 'chx-staged-icon ' + finfo.iconCls;
+        stagedIconEl.innerHTML = '<i class="' + finfo.icon + '"></i>';
+        stagedFileEl.style.display = 'flex';
+
+        inputEl.placeholder = 'Tell Jazz AI what to analyze or calculate on ' + file.name + ' (or press Enter for full analysis)…';
+        inputEl.focus();
+    }
+
+    function clearStagedFile() {
+        stagedFile = null;
+        fileInput.value = '';
+        stagedFileEl.style.display = 'none';
+        inputEl.placeholder = 'Ask a question about ClickHouse or tell me what to analyze on your file… (Enter to send)';
+    }
+
+    attachBtn.addEventListener('click', () => fileInput.click());
+    welcomeUploadBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+            stageFile(e.target.files[0]);
+        }
+    });
+    stagedRemoveBtn.addEventListener('click', clearStagedFile);
+
+    // Drag and drop onto composer
+    const composerEl = formEl;
+    ['dragenter', 'dragover'].forEach((evt) => {
+        composerEl.addEventListener(evt, (e) => {
+            e.preventDefault(); e.stopPropagation();
+            composerEl.classList.add('dragover');
+        });
+    });
+    ['dragleave', 'drop'].forEach((evt) => {
+        composerEl.addEventListener(evt, (e) => {
+            e.preventDefault(); e.stopPropagation();
+            composerEl.classList.remove('dragover');
+        });
+    });
+    composerEl.addEventListener('drop', (e) => {
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+            stageFile(e.dataTransfer.files[0]);
+        }
+    });
+
+    // Window level drag-and-drop prevention
+    window.addEventListener('dragover', (e) => e.preventDefault());
+    window.addEventListener('drop', (e) => e.preventDefault());
+
+    /* ───────────── Send Message ───────────── */
     async function send(text) {
         text = (text || '').trim();
-        if (!text || busy) return;
+        const hasFile = Boolean(stagedFile);
+
+        if (!text && !hasFile) return;
+        if (busy) return;
         busy = true; sendBtn.disabled = true;
-        const history = messages.filter((m) => !m.error).map((m) => ({ role: m.role, content: m.content }));
-        messages.push({ role: 'user', content: text });
-        renderAll(); showTyping();
+
+        const currentStaged = stagedFile;
+        clearStagedFile();
+
+        // Construct user message
+        const userMsg = {
+            role: 'user',
+            content: text,
+            attachment: currentStaged ? { name: currentStaged.name, size_str: formatBytes(currentStaged.size) } : null,
+        };
+        messages.push(userMsg);
+        renderAll();
+        showTyping(hasFile);
+
         inputEl.value = ''; autosize();
+
+        const history = messages.filter((m) => !m.error).map((m) => ({ role: m.role, content: m.content }));
+
         try {
-            const r = await fetch(CHAT_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-                credentials: 'same-origin',
-                body: JSON.stringify({ question: text, history }),
-            });
-            let data = {};
-            try { data = await r.json(); } catch (e) { /* non-JSON (e.g. login redirect / 502) */ }
-            hideTyping();
-            if (!r.ok || data.error) {
-                messages.push({ role: 'assistant', error: true, content: '⚠️ ' + (data.error || ('Request failed (HTTP ' + r.status + ').')) });
+            let response;
+            if (currentStaged) {
+                const fd = new FormData();
+                fd.append('file', currentStaged);
+                fd.append('question', text);
+                fd.append('history', JSON.stringify(history));
+                fd.append('session_id', sessionId);
+
+                response = await fetch(CHAT_URL, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': CSRF },
+                    credentials: 'same-origin',
+                    body: fd,
+                });
             } else {
-                messages.push({ role: 'assistant', content: data.answer, results: data.results, steps: data.steps, model: data.model, ms: data.elapsed_ms });
+                response = await fetch(CHAT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ question: text, history, session_id: sessionId }),
+                });
+            }
+
+            let data = {};
+            try { data = await response.json(); } catch (e) { /* non-JSON */ }
+            hideTyping();
+
+            if (!response.ok || data.error) {
+                messages.push({ role: 'assistant', error: true, content: '⚠️ ' + (data.error || ('Request failed (HTTP ' + response.status + ').')) });
+            } else {
+                if (data.file_info) {
+                    activeFileName = data.file_info.name;
+                }
+                messages.push({
+                    role: 'assistant',
+                    content: data.answer,
+                    results: data.results,
+                    steps: data.steps,
+                    model: data.model,
+                    ms: data.elapsed_ms,
+                    file_info: data.file_info,
+                });
             }
         } catch (e) {
             hideTyping();
             messages.push({ role: 'assistant', error: true, content: '⚠️ Network error — could not reach the server.' });
         }
+
         busy = false; sendBtn.disabled = false;
         save(); renderAll(); inputEl.focus();
     }
 
-    /* ───────────── composer ───────────── */
+    /* ───────────── Composer bindings ───────────── */
     function autosize() { inputEl.style.height = 'auto'; inputEl.style.height = Math.min(inputEl.scrollHeight, 160) + 'px'; }
     inputEl.addEventListener('input', autosize);
-    inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(inputEl.value); } });
-    formEl.addEventListener('submit', (e) => { e.preventDefault(); send(inputEl.value); });
+    inputEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            send(inputEl.value);
+        }
+    });
+    formEl.addEventListener('submit', (e) => {
+        e.preventDefault();
+        send(inputEl.value);
+    });
     document.querySelectorAll('.chx-sugg').forEach((b) => b.addEventListener('click', () => send(b.textContent)));
-    $('chx-new').addEventListener('click', () => { if (busy) return; messages = []; save(); renderAll(); inputEl.focus(); });
 
-    /* delegated clicks: copy code, copy answer, csv */
+    // New Chat handler
+    $('chx-new').addEventListener('click', async () => {
+        if (busy) return;
+        messages = [];
+        activeFileName = '';
+        clearStagedFile();
+        save();
+        renderAll();
+        inputEl.focus();
+
+        // Notify backend to clear cached session file
+        try {
+            await fetch(CHAT_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                credentials: 'same-origin',
+                body: JSON.stringify({ clear_file: true, session_id: sessionId }),
+            });
+        } catch (e) { /* ignore */ }
+    });
+
+    /* Delegated clicks: copy code, copy answer, csv download */
     document.addEventListener('click', (e) => {
         const t = e.target.closest('[data-copy],[data-copy-answer],[data-csv]');
         if (!t) return;
@@ -541,12 +858,12 @@
             const csv = [res.columns.map(q).join(',')].concat(res.rows.map((r) => r.map(q).join(','))).join('\n');
             const a = document.createElement('a');
             a.href = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }));
-            a.download = 'clickhouse_result_' + new Date().toISOString().slice(0, 16).replace(/[:T]/g, '') + '.csv';
+            a.download = 'jazz_ai_result_' + new Date().toISOString().slice(0, 16).replace(/[:T]/g, '') + '.csv';
             a.click(); URL.revokeObjectURL(a.href);
         }
     });
 
-    /* ───────────── schema explorer ───────────── */
+    /* ───────────── Schema Explorer ───────────── */
     let schema = [];
     const human = (n) => { if (n === null || n === undefined) return '–'; const u = ['', 'K', 'M', 'B']; let i = 0; n = +n; while (n >= 1000 && i < 3) { n /= 1000; i++; } return (i ? n.toFixed(1) : n.toFixed(0)) + u[i]; };
     function renderSchema(filter) {
@@ -578,7 +895,7 @@
     $('chx-refresh-schema').addEventListener('click', () => loadSchema(true));
     $('chx-toggle-schema').addEventListener('click', () => $('chx-schema').classList.toggle('collapsed'));
 
-    /* init */
+    /* Initialize */
     load(); renderAll(); loadSchema(false); inputEl.focus();
 })();
 </script>

@@ -1,7 +1,7 @@
 """Batch refresh (SENTIMENT_ANALYSIS_GUIDE.md section 9.1): score every review once and store the result.
 
 Run on each data refresh:   python refresh_sentiment.py
-Input : myG_Google_Reviews_All_148140.xlsx  (sheet "All Reviews")
+Input : myG_Google_Reviews_All.xlsx  (sheet "All Reviews")
 Output: reviews_scored.parquet              (read by the dashboard page /sentiment/)
 
 The old Sentiment / Emotion / Primary root cause / Secondary issue / Suggested action columns are
@@ -12,7 +12,7 @@ import pandas as pd
 from sentiment_engine import analyze
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.join(HERE, "myG_Google_Reviews_All_148140.xlsx")
+SRC = os.path.join(HERE, "myG_Google_Reviews_All.xlsx")
 OUT = os.path.join(HERE, "reviews_scored.parquet")
 
 df = pd.read_excel(SRC, sheet_name="All Reviews")

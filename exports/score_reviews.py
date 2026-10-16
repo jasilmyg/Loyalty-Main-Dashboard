@@ -1,11 +1,11 @@
-"""Score every review in myG_Google_Reviews_All_148140.xlsx with sentiment_engine and write a new workbook."""
+"""Score every review in myG_Google_Reviews_All.xlsx with sentiment_engine and write a new workbook."""
 import os, sys, re
 import pandas as pd
 import sentiment_engine as se
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.join(HERE, "myG_Google_Reviews_All_148140.xlsx")
-OUT = os.path.join(HERE, "myG_Google_Reviews_Sentiment_148140.xlsx")
+SRC = os.path.join(HERE, "myG_Google_Reviews_All.xlsx")
+OUT = os.path.join(HERE, "myG_Google_Reviews_Sentiment.xlsx")
 
 print("reading", SRC, flush=True)
 df = pd.read_excel(SRC, sheet_name="All Reviews")
