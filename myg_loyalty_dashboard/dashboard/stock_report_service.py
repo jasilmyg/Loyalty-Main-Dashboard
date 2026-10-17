@@ -17,6 +17,10 @@ except Exception:
 
 def get_parquet_path():
     candidates = [
+        os.path.join(BASE_DIR, 'data', 'stock_report_16_oct.parquet'),
+        os.path.join(BASE_DIR, '.cache', 'stock_report_16_oct.parquet'),
+        os.path.join(os.path.dirname(BASE_DIR), 'data', 'stock_report_16_oct.parquet'),
+        os.path.join(os.path.dirname(BASE_DIR), '.cache', 'stock_report_16_oct.parquet'),
         os.path.join(BASE_DIR, 'data', 'stock_report_15_oct.parquet'),
         os.path.join(BASE_DIR, '.cache', 'stock_report_15_oct.parquet'),
         os.path.join(os.path.dirname(BASE_DIR), 'data', 'stock_report_15_oct.parquet'),
@@ -30,6 +34,8 @@ def get_parquet_path():
 
 def get_excel_path():
     candidates = [
+        os.path.join(BASE_DIR, 'stock_report_16_October_2026_all_products.xlsx'),
+        os.path.join(os.path.dirname(BASE_DIR), 'stock_report_16_October_2026_all_products.xlsx'),
         os.path.join(os.path.dirname(BASE_DIR), 'stock_report_15_October_2026_all_products.xlsx'),
         os.path.join(BASE_DIR, 'stock_report_15_October_2026_all_products.xlsx'),
     ]
@@ -165,7 +171,7 @@ def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, 
         headers = data[0]
         rows = data[1:]
         df = pd.DataFrame(rows, columns=headers)
-        for num_col in ['STOCK', 'COST PRICE', 'PURCHASE PRICE', 'Dealer Price', 'MRP', 'TOTAL AGE', 'BRANCH AGE']:
+        for num_col in ['STOCK', 'COST PRICE', 'PURCHASE PRICE', 'Dealer Price', 'MOP', 'KA MOP', 'MRP', 'TOTAL AGE', 'BRANCH AGE']:
             if num_col in df.columns:
                 df[num_col] = pd.to_numeric(df[num_col], errors='coerce').fillna(0)
         df.to_parquet(parquet_path, index=False, compression='zstd')
@@ -393,7 +399,7 @@ def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, 
 
     result = {
         'status': 'success',
-        'as_of_date': '15 October 2026',
+        'as_of_date': '16 October 2026',
         'price_type': selected_price_type,
         'price_label': price_label,
         'categories': sorted_categories,

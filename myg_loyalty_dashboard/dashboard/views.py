@@ -5906,7 +5906,8 @@ class StockAgeingExportAPIView(View):
             ws.row_dimensions[1].height = 34
 
             ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=col_span)
-            sub_cell = ws.cell(row=2, column=1, value=f"Report as of 15 October 2026 | Valuation: {price_label} | Filters: {filter_subtitle} | Generated from myG Dashboard")
+            as_of_str = data.get('as_of_date', '16 October 2026')
+            sub_cell = ws.cell(row=2, column=1, value=f"Report as of {as_of_str} | Valuation: {price_label} | Filters: {filter_subtitle} | Generated from myG Dashboard")
             sub_cell.font = sub_font
             sub_cell.alignment = Alignment(horizontal='center', vertical='center')
             ws.row_dimensions[2].height = 20
@@ -6180,6 +6181,6 @@ class StockAgeingExportAPIView(View):
 
         safe_label = price_label.replace(" ", "_")
         response = HttpResponse(out.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        response['Content-Disposition'] = f'attachment; filename="myG_Stock_Ageing_Report_{safe_label}_15_Oct_2026.xlsx"'
+        response['Content-Disposition'] = f'attachment; filename="myG_Stock_Ageing_Report_{safe_label}_16_Oct_2026.xlsx"'
         return response
 

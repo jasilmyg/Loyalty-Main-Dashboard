@@ -399,7 +399,7 @@
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
           <h3 style="font-size:1.08rem; font-weight:800; color:var(--text-1); margin:0;">Product Wise Stock Ageing Report</h3>
-          <span class="badge" style="background:#ffedd5; color:#ea580c; font-size:0.7rem; font-weight:700; border:1px solid #fed7aa;">15 October 2026</span>
+          <span id="stock-as-of-date-badge" class="badge" style="background:#ffedd5; color:#ea580c; font-size:0.7rem; font-weight:700; border:1px solid #fed7aa;">16 October 2026</span>
           <span id="stock-back-btn-container" style="display:none;">
             <span class="stock-back-btn" onclick="resetStockToAll()" title="Back to All Categories">
               <i class="bi bi-chevron-left"></i> Back
@@ -680,6 +680,11 @@ async function loadStockAgeingReport(forceRefresh = false) {
       return;
     }
     window._stockData = json;
+
+    if (json.as_of_date) {
+      const badge = document.getElementById('stock-as-of-date-badge');
+      if (badge) badge.textContent = json.as_of_date;
+    }
 
     if (json.filter_options) {
       populateStockFilterOptions(json.filter_options);
