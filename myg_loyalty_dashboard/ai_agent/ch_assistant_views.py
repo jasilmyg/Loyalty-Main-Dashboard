@@ -11,8 +11,8 @@ from .services import ch_assistant
 
 logger = logging.getLogger(__name__)
 
-# Same restricted accounts that are hidden from the "Enterprise Intelligence" menu.
-RESTRICTED_USERNAMES = {"mygusers", "myguser", "shestart"}
+# Restricted accounts that do not have access to Jazz AI.
+RESTRICTED_USERNAMES = {"shestart"}
 
 
 class _AssistantAccessMixin(LoginRequiredMixin):

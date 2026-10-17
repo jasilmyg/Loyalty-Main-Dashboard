@@ -463,7 +463,7 @@
 
 <div class="d-flex">
         <!-- Sidebar -->
-    <nav class="sidebar py-4">
+    <nav class="sidebar py-4" {% if request.user.username == 'mygusers' or request.user.username == 'myguser' %}style="padding-bottom: 5.5rem !important;"{% endif %}>
         <!-- Logo Area -->
         <div class="mb-4 mt-4" style="padding-left: 1.5rem; text-align: center;">
             <img src="{% static 'logo.png' %}" alt="myG FUTURE Logo" style="height: 65px; object-fit: contain; margin-bottom: 0.5rem; display: block; margin-left: auto; margin-right: auto;">
@@ -582,17 +582,11 @@
         </ul>
         {% endif %}
 
-        {% if request.user.username != 'shestart' and request.user.username != 'mygusers' and request.user.username != 'myguser' %}
+        {% if request.user.username != 'shestart' %}
         <div class="mb-2 mt-3" style="padding-left: 2.5rem;">
             <small class="text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px; color: #94a3b8 !important;">Enterprise Intelligence</small>
         </div>
         <ul class="nav flex-column mb-4">
-            <li class="nav-item mt-2">
-                <a id="n8n-sidebar-btn" class="nav-link shadow-sm" href="#" style="border-left: 4px solid #8b5cf6; color: #8b5cf6; background: rgba(139, 92, 246, 0.08); font-weight: 700; border-radius: 8px 12px 12px 8px; margin-left: 0.5rem; transition: all 0.3s ease;">
-                    <i class="bi bi-chat-square-dots-fill" style="color: #8b5cf6; font-size: 1.3rem; margin-right: 12px !important;"></i> n8n AI Analyst
-                    <span class="badge ms-2" style="background: linear-gradient(135deg, #8b5cf6, #c084fc); font-size: 9px; font-weight: 800; padding: 0.35em 0.65em; letter-spacing: 0.5px; border-radius: 6px; box-shadow: 0 2px 8px rgba(139, 92, 246, 0.4);">LIVE</span>
-                </a>
-            </li>
             <li class="nav-item mt-2">
                 <a class="nav-link shadow-sm {% if request.resolver_match.url_name == 'clickhouse_assistant' %}active{% endif %}" href="{% url 'clickhouse_assistant' %}" style="border-left: 4px solid #eab308; color: #a16207; background: rgba(250, 204, 21, 0.10); font-weight: 700; border-radius: 8px 12px 12px 8px; margin-left: 0.5rem; transition: all 0.3s ease;">
                     <i class="bi bi-robot" style="color: #eab308; font-size: 1.3rem; margin-right: 12px !important;"></i> Jazz AI
