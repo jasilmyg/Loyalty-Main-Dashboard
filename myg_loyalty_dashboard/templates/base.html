@@ -821,7 +821,7 @@
     <main class="main-content w-100">
         <!-- Global Filters & Top Nav -->
         <div class="filter-bar d-flex justify-content-between align-items-center flex-wrap gap-3">
-            {% if request.user.username != 'shestart' %}
+            {% if request.user.username != 'shestart' and request.resolver_match.url_name != 'stock_ageing_report' %}
             <form id="global-filter-form" class="row g-2 align-items-center flex-grow-1">
                 <div class="col-md-2">
                     <input type="date" class="form-control" name="start_date" id="filter-start" placeholder="Start Date">
@@ -917,6 +917,7 @@
     function getQueryFilters() {
         // Collects form values as URL parameters
         const form = document.getElementById('global-filter-form');
+        if (!form) return '';
         const formData = new FormData(form);
         const params = new URLSearchParams();
         for (const [key, value] of formData.entries()) {
@@ -932,7 +933,8 @@
     }
 
     function clearFilters() {
-        document.getElementById('global-filter-form').reset();
+        const gf = document.getElementById('global-filter-form');
+        if (gf) gf.reset();
         applyFilters();
     }
     
@@ -943,6 +945,7 @@
             if (!res.ok) return;
             const branches = await res.json();
             const select = document.getElementById('filter-branch');
+            if (!select) return;
             
             // Get current branch from URL to keep it selected
             const urlParams = new URLSearchParams(window.location.search);
@@ -980,9 +983,10 @@
         
         // Also populate date inputs from URL if present
         const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('start_date')) document.getElementById('filter-start').value = urlParams.get('start_date');
-        if (urlParams.get('end_date')) document.getElementById('filter-end').value = urlParams.get('end_date');
-        if (urlParams.get('staff')) document.getElementById('filter-staff').value = urlParams.get('staff');
+        const _fs = document.getElementById('filter-start'), _fe = document.getElementById('filter-end'), _fst = document.getElementById('filter-staff');
+        if (_fs && urlParams.get('start_date')) _fs.value = urlParams.get('start_date');
+        if (_fe && urlParams.get('end_date')) _fe.value = urlParams.get('end_date');
+        if (_fst && urlParams.get('staff')) _fst.value = urlParams.get('staff');
     });
 </script>
 

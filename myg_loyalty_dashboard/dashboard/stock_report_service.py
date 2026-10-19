@@ -1,6 +1,5 @@
 import os
 import time
-import duckdb
 import pandas as pd
 from collections import defaultdict
 
@@ -15,50 +14,9 @@ try:
 except Exception:
     from dashboard.dashboard_api_logic import PRODUCT_CAT_MAPPING
 
-def get_parquet_path():
-    candidates = [
-        os.path.join(BASE_DIR, 'data', 'stock_report_16_oct.parquet'),
-        os.path.join(BASE_DIR, '.cache', 'stock_report_16_oct.parquet'),
-        os.path.join(os.path.dirname(BASE_DIR), 'data', 'stock_report_16_oct.parquet'),
-        os.path.join(os.path.dirname(BASE_DIR), '.cache', 'stock_report_16_oct.parquet'),
-        os.path.join(BASE_DIR, 'data', 'stock_report_15_oct.parquet'),
-        os.path.join(BASE_DIR, '.cache', 'stock_report_15_oct.parquet'),
-        os.path.join(os.path.dirname(BASE_DIR), 'data', 'stock_report_15_oct.parquet'),
-        os.path.join(os.path.dirname(BASE_DIR), '.cache', 'stock_report_15_oct.parquet'),
-    ]
-    for p in candidates:
-        if os.path.exists(p):
-            return p
-    return candidates[0]
-
-
-def get_excel_path():
-    candidates = [
-        os.path.join(BASE_DIR, 'stock_report_16_October_2026_all_products.xlsx'),
-        os.path.join(os.path.dirname(BASE_DIR), 'stock_report_16_October_2026_all_products.xlsx'),
-        os.path.join(os.path.dirname(BASE_DIR), 'stock_report_15_October_2026_all_products.xlsx'),
-        os.path.join(BASE_DIR, 'stock_report_15_October_2026_all_products.xlsx'),
-    ]
-    for p in candidates:
-        if os.path.exists(p):
-            return p
-    return candidates[0]
-
 _cached_results = {}
 _bm_cache = None
 _bm_cache_time = 0
-
-
-def _format_in_clause(values):
-    """Formats a string or list of values into a safe SQL IN ('a', 'b') clause."""
-    if not values:
-        return None
-    if isinstance(values, str):
-        values = [v.strip() for v in values.split(',') if v.strip()]
-    if not values:
-        return None
-    escaped = [v.replace("'", "''") for v in values]
-    return "('" + "', '".join(escaped) + "')"
 
 
 def get_branch_master_df(force_refresh=False):
@@ -87,10 +45,9 @@ def get_branch_master_df(force_refresh=False):
 
 # ─── ClickHouse source: table `stock_ageing_report` (one row per stock line, per dated snapshot) ───
 STOCK_CH_TABLE = 'stock_ageing_report'
-PARQUET_FALLBACK_AS_OF = '16 October 2026'   # date label of the bundled parquet snapshot
 _snapshot_cache = {'date': None, 'ts': 0.0}
 
-# Valuation expressions on the ClickHouse columns (same rules as the legacy parquet/DuckDB SQL)
+# Valuation expressions on the ClickHouse columns (MOP/dealer fall back to cost when 0; MRP falls back to MOP when invalid)
 CH_PRICE_EXPR = {
     'cost_price': 'cost_price',
     'dealer_price': 'if(dealer_price != 0, dealer_price, cost_price)',
@@ -208,13 +165,13 @@ def _load_stock_frames_clickhouse(ch, snapshot, ch_price_expr, allowed_branches)
 
 
 def get_stock_filter_options():
-    """Returns available RBM, BDM, District, and Branch options for dropdowns."""
+    """Returns available RBM, BDM, District, and Branch options for dropdowns (all from ClickHouse)."""
     bm_df = get_branch_master_df()
     rbms = sorted([str(x) for x in bm_df['rbm_clean'].unique() if str(x).strip()])
     bdms = sorted([str(x) for x in bm_df['bdm_clean'].unique() if str(x).strip()])
     districts = sorted([str(x) for x in bm_df['district_clean'].unique() if str(x).strip()])
 
-    # Distinct branches of the latest ClickHouse snapshot (preferred source)
+    # Distinct branches of the latest stock_ageing_report snapshot
     branches = []
     try:
         ch = _get_ch()
@@ -227,22 +184,9 @@ def get_stock_filter_options():
             branches = sorted({r[0] for r in rows if r[0]})
     except Exception as e:
         print("Warning: could not load stock branch list from ClickHouse:", e)
-        branches = []
 
-    # Fallback: distinct branches from the bundled stock report parquet file
-    p_path = get_parquet_path()
-    if branches:
-        pass
-    elif os.path.exists(p_path):
-        try:
-            con = duckdb.connect()
-            duck_p = p_path.replace('\\', '/')
-            b_list = con.execute(f"SELECT DISTINCT TRIM(UPPER(\"BRANCH\")) as b FROM '{duck_p}' WHERE \"BRANCH\" IS NOT NULL").df()['b'].dropna().tolist()
-            branches = sorted(list(set(b_list)))
-            con.close()
-        except Exception:
-            branches = sorted([str(x) for x in bm_df['branch_name_clean'].unique() if str(x).strip()])
-    else:
+    if not branches:
+        # Still database-backed: fall back to the branch_master table
         branches = sorted([str(x) for x in bm_df['branch_name_clean'].unique() if str(x).strip()])
 
     return {
@@ -253,10 +197,16 @@ def get_stock_filter_options():
     }
 
 
+class StockDataUnavailable(RuntimeError):
+    """Raised when the ClickHouse stock_ageing_report table cannot be read."""
+
+
+
 def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, district=None, price_type='mop'):
     """
-    Returns product-wise and category-wise stock ageing breakdown,
-    optionally filtered by RBM, BDM, Branch, and District using branch_master.
+    Returns product-wise and category-wise stock ageing breakdown from the ClickHouse
+    `stock_ageing_report` table (latest dated snapshot), optionally filtered by
+    RBM, BDM, Branch, and District using branch_master.
     Supports valuation by:
       - 'mop': Market Operating Price (Default)
       - 'cost_price': Cost Price
@@ -265,21 +215,13 @@ def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, 
     """
     norm_price = (price_type or 'mop').lower().strip()
     if norm_price in ('cost', 'cost_price', 'cost price'):
-        selected_price_type = 'cost_price'
-        price_expr = 'COALESCE(s."COST PRICE", 0)'
-        price_label = 'Cost Price'
+        selected_price_type, price_label = 'cost_price', 'Cost Price'
     elif norm_price in ('dealer', 'dealer_price', 'dealer price', 'dp'):
-        selected_price_type = 'dealer_price'
-        price_expr = 'COALESCE(NULLIF(s."Dealer Price", 0), s."COST PRICE", 0)'
-        price_label = 'Dealer Price'
+        selected_price_type, price_label = 'dealer_price', 'Dealer Price'
     elif norm_price in ('mrp',):
-        selected_price_type = 'mrp'
-        price_expr = 'CASE WHEN s."MRP" > 1000000 OR s."MRP" <= 0 THEN COALESCE(NULLIF(s."MOP", 0), s."COST PRICE", 0) ELSE s."MRP" END'
-        price_label = 'MRP'
+        selected_price_type, price_label = 'mrp', 'MRP'
     else:  # default 'mop'
-        selected_price_type = 'mop'
-        price_expr = 'COALESCE(NULLIF(s."MOP", 0), s."COST PRICE", 0)'
-        price_label = 'MOP'
+        selected_price_type, price_label = 'mop', 'MOP'
 
     ch_price_expr = CH_PRICE_EXPR[selected_price_type]
 
@@ -297,153 +239,24 @@ def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, 
         if time.time() - ts < 600:
             return res
 
-    # ── Primary source: ClickHouse `stock_ageing_report` (latest dated snapshot) ──
-    bm_df = get_branch_master_df(force_refresh=force_refresh)
     ch = _get_ch()
-    snapshot = get_latest_snapshot_date(ch, force_refresh) if ch is not None else None
-    df_prod = df_brand = None
-    as_of_date, data_source = PARQUET_FALLBACK_AS_OF, 'parquet_fallback'
-    if snapshot is not None:
-        try:
-            allowed = _branch_allowlist(bm_df, rbm, bdm, district, branch)
-            df_prod, df_brand = _load_stock_frames_clickhouse(ch, snapshot, ch_price_expr, allowed)
-            as_of_date, data_source = _format_as_of(snapshot), 'clickhouse'
-        except Exception as e:
-            print("Warning: ClickHouse stock query failed, falling back to parquet:", e)
-            df_prod = df_brand = None
-    if df_prod is None:
-        # Fallback: bundled parquet snapshot (stale; labelled via data_source / as_of_date)
-        df_prod, df_brand = _load_stock_frames_parquet(price_expr, rbm, bdm, branch, district, force_refresh)
+    if ch is None:
+        raise StockDataUnavailable("ClickHouse is unreachable - stock ageing data cannot be loaded.")
+    snapshot = get_latest_snapshot_date(ch, force_refresh)
+    if snapshot is None:
+        raise StockDataUnavailable(f"No snapshot found in ClickHouse table `{STOCK_CH_TABLE}`.")
+
+    bm_df = get_branch_master_df(force_refresh=force_refresh)
+    allowed = _branch_allowlist(bm_df, rbm, bdm, district, branch)
+    df_prod, df_brand = _load_stock_frames_clickhouse(ch, snapshot, ch_price_expr, allowed)
 
     return _assemble_stock_report(
         df_prod, df_brand,
         rbm=rbm, bdm=bdm, branch=branch, district=district,
         selected_price_type=selected_price_type, price_label=price_label,
-        cache_key=cache_key, as_of_date=as_of_date, data_source=data_source,
+        cache_key=cache_key, as_of_date=_format_as_of(snapshot), data_source='clickhouse',
     )
 
-
-def _load_stock_frames_parquet(price_expr, rbm, bdm, branch, district, force_refresh):
-    """Legacy source: aggregate the bundled parquet snapshot with DuckDB -> (df_prod, df_brand)."""
-    # Ensure parquet cache exists
-    parquet_path = get_parquet_path()
-    if not os.path.exists(parquet_path):
-        excel_path = get_excel_path()
-        if not os.path.exists(excel_path):
-            raise FileNotFoundError(f"Stock report data not found. Looked for parquet at {parquet_path} and excel at {excel_path}")
-        os.makedirs(os.path.dirname(parquet_path), exist_ok=True)
-        import python_calamine
-        reader = python_calamine.CalamineWorkbook.from_path(excel_path)
-        sheet = reader.get_sheet_by_name("Detail")
-        data = sheet.to_python()
-        headers = data[0]
-        rows = data[1:]
-        df = pd.DataFrame(rows, columns=headers)
-        for num_col in ['STOCK', 'COST PRICE', 'PURCHASE PRICE', 'Dealer Price', 'MOP', 'KA MOP', 'MRP', 'TOTAL AGE', 'BRANCH AGE']:
-            if num_col in df.columns:
-                df[num_col] = pd.to_numeric(df[num_col], errors='coerce').fillna(0)
-        df.to_parquet(parquet_path, index=False, compression='zstd')
-
-    parquet_duck = parquet_path.replace('\\', '/')
-
-    bm_df = get_branch_master_df(force_refresh=force_refresh)
-
-    con = duckdb.connect()
-    cat_df = pd.DataFrame(list(PRODUCT_CAT_MAPPING.items()), columns=['PRODUCT', 'CAT'])
-    con.register('cat_map', cat_df)
-    con.register('bm', bm_df)
-
-    # Build WHERE filter clauses
-    where_parts = ['s."STOCK" > 0']
-
-    r_c = _format_in_clause(rbm)
-    if r_c:
-        where_parts.append(f"bm.rbm_clean IN {r_c}")
-
-    b_c = _format_in_clause(bdm)
-    if b_c:
-        where_parts.append(f"bm.bdm_clean IN {b_c}")
-
-    d_c = _format_in_clause(district)
-    if d_c:
-        where_parts.append(f"bm.district_clean IN {d_c}")
-
-    if branch:
-        br_vals = [v.strip().upper() for v in branch.split(',') if v.strip()] if isinstance(branch, str) else [v.strip().upper() for v in branch]
-        br_c = _format_in_clause(br_vals)
-        if br_c:
-            where_parts.append(f"(UPPER(TRIM(s.\"BRANCH\")) IN {br_c} OR bm.branch_name_clean IN {br_c})")
-
-    where_sql = " AND ".join(where_parts)
-
-    # 1. Product-level aggregation
-    q_prod = f"""
-    SELECT 
-        COALESCE(m.CAT, 'OTHER') as category,
-        s."PRODUCT" as product,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" < 30 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_lt_30,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" >= 30 AND s."TOTAL AGE" < 60 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_30_60,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" >= 60 AND s."TOTAL AGE" <= 90 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_60_90,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" >= 30 AND s."TOTAL AGE" <= 90 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_30_90,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" > 90 AND s."TOTAL AGE" <= 180 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_90_180,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" > 180 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_gt_180,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" > 180 AND s."TOTAL AGE" <= 365 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_180_365,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" > 365 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_gt_365,
-        ROUND(SUM(s."STOCK" * ({price_expr})) / 1e7, 2) as total_val,
-        
-        SUM(CASE WHEN s."TOTAL AGE" < 30 THEN s."STOCK" ELSE 0 END) as qty_lt_30,
-        SUM(CASE WHEN s."TOTAL AGE" >= 30 AND s."TOTAL AGE" < 60 THEN s."STOCK" ELSE 0 END) as qty_30_60,
-        SUM(CASE WHEN s."TOTAL AGE" >= 60 AND s."TOTAL AGE" <= 90 THEN s."STOCK" ELSE 0 END) as qty_60_90,
-        SUM(CASE WHEN s."TOTAL AGE" >= 30 AND s."TOTAL AGE" <= 90 THEN s."STOCK" ELSE 0 END) as qty_30_90,
-        SUM(CASE WHEN s."TOTAL AGE" > 90 AND s."TOTAL AGE" <= 180 THEN s."STOCK" ELSE 0 END) as qty_90_180,
-        SUM(CASE WHEN s."TOTAL AGE" > 180 THEN s."STOCK" ELSE 0 END) as qty_gt_180,
-        SUM(CASE WHEN s."TOTAL AGE" > 180 AND s."TOTAL AGE" <= 365 THEN s."STOCK" ELSE 0 END) as qty_180_365,
-        SUM(CASE WHEN s."TOTAL AGE" > 365 THEN s."STOCK" ELSE 0 END) as qty_gt_365,
-        SUM(s."STOCK") as total_qty
-    FROM '{parquet_duck}' s
-    LEFT JOIN cat_map m ON s."PRODUCT" = m."PRODUCT"
-    LEFT JOIN bm ON UPPER(TRIM(s."BRANCH")) = bm.branch_name_clean
-    WHERE {where_sql}
-    GROUP BY 1, 2
-    ORDER BY 1, total_val DESC
-    """
-    df_prod = con.execute(q_prod).df()
-
-    # 2. Brand-level aggregation (grouped by category, product, brand)
-    q_brand = f"""
-    SELECT 
-        COALESCE(m.CAT, 'OTHER') as category,
-        s."PRODUCT" as product,
-        COALESCE(NULLIF(TRIM(s."BRAND"), ''), 'OTHERS') as brand,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" < 30 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_lt_30,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" >= 30 AND s."TOTAL AGE" < 60 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_30_60,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" >= 60 AND s."TOTAL AGE" <= 90 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_60_90,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" >= 30 AND s."TOTAL AGE" <= 90 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_30_90,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" > 90 AND s."TOTAL AGE" <= 180 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_90_180,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" > 180 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_gt_180,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" > 180 AND s."TOTAL AGE" <= 365 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_180_365,
-        ROUND(SUM(CASE WHEN s."TOTAL AGE" > 365 THEN s."STOCK" * ({price_expr}) ELSE 0 END) / 1e7, 2) as val_gt_365,
-        ROUND(SUM(s."STOCK" * ({price_expr})) / 1e7, 2) as total_val,
-        
-        SUM(CASE WHEN s."TOTAL AGE" < 30 THEN s."STOCK" ELSE 0 END) as qty_lt_30,
-        SUM(CASE WHEN s."TOTAL AGE" >= 30 AND s."TOTAL AGE" < 60 THEN s."STOCK" ELSE 0 END) as qty_30_60,
-        SUM(CASE WHEN s."TOTAL AGE" >= 60 AND s."TOTAL AGE" <= 90 THEN s."STOCK" ELSE 0 END) as qty_60_90,
-        SUM(CASE WHEN s."TOTAL AGE" >= 30 AND s."TOTAL AGE" <= 90 THEN s."STOCK" ELSE 0 END) as qty_30_90,
-        SUM(CASE WHEN s."TOTAL AGE" > 90 AND s."TOTAL AGE" <= 180 THEN s."STOCK" ELSE 0 END) as qty_90_180,
-        SUM(CASE WHEN s."TOTAL AGE" > 180 THEN s."STOCK" ELSE 0 END) as qty_gt_180,
-        SUM(CASE WHEN s."TOTAL AGE" > 180 AND s."TOTAL AGE" <= 365 THEN s."STOCK" ELSE 0 END) as qty_180_365,
-        SUM(CASE WHEN s."TOTAL AGE" > 365 THEN s."STOCK" ELSE 0 END) as qty_gt_365,
-        SUM(s."STOCK") as total_qty
-    FROM '{parquet_duck}' s
-    LEFT JOIN cat_map m ON s."PRODUCT" = m."PRODUCT"
-    LEFT JOIN bm ON UPPER(TRIM(s."BRANCH")) = bm.branch_name_clean
-    WHERE {where_sql}
-    GROUP BY 1, 2, 3
-    ORDER BY 1, 2, total_val DESC
-    """
-    df_brand = con.execute(q_brand).df()
-    con.close()
-    return df_prod, df_brand
 
 
 def _assemble_stock_report(df_prod, df_brand, *, rbm, bdm, branch, district,
@@ -588,6 +401,5 @@ def _assemble_stock_report(df_prod, df_brand, *, rbm, bdm, branch, district,
             'price_type': selected_price_type
         }
     }
-    if data_source == 'clickhouse':
-        _cached_results[cache_key] = (result, time.time())
+    _cached_results[cache_key] = (result, time.time())
     return result
