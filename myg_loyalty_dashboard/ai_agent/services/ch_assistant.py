@@ -227,6 +227,71 @@ def schema_as_prompt_text() -> str:
     return "\n".join(lines)
 
 
+def stock_ageing_guidance() -> str:
+    """Prompt block describing how to query the `stock_ageing_report` table so that answers match the
+    'Product Wise Stock Ageing Report' page (same valuation, ageing buckets, snapshot and category rules)."""
+    cat_lines = ""
+    try:
+        from dashboard.dashboard_api_logic import PRODUCT_CAT_MAPPING
+        by_cat: Dict[str, List[str]] = {}
+        for prod, cat in PRODUCT_CAT_MAPPING.items():
+            by_cat.setdefault(cat, []).append(prod)
+        cat_lines = "\n".join(
+            f"    {cat}: {', '.join(sorted(prods))}" for cat, prods in sorted(by_cat.items())
+        )
+    except Exception:  # noqa: BLE001
+        cat_lines = "    (category mapping unavailable - group by `product` instead)"
+    return f"""
+# Stock ageing (table `stock_ageing_report`)
+- One row per stock line (branch + item + IMEI/batch) per dated snapshot (`report_date`). History is kept: ALWAYS filter to the
+  latest snapshot unless the user asks for a specific date:  report_date = (SELECT max(report_date) FROM stock_ageing_report)
+- Only count rows with stock > 0. Quantity = sum(stock). Branch names are in `branch` (upper-case them to compare / join branch_master.branch_name).
+- Ageing days = `total_age` (days since purchase). Buckets used by the dashboard: <30, 30-60 (>=30 and <60), 60-90 (>=60 and <=90),
+  90-180 (>90 and <=180), 180-365 (>180 and <=365), >365. 'Fresh' = <30 days, 'Mid ageing' = 30-90 days, 'Critical' = >180 days.
+- Valuation (value = stock * price). Default price basis is MOP:
+    MOP    : if(mop != 0, mop, cost_price)
+    Cost   : cost_price
+    Dealer : if(dealer_price != 0, dealer_price, cost_price)
+    MRP    : if(mrp > 1000000 OR mrp <= 0, if(mop != 0, mop, cost_price), mrp)
+  Show stock values in Crore: divide by 1e7 (e.g. round(sum(stock * if(mop != 0, mop, cost_price)) / 1e7, 2) AS value_cr).
+- Dashboard 'category' is derived from `product` (the table has no category column for this). Use multiIf/CASE on `product`:
+{cat_lines}
+    (any product not listed is 'OTHER')
+- Brand = `brand` (blank brand = 'OTHERS'). Other useful columns: item, item_group, imei_batch, branch_age, git_days, damaged, displayed, transit.
+- Example (latest snapshot, stock value in Cr by ageing bucket):
+    SELECT round(sumIf(stock * if(mop != 0, mop, cost_price), total_age < 30) / 1e7, 2) AS lt_30_cr,
+           round(sumIf(stock * if(mop != 0, mop, cost_price), total_age > 180) / 1e7, 2) AS gt_180_cr,
+           round(sum(stock * if(mop != 0, mop, cost_price)) / 1e7, 2) AS total_cr, sum(stock) AS units
+    FROM stock_ageing_report WHERE report_date = (SELECT max(report_date) FROM stock_ageing_report) AND stock > 0
+- RBM / BDM / district for a branch: join branch_master on upper(trim(stock_ageing_report.branch)) = upper(trim(branch_master.branch_name)).
+- CANONICAL SALES DEFINITION (use the same one every time so answers are repeatable): sales value = sum(s.sold_price) from azure_sales_report s
+  (join item_master m ON s.item_code = m.item_code for product/brand), excluding internal data (invoice_no containing SMC/EI and branches
+  HEAD OFFICE, UG SMART CHOICE, 3GH, CSB, CSBW). Do NOT add extra filters such as sold_price > 0 (returns are negative and must net off).
+  Dashboard category (CE, MOBILE, LAPTOP, ACC ...) comes from the product mapping above, NOT from item_master.category.
+  Date ranges are inclusive and must be applied as toDate(s.date) BETWEEN 'YYYY-MM-DD' AND 'YYYY-MM-DD' (never BETWEEN on the raw DateTime
+  column - that drops the last day). 'Oct 1 to 18' = 18 days.
+- UNITS (critical): 1 Lakh = 100,000 (1e5); 1 Crore = 10,000,000 (1e7). Crore = amount / 1e7 - NEVER divide by 1e8. Lakh = amount / 1e5.
+  A daily average = total / number of days in the period (Oct 1-18 = 18 days, inclusive). Label units correctly (Cr vs Lakh) and sanity-check
+  magnitude: if total is X Cr over N days, the daily average is X/N Cr (not Lakh). Stock values are typically in the hundreds/thousands of Crore.
+- STOCK vs SALES / 'days of stock' (cover) per product or category: days of stock = stock value / (sales over the period / days in period).
+  `item_master.product` and `stock_ageing_report.product` use the same product names, so join the two aggregates on product.
+  Sales = sum(s.sold_price) from azure_sales_report s LEFT JOIN item_master m ON s.item_code = m.item_code, filtered by toDate(s.date)
+  and by excluding internal data (invoice_no containing SMC/EI and branches HEAD OFFICE, UG SMART CHOICE, 3GH, CSB, CSBW). Pattern:
+    WITH sales AS (SELECT m.product AS product, sum(s.sold_price) AS sales_value FROM azure_sales_report s
+                   LEFT JOIN item_master m ON s.item_code = m.item_code
+                   WHERE toDate(s.date) BETWEEN '2026-10-01' AND '2026-10-18'
+                     AND NOT (upper(s.invoice_no) LIKE '%SMC%' OR upper(s.invoice_no) LIKE '%EI%'
+                              OR upper(s.branch) IN ('HEAD OFFICE','UG SMART CHOICE','3GH','CSB','CSBW'))
+                   GROUP BY product),
+         stock AS (SELECT product, sum(stock * if(mop != 0, mop, cost_price)) AS stock_value FROM stock_ageing_report
+                   WHERE report_date = (SELECT max(report_date) FROM stock_ageing_report) AND stock > 0 GROUP BY product)
+    SELECT stock.product, round(sales.sales_value / 1e7, 2) AS sales_cr, round(sales.sales_value / 18 / 1e7, 2) AS daily_avg_cr,
+           round(stock.stock_value / 1e7, 2) AS stock_cr, round(stock.stock_value / (sales.sales_value / 18), 1) AS days_of_stock
+    FROM stock LEFT JOIN sales ON stock.product = sales.product  -- add WHERE stock.product IN (...) for a category such as CE
+  Report products with no sales in the period as 'no sales (stock not moving)' rather than dividing by zero.
+"""
+
+
 # ── Prompt ────────────────────────────────────────────────────────────────────
 def build_system_prompt(file_ctx: Optional[Dict[str, Any]] = None) -> str:
     try:
@@ -234,6 +299,7 @@ def build_system_prompt(file_ctx: Optional[Dict[str, Any]] = None) -> str:
     except Exception as e:  # noqa: BLE001
         schema_txt = f"(schema could not be loaded right now: {e}. Use inspect_table / run_sql on system.tables.)"
     today = datetime.now().strftime("%Y-%m-%d")
+    stock_txt = stock_ageing_guidance()
     base_prompt = f"""You are **Jazz AI**, the assistant for the myG Loyalty portal – an expert in ClickHouse, business data analytics, and spreadsheets/documents/images (myG retail stores in Kerala, India; amounts are in Indian Rupees ₹). Today is {today}.
 
 You can answer ANY question related to:
@@ -260,7 +326,7 @@ You can answer ANY question related to:
     NOT (upper(invoice_no) LIKE '%SMC%' OR upper(invoice_no) LIKE '%EI%' OR upper(branch) IN ('HEAD OFFICE','UG SMART CHOICE','3GH'))
 - azure_invoice_report = one row per invoice; azure_sales_report = one row per item sold (join on invoice_no);
   item_master (item_code → product/brand/category); branch_master (branch code → name, RBM, BDM, district).
-
+{stock_txt}
 # Answer style
 - Be concise, analytical, and executive-ready. Lead with the direct answer, followed by key metrics & insights.
 - Format money as ₹ with Indian grouping when natural (₹12,34,567), large totals may use Lakh/Crore in brackets.
@@ -442,7 +508,7 @@ def _gemini_generate(contents: List[Dict], system_prompt: str, allow_tools: bool
     body: Dict[str, Any] = {
         "systemInstruction": {"parts": [{"text": system_prompt}]},
         "contents": contents,
-        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 8192, "thinkingConfig": {"thinkingLevel": "low"}},
+        "generationConfig": {"temperature": 0, "maxOutputTokens": 8192, "thinkingConfig": {"thinkingLevel": "low"}},
     }
     if allow_tools:
         body["tools"] = tools
@@ -543,8 +609,10 @@ def ask(
         if file_ctx:
             if file_ctx.get("file_type") == "image":
                 question = (
-                    f"Perform a comprehensive visual analysis of this uploaded image (`{file_ctx['filename']}`). "
-                    "Transcribe any visible text and numbers, examine any charts, tables, or trends, and provide clear analytical insights."
+                    f"The user attached an image (`{file_ctx['filename']}`) without typing a message. "
+                    "Read ALL the text in the image first. If it contains a question, request or instruction, treat that text as the user's "
+                    "question and answer it fully (query ClickHouse with the tools when it is a data question). "
+                    "Only if the image has no question, transcribe its visible text/numbers, examine any charts or tables, and give clear analytical insights."
                 )
             else:
                 question = (
