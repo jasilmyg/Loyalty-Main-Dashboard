@@ -85,6 +85,128 @@ def get_branch_master_df(force_refresh=False):
     return _bm_cache
 
 
+# ─── ClickHouse source: table `stock_ageing_report` (one row per stock line, per dated snapshot) ───
+STOCK_CH_TABLE = 'stock_ageing_report'
+PARQUET_FALLBACK_AS_OF = '16 October 2026'   # date label of the bundled parquet snapshot
+_snapshot_cache = {'date': None, 'ts': 0.0}
+
+# Valuation expressions on the ClickHouse columns (same rules as the legacy parquet/DuckDB SQL)
+CH_PRICE_EXPR = {
+    'cost_price': 'cost_price',
+    'dealer_price': 'if(dealer_price != 0, dealer_price, cost_price)',
+    'mrp': 'if(mrp > 1000000 OR mrp <= 0, if(mop != 0, mop, cost_price), mrp)',
+    'mop': 'if(mop != 0, mop, cost_price)',
+}
+
+
+def _get_ch():
+    try:
+        from analytics.clickhouse_service import get_ch_client
+        return get_ch_client()
+    except Exception as e:
+        print("Warning: ClickHouse client unavailable for stock report:", e)
+        return None
+
+
+def get_latest_snapshot_date(ch=None, force_refresh=False):
+    """Latest report_date in the ClickHouse stock_ageing_report table (cached 5 min).
+    Returns None when ClickHouse/the table is unavailable or empty."""
+    if not force_refresh and _snapshot_cache['date'] is not None and (time.time() - _snapshot_cache['ts'] < 300):
+        return _snapshot_cache['date']
+    ch = ch or _get_ch()
+    if ch is None:
+        return None
+    try:
+        latest, n = ch.query(f"SELECT max(report_date), count() FROM {STOCK_CH_TABLE}").result_rows[0]
+    except Exception as e:
+        print("Warning: could not read latest stock snapshot from ClickHouse:", e)
+        return None
+    if not n:
+        return None
+    _snapshot_cache['date'] = latest
+    _snapshot_cache['ts'] = time.time()
+    return latest
+
+
+def _format_as_of(d):
+    return f"{d.day} {d.strftime('%B %Y')}"
+
+
+def _split_values(values, upper=False):
+    if not values:
+        return []
+    if isinstance(values, str):
+        values = values.split(',')
+    out = [str(v).strip() for v in values if str(v).strip()]
+    return [v.upper() for v in out] if upper else out
+
+
+def _branch_allowlist(bm_df, rbm, bdm, district, branch):
+    """Resolve RBM/BDM/District/Branch filters to a list of upper-cased branch names.
+    Returns None when no filter is applied (no branch restriction)."""
+    allowed = None
+    mask = pd.Series(True, index=bm_df.index)
+    bm_filtered = False
+    for col, val in (('rbm_clean', rbm), ('bdm_clean', bdm), ('district_clean', district)):
+        vals = _split_values(val)
+        if vals:
+            bm_filtered = True
+            mask &= bm_df[col].isin(vals)
+    if bm_filtered:
+        allowed = set(bm_df.loc[mask, 'branch_name_clean'])
+    br_vals = set(_split_values(branch, upper=True))
+    if br_vals:
+        allowed = br_vals if allowed is None else (allowed & br_vals)
+    return None if allowed is None else sorted(allowed)
+
+
+def _ch_bucket_select(price_expr):
+    """SELECT list producing val_* (Cr) and qty_* ageing buckets, same aliases as the legacy SQL."""
+    a = 'total_age'
+    buckets = [
+        ('lt_30', f'{a} < 30'),
+        ('30_60', f'{a} >= 30 AND {a} < 60'),
+        ('60_90', f'{a} >= 60 AND {a} <= 90'),
+        ('30_90', f'{a} >= 30 AND {a} <= 90'),
+        ('90_180', f'{a} > 90 AND {a} <= 180'),
+        ('gt_180', f'{a} > 180'),
+        ('180_365', f'{a} > 180 AND {a} <= 365'),
+        ('gt_365', f'{a} > 365'),
+    ]
+    vals = [f"round(sumIf(stock * ({price_expr}), {c}) / 1e7, 2) AS val_{k}" for k, c in buckets]
+    vals.append(f"round(sum(stock * ({price_expr})) / 1e7, 2) AS total_val")
+    qtys = [f"sumIf(stock, {c}) AS qty_{k}" for k, c in buckets]
+    qtys.append("sum(stock) AS total_qty")
+    return ',\n        '.join(vals + qtys)
+
+
+def _load_stock_frames_clickhouse(ch, snapshot, ch_price_expr, allowed_branches):
+    """Aggregate the chosen snapshot in ClickHouse -> (df_prod, df_brand) with a `category` column."""
+    where = ["report_date = {snap:Date}", "stock > 0"]
+    params = {'snap': snapshot}
+    if allowed_branches is not None:
+        where.append("has({branches:Array(String)}, upper(trim(branch)))")
+        params['branches'] = list(allowed_branches)
+    where_sql = ' AND '.join(where)
+    select = _ch_bucket_select(ch_price_expr)
+
+    df_prod = ch.query_df(
+        f"SELECT product,\n        {select}\nFROM {STOCK_CH_TABLE}\nWHERE {where_sql}\nGROUP BY product",
+        parameters=params,
+    )
+    df_brand = ch.query_df(
+        f"SELECT product, if(trim(brand) = '', 'OTHERS', trim(brand)) AS brand_name,\n        {select}\n"
+        f"FROM {STOCK_CH_TABLE}\nWHERE {where_sql}\nGROUP BY product, brand_name",
+        parameters=params,
+    ).rename(columns={'brand_name': 'brand'})
+
+    for df in (df_prod, df_brand):
+        df['category'] = df['product'].map(PRODUCT_CAT_MAPPING).fillna('OTHER')
+    df_prod = df_prod.sort_values(['category', 'total_val'], ascending=[True, False]).reset_index(drop=True)
+    df_brand = df_brand.sort_values(['category', 'product', 'total_val'], ascending=[True, True, False]).reset_index(drop=True)
+    return df_prod, df_brand
+
+
 def get_stock_filter_options():
     """Returns available RBM, BDM, District, and Branch options for dropdowns."""
     bm_df = get_branch_master_df()
@@ -92,10 +214,26 @@ def get_stock_filter_options():
     bdms = sorted([str(x) for x in bm_df['bdm_clean'].unique() if str(x).strip()])
     districts = sorted([str(x) for x in bm_df['district_clean'].unique() if str(x).strip()])
 
-    # Get distinct branches from the stock report parquet file
+    # Distinct branches of the latest ClickHouse snapshot (preferred source)
     branches = []
+    try:
+        ch = _get_ch()
+        snap = get_latest_snapshot_date(ch) if ch is not None else None
+        if snap is not None:
+            rows = ch.query(
+                f"SELECT DISTINCT upper(trim(branch)) FROM {STOCK_CH_TABLE} WHERE report_date = {{snap:Date}} AND branch != ''",
+                parameters={'snap': snap},
+            ).result_rows
+            branches = sorted({r[0] for r in rows if r[0]})
+    except Exception as e:
+        print("Warning: could not load stock branch list from ClickHouse:", e)
+        branches = []
+
+    # Fallback: distinct branches from the bundled stock report parquet file
     p_path = get_parquet_path()
-    if os.path.exists(p_path):
+    if branches:
+        pass
+    elif os.path.exists(p_path):
         try:
             con = duckdb.connect()
             duck_p = p_path.replace('\\', '/')
@@ -143,6 +281,8 @@ def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, 
         price_expr = 'COALESCE(NULLIF(s."MOP", 0), s."COST PRICE", 0)'
         price_label = 'MOP'
 
+    ch_price_expr = CH_PRICE_EXPR[selected_price_type]
+
     cache_key = (
         force_refresh,
         str(rbm or '').strip(),
@@ -157,6 +297,34 @@ def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, 
         if time.time() - ts < 600:
             return res
 
+    # ── Primary source: ClickHouse `stock_ageing_report` (latest dated snapshot) ──
+    bm_df = get_branch_master_df(force_refresh=force_refresh)
+    ch = _get_ch()
+    snapshot = get_latest_snapshot_date(ch, force_refresh) if ch is not None else None
+    df_prod = df_brand = None
+    as_of_date, data_source = PARQUET_FALLBACK_AS_OF, 'parquet_fallback'
+    if snapshot is not None:
+        try:
+            allowed = _branch_allowlist(bm_df, rbm, bdm, district, branch)
+            df_prod, df_brand = _load_stock_frames_clickhouse(ch, snapshot, ch_price_expr, allowed)
+            as_of_date, data_source = _format_as_of(snapshot), 'clickhouse'
+        except Exception as e:
+            print("Warning: ClickHouse stock query failed, falling back to parquet:", e)
+            df_prod = df_brand = None
+    if df_prod is None:
+        # Fallback: bundled parquet snapshot (stale; labelled via data_source / as_of_date)
+        df_prod, df_brand = _load_stock_frames_parquet(price_expr, rbm, bdm, branch, district, force_refresh)
+
+    return _assemble_stock_report(
+        df_prod, df_brand,
+        rbm=rbm, bdm=bdm, branch=branch, district=district,
+        selected_price_type=selected_price_type, price_label=price_label,
+        cache_key=cache_key, as_of_date=as_of_date, data_source=data_source,
+    )
+
+
+def _load_stock_frames_parquet(price_expr, rbm, bdm, branch, district, force_refresh):
+    """Legacy source: aggregate the bundled parquet snapshot with DuckDB -> (df_prod, df_brand)."""
     # Ensure parquet cache exists
     parquet_path = get_parquet_path()
     if not os.path.exists(parquet_path):
@@ -275,6 +443,12 @@ def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, 
     """
     df_brand = con.execute(q_brand).df()
     con.close()
+    return df_prod, df_brand
+
+
+def _assemble_stock_report(df_prod, df_brand, *, rbm, bdm, branch, district,
+                           selected_price_type, price_label, cache_key, as_of_date, data_source):
+    """Build the Category -> Product -> Top-10-Brand tree and the API response from aggregated frames."""
 
     # Pre-index brands by (category, product) and by category
     prod_brands_map = defaultdict(list)
@@ -399,7 +573,8 @@ def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, 
 
     result = {
         'status': 'success',
-        'as_of_date': '16 October 2026',
+        'as_of_date': as_of_date,
+        'data_source': data_source,
         'price_type': selected_price_type,
         'price_label': price_label,
         'categories': sorted_categories,
@@ -413,5 +588,6 @@ def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, 
             'price_type': selected_price_type
         }
     }
-    _cached_results[cache_key] = (result, time.time())
+    if data_source == 'clickhouse':
+        _cached_results[cache_key] = (result, time.time())
     return result

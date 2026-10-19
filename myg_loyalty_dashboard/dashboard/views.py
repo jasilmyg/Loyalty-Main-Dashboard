@@ -6180,7 +6180,9 @@ class StockAgeingExportAPIView(View):
         out.seek(0)
 
         safe_label = price_label.replace(" ", "_")
+        date_label = str(data.get('as_of_date', '16 October 2026')).split()
+        date_label = f"{date_label[0]}_{date_label[1][:3]}_{date_label[2]}" if len(date_label) == 3 else "16_Oct_2026"
         response = HttpResponse(out.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        response['Content-Disposition'] = f'attachment; filename="myG_Stock_Ageing_Report_{safe_label}_16_Oct_2026.xlsx"'
+        response['Content-Disposition'] = f'attachment; filename="myG_Stock_Ageing_Report_{safe_label}_{date_label}.xlsx"'
         return response
 
