@@ -585,6 +585,11 @@ class LLMError(Exception):
     pass
 
 
+_model_cooldown: Dict[str, float] = {}   # model -> time until which it is skipped (it hung / timed out)
+MODEL_COOLDOWN_SEC = 300
+MODEL_SOFT_TIMEOUT_SEC = 30              # per-call cap for every model except the last fallback
+
+
 def _gemini_generate(contents: List[Dict], system_prompt: str, allow_tools: bool, deadline: float, tools: List[Dict]) -> Tuple[Dict, str]:
     api_key = os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
@@ -601,20 +606,28 @@ def _gemini_generate(contents: List[Dict], system_prompt: str, allow_tools: bool
         body["toolConfig"] = {"functionCallingConfig": {"mode": "NONE"}}
 
     last_err = "unknown error"
-    for model in GEMINI_MODELS:
+    now = time.time()
+    # skip models that hung recently (unless that would leave nothing to try)
+    candidates = [m for m in GEMINI_MODELS if _model_cooldown.get(m, 0) <= now] or list(GEMINI_MODELS)
+    for mi, model in enumerate(candidates):
+        is_last = mi == len(candidates) - 1
         for attempt in range(2):
             remaining = deadline - time.time()
             if remaining < 5:
                 raise LLMError("The request took too long. Please try a simpler question.")
+            call_timeout = min(70 if is_last else MODEL_SOFT_TIMEOUT_SEC, remaining)
             try:
                 r = requests.post(
                     GEMINI_URL.format(model=model),
                     headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
                     json=body,
-                    timeout=min(70, remaining),
+                    timeout=call_timeout,
                 )
             except requests.RequestException as e:
                 last_err = f"{model}: {e}"
+                if isinstance(e, requests.Timeout):
+                    _model_cooldown[model] = time.time() + MODEL_COOLDOWN_SEC
+                    logger.warning("Gemini model %s timed out after %.0fs – skipping it for %ss", model, call_timeout, MODEL_COOLDOWN_SEC)
                 break  # try next model
             if r.status_code == 200:
                 data = r.json()
