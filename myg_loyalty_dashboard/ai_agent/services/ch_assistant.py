@@ -34,6 +34,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from . import file_analyzer
+from .jazz import rca as jazz_rca
+from .jazz import validator as jazz_validator
 
 logger = logging.getLogger(__name__)
 
@@ -293,6 +295,30 @@ def stock_ageing_guidance() -> str:
 
 
 # ── Prompt ────────────────────────────────────────────────────────────────────
+def analyst_guidance() -> str:
+    """Coordinator rules: which specialist tool to use and how to run the analysis."""
+    return """
+# How you work (coordinator)
+You coordinate specialist tools; call only the ones the question needs:
+  • `run_sql` – SQL analyst for facts, rankings, lists, trends (each query is auto-reviewed by a validator that returns `validator_notes` – if it warns, fix the SQL or caveat the answer).
+  • `explain_change` – root-cause engine. USE IT whenever the user asks WHY a number moved ("why did sales drop", "what caused the increase", "reason for the fall", "what changed vs last month", "which branch/product is dragging").
+    It decomposes the change by category, product, brand, branch, district, salesperson and week with contribution %, price-vs-volume split, supporting data and data-backed possible explanations, and shows a chart + driver tables to the user automatically.
+  • `inspect_table` – schema questions.
+Period rules for `explain_change` (dates are YYYY-MM-DD, inclusive; use today's date above; the engine trims the current period to the latest loaded day and tells you):
+  - "this month vs last month" / "decrease compared with last month" → current_start = first day of this month, current_end = today,
+    compare_mode = "same_period_last_month" (like-for-like days – never compare a partial month with a full month).
+  - "last month vs the month before" → full calendar months, compare_mode = "previous_period" or give base_start/base_end explicitly.
+  - "this week / yesterday / last 7 days" → compare_mode = "previous_period". "vs last year" → "same_period_last_year".
+  - Metric: sales (default, ₹), units (quantity), invoices (bill count).
+  - Filters: Kerala-wide = NO filter. Use filters for district (e.g. KOZHIKODE), branch name/code, rbm, bdm, brand, product, category (CE, MOBILE, LAPTOP, ACC …).
+After `explain_change` write the answer like an analyst: (1) one-line headline with the change in ₹/units and %; (2) the 3–5 main drivers with their contribution % and numbers; (3) what offset the change;
+(4) price vs volume; (5) the possible explanations returned by the tool, clearly labelled as hypotheses (never state them as proven causes); (6) 1–2 concrete follow-up checks. Do not re-run SQL to recompute what the tool already returned.
+EVIDENCE RULE: only use causes that are backed by numbers from the tools. Do NOT assert outside events (festivals, weather, competitor actions, policy changes) as likely causes; if you think of one, list it only under "Not verifiable from our data – worth checking" without a probability.
+For a normal data question: identify the right tables, write the SQL, read `validator_notes`, then explain the result in plain business language, stating the period and filters you assumed.
+If the question is ambiguous (period, metric or scope), make the most reasonable assumption, STATE it in the answer, and offer the alternative.
+"""
+
+
 def build_system_prompt(file_ctx: Optional[Dict[str, Any]] = None) -> str:
     try:
         schema_txt = schema_as_prompt_text()
@@ -300,6 +326,7 @@ def build_system_prompt(file_ctx: Optional[Dict[str, Any]] = None) -> str:
         schema_txt = f"(schema could not be loaded right now: {e}. Use inspect_table / run_sql on system.tables.)"
     today = datetime.now().strftime("%Y-%m-%d")
     stock_txt = stock_ageing_guidance()
+    analyst_txt = analyst_guidance()
     base_prompt = f"""You are **Jazz AI**, the assistant for the myG Loyalty portal – an expert in ClickHouse, business data analytics, and spreadsheets/documents/images (myG retail stores in Kerala, India; amounts are in Indian Rupees ₹). Today is {today}.
 
 You can answer ANY question related to:
@@ -327,6 +354,7 @@ You can answer ANY question related to:
 - azure_invoice_report = one row per invoice; azure_sales_report = one row per item sold (join on invoice_no);
   item_master (item_code → product/brand/category); branch_master (branch code → name, RBM, BDM, district).
 {stock_txt}
+{analyst_txt}
 # Answer style
 - Be concise, analytical, and executive-ready. Lead with the direct answer, followed by key metrics & insights.
 - Format money as ₹ with Indian grouping when natural (₹12,34,567), large totals may use Lakh/Crore in brackets.
@@ -410,6 +438,34 @@ def get_tools_declaration(file_ctx: Optional[Dict[str, Any]] = None) -> List[Dic
                 "required": ["table"],
             },
         },
+        {
+            "name": "explain_change",
+            "description": (
+                "Root-cause analysis: explains WHY a metric changed between two periods. Returns the main drivers by category, product, brand, "
+                "branch, district, salesperson and week (with contribution % of the total change), offsetting movers, price-vs-volume split, "
+                "data-backed possible explanations and a reconciliation check. A chart and driver tables are shown to the user automatically. "
+                "Use for any 'why did X go up/down/change' question."
+            ),
+            "parameters": {
+                "type": "OBJECT",
+                "properties": {
+                    "metric": {"type": "STRING", "description": "sales (₹, default) | units | invoices"},
+                    "current_start": {"type": "STRING", "description": "First day of the period being explained, YYYY-MM-DD."},
+                    "current_end": {"type": "STRING", "description": "Last day (inclusive) of that period, YYYY-MM-DD. Trimmed to the latest loaded day."},
+                    "compare_mode": {"type": "STRING", "description": "previous_period (default, same length right before) | same_period_last_month | same_period_last_year"},
+                    "base_start": {"type": "STRING", "description": "Optional explicit comparison period start (overrides compare_mode)."},
+                    "base_end": {"type": "STRING", "description": "Optional explicit comparison period end."},
+                    "district": {"type": "STRING", "description": "Optional district filter, e.g. KOZHIKODE (comma separated for several)."},
+                    "branch": {"type": "STRING", "description": "Optional branch code or part of branch name (comma separated for several)."},
+                    "rbm": {"type": "STRING", "description": "Optional regional business manager name filter."},
+                    "bdm": {"type": "STRING", "description": "Optional business development manager name filter."},
+                    "brand": {"type": "STRING", "description": "Optional brand filter, e.g. SAMSUNG."},
+                    "product": {"type": "STRING", "description": "Optional product (group) name or part of it, e.g. AIR CONDITIONER."},
+                    "category": {"type": "STRING", "description": "Optional dashboard category: CE, MOBILE, LAPTOP, ACC …"},
+                },
+                "required": ["current_start", "current_end"],
+            },
+        },
     ]
 
     if file_ctx and file_ctx.get("duckdb_conn"):
@@ -458,10 +514,38 @@ def _result_for_llm(res: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
-def _tool_run_sql(args: Dict[str, Any], ui_results: List[Dict[str, Any]]) -> Dict[str, Any]:
-    res = run_readonly_query(str(args.get("sql", "")))
+def _tool_run_sql(args: Dict[str, Any], ui_results: List[Dict[str, Any]], validation: Optional[List[Dict[str, str]]] = None) -> Dict[str, Any]:
+    sql = str(args.get("sql", ""))
+    checks = jazz_validator.review_sql(sql)
+    res = run_readonly_query(sql)
+    checks = jazz_validator.review_result(res, checks)
+    if validation is not None:
+        validation.extend(checks)
     ui_results.append(res)
-    return _result_for_llm(res)
+    out = _result_for_llm(res)
+    notes = jazz_validator.notes_for_llm(checks)
+    if notes:
+        out["validator_notes"] = notes
+    return out
+
+
+def _tool_explain_change(args: Dict[str, Any], ui_blocks: List[Dict[str, Any]]) -> Dict[str, Any]:
+    filters = {k: args.get(k) for k in ("district", "branch", "rbm", "bdm", "brand", "product", "category") if args.get(k)}
+    try:
+        res = jazz_rca.explain_change(
+            metric=args.get("metric") or "sales",
+            current_start=args.get("current_start"), current_end=args.get("current_end"),
+            base_start=args.get("base_start"), base_end=args.get("base_end"),
+            compare_mode=args.get("compare_mode") or "previous_period",
+            filters=filters,
+        )
+    except ValueError as e:
+        return {"error": str(e)}
+    except Exception as e:  # noqa: BLE001
+        logger.exception("explain_change failed")
+        return {"error": f"Root-cause analysis failed: {e}"}
+    ui_blocks.append({"type": "rca", **res})
+    return jazz_rca.llm_view(res)
 
 
 def _tool_inspect_table(args: Dict[str, Any], ui_results: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -637,6 +721,7 @@ def ask(
     contents.append({"role": "user", "parts": user_parts})
 
     ui_results: List[Dict[str, Any]] = []
+    ui_blocks: List[Dict[str, Any]] = []
     steps: List[Dict[str, Any]] = []
     used_model = None
 
@@ -657,14 +742,20 @@ def ask(
         for call in calls:
             name, args = call.get("name"), call.get("args") or {}
             if name == "run_sql":
-                result = _tool_run_sql(args, ui_results)
-                step = {"tool": name, "sql": args.get("sql") or "", "source": "ClickHouse Cloud"}
+                validation: List[Dict[str, str]] = []
+                result = _tool_run_sql(args, ui_results, validation)
+                step = {"tool": name, "agent": "SQL Analyst", "sql": args.get("sql") or "", "source": "ClickHouse Cloud",
+                        "validation": validation, "validation_status": jazz_validator.worst_status(validation)}
+            elif name == "explain_change":
+                result = _tool_explain_change(args, ui_blocks)
+                step = {"tool": name, "agent": "Root-Cause Analyst", "sql": json.dumps({k: v for k, v in args.items() if v}, ensure_ascii=False),
+                        "source": "ClickHouse Cloud (statistical decomposition)"}
             elif name == "inspect_table":
                 result = _tool_inspect_table(args, ui_results)
-                step = {"tool": name, "sql": f"inspect {args.get('table', '')}", "source": "ClickHouse Cloud"}
+                step = {"tool": name, "agent": "Schema Explorer", "sql": f"inspect {args.get('table', '')}", "source": "ClickHouse Cloud"}
             elif name == "query_uploaded_file":
                 result = _tool_query_uploaded_file(args, ui_results, file_ctx)
-                step = {"tool": name, "sql": args.get("sql") or "", "source": "Uploaded File (DuckDB)"}
+                step = {"tool": name, "agent": "File Analyst", "sql": args.get("sql") or "", "source": "Uploaded File (DuckDB)"}
             else:
                 result = {"error": f"Unknown tool {name}"}
                 step = {"tool": name, "sql": "", "source": "Unknown"}
@@ -692,6 +783,7 @@ def ask(
     return {
         "answer": answer,
         "results": shown[-1:],
+        "ui_blocks": ui_blocks,
         "steps": steps,
         "model": used_model,
         "elapsed_ms": int((time.time() - started) * 1000),

@@ -5,7 +5,14 @@
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
-    .main-content { padding: 0 !important; }
+    /* Fit the page to the viewport: no outer page scrollbar, only the chat stream scrolls */
+    html, body { overflow: hidden; }
+    .main-content {
+        padding: 0 !important;
+        height: 100vh; min-height: 0 !important; overflow: hidden;
+        display: flex; flex-direction: column;
+    }
+    .main-content > .filter-bar { flex-shrink: 0; margin: .75rem .75rem .5rem !important; }
 
     :root {
         --chx-ink: #0f172a;
@@ -25,7 +32,7 @@
     /* ── Shell ─────────────────────────────────────────────── */
     .chx-shell {
         display: flex; flex-direction: column;
-        height: calc(100vh - 72px);
+        flex: 1 1 auto; min-height: 0;
         background:
             radial-gradient(900px 400px at 85% -10%, rgba(250,204,21,.10), transparent 60%),
             radial-gradient(800px 420px at -10% 110%, rgba(99,102,241,.08), transparent 60%),
@@ -311,6 +318,64 @@
     .chx-tbl-actions button { border: 1px solid var(--chx-line); background: #fff; font-size: .66rem; font-weight: 600; padding: .15rem .5rem; border-radius: 6px; cursor: pointer; color: #475569; }
     .chx-tbl-actions button:hover { border-color: var(--chx-indigo); color: var(--chx-indigo); }
     .chx-empty { text-align: center; color: var(--chx-muted); font-size: .8rem; padding: 1.5rem .5rem; }
+
+    /* validation chips + agent badges */
+    .chx-agent { display: inline-flex; align-items: center; gap: .3rem; padding: .1rem .5rem; border-radius: 999px; background: #eef2ff; color: #4338ca; font-size: .66rem; font-weight: 700; letter-spacing: .02em; text-transform: none; }
+    .chx-vchips { display: flex; flex-wrap: wrap; gap: .3rem; margin: .1rem 0 .55rem; }
+    .chx-vchip { display: inline-flex; align-items: center; gap: .25rem; padding: .12rem .5rem; border-radius: 6px; font-size: .66rem; font-weight: 600; border: 1px solid transparent; cursor: help; }
+    .chx-vchip.ok { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+    .chx-vchip.warn { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+    .chx-vchip.fail { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+    .chx-meta .agent-tag { background: #eef2ff; color: #4338ca; padding: .15rem .5rem; border-radius: 6px; font-weight: 600; }
+
+    /* root-cause analysis card */
+    .chx-rca { margin-top: .9rem; border: 1px solid #c7d2fe; border-radius: 14px; overflow: hidden; background: #fff; box-shadow: 0 6px 22px rgba(79,70,229,.08); }
+    .chx-rca-head { display: flex; align-items: center; gap: .6rem; padding: .65rem .95rem; background: linear-gradient(135deg, #eef2ff, #f5f3ff); border-bottom: 1px solid #e0e7ff; }
+    .chx-rca-head .ttl { font-weight: 800; font-size: .86rem; color: #312e81; }
+    .chx-rca-head .sub { font-size: .72rem; color: #64748b; }
+    .chx-rca-head .grow { flex: 1; }
+    .chx-rca-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: .6rem; padding: .85rem .95rem .4rem; }
+    @media (max-width: 760px) { .chx-rca-kpis { grid-template-columns: repeat(2, 1fr); } }
+    .chx-kpi { border: 1px solid var(--chx-line); border-radius: 12px; padding: .55rem .75rem; background: #fafbff; }
+    .chx-kpi .k { font-size: .64rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--chx-muted); }
+    .chx-kpi .v { font-size: 1.12rem; font-weight: 800; color: #0f172a; font-variant-numeric: tabular-nums; margin-top: .1rem; }
+    .chx-kpi .s { font-size: .68rem; color: #64748b; }
+    .chx-kpi.neg .v { color: #dc2626; } .chx-kpi.pos .v { color: #16a34a; }
+    .chx-rca-warn { margin: .4rem .95rem 0; padding: .45rem .7rem; border-radius: 9px; background: #fffbeb; border: 1px solid #fde68a; color: #92400e; font-size: .74rem; }
+    .chx-rca-tabs { display: flex; flex-wrap: wrap; gap: .3rem; padding: .8rem .95rem .2rem; }
+    .chx-rca-tabs button { border: 1px solid var(--chx-line); background: #fff; font-size: .72rem; font-weight: 700; padding: .28rem .7rem; border-radius: 999px; cursor: pointer; color: #475569; transition: all .15s; }
+    .chx-rca-tabs button:hover { border-color: #818cf8; color: #4338ca; }
+    .chx-rca-tabs button.active { background: linear-gradient(135deg, #4f46e5, #7c3aed); border-color: transparent; color: #fff; box-shadow: 0 4px 12px rgba(99,102,241,.3); }
+    .chx-rca-pane { display: none; padding: .4rem .95rem .6rem; }
+    .chx-rca-pane.active { display: block; animation: chx-rise .25s ease-out; }
+    .chx-rca-chart { position: relative; height: 250px; }
+    .chx-rca-note { font-size: .68rem; color: #94a3b8; margin: .2rem 0 .5rem; }
+    .chx-drv { width: 100%; border-collapse: collapse; font-size: .76rem; }
+    .chx-drv th { text-align: right; font-size: .66rem; text-transform: uppercase; letter-spacing: .05em; color: #64748b; padding: .35rem .5rem; border-bottom: 2px solid var(--chx-line); white-space: nowrap; }
+    .chx-drv th:first-child, .chx-drv td:first-child { text-align: left; }
+    .chx-drv td { padding: .38rem .5rem; border-bottom: 1px solid #f1f5f9; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .chx-drv td:first-child { max-width: 260px; overflow: hidden; text-overflow: ellipsis; font-weight: 600; color: #1e293b; }
+    .chx-drv tr.off td { color: #64748b; background: #fafafa; }
+    .chx-drv .neg { color: #dc2626; font-weight: 700; } .chx-drv .pos { color: #16a34a; font-weight: 700; }
+    .chx-drv .note { display: inline-block; margin-left: .35rem; font-size: .62rem; font-weight: 700; color: #b45309; background: #fffbeb; border-radius: 5px; padding: 0 .3rem; }
+    .chx-bar { position: relative; width: 90px; height: 8px; background: #eef2ff; border-radius: 99px; display: inline-block; vertical-align: middle; margin-right: .4rem; overflow: hidden; }
+    .chx-bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; background: linear-gradient(90deg, #818cf8, #6366f1); }
+    .chx-pv { margin: .5rem .95rem; padding: .7rem .85rem; border: 1px solid var(--chx-line); border-radius: 12px; background: #fafbff; }
+    .chx-pv .t { font-size: .7rem; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: var(--chx-muted); margin-bottom: .45rem; }
+    .chx-pv .row { display: flex; align-items: center; gap: .6rem; font-size: .76rem; margin: .22rem 0; }
+    .chx-pv .row .l { width: 120px; font-weight: 600; color: #334155; }
+    .chx-pv .row .b { flex: 1; height: 10px; background: #eef2ff; border-radius: 99px; position: relative; overflow: hidden; }
+    .chx-pv .row .b i { position: absolute; top: 0; bottom: 0; border-radius: 99px; }
+    .chx-pv .row .n { width: 150px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+    .chx-hyp { margin: .5rem .95rem .2rem; }
+    .chx-hyp .t { font-size: .7rem; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: var(--chx-muted); margin-bottom: .35rem; display: flex; align-items: center; gap: .4rem; }
+    .chx-hyp .item { display: flex; gap: .55rem; padding: .45rem .65rem; border-left: 3px solid #a5b4fc; background: #f8faff; border-radius: 0 9px 9px 0; margin-bottom: .35rem; font-size: .76rem; }
+    .chx-hyp .item b { color: #312e81; display: block; font-size: .78rem; }
+    .chx-hyp .item span { color: #475569; }
+    .chx-rca-foot { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; padding: .55rem .95rem .7rem; font-size: .68rem; color: #94a3b8; border-top: 1px dashed var(--chx-line); margin-top: .5rem; }
+    .chx-rca-foot .ok { color: #16a34a; font-weight: 700; } .chx-rca-foot .bad { color: #dc2626; font-weight: 700; }
+    .chx-rca details > summary { cursor: pointer; font-size: .72rem; font-weight: 700; color: var(--chx-indigo); padding: .3rem .95rem; list-style: none; }
+    .chx-rca details > summary::-webkit-details-marker { display: none; }
 </style>
 {% endblock %}
 
@@ -358,6 +423,7 @@
                     <div class="chx-sugg-grid">
                         <div class="chx-sugg-col">
                             <h6><i class="bi bi-graph-up-arrow"></i> Your data</h6>
+                            <button class="chx-sugg" type="button">Why did Kerala sales decrease compared with last month?</button>
                             <button class="chx-sugg" type="button">What was the total sales revenue and number of bills last month?</button>
                             <button class="chx-sugg" type="button">Top 10 branches by revenue this year</button>
                             <button class="chx-sugg" type="button">Which product categories sell the most, and how has that trended by month?</button>
@@ -579,15 +645,208 @@
             '<div class="chx-tablewrap"><table class="chx-table"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div></div>';
     }
 
+    /* ───────────── Root-cause analysis card ───────────── */
+    const rcaStore = {};
+    let rcaCharts = [];
+    function fmtVal(v, unit) {
+        if (v === null || v === undefined || isNaN(v)) return '–';
+        const a = Math.abs(v), s = v < 0 ? '-' : '';
+        if (unit === '₹') {
+            if (a >= 1e7) return s + '₹' + (a / 1e7).toFixed(2) + ' Cr';
+            if (a >= 1e5) return s + '₹' + (a / 1e5).toFixed(2) + ' L';
+            return s + '₹' + Math.round(a).toLocaleString('en-IN');
+        }
+        return s + Math.round(a).toLocaleString('en-IN');
+    }
+    function fmtAxis(v, unit) {
+        const a = Math.abs(v);
+        if (unit === '₹') return a >= 1e7 ? (v / 1e7).toFixed(0) + ' Cr' : a >= 1e5 ? (v / 1e5).toFixed(0) + ' L' : v;
+        return a >= 1e5 ? (v / 1e5).toFixed(1) + ' L' : a >= 1e3 ? (v / 1e3).toFixed(0) + 'k' : v;
+    }
+    function fmtDelta(v, unit) { return (v > 0 ? '+' : '') + fmtVal(v, unit); }
+    function cls(v) { return v < 0 ? 'neg' : (v > 0 ? 'pos' : ''); }
+    function fmtDate(s) { if (!s) return ''; const d = new Date(s + 'T00:00:00'); return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }); }
+
+    function driverTable(dim, unit) {
+        const row = (d, off) => {
+            const c = d.contribution_pct;
+            return '<tr class="' + (off ? 'off' : '') + '"><td title="' + esc(d.name) + '">' + esc(d.name) +
+                (d.note ? '<span class="note">' + esc(d.note.split(' ')[0]) + '</span>' : '') + '</td>' +
+                '<td>' + fmtVal(d.base, unit) + '</td><td>' + fmtVal(d.current, unit) + '</td>' +
+                '<td class="' + cls(d.delta) + '">' + fmtDelta(d.delta, unit) + '</td>' +
+                '<td>' + (d.change_pct === null ? '–' : (d.change_pct > 0 ? '+' : '') + d.change_pct.toFixed(1) + '%') + '</td>' +
+                '<td><span class="chx-bar"><i style="width:' + Math.min(100, Math.abs(c || 0)) + '%;' + (off ? 'background:#cbd5e1;' : '') + '"></i></span>' +
+                (c === null ? '–' : c.toFixed(1) + '%') + '</td></tr>';
+        };
+        let h = '<table class="chx-drv"><thead><tr><th>' + esc(dim.label) + '</th><th>Base</th><th>Current</th><th>Change</th><th>% chg</th><th>Share of change</th></tr></thead><tbody>';
+        dim.drivers.forEach((d) => { h += row(d, false); });
+        if (Math.abs(dim.others_delta) > 0) {
+            h += '<tr class="off"><td>Others (net, ' + Math.max(0, dim.members - dim.drivers.length) + ' more)</td><td></td><td></td><td class="' + cls(dim.others_delta) + '">' + fmtDelta(dim.others_delta, unit) + '</td><td></td><td></td></tr>';
+        }
+        if (dim.offsets.length) {
+            h += '<tr><td colspan="6" style="text-align:left;font-size:.64rem;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;padding-top:.6rem;">Moved the other way (offsets)</td></tr>';
+            dim.offsets.forEach((d) => { h += row(d, true); });
+        }
+        return h + '</tbody></table>';
+    }
+
+    function rcaHTML(b, id) {
+        rcaStore[id] = b;
+        const u = b.unit;
+        const dirCls = b.delta < 0 ? 'neg' : (b.delta > 0 ? 'pos' : '');
+        const pct = b.delta_pct === null ? '' : ' (' + (b.delta_pct > 0 ? '+' : '') + b.delta_pct.toFixed(1) + '%)';
+        let h = '<div class="chx-rca" data-rca="' + id + '"><div class="chx-rca-head"><i class="bi bi-bullseye" style="color:#4f46e5"></i>' +
+            '<div><div class="ttl">Root-cause analysis · ' + esc(b.metric_label) + '</div>' +
+            '<div class="sub">' + fmtDate(b.current.start) + ' – ' + fmtDate(b.current.end) + ' vs ' + fmtDate(b.base.start) + ' – ' + fmtDate(b.base.end) +
+            (b.filters && Object.keys(b.filters).length ? ' · ' + esc(Object.entries(b.filters).map((e) => e[0] + ': ' + e[1]).join(', ')) : ' · all branches') + '</div></div>' +
+            '<span class="grow"></span><span class="chx-agent"><i class="bi bi-cpu"></i> Statistical engine</span></div>';
+        h += '<div class="chx-rca-kpis">' +
+            '<div class="chx-kpi"><div class="k">Base period</div><div class="v">' + fmtVal(b.base.value, u) + '</div><div class="s">' + fmtVal(b.base.per_day, u) + ' / day · ' + b.base.days + ' days</div></div>' +
+            '<div class="chx-kpi"><div class="k">Current period</div><div class="v">' + fmtVal(b.current.value, u) + '</div><div class="s">' + fmtVal(b.current.per_day, u) + ' / day · ' + b.current.days + ' days</div></div>' +
+            '<div class="chx-kpi ' + dirCls + '"><div class="k">Change</div><div class="v">' + fmtDelta(b.delta, u) + '</div><div class="s">' + pct.replace(/[()]/g, '') + '</div></div>' +
+            '<div class="chx-kpi ' + cls(b.per_day_delta_pct || 0) + '"><div class="k">Per-day run-rate</div><div class="v">' + (b.per_day_delta_pct === null ? '–' : (b.per_day_delta_pct > 0 ? '+' : '') + b.per_day_delta_pct.toFixed(1) + '%') + '</div><div class="s">like-for-like days</div></div></div>';
+        (b.warnings || []).forEach((w) => { h += '<div class="chx-rca-warn"><i class="bi bi-exclamation-triangle-fill"></i> ' + esc(w) + '</div>'; });
+
+        if (b.dimensions && b.dimensions.length) {
+            h += '<div class="chx-rca-tabs">' + b.dimensions.map((d, i) => '<button type="button" class="' + (i === 0 ? 'active' : '') + '" data-rca-tab="' + id + '|' + i + '">' + esc(d.label) + '</button>').join('') + '</div>';
+            b.dimensions.forEach((d, i) => {
+                h += '<div class="chx-rca-pane ' + (i === 0 ? 'active' : '') + '" data-rca-pane="' + id + '|' + i + '">' +
+                    '<div class="chx-rca-chart"><canvas></canvas></div>' +
+                    '<div class="chx-rca-note">Contribution bridge by ' + esc(d.label.toLowerCase()) + ' · ' + d.members.toLocaleString('en-IN') +
+                    ' members · top drivers explain ' + (d.top_share_pct === null ? '–' : d.top_share_pct.toFixed(0) + '%') + ' of the change</div>' +
+                    driverTable(d, u) + '</div>';
+            });
+        }
+
+        const pv = b.price_volume;
+        if (pv && Math.abs(pv.total_delta) > 0) {
+            const mx = Math.max(Math.abs(pv.volume_effect), Math.abs(pv.price_effect), 1);
+            const bar = (v) => '<div class="b"><i style="' + (v < 0 ? 'right:50%;' : 'left:50%;') + 'width:' + (Math.abs(v) / mx * 50) + '%;background:' + (v < 0 ? '#ef4444' : '#22c55e') + '"></i></div>';
+            h += '<div class="chx-pv"><div class="t">Price vs volume</div>' +
+                '<div class="row"><span class="l">Volume (units)</span>' + bar(pv.volume_effect) + '<span class="n ' + cls(pv.volume_effect) + '">' + fmtDelta(pv.volume_effect, u) + (pv.volume_share_pct === null ? '' : ' (' + pv.volume_share_pct.toFixed(0) + '%)') + '</span></div>' +
+                '<div class="row"><span class="l">Price / discount</span>' + bar(pv.price_effect) + '<span class="n ' + cls(pv.price_effect) + '">' + fmtDelta(pv.price_effect, u) + (pv.price_share_pct === null ? '' : ' (' + pv.price_share_pct.toFixed(0) + '%)') + '</span></div>' +
+                '<div class="chx-rca-note">Average selling price ' + fmtVal(pv.avg_selling_price_base, '₹') + ' → ' + fmtVal(pv.avg_selling_price_current, '₹') + ' per unit</div></div>';
+        }
+
+        if (b.daily && b.daily.length > 1) {
+            h += '<details class="chx-rca-daily" data-rca-daily="' + id + '"><summary>▸ Day-by-day comparison</summary><div class="chx-rca-chart" style="padding:0 .95rem .6rem;"><canvas></canvas></div></details>';
+        }
+
+        if (b.hypotheses && b.hypotheses.length) {
+            h += '<div class="chx-hyp"><div class="t"><i class="bi bi-lightbulb"></i> Possible explanations (data-backed hypotheses, not proven causes)</div>' +
+                b.hypotheses.map((x) => '<div class="item"><div><b>' + esc(x.title) + '</b><span>' + esc(x.evidence) + '</span></div></div>').join('') + '</div>';
+        }
+        h += '<div class="chx-rca-foot">' +
+            (b.reconciliation && b.reconciliation.ok ? '<span class="ok"><i class="bi bi-check-circle-fill"></i> Reconciled – drivers add up to the total change</span>' : '<span class="bad"><i class="bi bi-x-circle-fill"></i> ' + esc((b.reconciliation || {}).note || 'Reconciliation mismatch') + '</span>') +
+            '<span>Data through ' + esc(b.data_through) + '</span><span title="' + esc(b.definition || '') + '"><i class="bi bi-info-circle"></i> Definition</span></div></div>';
+        return h;
+    }
+
+    function drawWaterfall(canvas, allSteps, unit) {
+        if (!window.Chart) return;
+        const deltas = allSteps.filter((s) => s.kind !== 'total');
+        const net = deltas.reduce((a, s) => a + s.value, 0);
+        const steps = deltas.concat([{ label: 'Net change', value: net, kind: 'total' }]);
+        let run = 0; const data = [], colors = [], labels = [];
+        steps.forEach((s) => {
+            labels.push(s.label.length > 15 ? s.label.slice(0, 14) + '…' : s.label);
+            if (s.kind === 'total') { data.push([0, s.value]); colors.push('#6366f1'); }
+            else { const a = run, c = run + s.value; data.push([Math.min(a, c), Math.max(a, c)]); colors.push(s.value < 0 ? '#ef4444' : '#22c55e'); run = c; }
+        });
+        const labelPlugin = {
+            id: 'wfLabels',
+            afterDatasetsDraw(chart) {
+                const ctx = chart.ctx; ctx.save(); ctx.font = '600 10px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#334155';
+                chart.getDatasetMeta(0).data.forEach((bar, i) => {
+                    const s = steps[i]; const txt = fmtDelta(s.value, unit);
+                    const neg = data[i][1] <= 0 || (data[i][0] < 0 && s.value < 0);
+                    ctx.fillText(txt, bar.x, neg ? Math.max(bar.y, bar.base) + 13 : Math.min(bar.y, bar.base) - 5);
+                });
+                ctx.restore();
+            }
+        };
+        const ch = new Chart(canvas, {
+            type: 'bar',
+            data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderRadius: 5, borderSkipped: false, maxBarThickness: 64 }] },
+            options: {
+                responsive: true, maintainAspectRatio: false, layout: { padding: { top: 18, bottom: 14 } },
+                plugins: { legend: { display: false }, tooltip: { callbacks: { title: (c) => steps[c[0].dataIndex].label, label: (c) => { const s = steps[c.dataIndex]; return fmtDelta(s.value, unit) + (s.kind === 'total' ? ' (net change)' : ''); } } } },
+                scales: { y: { ticks: { callback: (v) => fmtAxis(v, unit), font: { size: 10 } }, grid: { color: '#f1f5f9' } }, x: { ticks: { font: { size: 10 }, maxRotation: 0, autoSkip: false }, grid: { display: false } } }
+            },
+            plugins: [labelPlugin]
+        });
+        rcaCharts.push(ch);
+    }
+
+    function drawDaily(canvas, b) {
+        if (!window.Chart) return;
+        const d = b.daily, u = b.unit;
+        const ch = new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: d.map((x) => 'Day ' + x.day),
+                datasets: [
+                    { label: 'Current (' + fmtDate(b.current.start) + '–' + fmtDate(b.current.end) + ')', data: d.map((x) => x.current), borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,.12)', fill: true, tension: .3, pointRadius: 2, borderWidth: 2 },
+                    { label: 'Base (' + fmtDate(b.base.start) + '–' + fmtDate(b.base.end) + ')', data: d.map((x) => x.base), borderColor: '#94a3b8', borderDash: [5, 4], tension: .3, pointRadius: 0, borderWidth: 2 }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+                plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } }, tooltip: { callbacks: { label: (c) => c.dataset.label.split(' (')[0] + ': ' + fmtVal(c.parsed.y, u) } } },
+                scales: { y: { ticks: { callback: (v) => fmtAxis(v, u), font: { size: 10 } }, grid: { color: '#f1f5f9' } }, x: { ticks: { font: { size: 10 } }, grid: { display: false } } }
+            }
+        });
+        rcaCharts.push(ch);
+    }
+
+    function initRca(root) {
+        root.querySelectorAll('.chx-rca').forEach((card) => {
+            const id = card.getAttribute('data-rca'); const b = rcaStore[id]; if (!b) return;
+            const first = card.querySelector('.chx-rca-pane.active');
+            if (first) drawPane(first, b);
+        });
+    }
+    function drawPane(pane, b) {
+        if (pane.dataset.drawn) return;
+        const idx = parseInt(pane.getAttribute('data-rca-pane').split('|')[1], 10);
+        const canvas = pane.querySelector('canvas');
+        if (canvas && b.dimensions[idx]) { drawWaterfall(canvas, b.dimensions[idx].waterfall, b.unit); pane.dataset.drawn = '1'; }
+    }
+    streamEl.addEventListener('click', (e) => {
+        const tab = e.target.closest('[data-rca-tab]');
+        if (!tab) return;
+        const key = tab.getAttribute('data-rca-tab'); const id = key.split('|')[0];
+        const card = tab.closest('.chx-rca');
+        card.querySelectorAll('[data-rca-tab]').forEach((t) => t.classList.toggle('active', t === tab));
+        card.querySelectorAll('[data-rca-pane]').forEach((p) => p.classList.toggle('active', p.getAttribute('data-rca-pane') === key));
+        const pane = card.querySelector('[data-rca-pane="' + key + '"]');
+        if (pane && rcaStore[id]) drawPane(pane, rcaStore[id]);
+    });
+    streamEl.addEventListener('toggle', (e) => {
+        const det = e.target.closest ? e.target.closest('[data-rca-daily]') : null;
+        if (!det || !det.open || det.dataset.drawn) return;
+        const b = rcaStore[det.getAttribute('data-rca-daily')];
+        if (b) { drawDaily(det.querySelector('canvas'), b); det.dataset.drawn = '1'; }
+    }, true);
+
+    function validationHTML(checks) {
+        if (!checks || !checks.length) return '';
+        return '<div class="chx-vchips">' + checks.map((c) => {
+            const ic = c.status === 'ok' ? 'check-circle-fill' : (c.status === 'warn' ? 'exclamation-triangle-fill' : 'x-circle-fill');
+            return '<span class="chx-vchip ' + c.status + '" title="' + esc(c.detail) + '"><i class="bi bi-' + ic + '"></i> ' + esc(c.name) + '</span>';
+        }).join('') + '</div>';
+    }
+
     function stepsHTML(steps) {
         if (!steps || !steps.length) return '';
         let h = '<details class="chx-steps"><summary><i class="bi bi-chevron-right"></i> How I got this (' + steps.length + ' step' + (steps.length > 1 ? 's' : '') + ')</summary>';
         steps.forEach((s, n) => {
             const isSql = s.tool === 'run_sql' || s.tool === 'query_uploaded_file';
             const srcLabel = s.source ? ' [' + esc(s.source) + ']' : '';
-            const toolName = s.tool === 'query_uploaded_file' ? 'Queried Uploaded File' : (s.tool === 'run_sql' ? 'ClickHouse SQL' : 'Inspected Table');
-            h += '<div class="chx-step"><div class="lbl">' + (n + 1) + '. ' + toolName + srcLabel +
+            const toolName = s.tool === 'query_uploaded_file' ? 'Queried Uploaded File' : (s.tool === 'run_sql' ? 'ClickHouse SQL' : (s.tool === 'explain_change' ? 'Root-cause analysis' : 'Inspected Table'));
+            h += '<div class="chx-step"><div class="lbl">' + (n + 1) + '. ' + (s.agent ? '<span class="chx-agent">' + esc(s.agent) + '</span> ' : '') + toolName + srcLabel +
                 (s.error ? ' <span class="bad"><i class="bi bi-x-circle-fill"></i> failed — retried</span>' : ' <span style="color:#16a34a"><i class="bi bi-check-circle-fill"></i></span>') + '</div>' +
+                validationHTML(s.validation) +
                 codeBlock(s.sql || '', isSql ? 'sql' : 'text') +
                 (s.error ? '<div style="font-size:.72rem;color:#b91c1c;margin-top:-.5rem;margin-bottom:.6rem;">' + esc(s.error.slice(0, 300)) + '</div>' : '') + '</div>';
         });
@@ -627,10 +886,13 @@
                     '<span>Analyzed ' + (finfo.type === 'image' ? 'image' : 'file') + ': <strong>' + esc(m.file_info.name) + '</strong> (' + esc(m.file_info.size_str) + metaExtra + ')</span></div>';
             }
             inner += '<div class="chx-md">' + renderMarkdown(m.content) + '</div>';
+            (m.ui_blocks || []).forEach((b, bi) => { if (b.type === 'rca') inner += rcaHTML(b, mi + '-' + bi); });
             (m.results || []).forEach((r, ri) => { inner += resultHTML(r, mi + ':' + ri); });
             inner += stepsHTML(m.steps);
             if (!m.error) {
+                const agents = [...new Set((m.steps || []).map((s) => s.agent).filter(Boolean))];
                 inner += '<div class="chx-meta">' +
+                    agents.map((a) => '<span class="agent-tag">' + esc(a) + '</span>').join('') +
                     (m.model ? '<span class="tag">' + esc(m.model) + '</span>' : '') +
                     (m.ms ? '<span>' + (m.ms / 1000).toFixed(1) + 's</span>' : '') +
                     '<span class="grow"></span><button type="button" data-copy-answer="' + mi + '"><i class="bi bi-clipboard"></i> Copy answer</button></div>';
@@ -638,9 +900,11 @@
             wrap.innerHTML = '<div class="chx-avatar"><i class="bi bi-robot"></i></div><div class="chx-card' + (m.error ? ' error' : '') + '">' + inner + '</div>';
         }
         streamEl.appendChild(wrap);
+        initRca(wrap);
     }
 
     function renderAll() {
+        rcaCharts.forEach((c) => { try { c.destroy(); } catch (e) { /* ignore */ } }); rcaCharts = [];
         streamEl.innerHTML = '';
         welcomeEl.style.display = messages.length ? 'none' : '';
         messages.forEach((m, i) => addMessageEl(m, i));
@@ -882,6 +1146,7 @@
                     role: 'assistant',
                     content: data.answer,
                     results: data.results,
+                    ui_blocks: data.ui_blocks,
                     steps: data.steps,
                     model: data.model,
                     ms: data.elapsed_ms,
