@@ -32,3 +32,4 @@ pgvector>=0.2.5
 mcp[cli]==1.28.1
 google-generativeai>=0.8.0
 pypdf>=5.0.0
+PyMySQL>=1.1.0

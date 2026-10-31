@@ -36,6 +36,8 @@ load_dotenv()
 from . import file_analyzer
 from .jazz import rca as jazz_rca
 from .jazz import validator as jazz_validator
+from .jazz import report_builder as jazz_report
+from .jazz import portal_guide as jazz_portal
 
 logger = logging.getLogger(__name__)
 
@@ -327,6 +329,10 @@ def build_system_prompt(file_ctx: Optional[Dict[str, Any]] = None) -> str:
     today = datetime.now().strftime("%Y-%m-%d")
     stock_txt = stock_ageing_guidance()
     analyst_txt = analyst_guidance()
+    try:
+        portal_txt = jazz_portal.index_text()
+    except Exception:  # noqa: BLE001
+        portal_txt = ""
     base_prompt = f"""You are **Jazz AI**, the assistant for the myG Loyalty portal – an expert in ClickHouse, business data analytics, and spreadsheets/documents/images (myG retail stores in Kerala, India; amounts are in Indian Rupees ₹). Today is {today}.
 
 You can answer ANY question related to:
@@ -344,6 +350,13 @@ You can answer ANY question related to:
 - Only read-only queries are permitted.
 - Use ClickHouse SQL dialect for `run_sql`.
 - Prefer aggregations, add ORDER BY and LIMIT (default LIMIT 50 unless the user wants everything). Never SELECT * on big tables without LIMIT.
+- REPORT / EXCEL REQUESTS: when the user asks for a report, workbook, "Excel", "advanced report", a multi-level / multi-sheet comparison (e.g. RBM → BDM → Branch, year-vs-year, drill-down)
+  or a full list that is bigger than a chat table, call `build_excel_report` ONCE with all sheets (max 8) instead of many `run_sql` calls. For each sheet write ONE complete ClickHouse query
+  (no LIMIT unless it is a Top-N sheet; use conditional aggregation like sumIf(..., year = 2025) / sumIf(..., year = 2026) to put both periods side by side, plus Change and Change % columns).
+  Column rules: name percentage columns with '%' or 'pct' and give them in percent points (12.5 = 12.5%); name change columns 'Change' / 'Change %' so they get green/red formatting; round money to 0 decimals, percentages to 1.
+  Call the tool exactly ONCE (never rebuild just to add insights): the Insights sheet is filled automatically with data-derived gainers/decliners per sheet, and any extra `insights` you pass are added on top.
+  The result returns a preview of every sheet and the auto insights: summarise those real numbers briefly. If a sheet reports an error, fix its SQL and rebuild with all sheets (the new file replaces the old one).
+  Typical sheets: RBM summary, BDM summary, Branch performance, full RBM-BDM-Branch drill-down. Afterwards tell the user the download card is shown below your answer and summarise the headline findings (never claim numbers you have not seen).
 - If a query fails, read the error, fix the SQL and retry (you have at most {MAX_TOOL_STEPS} tool calls per question).
 
 # Business conventions of this database
@@ -353,8 +366,11 @@ You can answer ANY question related to:
     NOT (upper(invoice_no) LIKE '%SMC%' OR upper(invoice_no) LIKE '%EI%' OR upper(branch) IN ('HEAD OFFICE','UG SMART CHOICE','3GH'))
 - azure_invoice_report = one row per invoice; azure_sales_report = one row per item sold (join on invoice_no);
   item_master (item_code → product/brand/category); branch_master (branch code → name, RBM, BDM, district).
+- RBM / BDM / district for sales: azure_invoice_report.branch and azure_sales_report.branch hold the BRANCH CODE (e.g. 'TBF'), so join `branch_master bm ON upper(trim(x.branch)) = upper(trim(bm.code))` (NOT branch_name) and SELECT bm.rbm AS RBM / bm.bdm AS BDM with explicit aliases. After building an RBM / BDM sheet, check the preview: if it shows 1 row or NULL names the join was wrong - fix and rebuild.
+- For Excel/report sheets alias every column with a clean header (e.g. AS `Sales Sep`, `Sales Oct`, `Sales Change`, `Sales Change %`). Never write download links or file paths in your answer - the download card appears automatically.
 {stock_txt}
 {analyst_txt}
+{portal_txt}
 # Answer style
 - Be concise, analytical, and executive-ready. Lead with the direct answer, followed by key metrics & insights.
 - Format money as ₹ with Indian grouping when natural (₹12,34,567), large totals may use Lakh/Crore in brackets.
@@ -466,6 +482,53 @@ def get_tools_declaration(file_ctx: Optional[Dict[str, Any]] = None) -> List[Dic
                 "required": ["current_start", "current_end"],
             },
         },
+        {
+            "name": "portal_page_info",
+            "description": (
+                "Explain ONE page of the myG portal's left sidebar (e.g. 'Stock Ageing Report', 'Executive Dashboard', 'RFM Segmentation', 'OSG Warranty Report'): "
+                "its purpose, filters, column headers, the tables it uses and the exact SQL its API runs. Call it FIRST when the user refers to a page / report / dashboard "
+                "by name or wants numbers that match what a page shows, then reproduce the numbers with run_sql."
+            ),
+            "parameters": {
+                "type": "OBJECT",
+                "properties": {"page": {"type": "STRING", "description": "Sidebar page name, e.g. 'Cohort Retention'."}},
+                "required": ["page"],
+            },
+        },
+        {
+            "name": "build_excel_report",
+            "description": (
+                "Build a downloadable, formatted multi-sheet Excel (.xlsx) report from several ClickHouse queries. Every sheet is queried IN FULL "
+                "(up to 200,000 rows each, no 500-row cap) and written to the file with styled headers, filters, frozen panes and green/red "
+                "formatting on change columns; an 'Insights' sheet is added first. Use for report / workbook / multi-level comparison / drill-down requests. "
+                "The user gets a download card automatically."
+            ),
+            "parameters": {
+                "type": "OBJECT",
+                "properties": {
+                    "title": {"type": "STRING", "description": "Report title, e.g. 'JAS 2025 vs JAS 2026'. Also used for the file name."},
+                    "sheets": {
+                        "type": "ARRAY",
+                        "description": "Up to 8 sheets, each with its own complete read-only ClickHouse query.",
+                        "items": {
+                            "type": "OBJECT",
+                            "properties": {
+                                "name": {"type": "STRING", "description": "Sheet name (max 28 chars), e.g. 'RBM', 'Branch Performance'."},
+                                "sql": {"type": "STRING", "description": "ONE complete ClickHouse SELECT/WITH statement producing this sheet's table."},
+                                "description": {"type": "STRING", "description": "One line explaining what the sheet shows."},
+                            },
+                            "required": ["name", "sql"],
+                        },
+                    },
+                    "insights": {
+                        "type": "ARRAY",
+                        "description": "Key findings for the Insights sheet, written from numbers actually returned by queries. Optional on first call.",
+                        "items": {"type": "STRING"},
+                    },
+                },
+                "required": ["title", "sheets"],
+            },
+        },
     ]
 
     if file_ctx and file_ctx.get("duckdb_conn"):
@@ -546,6 +609,55 @@ def _tool_explain_change(args: Dict[str, Any], ui_blocks: List[Dict[str, Any]]) 
         return {"error": f"Root-cause analysis failed: {e}"}
     ui_blocks.append({"type": "rca", **res})
     return jazz_rca.llm_view(res)
+
+
+def _tool_portal_page_info(args: Dict[str, Any]) -> Dict[str, Any]:
+    try:
+        return jazz_portal.page_info(str(args.get("page", "")))
+    except Exception as e:  # noqa: BLE001
+        logger.exception("portal_page_info failed")
+        return {"error": f"Could not read the page: {e}"}
+
+
+def _tool_build_excel_report(args: Dict[str, Any], ui_blocks: List[Dict[str, Any]], deadline: float) -> Dict[str, Any]:
+    try:
+        res = jazz_report.build_report(
+            title=args.get("title") or "Jazz AI Report",
+            sheets=args.get("sheets") or [],
+            insights=args.get("insights") or [],
+            deadline=deadline - 15,  # leave time for the model to write the final answer
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.exception("build_excel_report failed")
+        return {"error": f"Report build failed: {e}"}
+    if "error" in res and not res.get("report_id"):
+        return {"error": res["error"], "sheets": res.get("sheets", [])}
+    ui_blocks[:] = [b for b in ui_blocks if b.get("type") != "report_file"]  # a rebuild replaces the earlier card
+    ui_blocks.append({
+        "type": "report_file",
+        "report_id": res["report_id"],
+        "filename": res["filename"],
+        "title": res["title"],
+        "sheets": [{k: v for k, v in s.items() if k != "preview"} for s in res["sheets"]],
+        "total_rows": res["total_rows"],
+        "size_bytes": res["size_bytes"],
+    })
+    failed = [s for s in res["sheets"] if s.get("error")]
+    sheets_llm = []
+    for s in res["sheets"]:
+        d = {k: s.get(k) for k in ("name", "rows", "error") if s.get(k) not in (None, "")}
+        if s.get("preview"):
+            d["preview_first_rows"] = {"columns": s["preview"]["columns"], "rows": s["preview"]["rows"][:8]}
+        sheets_llm.append(d)
+    return {
+        "status": "built" if not failed else "built_with_errors",
+        "filename": res["filename"],
+        "total_rows": res["total_rows"],
+        "sheets": sheets_llm,
+        "auto_insights": res.get("auto_insights", []),
+        "note": "A download card for this workbook is shown to the user automatically. Use the previews (real numbers) for your summary. "
+                "If you need to add/refresh the Insights sheet or fix failed sheets, call build_excel_report again with ALL sheets and the insights.",
+    }
 
 
 def _tool_inspect_table(args: Dict[str, Any], ui_results: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -763,6 +875,14 @@ def ask(
                 result = _tool_explain_change(args, ui_blocks)
                 step = {"tool": name, "agent": "Root-Cause Analyst", "sql": json.dumps({k: v for k, v in args.items() if v}, ensure_ascii=False),
                         "source": "ClickHouse Cloud (statistical decomposition)"}
+            elif name == "portal_page_info":
+                result = _tool_portal_page_info(args)
+                step = {"tool": name, "agent": "Portal Guide", "sql": f"page: {args.get('page', '')}", "source": "Portal code"}
+            elif name == "build_excel_report":
+                result = _tool_build_excel_report(args, ui_blocks, deadline)
+                step = {"tool": name, "agent": "Report Builder",
+                        "sql": "\n\n".join(f"-- {s.get('name')}\n{s.get('sql')}" for s in (args.get('sheets') or []) if isinstance(s, dict)),
+                        "source": "ClickHouse Cloud → Excel"}
             elif name == "inspect_table":
                 result = _tool_inspect_table(args, ui_results)
                 step = {"tool": name, "agent": "Schema Explorer", "sql": f"inspect {args.get('table', '')}", "source": "ClickHouse Cloud"}

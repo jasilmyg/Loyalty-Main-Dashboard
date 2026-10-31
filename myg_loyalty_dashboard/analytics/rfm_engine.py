@@ -14,15 +14,8 @@ logger = logging.getLogger(__name__)
 
 
 def _get_ch_client():
-    import clickhouse_connect
-    return clickhouse_connect.get_client(
-        host=os.environ.get("CH_HOST", "ytoyqewr56.ap-south-1.aws.clickhouse.cloud"),
-        port=int(os.environ.get("CH_PORT", "8443")),
-        username=os.environ.get("CH_USER", "default"),
-        password=os.environ.get("CH_PASSWORD", "QyB2XKWS44Qt~"),
-        database=os.environ.get("CH_DATABASE", "default"),
-        secure=True, connect_timeout=30, send_receive_timeout=180,
-    )
+    from analytics.clickhouse_service import get_ch_client
+    return get_ch_client()
 
 
 # Source of truth for transactions: azure_invoice_report (one row per invoice).

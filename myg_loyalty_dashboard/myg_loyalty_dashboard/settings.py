@@ -59,6 +59,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    'analytics.db_engine_middleware.DBEngineCloneMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -156,7 +157,7 @@ AUTH_USER_MODEL = 'users.User'
 import os as _os
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+        'BACKEND': 'analytics.db_engine_middleware.EngineAwareFileBasedCache',
         'LOCATION': _os.path.join(BASE_DIR, '.cache'),
         'TIMEOUT': 3600,       # 1 hour — fresh enough; cleared on every data ingestion
         'OPTIONS': {
@@ -195,6 +196,13 @@ AUTHENTICATION_BACKENDS = [
     'users.backends.EnvAuthBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
+
+# StarRocks Analytics Configuration (loaded from .env — never hardcode secrets here)
+STARROCKS_HOST = os.environ.get('STARROCKS_HOST', '')
+STARROCKS_PORT = int(os.environ.get('STARROCKS_PORT', '9030'))
+STARROCKS_USER = os.environ.get('STARROCKS_USER', '')
+STARROCKS_PASSWORD = os.environ.get('STARROCKS_PASSWORD', '')
+STARROCKS_DATABASE = os.environ.get('STARROCKS_DATABASE', 'Loyalty_Analytics')
 
 # Hot reload trigger
 AZURE_BLOB_SAS_URL = _os.environ.get('AZURE_BLOB_SAS_URL', None)

@@ -1,0 +1,631 @@
+{
+ "generated_from": "sidebar of templates/base.html",
+ "pages": [
+  {
+   "url_name": "dashboard",
+   "label": "Sales Overview",
+   "path": "/",
+   "view": "DashboardView",
+   "template": "dashboard/index.html",
+   "apis": [],
+   "api_views": [],
+   "tables": [],
+   "title": ""
+  },
+  {
+   "url_name": "customers",
+   "label": "Customer Analytics",
+   "path": "/customers/",
+   "view": "CustomerAnalyticsView",
+   "template": "dashboard/customers.html",
+   "apis": [
+    "/api/v1/customer-frequency/",
+    "/api/v1/download/all-customers/",
+    "/api/v1/download/customer-frequency/",
+    "/api/v1/download/segment-customers/"
+   ],
+   "api_views": [
+    "CustomerAnalyticsView",
+    "FrequencyDistributionAPI"
+   ],
+   "tables": [
+    "azure_invoice_report"
+   ],
+   "title": ""
+  },
+  {
+   "url_name": "retail_analytics",
+   "label": "Retail Loyalty Report",
+   "path": "/retail-analytics/",
+   "view": "RetailAnalyticsView",
+   "template": "dashboard/retail_analytics.html",
+   "apis": [
+    "/api/v1/customer-frequency/",
+    "/api/v1/download/",
+    "/api/v1/download/retail-analytics/",
+    "/api/v1/fy-loyalty-report/",
+    "/api/v1/fy-sales-report/",
+    "/api/v1/retail-loyalty-advanced/"
+   ],
+   "api_views": [
+    "FYLoyaltyReportAPI",
+    "FYSalesReportAPI",
+    "FrequencyDistributionAPI",
+    "RetailAnalyticsView",
+    "RetailLoyaltyAdvancedReportAPI"
+   ],
+   "tables": [
+    "azure_invoice_report"
+   ],
+   "title": ""
+  },
+  {
+   "url_name": "loyalty_gap",
+   "label": "Loyalty & Gap Analysis",
+   "path": "/loyalty-gap/",
+   "view": "LoyaltyGapView",
+   "template": "dashboard/loyalty_gap.html",
+   "apis": [
+    "/api/v1/action-engine/",
+    "/api/v1/export/gap-analysis/",
+    "/api/v1/gap-segments/",
+    "/api/v1/loyalty-overview/"
+   ],
+   "api_views": [
+    "ActionEngineAPI",
+    "GapAnalysisAPI",
+    "LoyaltyOverviewAPI"
+   ],
+   "tables": [
+    "azure_invoice_report"
+   ],
+   "title": ""
+  },
+  {
+   "url_name": "rfm",
+   "label": "RFM Segmentation",
+   "path": "/rfm/",
+   "view": "RFMView",
+   "template": "dashboard/rfm.html",
+   "apis": [
+    "/api/v1/branches-list/",
+    "/api/v1/download/rfm/",
+    "/api/v1/monetary-quintiles/",
+    "/api/v1/rfm-segments/"
+   ],
+   "api_views": [
+    "BranchesAPI",
+    "MonetaryQuintilesAPI",
+    "RFMAnalysisAPI",
+    "RFMView"
+   ],
+   "tables": [
+    "azure_invoice_report",
+    "azure_sales_report"
+   ],
+   "title": ""
+  },
+  {
+   "url_name": "cohorts",
+   "label": "Cohort Retention",
+   "path": "/cohorts/",
+   "view": "CohortView",
+   "template": "dashboard/cohorts.html",
+   "apis": [
+    "/api/v1/yearly-cohorts/"
+   ],
+   "api_views": [
+    "CohortRetentionAPI",
+    "YearlyCohortAPI"
+   ],
+   "tables": [
+    "azure_invoice_report"
+   ],
+   "title": "Yearly Basis"
+  },
+  {
+   "url_name": "campaign_analysis",
+   "label": "Campaign Analysis",
+   "path": "/campaign-analysis/",
+   "view": "CampaignAnalysisView",
+   "template": "dashboard/campaign_analysis.html",
+   "apis": [
+    "/api/v1/campaign-analysis/",
+    "/api/v1/campaign-analysis/download-dormant/",
+    "/api/v1/campaign-analysis/download-loyalty/",
+    "/api/v1/campaign-analysis/download-resurrected/"
+   ],
+   "api_views": [
+    "CampaignAnalysisAPIView",
+    "CampaignAnalysisView",
+    "CampaignDormantDownloadAPIView",
+    "CampaignLoyaltyDownloadAPIView",
+    "CampaignResurrectedDownloadAPIView"
+   ],
+   "tables": [
+    "azure_invoice_report",
+    "sales_data"
+   ],
+   "title": "Dormant Customer Reactivation Analysis Rate:"
+  },
+  {
+   "url_name": "daily_new_repeat",
+   "label": "Daily New vs Repeat",
+   "path": "/daily-new-repeat/",
+   "view": "DailyNewRepeatView",
+   "template": "dashboard/daily_new_repeat.html",
+   "apis": [
+    "/api/v1/daily-new-repeat/"
+   ],
+   "api_views": [
+    "DailyNewRepeatAPIView",
+    "DailyNewRepeatView"
+   ],
+   "tables": [
+    "azure_invoice_report"
+   ],
+   "title": "&#128202; Daily New vs Repeat Customers &#8212; days"
+  },
+  {
+   "url_name": "redemption_analysis",
+   "label": "Redemption Analysis",
+   "path": "/redemption-analysis/",
+   "view": "RedemptionAnalysisView",
+   "template": "dashboard/redemption_analysis.html",
+   "apis": [
+    "/api/v1/redemption-analysis/"
+   ],
+   "api_views": [
+    "RedemptionAnalysisAPIView",
+    "RedemptionAnalysisView"
+   ],
+   "tables": [
+    "azure_invoice_report",
+    "sales_data"
+   ],
+   "title": ""
+  },
+  {
+   "url_name": "osg_sale_report",
+   "label": "OSG Warranty Report",
+   "path": "/osg-sale-report/",
+   "view": "OsgSaleReportView",
+   "template": "dashboard/osg_sale_report.html",
+   "apis": [
+    "/api/v1/osg-reconcile/",
+    "/api/v1/osg-sale-report/",
+    "/api/v1/osg-sale-report/download/"
+   ],
+   "api_views": [
+    "OsgReconciliationView",
+    "OsgSaleReportAPIView",
+    "OsgSaleReportDownloadView",
+    "OsgSaleReportView"
+   ],
+   "tables": [
+    "azure_invoice_report",
+    "azure_sales_report",
+    "branch_master",
+    "item_master",
+    "loyalty_user_data",
+    "mb_basket_kpis",
+    "sales_data"
+   ],
+   "title": "🛡️ OSG (ONSITEGO) Warranty Report Loading…"
+  },
+  {
+   "url_name": "target_executive",
+   "label": "Target Analysis Dashboard",
+   "path": "/target-executive/",
+   "view": "TargetExecutiveView",
+   "template": "dashboard/target_executive.html",
+   "apis": [],
+   "api_views": [],
+   "tables": [
+    "azure_sales_report",
+    "branch_master",
+    "mb_basket_kpis"
+   ],
+   "title": "Retail Repeat Customer Prediction Engine"
+  },
+  {
+   "url_name": "customer_propensity",
+   "label": "Customer Intelligence AI",
+   "path": "/customer-intelligence/",
+   "view": "CustomerPropensityView",
+   "template": "dashboard/customer_propensity.html",
+   "apis": [
+    "/api/v1/customer-propensity/rebuild/",
+    "/api/v1/customer-propensity/search/"
+   ],
+   "api_views": [
+    "CustomerPropensityRebuildAPIView",
+    "CustomerPropensitySearchAPIView"
+   ],
+   "tables": [
+    "azure_invoice_report",
+    "azure_sales_report",
+    "branch_master",
+    "item_master",
+    "mb_basket_kpis",
+    "sales_data"
+   ],
+   "title": "Customer-Level Prediction Engine (Level 3) Transitioning from basic aggregate repeat rates to direct probabilistic purchase forecasting. We score every single customer (5.17M actual accounts) in real-"
+  },
+  {
+   "url_name": "smart_next_visit",
+   "label": "Next-Visit Predictor",
+   "path": "/smart-next-visit/",
+   "view": "SmartNextVisitView",
+   "template": "dashboard/next_visit_predictor.html",
+   "apis": [
+    "/api/v1/smart-next-visit/",
+    "/api/v1/smart-next-visit/search/"
+   ],
+   "api_views": [
+    "SmartNextVisitAPIView",
+    "SmartNextVisitSearchAPIView",
+    "SmartNextVisitView"
+   ],
+   "tables": [
+    "azure_invoice_report",
+    "azure_sales_report",
+    "branch_master",
+    "item_master",
+    "mb_basket_kpis"
+   ],
+   "title": "Smart Next-Visit Predictor Customers in window"
+  },
+  {
+   "url_name": "ai_intelligence",
+   "label": "AI Intelligence Engine",
+   "path": "/ai-intelligence/",
+   "view": "AIIntelligenceView",
+   "template": "dashboard/ai_intelligence.html",
+   "apis": [
+    "/api/v1/ai-intelligence/"
+   ],
+   "api_views": [
+    "AIIntelligenceAPIView",
+    "AIIntelligenceView"
+   ],
+   "tables": [
+    "azure_sales_report",
+    "branch_master",
+    "mb_basket_kpis"
+   ],
+   "title": "AI Intelligence Engine"
+  },
+  {
+   "url_name": "enterprise_dashboard",
+   "label": "Executive Dashboard",
+   "path": "/enterprise-dashboard/",
+   "view": "EnterpriseDashboardView",
+   "template": "dashboard/enterprise_dashboard.html",
+   "apis": [
+    "/api/v1/enterprise-dashboard/",
+    "/api/v1/enterprise-dashboard/export/",
+    "/api/v1/enterprise-dashboard/growth-degrowth/",
+    "/api/v1/enterprise-dashboard/growth-degrowth/export/",
+    "/api/v1/special-event-reports/filters/"
+   ],
+   "api_views": [
+    "EnterpriseDashboardAPIView",
+    "EnterpriseDashboardExportAPIView",
+    "EnterpriseDashboardView",
+    "GrowthDegrowthAPIView",
+    "GrowthDegrowthExportAPIView",
+    "SpecialFiltersAPIView"
+   ],
+   "tables": [
+    "azure_invoice_report",
+    "azure_sales_report",
+    "branch_master",
+    "item_master"
+   ],
+   "title": ""
+  },
+  {
+   "url_name": "special_event_reports",
+   "label": "Special Event Reports",
+   "path": "/special-event-reports/",
+   "view": "SpecialEventReportsView",
+   "template": "dashboard/special_reports.html",
+   "apis": [
+    "/api/v1/enterprise-dashboard/",
+    "/api/v1/enterprise-dashboard/export/",
+    "/api/v1/special-event-reports/export-3-periods/",
+    "/api/v1/special-event-reports/export-custom-4/",
+    "/api/v1/special-event-reports/filters/"
+   ],
+   "api_views": [
+    "EnterpriseDashboardAPIView",
+    "EnterpriseDashboardExportAPIView",
+    "EnterpriseDashboardView",
+    "SpecialCustom4PeriodExportView",
+    "SpecialFiltersAPIView",
+    "SpecialThreePeriodExportView"
+   ],
+   "tables": [
+    "azure_invoice_report",
+    "azure_sales_report",
+    "branch_master",
+    "item_master"
+   ],
+   "title": ""
+  },
+  {
+   "url_name": "azure_analytics",
+   "label": "Ultimate Azure Analytics",
+   "path": "/azure-analytics/",
+   "view": "AzureAnalyticsDashboardView",
+   "template": "dashboard/azure_analytics.html",
+   "apis": [
+    "/api/v1/azure/branch-performance/",
+    "/api/v1/azure/category-performance/",
+    "/api/v1/azure/customer-cohorts/",
+    "/api/v1/azure/financier-trends/",
+    "/api/v1/azure/inventory-velocity/"
+   ],
+   "api_views": [
+    "AzureBranchPerformanceAPI",
+    "AzureCategoryPerformanceAPI",
+    "AzureCustomerCohortsAPI",
+    "AzureFinancierTrendsAPI",
+    "AzureInventoryVelocityAPI",
+    "BranchPerformanceAPI",
+    "CohortRetentionAPI",
+    "PerformanceDashboardView"
+   ],
+   "tables": [
+    "azure_invoice_report",
+    "azure_sales_report",
+    "branch_master",
+    "item_master",
+    "mb_basket_kpis"
+   ],
+   "title": ""
+  },
+  {
+   "url_name": "stock_ageing_report",
+   "label": "Stock Ageing Report",
+   "path": "/stock-ageing-report/",
+   "view": "StockAgeingReportPageView",
+   "template": "dashboard/stock_ageing_report.html",
+   "apis": [
+    "/api/v1/stock-ageing-report/",
+    "/api/v1/stock-ageing-report/export/"
+   ],
+   "api_views": [
+    "StockAgeingExportAPIView",
+    "StockAgeingReportAPIView",
+    "StockAgeingReportPageView"
+   ],
+   "tables": [
+    "branch_master",
+    "stock_ageing_report"
+   ],
+   "title": ""
+  },
+  {
+   "url_name": "stock_ageing_test",
+   "label": "Stock Ageing Test",
+   "path": "/stock-ageing-test/",
+   "view": "StockAgeingTestPageView",
+   "template": "dashboard/stock_ageing_test.html",
+   "apis": [
+    "/api/v1/stock-ageing-test/",
+    "/api/v1/stock-ageing-test/export/"
+   ],
+   "api_views": [
+    "StockAgeingTestAPIView",
+    "StockAgeingTestExportAPIView",
+    "StockAgeingTestPageView"
+   ],
+   "tables": [],
+   "title": ""
+  },
+  {
+   "url_name": "clickhouse_assistant",
+   "label": "Jazz AI",
+   "path": "/clickhouse/",
+   "view": "ClickHouseAssistantPage",
+   "template": "dashboard/clickhouse_assistant.html",
+   "apis": [
+    "/api/v1/clickhouse/chat/",
+    "/api/v1/clickhouse/schema/"
+   ],
+   "api_views": [
+    "ClickHouseAssistantChatAPI",
+    "ClickHouseAssistantSchemaAPI",
+    "EnterpriseAIAgentView"
+   ],
+   "tables": [
+    "azure_invoice_report",
+    "azure_sales_report",
+    "item_master",
+    "sales_data"
+   ],
+   "title": "Jazz AI I turn your questions into ClickHouse SQL, run them safely, and explain results. You can also"
+  },
+  {
+   "url_name": "future_sale_analysis",
+   "label": "Future Sale Analysis",
+   "path": "/future-sale-analysis/",
+   "view": "FutureSaleAnalysisView",
+   "template": "dashboard/future_sale_analysis.html",
+   "apis": [
+    "/api/v1/future-sale-analysis/"
+   ],
+   "api_views": [
+    "FutureSaleAnalysisAPIView",
+    "FutureSaleAnalysisView"
+   ],
+   "tables": [
+    "azure_invoice_report",
+    "azure_sales_report",
+    "item_master"
+   ],
+   "title": "&#x1F3EA; Future Stores Sale Analysis Selected store"
+  },
+  {
+   "url_name": "rca_dashboard",
+   "label": "Customer Review RCA",
+   "path": "/rca-dashboard/",
+   "view": "RcaDashboardView",
+   "template": "dashboard/rca_dashboard.html",
+   "apis": [
+    "/api/v1/rca-dashboard/"
+   ],
+   "api_views": [
+    "RcaDashboardAPIView",
+    "RcaDashboardView"
+   ],
+   "tables": [
+    "google_reviews"
+   ],
+   "title": "Customer Review RCA Dashboard AI-Powered Analysis of Customer Feedback, Sentiment & Root Causes Across All Reviews"
+  },
+  {
+   "url_name": "store_analysis_upload",
+   "label": "Store Excel Analysis",
+   "path": "/store-analysis/upload/",
+   "view": "StoreAnalysisUploadView",
+   "template": "dashboard/store_upload.html",
+   "apis": [
+    "/api/v1/store-analysis/process/"
+   ],
+   "api_views": [
+    "StoreAnalysisProcessAPIView"
+   ],
+   "tables": [
+    "azure_invoice_report",
+    "azure_sales_report",
+    "item_master",
+    "sales_data"
+   ],
+   "title": ""
+  },
+  {
+   "url_name": "category_analysis",
+   "label": "Category Analysis",
+   "path": "/category-analysis/",
+   "view": "CategoryAnalysisView",
+   "template": "dashboard/category_analysis.html",
+   "apis": [
+    "/api/v1/category-analysis/"
+   ],
+   "api_views": [
+    "CategoryAnalysisAPI"
+   ],
+   "tables": [
+    "azure_sales_report"
+   ],
+   "title": ""
+  },
+  {
+   "url_name": "product_penetration",
+   "label": "Product Penetration",
+   "path": "/product-penetration/",
+   "view": "ProductPenetrationView",
+   "template": "dashboard/product_penetration.html",
+   "apis": [
+    "/api/v1/product-penetration/"
+   ],
+   "api_views": [
+    "ProductPenetrationAPIView",
+    "ProductPenetrationView"
+   ],
+   "tables": [
+    "azure_invoice_report",
+    "azure_sales_report"
+   ],
+   "title": "Product Penetration Report"
+  },
+  {
+   "url_name": "mobile_ce_crosssell",
+   "label": "Mobile CE Reports",
+   "path": "/mobile-ce-crosssell/",
+   "view": "MobileCECrossSellView",
+   "template": "dashboard/index.html",
+   "apis": [],
+   "api_views": [],
+   "tables": [],
+   "title": ""
+  },
+  {
+   "url_name": "market_basket_dashboard",
+   "label": "Market Basket Analysis",
+   "path": "/",
+   "view": "MarketBasketDashboardView",
+   "template": "dashboard/market_basket.html",
+   "apis": [],
+   "api_views": [],
+   "tables": [
+    "azure_sales_report",
+    "branch_master",
+    "mb_basket_kpis"
+   ],
+   "title": "Market Basket & Cross-Sell Analysis Invoices analyzed"
+  },
+  {
+   "url_name": "she_start",
+   "label": "SHE START Dashboard",
+   "path": "/she-start/",
+   "view": "SheStartView",
+   "template": "dashboard/she_start.html",
+   "apis": [
+    "/api/v1/she-start/data/",
+    "/api/v1/she-start/save-score/"
+   ],
+   "api_views": [
+    "SheStartDataAPIView",
+    "SheStartSaveScoreAPIView"
+   ],
+   "tables": [
+    "azure_invoice_report",
+    "azure_sales_report",
+    "item_master",
+    "sales_data"
+   ],
+   "title": ""
+  },
+  {
+   "url_name": "she_start_detailed",
+   "label": "SHE START Detailed Report",
+   "path": "/she-start-detailed/",
+   "view": "SheStartDetailedView",
+   "template": "dashboard/she_start_detailed.html",
+   "apis": [
+    "/api/v1/she-start-detailed/data/"
+   ],
+   "api_views": [
+    "SheStartDetailedDataAPIView"
+   ],
+   "tables": [],
+   "title": "SHE START Detailed Report Breakdown of individual panelist scores and final adjusted average."
+  },
+  {
+   "url_name": "db_manager",
+   "label": "DB Manager",
+   "path": "/db-manager/",
+   "view": "DBManagerView",
+   "template": "dashboard/db_manager.html",
+   "apis": [
+    "/api/v1/db-manager/",
+    "/api/v1/db-manager/refresh-mvs/"
+   ],
+   "api_views": [
+    "DBManagerAPI",
+    "DBManagerRefreshMVsView"
+   ],
+   "tables": [
+    "azure_invoice_report",
+    "azure_sales_report",
+    "item_master",
+    "sales_data"
+   ],
+   "title": "Enter the access password to view the database records."
+  }
+ ]
+}

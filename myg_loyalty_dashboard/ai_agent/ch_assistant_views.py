@@ -1,6 +1,7 @@
 """Views for the ClickHouse Assistant (page + JSON APIs)."""
 import json
 import logging
+import re
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
@@ -121,3 +122,19 @@ class ClickHouseAssistantSchemaAPI(_AssistantAccessMixin, View):
             for t in data["tables"]
         ]
         return JsonResponse({"tables": slim, "loaded_at": data["loaded_at"]})
+
+
+class ClickHouseAssistantReportDownload(_AssistantAccessMixin, View):
+    """GET → download a workbook built by Jazz's `build_excel_report` tool (?name= sets the file name)."""
+
+    def get(self, request, report_id, *args, **kwargs):
+        from django.http import FileResponse, Http404
+        from .services.jazz import report_builder
+        path = report_builder.path_for(report_id)
+        if not path:
+            raise Http404("Report expired or not found. Ask Jazz AI to build it again.")
+        name = re.sub(r"[^A-Za-z0-9 _.-]+", "", request.GET.get("name", "")).strip() or "Jazz_Report.xlsx"
+        if not name.lower().endswith(".xlsx"):
+            name += ".xlsx"
+        return FileResponse(open(path, "rb"), as_attachment=True, filename=name,
+                            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")

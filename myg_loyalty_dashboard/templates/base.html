@@ -4,7 +4,130 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>myG Loyalty Analytics</title>
+    <title>{% if request.db_engine == 'starrocks' %}[StarRocks Clone] {% endif %}myG Loyalty Analytics</title>
+    <script>
+    (function() {
+        window.ACTIVE_DB_ENGINE = "{{ request.db_engine|default:'clickhouse' }}";
+        window.IS_SR_CLONE_URL = window.location.pathname === '/sr' || window.location.pathname.startsWith('/sr/');
+        window.CLEAN_PORTAL_PATH = "{{ request.clean_portal_path|default:request.path }}";
+        window.SSR_DB_TELEMETRY = /*__SSR_DB_TELEMETRY__*/null;
+        window.__dbFetchLogs = [];
+
+        // Default Raw DB Speed (Bypass Cache) to ON so database fetch speed analysis is live out of the box
+        if (sessionStorage.getItem('myg_bench_nocache') === null) {
+            sessionStorage.setItem('myg_bench_nocache', '1');
+        }
+        window.isBenchNoCache = function() {
+            return sessionStorage.getItem('myg_bench_nocache') === '1';
+        };
+
+        function isSameOriginApi(urlStr) {
+            if (!urlStr || typeof urlStr !== 'string') return false;
+            if (urlStr.startsWith('http://') || urlStr.startsWith('https://')) {
+                return urlStr.startsWith(window.location.origin + '/');
+            }
+            return urlStr.startsWith('/');
+        }
+
+        function recordApiTelemetry(entry) {
+            window.__dbFetchLogs.push(entry);
+            if (typeof window.__refreshDbTelemetryUI === 'function') {
+                window.__refreshDbTelemetryUI();
+            }
+        }
+
+        // 1. Intercept window.fetch for automatic engine header + live speed telemetry
+        const _origFetch = window.fetch.bind(window);
+        window.fetch = async function(input, init) {
+            const rawUrl = (typeof input === 'string') ? input : (input && input.url ? input.url : '');
+            if (!isSameOriginApi(rawUrl)) {
+                return _origFetch(input, init);
+            }
+            const opts = Object.assign({}, init || {});
+            const hdrs = new Headers(opts.headers || (typeof input !== 'string' && input && input.headers ? input.headers : undefined) || {});
+            const isCompareProbe = Boolean(opts._benchCompare);
+            delete opts._benchCompare;
+
+            if (!hdrs.has('X-DB-Engine')) {
+                hdrs.set('X-DB-Engine', window.ACTIVE_DB_ENGINE);
+            }
+            if (!hdrs.has('X-Bypass-Cache') && window.isBenchNoCache()) {
+                hdrs.set('X-Bypass-Cache', '1');
+            }
+            opts.headers = hdrs;
+
+            const t0 = performance.now();
+            const res = await _origFetch(input, opts);
+            const clientMs = performance.now() - t0;
+
+            const engineUsed = res.headers.get('X-DB-Engine') || hdrs.get('X-DB-Engine') || window.ACTIVE_DB_ENGINE;
+            const sqlMs = parseFloat(res.headers.get('X-DB-SQL-Time-Ms') || '0') || 0;
+            const sqlCount = parseInt(res.headers.get('X-DB-SQL-Count') || '0', 10) || 0;
+            const rowsFetched = parseInt(res.headers.get('X-DB-Rows-Fetched') || '0', 10) || 0;
+            const serverMs = parseFloat(res.headers.get('X-Server-Total-Ms') || '0') || clientMs;
+            const cacheBypassed = res.headers.get('X-Cache-Bypassed') === '1';
+
+            if (!isCompareProbe) {
+                recordApiTelemetry({
+                    type: 'API',
+                    method: (opts.method || 'GET').toUpperCase(),
+                    url: rawUrl,
+                    engine: engineUsed,
+                    sqlMs: sqlMs,
+                    serverMs: serverMs,
+                    clientMs: Math.round(clientMs * 100) / 100,
+                    sqlCount: sqlCount,
+                    rows: rowsFetched,
+                    status: res.status,
+                    cacheBypassed: cacheBypassed,
+                    initSnapshot: { method: (opts.method || 'GET').toUpperCase(), body: opts.body || null }
+                });
+            }
+            return res;
+        };
+
+        // 2. Intercept XMLHttpRequest for legacy AJAX calls
+        const _origXhrOpen = XMLHttpRequest.prototype.open;
+        const _origXhrSend = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.open = function(method, url) {
+            this.__benchMethod = method || 'GET';
+            this.__benchUrl = String(url || '');
+            return _origXhrOpen.apply(this, arguments);
+        };
+        XMLHttpRequest.prototype.send = function() {
+            if (isSameOriginApi(this.__benchUrl)) {
+                try {
+                    this.setRequestHeader('X-DB-Engine', window.ACTIVE_DB_ENGINE);
+                    if (window.isBenchNoCache()) {
+                        this.setRequestHeader('X-Bypass-Cache', '1');
+                    }
+                } catch (e) {}
+                const t0 = performance.now();
+                this.addEventListener('loadend', () => {
+                    const clientMs = performance.now() - t0;
+                    const sqlMs = parseFloat(this.getResponseHeader('X-DB-SQL-Time-Ms') || '0') || 0;
+                    const sqlCount = parseInt(this.getResponseHeader('X-DB-SQL-Count') || '0', 10) || 0;
+                    const rowsFetched = parseInt(this.getResponseHeader('X-DB-Rows-Fetched') || '0', 10) || 0;
+                    const serverMs = parseFloat(this.getResponseHeader('X-Server-Total-Ms') || '0') || clientMs;
+                    recordApiTelemetry({
+                        type: 'XHR',
+                        method: String(this.__benchMethod).toUpperCase(),
+                        url: this.__benchUrl,
+                        engine: this.getResponseHeader('X-DB-Engine') || window.ACTIVE_DB_ENGINE,
+                        sqlMs: sqlMs,
+                        serverMs: serverMs,
+                        clientMs: Math.round(clientMs * 100) / 100,
+                        sqlCount: sqlCount,
+                        rows: rowsFetched,
+                        status: this.status,
+                        cacheBypassed: this.getResponseHeader('X-Cache-Bypassed') === '1'
+                    });
+                });
+            }
+            return _origXhrSend.apply(this, arguments);
+        };
+    })();
+    </script>
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- Bootstrap CSS -->
@@ -456,6 +579,115 @@
         .dcd-status.success { background: #d1fae5; color: #065f46; }
         .dcd-status.error   { background: #fee2e2; color: #991b1b; }
         .dcd-status.info    { background: #eff6ff; color: #1e40af; }
+
+        /* ── Dual-Engine Portal Switcher & Speed Benchmark Bar ── */
+        .db-switcher-bar {
+            background: #ffffff;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 0.7rem 1rem;
+            margin-bottom: 1.1rem;
+            box-shadow: 0 4px 18px rgba(15, 23, 42, 0.04);
+        }
+        .db-switcher-bar.sr-mode {
+            background: linear-gradient(135deg, #f0f9ff 0%, #ffffff 55%, #eef2ff 100%);
+            border-color: #7dd3fc;
+            box-shadow: 0 6px 22px rgba(2, 132, 199, 0.10);
+        }
+        .db-tab-group {
+            display: inline-flex;
+            background: #f1f5f9;
+            padding: 4px;
+            border-radius: 12px;
+            gap: 4px;
+        }
+        .db-tab-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 0.42rem 0.85rem;
+            border-radius: 9px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-decoration: none;
+            color: #475569;
+            transition: all 0.18s ease;
+            border: 1px solid transparent;
+            white-space: nowrap;
+        }
+        .db-tab-pill:hover {
+            color: #0f172a;
+            background: rgba(255,255,255,0.7);
+        }
+        .db-tab-pill.active-ch {
+            background: #ffffff;
+            color: #ea580c;
+            border-color: #fed7aa;
+            box-shadow: 0 2px 8px rgba(234, 88, 12, 0.12);
+        }
+        .db-tab-pill.active-sr {
+            background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
+            color: #ffffff;
+            border-color: #0284c7;
+            box-shadow: 0 3px 12px rgba(37, 99, 235, 0.25);
+        }
+        .db-ext-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            color: #64748b;
+            font-size: 0.72rem;
+            text-decoration: none;
+            transition: background 0.15s, color 0.15s;
+        }
+        .db-ext-link:hover {
+            background: #e2e8f0;
+            color: #0f172a;
+        }
+        .db-metric-chip {
+            display: inline-flex;
+            flex-direction: column;
+            padding: 0.28rem 0.72rem;
+            border-radius: 10px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            min-width: 112px;
+        }
+        .db-metric-chip .lbl {
+            font-size: 0.63rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            font-weight: 700;
+            color: #64748b;
+        }
+        .db-metric-chip .val {
+            font-size: 0.95rem;
+            font-weight: 800;
+            color: #0f172a;
+            font-variant-numeric: tabular-nums;
+        }
+        .db-compare-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0.36rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.76rem;
+            font-weight: 700;
+            background: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+            white-space: nowrap;
+        }
+        .db-drawer {
+            margin-top: 0.7rem;
+            padding-top: 0.7rem;
+            border-top: 1px dashed #cbd5e1;
+            font-size: 0.78rem;
+        }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -467,9 +699,15 @@
         <!-- Logo Area -->
         <div class="mb-4 mt-4" style="padding-left: 1.5rem; text-align: center;">
             <img src="{% static 'logo.png' %}" alt="myG FUTURE Logo" style="height: 65px; object-fit: contain; margin-bottom: 0.5rem; display: block; margin-left: auto; margin-right: auto;">
+            {% if request.db_engine == 'starrocks' %}
+            <span class="badge mt-2" style="background:#e0f2fe; color:#0369a1; font-size: 0.63rem; border: 1px solid #7dd3fc; padding: 4px 10px; border-radius: 6px; display: inline-block; font-weight:700;">
+                <i class="bi bi-hdd-network-fill me-1"></i> StarRocks (Loyalty_Analytics)
+            </span>
+            {% else %}
             <span class="badge bg-success-subtle text-success mt-2" style="font-size: 0.63rem; border: 1px solid #a7f3d0; padding: 4px 10px; border-radius: 6px; display: inline-block;">
                 <i class="bi bi-cloud-check-fill me-1"></i> Data Live (Sync Active)
             </span>
+            {% endif %}
         </div>
 
         {% if request.user.username != 'shestart' and request.user.username != 'mygusers' and request.user.username != 'myguser' %}
@@ -820,9 +1058,118 @@
 
     <!-- Main Content -->
     <main class="main-content w-100">
+        <!-- Dual-Engine Portal Switcher (Original ClickHouse vs Clone Test StarRocks) & Live Fetch Speed Analyzer -->
+        <div id="db-switcher-bar" class="db-switcher-bar {% if request.db_engine == 'starrocks' %}sr-mode{% endif %}">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <!-- Left: Original vs Clone Test Tab Switcher -->
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <div class="db-tab-group" role="tablist" aria-label="Database Portal Switcher">
+                        <a id="tab-switch-ch" data-no-sr-rewrite="1"
+                           href="{{ request.clean_portal_path|default:'/' }}"
+                           class="db-tab-pill {% if request.db_engine != 'starrocks' %}active-ch{% endif %}"
+                           title="Switch to Original Portal (ClickHouse Cloud)">
+                            <i class="bi bi-lightning-charge-fill"></i>
+                            <span>Original (ClickHouse)</span>
+                        </a>
+                        <a id="tab-open-ch-new" data-no-sr-rewrite="1" target="_blank"
+                           href="{{ request.clean_portal_path|default:'/' }}"
+                           class="db-ext-link" title="Open Original (ClickHouse) in a new browser tab">
+                            <i class="bi bi-box-arrow-up-right"></i>
+                        </a>
+                        <a id="tab-switch-sr" data-no-sr-rewrite="1"
+                           href="/sr{{ request.clean_portal_path|default:'/' }}"
+                           class="db-tab-pill {% if request.db_engine == 'starrocks' %}active-sr{% endif %}"
+                           title="Switch to Clone Test Portal (StarRocks · Loyalty_Analytics)">
+                            <i class="bi bi-hdd-network-fill"></i>
+                            <span>Clone Test (StarRocks)</span>
+                        </a>
+                        <a id="tab-open-sr-new" data-no-sr-rewrite="1" target="_blank"
+                           href="/sr{{ request.clean_portal_path|default:'/' }}"
+                           class="db-ext-link" title="Open Clone Test (StarRocks) in a new browser tab">
+                            <i class="bi bi-box-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Center: Live Fetch Speed Telemetry -->
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <div class="db-metric-chip" title="Pure SQL execution time inside the active database engine">
+                        <span class="lbl">DB SQL Time</span>
+                        <span class="val" id="db-stat-sql-ms">— ms</span>
+                    </div>
+                    <div class="db-metric-chip" title="End-to-end HTTP fetch / page response time">
+                        <span class="lbl">Total Fetch Time</span>
+                        <span class="val" id="db-stat-fetch-ms">— ms</span>
+                    </div>
+                    <div class="db-metric-chip" style="min-width:98px;" title="Number of SQL queries executed & rows fetched">
+                        <span class="lbl">Queries · Rows</span>
+                        <span class="val" id="db-stat-qcount">0 · 0</span>
+                    </div>
+                    <div id="db-compare-pill" class="db-compare-badge" style="display:none;"></div>
+                </div>
+
+                <!-- Right: Live Benchmark Controls -->
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <div class="form-check form-switch m-0 d-flex align-items-center gap-1" title="Bypass Django cache so every request measures real live ClickHouse / StarRocks query speed">
+                        <input class="form-check-input" type="checkbox" role="switch" id="db-nocache-toggle" style="cursor:pointer;">
+                        <label class="form-check-label fw-semibold" for="db-nocache-toggle" style="font-size:0.75rem; color:#334155; cursor:pointer;">
+                            ⚡ Raw DB Speed
+                        </label>
+                    </div>
+                    <button type="button" id="btn-compare-engines" class="btn btn-sm fw-bold"
+                            onclick="window.runHeadToHeadBenchmark()"
+                            style="background:#0f172a; color:#fff; border-radius:8px; font-size:0.75rem; padding:0.32rem 0.7rem;"
+                            title="Run current page queries live against BOTH ClickHouse & StarRocks and compare speed">
+                        <i class="bi bi-speedometer2 me-1"></i> Compare CH vs SR
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary fw-semibold"
+                            onclick="window.toggleDbSpeedDrawer()"
+                            style="border-radius:8px; font-size:0.75rem; padding:0.32rem 0.65rem;">
+                        <span id="btn-db-logs-label">Details ▾</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Expandable Per-Query / Side-by-Side Comparison Drawer -->
+            <div id="db-speed-drawer" class="db-drawer" style="display:none;">
+                <div id="db-head2head-results" class="mb-2" style="display:none;"></div>
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <strong style="color:#1e293b;">
+                        Active Connection:
+                        {% if request.db_engine == 'starrocks' %}
+                            <span class="text-primary">StarRocks 4.1.6 · Database: <code>Loyalty_Analytics</code></span>
+                        {% else %}
+                            <span style="color:#ea580c;">ClickHouse Cloud · Database: <code>default</code></span>
+                        {% endif %}
+                    </strong>
+                    <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" style="font-size:0.74rem;" onclick="window.location.reload()">
+                        <i class="bi bi-arrow-clockwise"></i> Reload Page Benchmark
+                    </button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered align-middle mb-0" style="font-size:0.74rem; background:#fff;">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Source</th>
+                                <th>Endpoint / Route</th>
+                                <th>Engine</th>
+                                <th class="text-end">DB SQL (ms)</th>
+                                <th class="text-end">Server (ms)</th>
+                                <th class="text-end">Round-Trip (ms)</th>
+                                <th class="text-end">SQL Queries</th>
+                                <th class="text-end">Rows</th>
+                                <th class="text-center">Mode</th>
+                            </tr>
+                        </thead>
+                        <tbody id="db-telemetry-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <!-- Global Filters & Top Nav -->
         <div class="filter-bar d-flex justify-content-between align-items-center flex-wrap gap-3">
-            {% if request.user.username != 'shestart' and request.resolver_match.url_name != 'stock_ageing_report' and request.resolver_match.url_name != 'rca_dashboard' %}
+            {% if request.user.username != 'shestart' and request.resolver_match.url_name != 'stock_ageing_report' and request.resolver_match.url_name != 'stock_ageing_test' and request.resolver_match.url_name != 'rca_dashboard' %}
             <form id="global-filter-form" class="row g-2 align-items-center flex-grow-1">
                 <div class="col-md-2">
                     <input type="date" class="form-control" name="start_date" id="filter-start" placeholder="Start Date">
@@ -1273,6 +1620,389 @@ async function downloadDormantData() {
         setTimeout(() => { status.style.display = 'none'; }, 6000);
     }
 }
+</script>
+
+<script>
+/* ── Dual-Engine Portal Switcher & Live Fetch Speed Analyzer Controller ── */
+(function() {
+    const cleanPath = window.CLEAN_PORTAL_PATH || '/';
+    const activeEngine = window.ACTIVE_DB_ENGINE || 'clickhouse';
+
+    function buildSwitchHref(targetEngine) {
+        const params = new URLSearchParams(window.location.search);
+        params.delete('db_engine');
+        if (window.isBenchNoCache()) {
+            params.set('nocache', '1');
+        } else {
+            params.delete('nocache');
+        }
+        const qs = params.toString();
+        const base = (targetEngine === 'starrocks')
+            ? ('/sr' + (cleanPath.startsWith('/') ? cleanPath : '/' + cleanPath))
+            : (cleanPath.startsWith('/') ? cleanPath : '/' + cleanPath);
+        return base + (qs ? ('?' + qs) : '');
+    }
+
+    function syncTabSwitcherLinks() {
+        const chHref = buildSwitchHref('clickhouse');
+        const srHref = buildSwitchHref('starrocks');
+        const elCh = document.getElementById('tab-switch-ch');
+        const elChNew = document.getElementById('tab-open-ch-new');
+        const elSr = document.getElementById('tab-switch-sr');
+        const elSrNew = document.getElementById('tab-open-sr-new');
+        if (elCh) elCh.href = chHref;
+        if (elChNew) elChNew.href = chHref;
+        if (elSr) elSr.href = srHref;
+        if (elSrNew) elSrNew.href = srHref;
+    }
+
+    function shouldRewriteCloneUrl(href) {
+        if (!href || !href.startsWith('/')) return false;
+        if (href === '/sr' || href.startsWith('/sr/')) return false;
+        if (href.startsWith('/static/') || href.startsWith('/accounts/') || href.startsWith('/admin/')) return false;
+        return true;
+    }
+
+    function rewriteCloneAnchors(root) {
+        if (!window.IS_SR_CLONE_URL && activeEngine !== 'starrocks') return;
+        (root || document).querySelectorAll('a[href]').forEach(a => {
+            if (a.dataset && a.dataset.noSrRewrite) return;
+            const rawHref = a.getAttribute('href');
+            if (shouldRewriteCloneUrl(rawHref)) {
+                a.setAttribute('href', '/sr' + rawHref);
+            }
+        });
+    }
+
+    // Delegated click guard so dynamically rendered links also stay in /sr/... mode
+    document.addEventListener('click', function(e) {
+        if (!window.IS_SR_CLONE_URL && activeEngine !== 'starrocks') return;
+        const a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+        if (!a || (a.dataset && a.dataset.noSrRewrite)) return;
+        const rawHref = a.getAttribute('href');
+        if (shouldRewriteCloneUrl(rawHref)) {
+            a.setAttribute('href', '/sr' + rawHref);
+        }
+    }, true);
+
+    window.toggleDbSpeedDrawer = function(forceOpen) {
+        const dr = document.getElementById('db-speed-drawer');
+        const lbl = document.getElementById('btn-db-logs-label');
+        if (!dr) return;
+        const show = (typeof forceOpen === 'boolean') ? forceOpen : (dr.style.display === 'none');
+        dr.style.display = show ? 'block' : 'none';
+        if (lbl) {
+            const n = (window.__dbFetchLogs ? window.__dbFetchLogs.length : 0) + (window.SSR_DB_TELEMETRY ? 1 : 0);
+            lbl.textContent = show ? `Details (${n}) ▴` : `Details (${n}) ▾`;
+        }
+    };
+
+    function fmtMs(v) {
+        return (Number(v) || 0).toFixed(1) + ' ms';
+    }
+
+    function updateComparisonBadge(curTotals) {
+        const pill = document.getElementById('db-compare-pill');
+        if (!pill) return;
+        const modeKey = window.isBenchNoCache() ? 'raw' : 'cached';
+        const storagePrefix = `myg_speed::${cleanPath}::${modeKey}::`;
+        if (curTotals.sqlCount > 0 || curTotals.fetchMs > 0) {
+            try {
+                sessionStorage.setItem(storagePrefix + activeEngine, JSON.stringify(curTotals));
+            } catch (e) {}
+        }
+
+        let chSaved = null, srSaved = null;
+        try {
+            chSaved = JSON.parse(sessionStorage.getItem(storagePrefix + 'clickhouse') || 'null');
+            srSaved = JSON.parse(sessionStorage.getItem(storagePrefix + 'starrocks') || 'null');
+        } catch (e) {}
+
+        if (!chSaved || !srSaved) {
+            pill.style.display = 'none';
+            return;
+        }
+
+        const useSql = (chSaved.sqlMs > 0 && srSaved.sqlMs > 0);
+        const chVal = useSql ? chSaved.sqlMs : chSaved.fetchMs;
+        const srVal = useSql ? srSaved.sqlMs : srSaved.fetchMs;
+        const metricName = useSql ? 'SQL' : 'Fetch';
+        if (chVal <= 0 || srVal <= 0) {
+            pill.style.display = 'none';
+            return;
+        }
+
+        let winnerTxt = '';
+        if (srVal < chVal) {
+            const mult = (chVal / srVal).toFixed(2);
+            pill.style.background = '#ecfdf5';
+            pill.style.color = '#065f46';
+            pill.style.borderColor = '#a7f3d0';
+            winnerTxt = `StarRocks ${mult}× faster`;
+        } else {
+            const mult = (srVal / chVal).toFixed(2);
+            pill.style.background = '#fff7ed';
+            pill.style.color = '#9a3412';
+            pill.style.borderColor = '#fed7aa';
+            winnerTxt = `ClickHouse ${mult}× faster`;
+        }
+        pill.innerHTML = `<i class="bi bi-trophy-fill"></i> CH ${metricName}: ${chVal.toFixed(0)} ms vs SR: ${srVal.toFixed(0)} ms · ${winnerTxt}`;
+        pill.style.display = 'inline-flex';
+    }
+
+    window.__refreshDbTelemetryUI = function() {
+        const ssr = window.SSR_DB_TELEMETRY;
+        const logs = window.__dbFetchLogs || [];
+
+        let totalSqlMs = ssr ? (Number(ssr.sql_time_ms) || 0) : 0;
+        let totalFetchMs = ssr ? (Number(ssr.server_total_ms) || 0) : 0;
+        let totalQueries = ssr ? (Number(ssr.query_count) || 0) : 0;
+        let totalRows = ssr ? (Number(ssr.total_rows) || 0) : 0;
+
+        logs.forEach(item => {
+            totalSqlMs += Number(item.sqlMs) || 0;
+            totalFetchMs += Number(item.clientMs) || 0;
+            totalQueries += Number(item.sqlCount) || 0;
+            totalRows += Number(item.rows) || 0;
+        });
+
+        const elSql = document.getElementById('db-stat-sql-ms');
+        const elFetch = document.getElementById('db-stat-fetch-ms');
+        const elQ = document.getElementById('db-stat-qcount');
+        const lbl = document.getElementById('btn-db-logs-label');
+
+        if (elSql) elSql.textContent = fmtMs(totalSqlMs);
+        if (elFetch) elFetch.textContent = fmtMs(totalFetchMs);
+        if (elQ) elQ.textContent = `${totalQueries} · ${totalRows.toLocaleString()}`;
+
+        const countEntries = logs.length + (ssr ? 1 : 0);
+        const dr = document.getElementById('db-speed-drawer');
+        if (lbl && dr) {
+            lbl.textContent = (dr.style.display === 'none') ? `Details (${countEntries}) ▾` : `Details (${countEntries}) ▴`;
+        }
+
+        // Populate table rows
+        const tbody = document.getElementById('db-telemetry-tbody');
+        if (tbody) {
+            const rowsHtml = [];
+            if (ssr) {
+                const engBadge = ssr.engine === 'starrocks'
+                    ? '<span class="badge bg-primary">StarRocks</span>'
+                    : '<span class="badge" style="background:#ea580c;">ClickHouse</span>';
+                const modeBadge = ssr.cache_bypassed
+                    ? '<span class="badge bg-warning text-dark">LIVE DB</span>'
+                    : '<span class="badge bg-secondary">STD</span>';
+                rowsHtml.push(`
+                    <tr>
+                        <td><span class="badge bg-light text-dark border">SSR Page</span></td>
+                        <td><code>${cleanPath}</code></td>
+                        <td>${engBadge}</td>
+                        <td class="text-end fw-bold">${Number(ssr.sql_time_ms).toFixed(2)}</td>
+                        <td class="text-end">${Number(ssr.server_total_ms).toFixed(2)}</td>
+                        <td class="text-end">${Number(ssr.server_total_ms).toFixed(2)}</td>
+                        <td class="text-end">${ssr.query_count}</td>
+                        <td class="text-end">${Number(ssr.total_rows || 0).toLocaleString()}</td>
+                        <td class="text-center">${modeBadge}</td>
+                    </tr>
+                `);
+            }
+            logs.forEach(item => {
+                const engBadge = item.engine === 'starrocks'
+                    ? '<span class="badge bg-primary">StarRocks</span>'
+                    : '<span class="badge" style="background:#ea580c;">ClickHouse</span>';
+                const modeBadge = item.cacheBypassed
+                    ? '<span class="badge bg-warning text-dark">LIVE DB</span>'
+                    : '<span class="badge bg-secondary">CACHED/STD</span>';
+                rowsHtml.push(`
+                    <tr>
+                        <td><span class="badge bg-light text-dark border">${item.method}</span></td>
+                        <td><code style="word-break:break-all;">${item.url}</code></td>
+                        <td>${engBadge}</td>
+                        <td class="text-end fw-bold">${Number(item.sqlMs).toFixed(2)}</td>
+                        <td class="text-end">${Number(item.serverMs).toFixed(2)}</td>
+                        <td class="text-end">${Number(item.clientMs).toFixed(2)}</td>
+                        <td class="text-end">${item.sqlCount}</td>
+                        <td class="text-end">${Number(item.rows || 0).toLocaleString()}</td>
+                        <td class="text-center">${modeBadge}</td>
+                    </tr>
+                `);
+            });
+            tbody.innerHTML = rowsHtml.join('');
+        }
+
+        updateComparisonBadge({
+            sqlMs: Math.round(totalSqlMs * 100) / 100,
+            fetchMs: Math.round(totalFetchMs * 100) / 100,
+            sqlCount: totalQueries,
+            rows: totalRows,
+            ts: Date.now()
+        });
+    };
+
+    // Head-to-head live benchmark runner: queries ClickHouse & StarRocks back-to-back with cache bypassed
+    window.runHeadToHeadBenchmark = async function() {
+        const btn = document.getElementById('btn-compare-engines');
+        const box = document.getElementById('db-head2head-results');
+        if (!btn || !box) return;
+
+        window.toggleDbSpeedDrawer(true);
+        btn.disabled = true;
+        const origHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Benchmarking…';
+        box.style.display = 'block';
+        box.innerHTML = '<div class="alert alert-info py-2 px-3 mb-2" style="font-size:0.76rem;"><i class="bi bi-hourglass-split me-1"></i> Running live uncached queries against <strong>ClickHouse Cloud</strong> and <strong>StarRocks (Loyalty_Analytics)</strong>…</div>';
+
+        // Collect unique GET endpoints triggered on this page (fallback to SSR page itself if none)
+        const seen = new Set();
+        const targets = [];
+        (window.__dbFetchLogs || []).forEach(l => {
+            if ((l.method === 'GET' || !l.method) && l.url && !seen.has(l.url)) {
+                seen.add(l.url);
+                targets.push(l.url);
+            }
+        });
+        if (targets.length === 0) {
+            const ssrUrl = cleanPath + (window.location.search ? window.location.search : '');
+            targets.push(ssrUrl);
+        }
+
+        async function probeEngine(url, engine) {
+            const t0 = performance.now();
+            const res = await window.fetch(url, {
+                method: 'GET',
+                headers: {
+                    'X-DB-Engine': engine,
+                    'X-Bypass-Cache': '1'
+                },
+                _benchCompare: true
+            });
+            await res.arrayBuffer();
+            const clientMs = performance.now() - t0;
+            return {
+                status: res.status,
+                sqlMs: parseFloat(res.headers.get('X-DB-SQL-Time-Ms') || '0') || 0,
+                serverMs: parseFloat(res.headers.get('X-Server-Total-Ms') || '0') || clientMs,
+                clientMs: clientMs,
+                sqlCount: parseInt(res.headers.get('X-DB-SQL-Count') || '0', 10) || 0,
+                rows: parseInt(res.headers.get('X-DB-Rows-Fetched') || '0', 10) || 0
+            };
+        }
+
+        try {
+            const results = [];
+            let sumChSql = 0, sumSrSql = 0, sumChTot = 0, sumSrTot = 0, sumChQ = 0, sumSrQ = 0;
+
+            for (const url of targets) {
+                const chRes = await probeEngine(url, 'clickhouse');
+                const srRes = await probeEngine(url, 'starrocks');
+                sumChSql += chRes.sqlMs; sumSrSql += srRes.sqlMs;
+                sumChTot += chRes.clientMs; sumSrTot += srRes.clientMs;
+                sumChQ += chRes.sqlCount; sumSrQ += srRes.sqlCount;
+                results.push({ url, ch: chRes, sr: srRes });
+            }
+
+            // Save both totals so top comparison pill reflects this live benchmark
+            const modeKey = window.isBenchNoCache() ? 'raw' : 'cached';
+            const storagePrefix = `myg_speed::${cleanPath}::${modeKey}::`;
+            try {
+                sessionStorage.setItem(storagePrefix + 'clickhouse', JSON.stringify({ sqlMs: sumChSql, fetchMs: sumChTot, sqlCount: sumChQ }));
+                sessionStorage.setItem(storagePrefix + 'starrocks', JSON.stringify({ sqlMs: sumSrSql, fetchMs: sumSrTot, sqlCount: sumSrQ }));
+            } catch (e) {}
+
+            let rowsHtml = results.map(r => {
+                const baseCh = r.ch.sqlMs > 0 && r.sr.sqlMs > 0 ? r.ch.sqlMs : r.ch.clientMs;
+                const baseSr = r.ch.sqlMs > 0 && r.sr.sqlMs > 0 ? r.sr.sqlMs : r.sr.clientMs;
+                let winBadge = '—';
+                if (baseCh > 0 && baseSr > 0) {
+                    if (baseSr < baseCh) {
+                        winBadge = `<span class="badge bg-success">StarRocks ${(baseCh / baseSr).toFixed(2)}× faster</span>`;
+                    } else {
+                        winBadge = `<span class="badge" style="background:#ea580c;">ClickHouse ${(baseSr / baseCh).toFixed(2)}× faster</span>`;
+                    }
+                }
+                return `
+                    <tr>
+                        <td><code style="word-break:break-all;">${r.url}</code></td>
+                        <td class="text-end">${r.ch.sqlMs.toFixed(1)} ms <small class="text-muted">(${r.ch.sqlCount}q)</small></td>
+                        <td class="text-end fw-bold text-primary">${r.sr.sqlMs.toFixed(1)} ms <small class="text-muted">(${r.sr.sqlCount}q)</small></td>
+                        <td class="text-end">${r.ch.clientMs.toFixed(1)} ms</td>
+                        <td class="text-end fw-bold">${r.sr.clientMs.toFixed(1)} ms</td>
+                        <td class="text-center">${winBadge}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            const overallWinner = (sumSrSql > 0 && sumChSql > 0)
+                ? (sumSrSql < sumChSql
+                    ? `<span class="badge bg-success">StarRocks ${(sumChSql / sumSrSql).toFixed(2)}× faster SQL</span>`
+                    : `<span class="badge" style="background:#ea580c;">ClickHouse ${(sumSrSql / sumChSql).toFixed(2)}× faster SQL</span>`)
+                : (sumSrTot < sumChTot
+                    ? `<span class="badge bg-success">StarRocks ${(sumChTot / sumSrTot).toFixed(2)}× faster</span>`
+                    : `<span class="badge" style="background:#ea580c;">ClickHouse ${(sumSrTot / sumChTot).toFixed(2)}× faster</span>`);
+
+            box.innerHTML = `
+                <div class="p-2 rounded-3 mb-2" style="background:#f8fafc; border:1px solid #cbd5e1;">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <strong style="color:#0f172a;"><i class="bi bi-lightning-fill text-warning me-1"></i> Live Uncached Head-to-Head Benchmark (ClickHouse vs StarRocks)</strong>
+                        ${overallWinner}
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered align-middle mb-0" style="font-size:0.74rem; background:#fff;">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Endpoint</th>
+                                    <th class="text-end">ClickHouse SQL</th>
+                                    <th class="text-end">StarRocks SQL</th>
+                                    <th class="text-end">ClickHouse Round-Trip</th>
+                                    <th class="text-end">StarRocks Round-Trip</th>
+                                    <th class="text-center">Winner</th>
+                                </tr>
+                            </thead>
+                            <tbody>${rowsHtml}</tbody>
+                            <tfoot class="table-light fw-bold">
+                                <tr>
+                                    <td>TOTAL (${results.length} endpoint${results.length > 1 ? 's' : ''})</td>
+                                    <td class="text-end">${sumChSql.toFixed(1)} ms</td>
+                                    <td class="text-end text-primary">${sumSrSql.toFixed(1)} ms</td>
+                                    <td class="text-end">${sumChTot.toFixed(1)} ms</td>
+                                    <td class="text-end">${sumSrTot.toFixed(1)} ms</td>
+                                    <td class="text-center">${overallWinner}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            `;
+            window.__refreshDbTelemetryUI();
+        } catch (err) {
+            box.innerHTML = `<div class="alert alert-danger py-2 px-3 mb-2" style="font-size:0.75rem;">Benchmark error: ${err.message}</div>`;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+        }
+    };
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const toggle = document.getElementById('db-nocache-toggle');
+        if (toggle) {
+            toggle.checked = window.isBenchNoCache();
+            toggle.addEventListener('change', function() {
+                sessionStorage.setItem('myg_bench_nocache', toggle.checked ? '1' : '0');
+                syncTabSwitcherLinks();
+                const url = new URL(window.location.href);
+                if (toggle.checked) {
+                    url.searchParams.set('nocache', '1');
+                } else {
+                    url.searchParams.delete('nocache');
+                }
+                window.location.href = url.toString();
+            });
+        }
+        syncTabSwitcherLinks();
+        rewriteCloneAnchors(document);
+        window.__refreshDbTelemetryUI();
+    });
+})();
 </script>
 </body>
 </html>

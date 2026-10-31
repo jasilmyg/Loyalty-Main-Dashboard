@@ -40,6 +40,139 @@ PRODUCT_CAT_MAPPING = {
 }
 EXCLUDE_CATS = {'SPARE', 'DEMO', 'OTHERS'}
 
+# ── Per-Product Price Segmentation Slabs (based on Unit Sold Price in ₹) ─────
+# Maps uppercase `m.product` (from item_master) -> ordered list of tuples:
+#   (slab_no, segment_name, price_range_label, min_price_inclusive, max_price_exclusive_or_None)
+# Add new products here as their price slabs are defined — SQL queries, API payload,
+# UI tabs/drilldowns, and Excel exports pick them up automatically.
+PRODUCT_PRICE_SLABS = {
+    'MOBILE': [
+        (1, 'Entry-Level',              'Below ₹10,000',          0,      10000),
+        (2, 'Budget / Mass Market',     '₹10,000 – ₹19,999',      10000,  20000),
+        (3, 'Mid-Range',                '₹20,000 – ₹34,999',      20000,  35000),
+        (4, 'Upper Mid-Range',          '₹35,000 – ₹49,999',      35000,  50000),
+        (5, 'Premium',                  '₹50,000 – ₹59,999',      50000,  60000),
+        (6, 'Ultra-Premium',            '₹60,000 – ₹79,999',      60000,  80000),
+        (7, 'Super Premium',            '₹80,000 – ₹99,999',      80000,  100000),
+        (8, 'Luxury / Flagship',        '₹1,00,000 – ₹1,49,999',  100000, 150000),
+        (9, 'Ultra-Luxury / Foldables', '₹1,50,000 and Above',    150000, None),
+    ],
+}
+
+
+def get_price_slab_config_dict():
+    """Return JSON-serializable per-product slab metadata ordered by slab_no."""
+    return {
+        prod: [
+            {
+                'slab_no': int(s_no),
+                'segment': seg,
+                'range': rng,
+                'min_price': mn,
+                'max_price': mx,
+                'label': f"{s_no}. {seg} ({rng})",
+            }
+            for (s_no, seg, rng, mn, mx) in slabs
+        ]
+        for prod, slabs in PRODUCT_PRICE_SLABS.items()
+    }
+
+
+def _build_price_slab_multiif_sql(prod_upper_expr: str, unit_price_expr: str) -> str:
+    """Build ClickHouse `multiIf(...)` (auto-translated to CASE WHEN on StarRocks) for all configured products."""
+    clauses = []
+    for prod_name, slabs in PRODUCT_PRICE_SLABS.items():
+        p_esc = prod_name.replace("'", "''")
+        for s_no, _seg, _rng, _mn, mx in slabs:
+            if mx is not None:
+                clauses.append(f"({prod_upper_expr} = '{p_esc}' AND {unit_price_expr} < {mx}), {int(s_no)}")
+            else:
+                clauses.append(f"{prod_upper_expr} = '{p_esc}', {int(s_no)}")
+    if not clauses:
+        return "0"
+    return f"multiIf({', '.join(clauses)}, 0)"
+
+
+def parse_price_slab_tokens(price_slab_filter: str, product_filter: str = '') -> list[tuple[str, int]]:
+    """
+    Parse comma-separated price_slab filter values such as 'MOBILE:1,MOBILE:7'
+    (or bare slab numbers like '1,7') into validated (PROD_UPPER, slab_no) pairs.
+    """
+    if not price_slab_filter:
+        return []
+    tokens = [t.strip() for t in price_slab_filter.split(',') if t.strip()]
+    if not tokens:
+        return []
+
+    prod_candidates = [p.strip().upper() for p in product_filter.split(',') if p.strip()] if product_filter else []
+    prod_candidates = [p for p in prod_candidates if p in PRODUCT_PRICE_SLABS]
+    if not prod_candidates:
+        prod_candidates = list(PRODUCT_PRICE_SLABS.keys())
+
+    valid_pairs = []
+    seen = set()
+    for tok in tokens:
+        if ':' in tok:
+            p_raw, s_raw = tok.split(':', 1)
+            p_up = p_raw.strip().upper()
+            try:
+                s_int = int(s_raw.strip())
+            except ValueError:
+                continue
+            if p_up in PRODUCT_PRICE_SLABS and any(int(x[0]) == s_int for x in PRODUCT_PRICE_SLABS[p_up]):
+                if (p_up, s_int) not in seen:
+                    seen.add((p_up, s_int))
+                    valid_pairs.append((p_up, s_int))
+        else:
+            try:
+                s_int = int(tok)
+            except ValueError:
+                continue
+            for p_up in prod_candidates:
+                if any(int(x[0]) == s_int for x in PRODUCT_PRICE_SLABS[p_up]):
+                    if (p_up, s_int) not in seen:
+                        seen.add((p_up, s_int))
+                        valid_pairs.append((p_up, s_int))
+    return valid_pairs
+
+
+def build_price_slab_filter_sql(
+    price_slab_filter: str,
+    product_filter: str = '',
+    prod_col: str = 'm.product',
+    qty_col: str = 's.qty',
+    price_col: str = 's.sold_price',
+) -> str | None:
+    """
+    Build a SQL WHERE fragment (compatible with both ClickHouse and StarRocks)
+    filtering rows by one or more selected (product, slab_no) unit sold-price slabs.
+    """
+    pairs = parse_price_slab_tokens(price_slab_filter, product_filter)
+    if not pairs:
+        return None
+
+    prod_upper = f"upper(ifNull({prod_col}, ''))"
+    unit_price = (
+        f"if(abs(toFloat64({qty_col})) > 0, "
+        f"abs(toFloat64({price_col})) / abs(toFloat64({qty_col})), "
+        f"abs(toFloat64({price_col})))"
+    )
+    or_clauses = []
+    for prod_name, slab_no in pairs:
+        p_esc = prod_name.replace("'", "''")
+        for s_no, _seg, _rng, min_p, max_p in PRODUCT_PRICE_SLABS.get(prod_name, []):
+            if int(s_no) == slab_no:
+                conds = [f"{prod_upper} = '{p_esc}'"]
+                if min_p is not None and min_p > 0:
+                    conds.append(f"{unit_price} >= {min_p}")
+                if max_p is not None:
+                    conds.append(f"{unit_price} < {max_p}")
+                or_clauses.append(f"({' AND '.join(conds)})")
+                break
+    if not or_clauses:
+        return None
+    return f"({' OR '.join(or_clauses)})"
+
 
 # ── Date-range helpers ────────────────────────────────────────────────────────
 def _get_months(q):
@@ -72,7 +205,7 @@ EXCLUDED_BRANCHES = ('3GH', 'CSB', 'CSBW')
 EXCLUDED_BRANCHES_SQL = "s.branch NOT IN ('3GH','CSB','CSBW')"
 
 # ── Main ClickHouse fetch (aggregated — pushes work into CH to save RAM) ──────
-def _fetch_period(ch, comp_type, val, year, brand_filter='', branch_filter='', category_filter='', product_filter=''):
+def _fetch_period(ch, comp_type, val, year, brand_filter='', branch_filter='', category_filter='', product_filter='', price_slab_filter=''):
     """
     Fetch aggregated data from ClickHouse grouped by product/brand/branch.
     Aggregation is done in ClickHouse to minimise rows returned to Python.
@@ -90,6 +223,7 @@ def _fetch_period(ch, comp_type, val, year, brand_filter='', branch_filter='', c
         _in('m.brand',   brand_filter),
         _in('s.branch',  branch_filter),
         _in('m.product', product_filter),
+        build_price_slab_filter_sql(price_slab_filter, product_filter),
     ] if c]
 
     where = f"toDate(s.date) != toDate('1970-01-01') AND {date_cond} AND {EXCLUDED_BRANCHES_SQL}"
@@ -134,22 +268,106 @@ def _fetch_period(ch, comp_type, val, year, brand_filter='', branch_filter='', c
     return df, inv_count
 
 
+def _fetch_price_segments(ch, comp_type, val, year, brand_filter='', branch_filter='', product_filter='', price_slab_filter=''):
+    """
+    Fetch aggregated price-slab metrics (based on unit sold_price) for all products
+    configured in PRODUCT_PRICE_SLABS, grouped by product, slab_no, brand, branch.
+    Works identically on both ClickHouse and StarRocks.
+    """
+    empty_cols = [
+        'category', 'product', 'slab_no', 'brand', 'branch',
+        'qty', 'sold_price', 'discount_amt', 'disc_qty', 'unique_customers',
+    ]
+    if not PRODUCT_PRICE_SLABS:
+        return pd.DataFrame(columns=empty_cols)
+
+    date_cond = _date_filter_sql(comp_type, val, year)
+
+    def _in(col, fval):
+        vals = [v.strip() for v in fval.split(',') if v.strip()] if fval else []
+        if not vals:
+            return None
+        escaped = "','".join(v.replace("'", "''") for v in vals)
+        return f"{col} IN ('{escaped}')"
+
+    configured_prods = "','".join(p.replace("'", "''") for p in PRODUCT_PRICE_SLABS.keys())
+    prod_upper_expr = "upper(ifNull(m.product, ''))"
+    unit_price_expr = (
+        "if(abs(toFloat64(s.qty)) > 0, "
+        "abs(toFloat64(s.sold_price)) / abs(toFloat64(s.qty)), "
+        "abs(toFloat64(s.sold_price)))"
+    )
+    slab_expr = _build_price_slab_multiif_sql(prod_upper_expr, unit_price_expr)
+
+    extra = [c for c in [
+        _in('m.brand',   brand_filter),
+        _in('s.branch',  branch_filter),
+        _in('m.product', product_filter),
+        build_price_slab_filter_sql(price_slab_filter, product_filter),
+    ] if c]
+
+    where = (
+        f"toDate(s.date) != toDate('1970-01-01') "
+        f"AND {date_cond} "
+        f"AND {EXCLUDED_BRANCHES_SQL} "
+        f"AND {prod_upper_expr} IN ('{configured_prods}')"
+    )
+    if extra:
+        where += " AND " + " AND ".join(extra)
+
+    sql = f"""
+        SELECT
+            {prod_upper_expr} AS product,
+            {slab_expr} AS slab_no,
+            if(isNull(m.brand)  OR m.brand='',  'Unknown', m.brand)  AS brand,
+            if(isNull(s.branch) OR s.branch='', 'Unknown', s.branch) AS branch,
+            sum(toFloat64(if(s.sold_price < 0, -abs(toFloat64(s.qty)), abs(toFloat64(s.qty))))) AS qty,
+            sum(toFloat64(s.sold_price)) AS sold_price,
+            sum(toFloat64(s.discount))   AS discount_amt,
+            countIf(s.discount > 0)      AS disc_qty,
+            countDistinct(i.customer_mobile) AS unique_customers
+        FROM azure_sales_report s
+        LEFT JOIN item_master m ON s.item_code = m.item_code
+        LEFT JOIN azure_invoice_report i ON s.invoice_no = i.invoice_no
+        WHERE {where}
+        GROUP BY product, slab_no, brand, branch
+    """
+    rows = ch.query(sql).result_rows
+    if not rows:
+        return pd.DataFrame(columns=empty_cols)
+
+    df = pd.DataFrame(
+        rows,
+        columns=['product', 'slab_no', 'brand', 'branch', 'qty', 'sold_price', 'discount_amt', 'disc_qty', 'unique_customers'],
+    )
+    df['slab_no']          = pd.to_numeric(df['slab_no'],          errors='coerce').fillna(0).astype(int)
+    df['qty']              = pd.to_numeric(df['qty'],              errors='coerce').fillna(0).astype(float)
+    df['sold_price']       = pd.to_numeric(df['sold_price'],       errors='coerce').fillna(0).astype(float)
+    df['discount_amt']     = pd.to_numeric(df['discount_amt'],     errors='coerce').fillna(0).astype(float)
+    df['disc_qty']         = pd.to_numeric(df['disc_qty'],         errors='coerce').fillna(0).astype(int)
+    df['unique_customers'] = pd.to_numeric(df['unique_customers'], errors='coerce').fillna(0).astype(int)
+    df = df[df['slab_no'] > 0].copy()
+    df['category'] = df['product'].map(PRODUCT_CAT_MAPPING).fillna('OTHER')
+    return df
+
+
 def build_api_response(request):
-    comp_type  = request.GET.get('type',     'monthly')
-    base_val   = request.GET.get('base',     '4')
-    comp_val   = request.GET.get('comp',     '5')
+    comp_type  = request.GET.get('type',       'monthly')
+    base_val   = request.GET.get('base',       '4')
+    comp_val   = request.GET.get('comp',       '5')
     base_year  = int(request.GET.get('base_year', 2026))
     comp_year  = int(request.GET.get('comp_year', 2026))
-    cat        = request.GET.get('category', '')
-    product    = request.GET.get('product',  '')
-    brand      = request.GET.get('brand',    '')
-    branch     = request.GET.get('branch',   '')
-    rbm        = request.GET.get('rbm',      '')
-    bdm        = request.GET.get('bdm',      '')
-    district   = request.GET.get('district', '')
-    state      = request.GET.get('state',    '')
+    cat        = request.GET.get('category',   '')
+    product    = request.GET.get('product',    '')
+    price_slab = request.GET.get('price_slab', '')
+    brand      = request.GET.get('brand',      '')
+    branch     = request.GET.get('branch',     '')
+    rbm        = request.GET.get('rbm',        '')
+    bdm        = request.GET.get('bdm',        '')
+    district   = request.GET.get('district',   '')
+    state      = request.GET.get('state',      '')
 
-    cache_key = f"ent_ch_v2_{comp_type}_{base_val}_{comp_val}_{base_year}_{comp_year}_{cat}_{product}_{brand}_{branch}_{rbm}_{bdm}_{district}_{state}"
+    cache_key = f"ent_ch_v4_{comp_type}_{base_val}_{comp_val}_{base_year}_{comp_year}_{cat}_{product}_{price_slab}_{brand}_{branch}_{rbm}_{bdm}_{district}_{state}"
     cached = cache.get(cache_key)
     if cached:
         return cached
@@ -223,8 +441,8 @@ def build_api_response(request):
             branch = ','.join(merged)
 
     # ── Fetch base and comparison periods from ClickHouse ─────────────────────
-    df_b, b_inv = _fetch_period(ch, comp_type, base_val, base_year, brand, branch, cat, product)
-    df_c, c_inv = _fetch_period(ch, comp_type, comp_val, comp_year, brand, branch, cat, product)
+    df_b, b_inv = _fetch_period(ch, comp_type, base_val, base_year, brand, branch, cat, product, price_slab)
+    df_c, c_inv = _fetch_period(ch, comp_type, comp_val, comp_year, brand, branch, cat, product, price_slab)
 
     if not df_b.empty: df_b['branch'] = df_b['branch'].map(code_to_name).fillna(df_b['branch'])
     if not df_c.empty: df_c['branch'] = df_c['branch'].map(code_to_name).fillna(df_c['branch'])
@@ -361,7 +579,7 @@ def build_api_response(request):
     # The per-product countDistinct summed to branch level inflates the denominator
     # because the same customer buying 2 products is counted twice.
     # This query gives the real countDistinct(customer_mobile) per branch.
-    def _fetch_branch_true_cust(ch, comp_type, val, year, branch_filter=''):
+    def _fetch_branch_true_cust(ch, comp_type, val, year, branch_filter='', price_slab_filter='', product_filter=''):
         date_cond = _date_filter_sql(comp_type, val, year)
         extra = []
         if branch_filter:
@@ -369,6 +587,11 @@ def build_api_response(request):
             if vals:
                 escaped = "','".join(v.replace("'", "''") for v in vals)
                 extra.append(f"s.branch IN ('{escaped}')")
+        ps_sql = build_price_slab_filter_sql(price_slab_filter, product_filter)
+        join_item = ""
+        if ps_sql:
+            join_item = "LEFT JOIN item_master m ON s.item_code = m.item_code"
+            extra.append(ps_sql)
         where = f"toDate(s.date) != toDate('1970-01-01') AND {date_cond} AND {EXCLUDED_BRANCHES_SQL}"
         if extra:
             where += " AND " + " AND ".join(extra)
@@ -377,6 +600,7 @@ def build_api_response(request):
                 s.branch AS branch,
                 countDistinct(i.customer_mobile) AS true_unique_cust
             FROM azure_sales_report s
+            {join_item}
             LEFT JOIN azure_invoice_report i ON s.invoice_no = i.invoice_no
             WHERE {where}
             GROUP BY s.branch
@@ -387,8 +611,161 @@ def build_api_response(request):
         except Exception:
             return {}
 
-    b_branch_cust = _fetch_branch_true_cust(ch, comp_type, base_val, base_year, branch)
-    c_branch_cust = _fetch_branch_true_cust(ch, comp_type, comp_val, comp_year, branch)
+    b_branch_cust = _fetch_branch_true_cust(ch, comp_type, base_val, base_year, branch, price_slab, product)
+    c_branch_cust = _fetch_branch_true_cust(ch, comp_type, comp_val, comp_year, branch, price_slab, product)
+
+    # ── 9. Per-Product Price Segmentation (starting with MOBILE 9 price slabs) ─
+    price_slab_config = get_price_slab_config_dict()
+    df_ps_b = _fetch_price_segments(ch, comp_type, base_val, base_year, brand, branch, product, price_slab)
+    df_ps_c = _fetch_price_segments(ch, comp_type, comp_val, comp_year, brand, branch, product, price_slab)
+
+    if not df_ps_b.empty:
+        df_ps_b['branch'] = df_ps_b['branch'].map(code_to_name).fillna(df_ps_b['branch'])
+    if not df_ps_c.empty:
+        df_ps_c['branch'] = df_ps_c['branch'].map(code_to_name).fillna(df_ps_c['branch'])
+
+    if cat:
+        cat_vals = [c.strip() for c in cat.split(',') if c.strip()]
+        if cat_vals:
+            df_ps_b = df_ps_b[df_ps_b['category'].isin(cat_vals)]
+            df_ps_c = df_ps_c[df_ps_c['category'].isin(cat_vals)]
+
+    ps_b_grp = (
+        df_ps_b.groupby(['category', 'product', 'slab_no', 'brand', 'branch'])[
+            ['sold_price', 'qty', 'discount_amt', 'disc_qty', 'unique_customers']
+        ].sum().reset_index().rename(columns={
+            'sold_price': 'b_rev', 'qty': 'b_qty',
+            'discount_amt': 'b_discount', 'disc_qty': 'b_disc_qty',
+            'unique_customers': 'b_unique_cust',
+        })
+        if not df_ps_b.empty
+        else pd.DataFrame(columns=[
+            'category', 'product', 'slab_no', 'brand', 'branch',
+            'b_rev', 'b_qty', 'b_discount', 'b_disc_qty', 'b_unique_cust',
+        ])
+    )
+    ps_c_grp = (
+        df_ps_c.groupby(['category', 'product', 'slab_no', 'brand', 'branch'])[
+            ['sold_price', 'qty', 'discount_amt', 'disc_qty', 'unique_customers']
+        ].sum().reset_index().rename(columns={
+            'sold_price': 'c_rev', 'qty': 'c_qty',
+            'discount_amt': 'c_discount', 'disc_qty': 'c_disc_qty',
+            'unique_customers': 'c_unique_cust',
+        })
+        if not df_ps_c.empty
+        else pd.DataFrame(columns=[
+            'category', 'product', 'slab_no', 'brand', 'branch',
+            'c_rev', 'c_qty', 'c_discount', 'c_disc_qty', 'c_unique_cust',
+        ])
+    )
+
+    slab_meta_lookup = {
+        (prod, int(s['slab_no'])): s
+        for prod, s_list in price_slab_config.items()
+        for s in s_list
+    }
+    ps_merged = pd.merge(
+        ps_b_grp, ps_c_grp,
+        on=['category', 'product', 'slab_no', 'brand', 'branch'],
+        how='outer',
+    ).fillna(0)
+    if not ps_merged.empty:
+        ps_merged['slab_no'] = ps_merged['slab_no'].astype(int)
+        ps_merged['segment'] = [
+            slab_meta_lookup.get((p, sn), {}).get('segment', f'Slab {sn}')
+            for p, sn in zip(ps_merged['product'], ps_merged['slab_no'])
+        ]
+        ps_merged['price_range'] = [
+            slab_meta_lookup.get((p, sn), {}).get('range', '')
+            for p, sn in zip(ps_merged['product'], ps_merged['slab_no'])
+        ]
+    price_segment_table = ps_merged.to_dict('records') if not ps_merged.empty else []
+
+    # Build ordered per-product slab summary (excluding HEAD OFFICE branch like Product/Brand tabs)
+    price_segments = {}
+    active_cat_filter = {c.strip() for c in cat.split(',') if c.strip()} if cat else set()
+    active_prod_filter = {p.strip().upper() for p in product.split(',') if p.strip()} if product else set()
+
+    for prod_name, slab_defs in price_slab_config.items():
+        prod_cat = PRODUCT_CAT_MAPPING.get(prod_name, 'OTHER')
+        if active_cat_filter and prod_cat not in active_cat_filter:
+            continue
+        if active_prod_filter and prod_name not in active_prod_filter:
+            continue
+
+        prod_rows = [
+            r for r in price_segment_table
+            if r.get('product') == prod_name and str(r.get('branch', '')).upper() != 'HEAD OFFICE'
+        ]
+        tot_b_rev = sum(float(r.get('b_rev', 0)) for r in prod_rows)
+        tot_c_rev = sum(float(r.get('c_rev', 0)) for r in prod_rows)
+        tot_b_qty = sum(float(r.get('b_qty', 0)) for r in prod_rows)
+        tot_c_qty = sum(float(r.get('c_qty', 0)) for r in prod_rows)
+        tot_c_disc = sum(float(r.get('c_discount', 0)) for r in prod_rows)
+        tot_c_cust = sum(int(r.get('c_unique_cust', 0)) for r in prod_rows)
+
+        slabs_out = []
+        for sdef in slab_defs:
+            sno = int(sdef['slab_no'])
+            s_rows = [r for r in prod_rows if int(r.get('slab_no', 0)) == sno]
+            sb_rev = sum(float(r.get('b_rev', 0)) for r in s_rows)
+            sc_rev = sum(float(r.get('c_rev', 0)) for r in s_rows)
+            sb_qty = sum(float(r.get('b_qty', 0)) for r in s_rows)
+            sc_qty = sum(float(r.get('c_qty', 0)) for r in s_rows)
+            sb_disc = sum(float(r.get('b_discount', 0)) for r in s_rows)
+            sc_disc = sum(float(r.get('c_discount', 0)) for r in s_rows)
+            sb_dqty = sum(int(r.get('b_disc_qty', 0)) for r in s_rows)
+            sc_dqty = sum(int(r.get('c_disc_qty', 0)) for r in s_rows)
+            sc_cust = sum(int(r.get('c_unique_cust', 0)) for r in s_rows)
+
+            # Brand breakdown inside this slab
+            b_map = {}
+            for r in s_rows:
+                bn = r.get('brand') or 'Unknown'
+                if bn not in b_map:
+                    b_map[bn] = {'brand': bn, 'b_rev': 0.0, 'c_rev': 0.0, 'b_qty': 0.0, 'c_qty': 0.0, 'c_discount': 0.0, 'c_unique_cust': 0}
+                b_map[bn]['b_rev'] += float(r.get('b_rev', 0))
+                b_map[bn]['c_rev'] += float(r.get('c_rev', 0))
+                b_map[bn]['b_qty'] += float(r.get('b_qty', 0))
+                b_map[bn]['c_qty'] += float(r.get('c_qty', 0))
+                b_map[bn]['c_discount'] += float(r.get('c_discount', 0))
+                b_map[bn]['c_unique_cust'] += int(r.get('c_unique_cust', 0))
+
+            slab_brands = sorted(b_map.values(), key=lambda x: x['c_rev'], reverse=True)
+            slabs_out.append({
+                'slab_no': sno,
+                'segment': sdef['segment'],
+                'range': sdef['range'],
+                'label': sdef['label'],
+                'b_rev': sb_rev,
+                'c_rev': sc_rev,
+                'b_qty': sb_qty,
+                'c_qty': sc_qty,
+                'b_discount': sb_disc,
+                'c_discount': sc_disc,
+                'b_disc_qty': sb_dqty,
+                'c_disc_qty': sc_dqty,
+                'c_unique_cust': sc_cust,
+                'rev_growth': ((sc_rev - sb_rev) / sb_rev * 100) if sb_rev > 0 else 0.0,
+                'qty_growth': ((sc_qty - sb_qty) / sb_qty * 100) if sb_qty > 0 else 0.0,
+                'amt_share': (sc_rev / tot_c_rev * 100) if tot_c_rev > 0 else 0.0,
+                'qty_share': (sc_qty / tot_c_qty * 100) if tot_c_qty > 0 else 0.0,
+                'brands': slab_brands,
+            })
+
+        price_segments[prod_name] = {
+            'product': prod_name,
+            'category': prod_cat,
+            'b_rev': tot_b_rev,
+            'c_rev': tot_c_rev,
+            'b_qty': tot_b_qty,
+            'c_qty': tot_c_qty,
+            'c_discount': tot_c_disc,
+            'c_unique_cust': tot_c_cust,
+            'rev_growth': ((tot_c_rev - tot_b_rev) / tot_b_rev * 100) if tot_b_rev > 0 else 0.0,
+            'qty_growth': ((tot_c_qty - tot_b_qty) / tot_b_qty * 100) if tot_b_qty > 0 else 0.0,
+            'slabs': slabs_out,
+        }
 
     final_response = {
         "kpis":                kpis,
@@ -399,6 +776,9 @@ def build_api_response(request):
         "table":               tbl,
         "scorecard":           scorecard,
         "detailed_table":      detailed_table,
+        "price_slab_config":   price_slab_config,
+        "price_segments":      price_segments,
+        "price_segment_table": price_segment_table,
         "branch_true_cust": {
             "base": b_branch_cust,
             "comp": c_branch_cust,
@@ -507,6 +887,87 @@ def generate_dashboard_excel(request):
     b_label = base_val if comp_type in ('yearly', 'fy') else f"{base_val} {base_year}"
     c_label = comp_val if comp_type in ('yearly', 'fy') else f"{comp_val} {comp_year}"
 
+    if request.GET.get('tab') == 'price_segment':
+        from openpyxl.utils.dataframe import dataframe_to_rows
+        wb_ps = Workbook()
+        wb_ps.remove(wb_ps.active)
+        price_segs = data.get('price_segments', {})
+        if not price_segs:
+            ws_empty = wb_ps.create_sheet("Price_Segmentation")
+            ws_empty.cell(row=1, column=1, value="No price segmentation data available for current filters.")
+        else:
+            for prod_name, pdata in price_segs.items():
+                ws_s = wb_ps.create_sheet(f"{prod_name.title()} Price Slabs"[:31])
+                slab_rows_xl = []
+                for s in pdata.get('slabs', []):
+                    slab_rows_xl.append({
+                        'PRICE SLAB': f"{s['slab_no']}. {s['segment']} ({s['range']})",
+                        'APR_AMT': round(s['b_rev'] / 1e7, 2),
+                        'MAY_AMT': round(s['c_rev'] / 1e7, 2),
+                        'AMT_GRW': round(s['rev_growth'], 2),
+                        'AMT_SHR': round(s['amt_share'], 2),
+                        'APR_QTY': int(round(s['b_qty'])),
+                        'MAY_QTY': int(round(s['c_qty'])),
+                        'QTY_GRW': round(s['qty_growth'], 2),
+                        'QTY_SHR': round(s['qty_share'], 2),
+                    })
+                if slab_rows_xl:
+                    slab_rows_xl.append({
+                        'PRICE SLAB': 'Grand Total',
+                        'APR_AMT': round(pdata['b_rev'] / 1e7, 2),
+                        'MAY_AMT': round(pdata['c_rev'] / 1e7, 2),
+                        'AMT_GRW': round(pdata['rev_growth'], 2),
+                        'AMT_SHR': 100.0,
+                        'APR_QTY': int(round(pdata['b_qty'])),
+                        'MAY_QTY': int(round(pdata['c_qty'])),
+                        'QTY_GRW': round(pdata['qty_growth'], 2),
+                        'QTY_SHR': 100.0,
+                    })
+                    write_table(ws_s, pd.DataFrame(slab_rows_xl), 'PRICE SLAB', f"{prod_name} PRICE SLAB", b_label, c_label, start_row=1)
+                    ws_s.column_dimensions['A'].width = 42
+
+                # Brand breakdown sheet inside each slab
+                ws_b = wb_ps.create_sheet(f"{prod_name.title()} Slab Brands"[:31])
+                b_rows_xl = []
+                for s in pdata.get('slabs', []):
+                    s_crev = s['c_rev']
+                    s_cqty = s['c_qty']
+                    for br in s.get('brands', []):
+                        b_rev = br['b_rev']
+                        c_rev = br['c_rev']
+                        b_qty = br['b_qty']
+                        c_qty = br['c_qty']
+                        b_rows_xl.append({
+                            'Product': prod_name,
+                            'Slab No.': s['slab_no'],
+                            'Price Segment': s['segment'],
+                            'Price Range': s['range'],
+                            'Brand': br['brand'],
+                            f'{b_label} AMT (Cr)': round(b_rev / 1e7, 2),
+                            f'{c_label} AMT (Cr)': round(c_rev / 1e7, 2),
+                            'AMT Growth %': round(((c_rev - b_rev) / b_rev * 100) if b_rev > 0 else 0.0, 2),
+                            'Slab AMT Share %': round((c_rev / s_crev * 100) if s_crev > 0 else 0.0, 2),
+                            f'{b_label} QTY': int(round(b_qty)),
+                            f'{c_label} QTY': int(round(c_qty)),
+                            'QTY Growth %': round(((c_qty - b_qty) / b_qty * 100) if b_qty > 0 else 0.0, 2),
+                            'Slab QTY Share %': round((c_qty / s_cqty * 100) if s_cqty > 0 else 0.0, 2),
+                        })
+                if b_rows_xl:
+                    for r_idx, row_data in enumerate(dataframe_to_rows(pd.DataFrame(b_rows_xl), index=False, header=True), 1):
+                        for c_idx, val in enumerate(row_data, 1):
+                            cell = ws_b.cell(row=r_idx, column=c_idx, value=val)
+                            cell.border = THIN_BDR
+                            if r_idx == 1:
+                                cell.font = HDR_FONT
+                    for col_l, w in [('A', 12), ('B', 9), ('C', 24), ('D', 20), ('E', 18)]:
+                        ws_b.column_dimensions[col_l].width = w
+        buf_ps = io.BytesIO()
+        wb_ps.save(buf_ps)
+        buf_ps.seek(0)
+        safe_b = b_label.replace(' ', '_').replace('/', '-').replace('|', '-')
+        safe_c = c_label.replace(' ', '_').replace('/', '-').replace('|', '-')
+        return buf_ps, f"Price_Segmentation_{safe_b}_vs_{safe_c}.xlsx"
+
     scorecard = data.get('scorecard', [])
     det_table = data.get('detailed_table', [])
 
@@ -590,8 +1051,43 @@ def generate_dashboard_excel(request):
             else:
                 ws.cell(row=1, column=1, value=f"No data for {sheet_name}")
 
+        # Export Price Segmentation sheets in slab_no order for each configured product
+        price_segs = data.get('price_segments', {})
+        for idx_ps, (prod_name, pdata) in enumerate(price_segs.items(), start=13):
+            ws_ps = wb.create_sheet(f"{idx_ps}_{prod_name.title()} Price Slabs"[:31])
+            slab_rows_xl = []
+            for s in pdata.get('slabs', []):
+                slab_rows_xl.append({
+                    'PRICE SLAB': f"{s['slab_no']}. {s['segment']} ({s['range']})",
+                    'APR_AMT': round(s['b_rev'] / 1e7, 2),
+                    'MAY_AMT': round(s['c_rev'] / 1e7, 2),
+                    'AMT_GRW': round(s['rev_growth'], 2),
+                    'AMT_SHR': round(s['amt_share'], 2),
+                    'APR_QTY': int(round(s['b_qty'])),
+                    'MAY_QTY': int(round(s['c_qty'])),
+                    'QTY_GRW': round(s['qty_growth'], 2),
+                    'QTY_SHR': round(s['qty_share'], 2),
+                })
+            if slab_rows_xl:
+                slab_rows_xl.append({
+                    'PRICE SLAB': 'Grand Total',
+                    'APR_AMT': round(pdata['b_rev'] / 1e7, 2),
+                    'MAY_AMT': round(pdata['c_rev'] / 1e7, 2),
+                    'AMT_GRW': round(pdata['rev_growth'], 2),
+                    'AMT_SHR': 100.0,
+                    'APR_QTY': int(round(pdata['b_qty'])),
+                    'MAY_QTY': int(round(pdata['c_qty'])),
+                    'QTY_GRW': round(pdata['qty_growth'], 2),
+                    'QTY_SHR': 100.0,
+                })
+                df_ps_xl = pd.DataFrame(slab_rows_xl)
+                write_table(ws_ps, df_ps_xl, 'PRICE SLAB', f"{prod_name} PRICE SLAB", b_label, c_label, start_row=1)
+                ws_ps.column_dimensions['A'].width = 40
+            else:
+                ws_ps.cell(row=1, column=1, value=f"No price slab data for {prod_name}")
+
     # ── Custom Detailed Report (Branch level) ──
-    ws_det = wb.create_sheet("Special_Report" if special_only else "13_Detailed_Report")
+    ws_det = wb.create_sheet("Special_Report" if special_only else "Detailed_Report")
     det_out = []
     for r in det_table:
         b_rev = r.get('b_rev',0)

@@ -58,9 +58,35 @@ class ClickHouseHealthAPI(APIView):
 
     def get(self, request):
         import time, os
-        from analytics.clickhouse_service import CH_HOST, CH_PORT, CH_USER, CH_DATABASE
+        from analytics.clickhouse_service import (
+            CH_HOST, CH_PORT, CH_USER, CH_DATABASE, get_active_engine, get_ch_client
+        )
+
+        engine = get_active_engine()
+        if engine == 'starrocks':
+            from analytics.starrocks_service import SR_HOST, SR_PORT, SR_USER, SR_DATABASE
+            result = {
+                'engine':      'starrocks',
+                'sr_host':     SR_HOST,
+                'sr_port':     SR_PORT,
+                'sr_user':     SR_USER,
+                'sr_database': SR_DATABASE,
+            }
+            t0 = time.time()
+            try:
+                sr_client = get_ch_client()
+                rows = sr_client.query('SELECT COUNT(*) FROM azure_invoice_report').result_rows
+                result['status']     = 'OK'
+                result['row_count']  = rows[0][0] if rows else 0
+                result['elapsed_ms'] = round((time.time() - t0) * 1000, 2)
+            except Exception as e:
+                result['status']     = 'FAILED'
+                result['error']      = str(e)
+                result['elapsed_ms'] = round((time.time() - t0) * 1000, 2)
+            return Response(result)
 
         result = {
+            'engine':      'clickhouse',
             'ch_host':     CH_HOST,
             'ch_port':     CH_PORT,
             'ch_user':     CH_USER,

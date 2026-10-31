@@ -10,6 +10,7 @@ New & Repeat definition (correct loyalty approach):
 
 from django.core.cache import cache
 import pandas as pd
+from .dashboard_api_logic import build_price_slab_filter_sql
 
 
 def _get_ch():
@@ -112,13 +113,14 @@ def _resolve_branch_filter(ch, branch='', rbm='', bdm='', district='', state='')
     return code_to_name, branch
 
 
-def _fetch_branch_metrics(ch, comp_type, val, year, branch_filter='', brand_filter='', cat_filter='', product_filter=''):
+def _fetch_branch_metrics(ch, comp_type, val, year, branch_filter='', brand_filter='', cat_filter='', product_filter='', price_slab_filter=''):
     """Fetch sale value, qty, unique customers per branch for a given period."""
     date_cond = _date_filter_sql(comp_type, val, year)
     extra = [c for c in [
         _in_clause('m.brand',   brand_filter),
         _in_clause('s.branch',  branch_filter),
         _in_clause('m.product', product_filter),
+        build_price_slab_filter_sql(price_slab_filter, product_filter),
     ] if c]
     where = f"toDate(s.date) != toDate('1970-01-01') AND {date_cond}"
     if extra:
@@ -147,7 +149,7 @@ def _fetch_branch_metrics(ch, comp_type, val, year, branch_filter='', brand_filt
     return df
 
 
-def _fetch_new_repeat_for_period(ch, period_cond, period_start_date, branch_filter='', brand_filter='', product_filter=''):
+def _fetch_new_repeat_for_period(ch, period_cond, period_start_date, branch_filter='', brand_filter='', product_filter='', price_slab_filter=''):
     """
     Correct loyalty definition for a single period:
       - NEW    = Customer's FIRST EVER purchase date falls within this period
@@ -163,8 +165,9 @@ def _fetch_new_repeat_for_period(ch, period_cond, period_start_date, branch_filt
     branch_clause = _in_clause('s.branch', branch_filter)
     brand_clause  = _in_clause('m.brand',  brand_filter)
     prod_clause   = _in_clause('m.product', product_filter)
+    ps_clause     = build_price_slab_filter_sql(price_slab_filter, product_filter)
 
-    extra_parts = [c for c in [branch_clause, brand_clause, prod_clause] if c]
+    extra_parts = [c for c in [branch_clause, brand_clause, prod_clause, ps_clause] if c]
     extra_sql   = (" AND " + " AND ".join(extra_parts)) if extra_parts else ""
 
     sql = f"""
@@ -217,7 +220,7 @@ def _fetch_new_repeat_for_period(ch, period_cond, period_start_date, branch_filt
 
 
 def _fetch_new_repeat(ch, comp_type, base_val, base_year, comp_val, comp_year,
-                      branch_filter='', brand_filter='', product_filter=''):
+                      branch_filter='', brand_filter='', product_filter='', price_slab_filter=''):
     """
     Fetch new & repeat customers for both base and comp periods using
     the correct loyalty definition (first-ever purchase date).
@@ -228,9 +231,9 @@ def _fetch_new_repeat(ch, comp_type, base_val, base_year, comp_val, comp_year,
     base_start = _get_period_start(comp_type, base_val, base_year)
 
     comp_classified = _fetch_new_repeat_for_period(
-        ch, comp_cond, comp_start, branch_filter, brand_filter, product_filter)
+        ch, comp_cond, comp_start, branch_filter, brand_filter, product_filter, price_slab_filter)
     base_classified = _fetch_new_repeat_for_period(
-        ch, base_cond, base_start, branch_filter, brand_filter, product_filter)
+        ch, base_cond, base_start, branch_filter, brand_filter, product_filter, price_slab_filter)
 
     all_branches = set(comp_classified.keys()) | set(base_classified.keys())
 
@@ -253,25 +256,26 @@ def _fetch_new_repeat(ch, comp_type, base_val, base_year, comp_val, comp_year,
 
 
 def build_growth_degrowth_response(request):
-    comp_type = request.GET.get('type',      'monthly')
-    base_val  = request.GET.get('base',      '4')
-    comp_val  = request.GET.get('comp',      '5')
-    base_year = int(request.GET.get('base_year', 2026))
-    comp_year = int(request.GET.get('comp_year', 2026))
-    cat       = request.GET.get('category',  '')
-    product   = request.GET.get('product',   '')
-    brand     = request.GET.get('brand',     '')
-    branch    = request.GET.get('branch',    '')
-    rbm       = request.GET.get('rbm',       '')
-    bdm       = request.GET.get('bdm',       '')
-    district  = request.GET.get('district',  '')
-    state     = request.GET.get('state',     '')
+    comp_type  = request.GET.get('type',       'monthly')
+    base_val   = request.GET.get('base',       '4')
+    comp_val   = request.GET.get('comp',       '5')
+    base_year  = int(request.GET.get('base_year', 2026))
+    comp_year  = int(request.GET.get('comp_year', 2026))
+    cat        = request.GET.get('category',   '')
+    product    = request.GET.get('product',    '')
+    price_slab = request.GET.get('price_slab', '')
+    brand      = request.GET.get('brand',      '')
+    branch     = request.GET.get('branch',     '')
+    rbm        = request.GET.get('rbm',        '')
+    bdm        = request.GET.get('bdm',        '')
+    district   = request.GET.get('district',   '')
+    state      = request.GET.get('state',      '')
 
     if comp_type == 'custom':
         if not base_val or '|' not in base_val or not comp_val or '|' not in comp_val:
             raise ValueError('Date range not ready. Please wait for the date picker to initialize and try again.')
 
-    cache_key = f"gd_v2_{comp_type}_{base_val}_{comp_val}_{base_year}_{comp_year}_{cat}_{product}_{brand}_{branch}_{rbm}_{bdm}_{district}_{state}"
+    cache_key = f"gd_v3_{comp_type}_{base_val}_{comp_val}_{base_year}_{comp_year}_{cat}_{product}_{price_slab}_{brand}_{branch}_{rbm}_{bdm}_{district}_{state}"
     cached = cache.get(cache_key)
     if cached:
         return cached
@@ -287,8 +291,8 @@ def build_growth_degrowth_response(request):
     code_to_name, resolved_branch = _resolve_branch_filter(ch, branch, rbm, bdm, district, state)
 
     # Fetch branch metrics for base and comp periods
-    df_b = _fetch_branch_metrics(ch, comp_type, base_val, base_year, resolved_branch, brand, cat, product)
-    df_c = _fetch_branch_metrics(ch, comp_type, comp_val, comp_year, resolved_branch, brand, cat, product)
+    df_b = _fetch_branch_metrics(ch, comp_type, base_val, base_year, resolved_branch, brand, cat, product, price_slab)
+    df_c = _fetch_branch_metrics(ch, comp_type, comp_val, comp_year, resolved_branch, brand, cat, product, price_slab)
 
     # Map branch codes to names
     if not df_b.empty:
@@ -298,7 +302,7 @@ def build_growth_degrowth_response(request):
 
     # Fetch new/repeat customers using correct first-purchase logic
     df_nr = _fetch_new_repeat(ch, comp_type, base_val, base_year, comp_val, comp_year,
-                               resolved_branch, brand, product)
+                               resolved_branch, brand, product, price_slab)
     if not df_nr.empty:
         df_nr['branch'] = df_nr['branch'].map(code_to_name).fillna(df_nr['branch'])
 

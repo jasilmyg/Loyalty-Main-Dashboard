@@ -114,7 +114,7 @@ from django.http import JsonResponse, HttpResponse
 from analytics.models import ProductSale
 from django.db.models import Sum
 
-from .dashboard_api_logic import build_api_response, generate_dashboard_excel
+from .dashboard_api_logic import build_api_response, generate_dashboard_excel, get_price_slab_config_dict, PRODUCT_CAT_MAPPING
 from .special_report_logic import generate_3_period_excel, generate_custom_4_period_excel
 from .growth_degrowth_logic import build_growth_degrowth_response
 from django.core.serializers.json import DjangoJSONEncoder
@@ -164,7 +164,9 @@ class SpecialFiltersAPIView(LoginRequiredMixin, View):
                     'products':   products,
                     'brands':     brands,
                     'districts':  districts,
-                    'states':     states
+                    'states':     states,
+                    'price_slabs': get_price_slab_config_dict(),
+                    'product_cat_map': PRODUCT_CAT_MAPPING,
                 }
             })
         except Exception as e:
@@ -477,7 +479,7 @@ class EnterpriseDashboardExportAPIView(LoginRequiredMixin, View):
             tab = request.GET.get('tab', 'cat')   # cat | product | brand | branch
 
             # ── Category tab: use the original comprehensive multi-sheet report ─
-            if tab == 'cat':
+            if tab in ('cat', 'price_segment'):
                 from .dashboard_api_logic import generate_dashboard_excel
                 excel_io, filename = generate_dashboard_excel(request)
                 response = HttpResponse(
@@ -6185,4 +6187,7 @@ class StockAgeingExportAPIView(View):
         response = HttpResponse(out.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         response['Content-Disposition'] = f'attachment; filename="myG_Stock_Ageing_Report_{safe_label}_{date_label}.xlsx"'
         return response
+
+
+
 

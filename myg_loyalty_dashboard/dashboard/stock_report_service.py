@@ -15,22 +15,23 @@ except Exception:
     from dashboard.dashboard_api_logic import PRODUCT_CAT_MAPPING
 
 _cached_results = {}
-_bm_cache = None
-_bm_cache_time = 0
+_bm_cache = {}
 
 
 def get_branch_master_df(force_refresh=False):
-    """Fetches branch_master dataframe from ClickHouse and caches for 1 hour."""
-    global _bm_cache, _bm_cache_time
-    if not force_refresh and _bm_cache is not None and (time.time() - _bm_cache_time < 3600):
-        return _bm_cache
+    """Fetches branch_master dataframe from active DB engine (ClickHouse or StarRocks) and caches for 1 hour."""
+    from analytics.clickhouse_service import get_ch_client, get_active_engine, get_bypass_cache
+    engine = get_active_engine()
+    bypass = force_refresh or get_bypass_cache()
+    cached_entry = _bm_cache.get(engine)
+    if not bypass and cached_entry is not None and (time.time() - cached_entry[1] < 3600):
+        return cached_entry[0]
 
     try:
-        from analytics.clickhouse_service import get_ch_client
         ch = get_ch_client()
         bm = ch.query_df("SELECT code, branch_name, rbm, bdm, district FROM branch_master")
     except Exception as e:
-        print("Warning: Could not fetch branch_master from ClickHouse:", e)
+        print(f"Warning: Could not fetch branch_master from {engine}:", e)
         bm = pd.DataFrame(columns=['code', 'branch_name', 'rbm', 'bdm', 'district'])
 
     bm['branch_name_clean'] = bm['branch_name'].astype(str).str.strip().str.upper()
@@ -38,14 +39,13 @@ def get_branch_master_df(force_refresh=False):
     bm['bdm_clean'] = bm['bdm'].astype(str).str.strip()
     bm['district_clean'] = bm['district'].astype(str).str.strip()
 
-    _bm_cache = bm
-    _bm_cache_time = time.time()
-    return _bm_cache
+    _bm_cache[engine] = (bm, time.time())
+    return bm
 
 
 # ─── ClickHouse source: table `stock_ageing_report` (one row per stock line, per dated snapshot) ───
 STOCK_CH_TABLE = 'stock_ageing_report'
-_snapshot_cache = {'date': None, 'ts': 0.0}
+_snapshot_cache = {}
 
 # Valuation expressions on the ClickHouse columns (MOP/dealer fall back to cost when 0; MRP falls back to MOP when invalid)
 CH_PRICE_EXPR = {
@@ -68,20 +68,23 @@ def _get_ch():
 def get_latest_snapshot_date(ch=None, force_refresh=False):
     """Latest report_date in the ClickHouse stock_ageing_report table (cached 5 min).
     Returns None when ClickHouse/the table is unavailable or empty."""
-    if not force_refresh and _snapshot_cache['date'] is not None and (time.time() - _snapshot_cache['ts'] < 300):
-        return _snapshot_cache['date']
+    from analytics.clickhouse_service import get_active_engine, get_bypass_cache
+    engine = get_active_engine()
+    bypass = force_refresh or get_bypass_cache()
+    snap_entry = _snapshot_cache.get(engine)
+    if not bypass and snap_entry and snap_entry['date'] is not None and (time.time() - snap_entry['ts'] < 300):
+        return snap_entry['date']
     ch = ch or _get_ch()
     if ch is None:
         return None
     try:
         latest, n = ch.query(f"SELECT max(report_date), count() FROM {STOCK_CH_TABLE}").result_rows[0]
     except Exception as e:
-        print("Warning: could not read latest stock snapshot from ClickHouse:", e)
+        print(f"Warning: could not read latest stock snapshot from {engine}:", e)
         return None
     if not n:
         return None
-    _snapshot_cache['date'] = latest
-    _snapshot_cache['ts'] = time.time()
+    _snapshot_cache[engine] = {'date': latest, 'ts': time.time()}
     return latest
 
 
@@ -225,7 +228,12 @@ def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, 
 
     ch_price_expr = CH_PRICE_EXPR[selected_price_type]
 
+    from analytics.clickhouse_service import get_active_engine, get_bypass_cache
+    active_engine = get_active_engine()
+    bypass = force_refresh or get_bypass_cache()
+
     cache_key = (
+        active_engine,
         force_refresh,
         str(rbm or '').strip(),
         str(bdm or '').strip(),
@@ -234,19 +242,19 @@ def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, 
         selected_price_type
     )
 
-    if not force_refresh and cache_key in _cached_results:
+    if not bypass and cache_key in _cached_results:
         res, ts = _cached_results[cache_key]
         if time.time() - ts < 600:
             return res
 
     ch = _get_ch()
     if ch is None:
-        raise StockDataUnavailable("ClickHouse is unreachable - stock ageing data cannot be loaded.")
-    snapshot = get_latest_snapshot_date(ch, force_refresh)
+        raise StockDataUnavailable(f"{active_engine} is unreachable - stock ageing data cannot be loaded.")
+    snapshot = get_latest_snapshot_date(ch, force_refresh=bypass)
     if snapshot is None:
-        raise StockDataUnavailable(f"No snapshot found in ClickHouse table `{STOCK_CH_TABLE}`.")
+        raise StockDataUnavailable(f"No snapshot found in {active_engine} table `{STOCK_CH_TABLE}`.")
 
-    bm_df = get_branch_master_df(force_refresh=force_refresh)
+    bm_df = get_branch_master_df(force_refresh=bypass)
     allowed = _branch_allowlist(bm_df, rbm, bdm, district, branch)
     df_prod, df_brand = _load_stock_frames_clickhouse(ch, snapshot, ch_price_expr, allowed)
 
@@ -254,7 +262,7 @@ def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, 
         df_prod, df_brand,
         rbm=rbm, bdm=bdm, branch=branch, district=district,
         selected_price_type=selected_price_type, price_label=price_label,
-        cache_key=cache_key, as_of_date=_format_as_of(snapshot), data_source='clickhouse',
+        cache_key=cache_key, as_of_date=_format_as_of(snapshot), data_source=active_engine,
     )
 
 

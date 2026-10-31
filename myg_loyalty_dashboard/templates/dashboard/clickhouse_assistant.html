@@ -495,6 +495,7 @@
     const CSRF = '{{ csrf_token }}';
     const CHAT_URL = '{% url "clickhouse_assistant_chat_api" %}';
     const SCHEMA_URL = '{% url "clickhouse_assistant_schema_api" %}';
+    const REPORT_URL = '{% url "clickhouse_assistant_report_download" "REPORT_ID" %}';
     const STORE_KEY = 'chx_assistant_chat_v2';
     const SESSION_ID_KEY = 'chx_assistant_session_id';
 
@@ -829,6 +830,19 @@
         if (b) { drawDaily(det.querySelector('canvas'), b); det.dataset.drawn = '1'; }
     }, true);
 
+    function reportCardHTML(b) {
+        const url = REPORT_URL.replace('REPORT_ID', encodeURIComponent(b.report_id)) + '?name=' + encodeURIComponent(b.filename || 'Jazz_Report.xlsx');
+        const mb = b.size_bytes ? (b.size_bytes >= 1048576 ? (b.size_bytes / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b.size_bytes / 1024)) + ' KB') : '';
+        const chips = (b.sheets || []).map((s) => '<span style="display:inline-block;margin:2px 4px 2px 0;padding:2px 9px;border-radius:999px;font-size:.68rem;font-weight:700;' +
+            (s.error ? 'background:#fee2e2;color:#b91c1c;' : 'background:#e0e7ff;color:#3730a3;') + '" title="' + esc(s.error || '') + '">' + esc(s.name) +
+            (s.error ? ' \u2717' : ' \u00b7 ' + (s.rows || 0).toLocaleString('en-IN')) + '</span>').join('');
+        return '<div style="margin:.8rem 0;padding:.9rem 1.1rem;border-radius:14px;border:1px solid #c7d2fe;background:linear-gradient(135deg,#eef2ff,#f5f3ff);display:flex;gap:.9rem;align-items:center;flex-wrap:wrap;">' +
+            '<i class="bi bi-file-earmark-spreadsheet-fill" style="font-size:2rem;color:#16a34a"></i>' +
+            '<div style="flex:1;min-width:220px"><div style="font-weight:800;color:#1e1b4b">' + esc(b.filename) + '</div>' +
+            '<div style="font-size:.72rem;color:#64748b;margin-bottom:.3rem">' + (b.total_rows || 0).toLocaleString('en-IN') + ' rows \u00b7 ' + (b.sheets || []).length + ' sheets' + (mb ? ' \u00b7 ' + mb : '') + ' \u00b7 Insights sheet included</div>' + chips + '</div>' +
+            '<a href="' + url + '" download style="background:#4f46e5;color:#fff;font-weight:700;padding:.55rem 1.1rem;border-radius:10px;text-decoration:none;white-space:nowrap"><i class="bi bi-download"></i> Download Excel</a></div>';
+    }
+
     function validationHTML(checks) {
         if (!checks || !checks.length) return '';
         return '<div class="chx-vchips">' + checks.map((c) => {
@@ -841,9 +855,9 @@
         if (!steps || !steps.length) return '';
         let h = '<details class="chx-steps"><summary><i class="bi bi-chevron-right"></i> How I got this (' + steps.length + ' step' + (steps.length > 1 ? 's' : '') + ')</summary>';
         steps.forEach((s, n) => {
-            const isSql = s.tool === 'run_sql' || s.tool === 'query_uploaded_file';
+            const isSql = s.tool === 'run_sql' || s.tool === 'query_uploaded_file' || s.tool === 'build_excel_report';
             const srcLabel = s.source ? ' [' + esc(s.source) + ']' : '';
-            const toolName = s.tool === 'query_uploaded_file' ? 'Queried Uploaded File' : (s.tool === 'run_sql' ? 'ClickHouse SQL' : (s.tool === 'explain_change' ? 'Root-cause analysis' : 'Inspected Table'));
+            const toolName = s.tool === 'query_uploaded_file' ? 'Queried Uploaded File' : (s.tool === 'run_sql' ? 'ClickHouse SQL' : (s.tool === 'explain_change' ? 'Root-cause analysis' : (s.tool === 'build_excel_report' ? 'Built Excel report' : (s.tool === 'portal_page_info' ? 'Read portal page' : 'Inspected Table'))));
             h += '<div class="chx-step"><div class="lbl">' + (n + 1) + '. ' + (s.agent ? '<span class="chx-agent">' + esc(s.agent) + '</span> ' : '') + toolName + srcLabel +
                 (s.error ? ' <span class="bad"><i class="bi bi-x-circle-fill"></i> failed — retried</span>' : ' <span style="color:#16a34a"><i class="bi bi-check-circle-fill"></i></span>') + '</div>' +
                 validationHTML(s.validation) +
@@ -886,7 +900,7 @@
                     '<span>Analyzed ' + (finfo.type === 'image' ? 'image' : 'file') + ': <strong>' + esc(m.file_info.name) + '</strong> (' + esc(m.file_info.size_str) + metaExtra + ')</span></div>';
             }
             inner += '<div class="chx-md">' + renderMarkdown(m.content) + '</div>';
-            (m.ui_blocks || []).forEach((b, bi) => { if (b.type === 'rca') inner += rcaHTML(b, mi + '-' + bi); });
+            (m.ui_blocks || []).forEach((b, bi) => { if (b.type === 'rca') inner += rcaHTML(b, mi + '-' + bi); else if (b.type === 'report_file') inner += reportCardHTML(b); });
             (m.results || []).forEach((r, ri) => { inner += resultHTML(r, mi + ':' + ri); });
             inner += stepsHTML(m.steps);
             if (!m.error) {

@@ -268,7 +268,7 @@
         Retail Performance Analytics
       </h2>
       <p style="font-size:.78rem;color:var(--text-3);margin:.2rem 0 0">
-        Category · Brand · Product Intelligence — powered by ClickHouse
+        Category · Brand · Product Intelligence — powered by {% if request.db_engine == 'starrocks' %}StarRocks{% else %}ClickHouse{% endif %}
       </p>
     </div>
     
@@ -340,6 +340,10 @@
         <label><i class="bi bi-box-seam text-primary me-1"></i> Product</label>
         <select id="dash-product"></select>
       </div>
+      <div style="flex: 1 1 185px;">
+        <label><i class="bi bi-layers text-primary me-1"></i> Price Segment</label>
+        <select id="dash-price-slab"></select>
+      </div>
     </div>
 
     <!-- Bottom Row: Base vs Comp -->
@@ -410,7 +414,7 @@
         <i class="bi bi-box-seam me-1"></i> Product
       </button>
       <button id="tab-brand" onclick="switchTab('brand')" class="dash-tab"
-              style="padding:.65rem 1.1rem; font-size:.78rem; font-weight:700; background:none; border:none; border-bottom:2px solid transparent; color:var(--text-3); cursor:pointer; letter-spacing:.04em; text-transform:uppercase;">
+              style="padding:.65rem 1.1rem; font-size:.78rem; font-weight:700; background:none; border:none; border-bottom:2px solid transparent; color:var(--text-3); cursor:pointer; letter-spacing:.04em; text-transform:uppercase; margin-right:.5rem;">
         <i class="bi bi-award me-1"></i> Brand
       </button>
       <button id="tab-branch" onclick="switchTab('branch')" class="dash-tab"
@@ -1018,10 +1022,10 @@ function renderScorecard(scorecard) {
   
   _set('prod-base-amt-h1',  bLabelShort);
   _set('prod-comp-amt-h1',  cLabelShort);
-  _set('prod-share-amt-h1', 'SHARE ' + cLabelShort);
+  _set('prod-share-amt-h1', (window._flatMetric?.product === 'discount') ? 'DISC %' : ('SHARE ' + cLabelShort));
   _set('prod-base-qty-h1',  bLabelShort);
   _set('prod-comp-qty-h1',  cLabelShort);
-  _set('prod-share-qty-h1', 'SHARE ' + cLabelShort);
+  _set('prod-share-qty-h1', (window._flatMetric?.product === 'discount') ? 'AVG SPEND' : ('SHARE ' + cLabelShort));
   
   _set('brand-base-amt-h1',  bLabelShort);
   _set('brand-comp-amt-h1',  cLabelShort);
@@ -1140,7 +1144,8 @@ _set('branch-base-amt-h1',  bLabelShort);
             const rev_growth = b_rev > 0 ? ((br.sales - b_rev)/b_rev*100) : 0;
             const qty_growth = b_qty > 0 ? ((br.qty - b_qty)/b_qty*100) : 0;
             const bc = brandCol(br.brand, br.sales, br.qty, r.c_rev, r.c_qty);
-            return `<tr class="brand-row-${cat.replace(/[\s\W]+/g,'-')}" style="display:none; background-color:#fafafa; font-size:0.75rem;">
+            const isCeCatOpen = Boolean((window._catExpanded||{})[cat.replace(/[\s\W]+/g,'-')]);
+            return `<tr class="brand-row-${cat.replace(/[\s\W]+/g,'-')}" style="display:${isCeCatOpen ? 'table-row' : 'none'}; background-color:#fafafa; font-size:0.75rem;">
               <td style="padding-left:2.5rem; min-width:160px; border-right: 2px solid #64748b; color:var(--text-2);">
                 <span class="rank-badge" style="background:#e2e8f0;color:#64748b;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.65rem;margin-right:0.5rem;">${bi+1}</span>
                 <span style="font-weight:600;">${br.brand}</span>
@@ -1178,6 +1183,15 @@ _set('branch-base-amt-h1',  bLabelShort);
               ? `<td class="text-right" style="color:var(--text-2); padding-right:1.25rem;">&#8377;${Math.round(pAvgSpend).toLocaleString('en-IN')}</td>`
               : `<td class="text-right" style="color:var(--text-2); padding-right:1.25rem;">${pAvgSpend.toFixed(2)}%</td>`;
             
+            let pId = (pRow.product||'unknown').replace(/[\s\W]+/g, '-');
+            let prefix = cat.replace(/[\s\W]+/g, '-').toLowerCase();
+            let catSlugOuter = cat.replace(/[\s\W]+/g,'-');
+            let subKey = `${prefix}-${pId}`;
+            window._catExpanded  = window._catExpanded  || {};
+            const isOuterOpen = Boolean(window._catExpanded[catSlugOuter]);
+            const isSubOpen   = isOuterOpen && Boolean(window._catExpanded[subKey]);
+            const subDisp     = isSubOpen ? 'table-row' : 'none';
+
             let sortedBrands = Object.values(pRow.brands).sort((a,b) => (b.c_rev||0) - (a.c_rev||0)).slice(0,10);
             let innerBrandHtml = sortedBrands.map((br, bi) => {
               const b_rev = br.b_rev||0, c_rev = br.c_rev||0;
@@ -1185,9 +1199,7 @@ _set('branch-base-amt-h1',  bLabelShort);
               const b_rev_growth = b_rev > 0 ? ((c_rev - b_rev)/b_rev*100) : 0;
               const b_qty_growth = b_qty > 0 ? ((c_qty - b_qty)/b_qty*100) : 0;
               const ibc = brandCol(br.brand, c_rev, c_qty, pRow.c_rev, pRow.c_qty);
-              let pId = (pRow.product||'unknown').replace(/[\s\W]+/g, '-');
-              let prefix = cat.replace(/[\s\W]+/g, '-').toLowerCase();
-              return `<tr class="brand-row-${prefix}-${pId} brand-row-${cat.replace(/[\s\W]+/g,'-')}-child" style="display:none; background-color:#ffffff; font-size:0.7rem;">
+              return `<tr class="brand-row-${subKey} brand-row-${catSlugOuter}-child" style="display:${subDisp}; background-color:#ffffff; font-size:0.7rem;">
                 <td style="padding-left:4rem; min-width:160px; border-right: 2px solid #64748b; color:var(--text-3);">
                   <span class="rank-badge" style="background:#f1f5f9;color:#94a3b8;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.6rem;margin-right:0.4rem;">${bi+1}</span>
                   <span style="font-weight:600;">${br.brand}</span>
@@ -1203,11 +1215,9 @@ _set('branch-base-amt-h1',  bLabelShort);
               </tr>`;
             }).join('');
             
-            let pId = (pRow.product||'unknown').replace(/[\s\W]+/g, '-');
-            let prefix = cat.replace(/[\s\W]+/g, '-').toLowerCase();
-            return `<tr class="brand-row-${cat.replace(/[\s\W]+/g,'-')}" style="display:none; background-color:#fafafa; font-size:0.75rem; cursor:pointer;" onclick="toggleBrandRow('${prefix}-${pId}', event)">
+            return `<tr class="brand-row-${catSlugOuter}" style="display:${isOuterOpen ? 'table-row' : 'none'}; background-color:#fafafa; font-size:0.75rem; cursor:pointer;" onclick="toggleBrandRow('${subKey}', event)">
               <td style="padding-left:2.5rem; min-width:160px; border-right: 2px solid #64748b; color:var(--text-2);">
-                <i class="bi bi-chevron-down" style="font-size:0.6rem; margin-right:0.3rem;" id="brand-icon-${prefix}-${pId}"></i>
+                <i class="bi ${isSubOpen ? 'bi-chevron-up' : 'bi-chevron-down'}" style="font-size:0.6rem; margin-right:0.3rem;" id="brand-icon-${subKey}"></i>
                 <span style="font-weight:600;">${pRow.product}</span>
               </td>
               <td class="text-right" style="color:var(--text-2);">${fCr(pRow.b_rev)}</td>
@@ -1226,6 +1236,10 @@ _set('branch-base-amt-h1',  bLabelShort);
           </tr>`;
         }
       } else {
+        const catIdSlug = cat.replace(/[\s\W]+/g,'-');
+        window._catExpanded = window._catExpanded || {};
+        const isCatOpen = Boolean(window._catExpanded[catIdSlug]);
+        const rowDisp   = isCatOpen ? 'table-row' : 'none';
         const b_rows = (_data.brands[cat]||[]).slice(0,10);
         const bRowsMap = (_data.table||[]).filter(x=>x.category===cat).reduce((acc,x)=>{ acc[x.brand]=x; return acc; },{});
         
@@ -1237,7 +1251,7 @@ _set('branch-base-amt-h1',  bLabelShort);
             const rev_growth = b_rev > 0 ? ((br.sales - b_rev)/b_rev*100) : 0;
             const qty_growth = b_qty > 0 ? ((br.qty - b_qty)/b_qty*100) : 0;
             const bc = brandCol(br.brand, br.sales, br.qty, r.c_rev, r.c_qty);
-            return `<tr class="brand-row-${cat.replace(/[\s\W]+/g,'-')}" style="display:none; background-color:#fafafa; font-size:0.75rem;">
+            return `<tr class="brand-row-${catIdSlug}" style="display:${rowDisp}; background-color:#fafafa; font-size:0.75rem;">
               <td style="padding-left:2.5rem; min-width:160px; border-right: 2px solid #64748b; color:var(--text-2);">
                 <span class="rank-badge" style="background:#e2e8f0;color:#64748b;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.65rem;margin-right:0.5rem;">${bi+1}</span>
                 <span style="font-weight:600;">${br.brand}</span>
@@ -1253,13 +1267,15 @@ _set('branch-base-amt-h1',  bLabelShort);
             </tr>`;
           }).join('');
         } else {
-          brandHtml = `<tr class="brand-row-${cat.replace(/[\s\W]+/g,'-')}" style="display:none; background-color:#fafafa;">
+          brandHtml = `<tr class="brand-row-${catIdSlug}" style="display:${rowDisp}; background-color:#fafafa;">
             <td colspan="9" style="text-align:center; padding:1rem; color:var(--text-3); font-size:0.75rem;">No data</td>
           </tr>`;
         }
       }
     }
 
+    const catSlugMain = r.category.replace(/[\s\W]+/g,'-');
+    const isCatOpenMain = Boolean((window._catExpanded || {})[catSlugMain]);
 
     return `
     <tr class="${isGrand?'grand-total':''}">
@@ -1267,8 +1283,8 @@ _set('branch-base-amt-h1',  bLabelShort);
         ${isGrand
           ? `<span style="font-weight:800;color:var(--text-1)">Grand Total</span>`
           : `<span class="cat-dot" style="background:${color}"></span>
-             <a href="javascript:void(0)" onclick="toggleBrandRow('${r.category.replace(/[\\s\\W]+/g,'-')}')" style="color:var(--text-1);font-weight:600;text-decoration:none; text-transform:uppercase; display:inline-flex; align-items:center; gap:0.25rem;">
-               ${r.category} <i class="bi bi-chevron-down" style="font-size:0.7rem; color:var(--text-3);" id="brand-icon-${r.category.replace(/[\\s\\W]+/g,'-')}"></i>
+             <a href="javascript:void(0)" onclick="toggleBrandRow('${catSlugMain}')" style="color:var(--text-1);font-weight:600;text-decoration:none; text-transform:uppercase;">
+               ${r.category} <i class="bi ${isCatOpenMain ? 'bi-chevron-up' : 'bi-chevron-down'}" style="font-size:0.7rem; color:var(--text-3); margin-left:0.2rem;" id="brand-icon-${catSlugMain}"></i>
              </a>`
         }
       </td>
@@ -1295,6 +1311,8 @@ function toggleBrandRow(catId, event) {
   if (!rows.length) return;
   
   const isHidden = rows[0].style.display === 'none';
+  window._catExpanded = window._catExpanded || {};
+  window._catExpanded[catId] = isHidden;
   rows.forEach(r => {
     r.style.display = isHidden ? 'table-row' : 'none';
   });
@@ -1305,7 +1323,11 @@ function toggleBrandRow(catId, event) {
     childRows.forEach(r => {
       r.style.display = 'none';
     });
-    // Reset any child icons
+    Object.keys(window._catExpanded).forEach(k => {
+      if (k.toLowerCase().startsWith(catId.toLowerCase() + '-')) {
+        window._catExpanded[k] = false;
+      }
+    });
     const childIcons = document.querySelectorAll(`[id^='brand-icon-${catId.toLowerCase()}-']`);
     childIcons.forEach(ic => {
       ic.classList.remove('bi-chevron-up');
@@ -1345,25 +1367,24 @@ function exportExcel() {
     by = document.getElementById('base-year').value;
     cy = document.getElementById('comp-year').value;
   }
-  const cat     = window._dash_ts && window._dash_ts['dash-cat']     ? window._dash_ts['dash-cat'].getValue().join(',')     : '';
-  const branch  = window._dash_ts && window._dash_ts['dash-branch']  ? window._dash_ts['dash-branch'].getValue().join(',')  : '';
-  const brand   = window._dash_ts && window._dash_ts['dash-brand']   ? window._dash_ts['dash-brand'].getValue().join(',')   : '';
-  const product = window._dash_ts && window._dash_ts['dash-product'] ? window._dash_ts['dash-product'].getValue().join(',') : '';
-  const rbm     = window._dash_ts && window._dash_ts['dash-rbm']     ? window._dash_ts['dash-rbm'].getValue().join(',')     : '';
-  const bdm     = window._dash_ts && window._dash_ts['dash-bdm']     ? window._dash_ts['dash-bdm'].getValue().join(',')     : '';
-  const district= window._dash_ts && window._dash_ts['dash-district']? window._dash_ts['dash-district'].getValue().join(','): '';
-  const state   = window._dash_ts && window._dash_ts['dash-state']   ? window._dash_ts['dash-state'].getValue().join(',')   : '';
+  const cat       = window._dash_ts && window._dash_ts['dash-cat']        ? window._dash_ts['dash-cat'].getValue().join(',')        : '';
+  const branch    = window._dash_ts && window._dash_ts['dash-branch']     ? window._dash_ts['dash-branch'].getValue().join(',')     : '';
+  const brand     = window._dash_ts && window._dash_ts['dash-brand']      ? window._dash_ts['dash-brand'].getValue().join(',')      : '';
+  const product   = window._dash_ts && window._dash_ts['dash-product']    ? window._dash_ts['dash-product'].getValue().join(',')    : '';
+  const priceSlab = window._dash_ts && window._dash_ts['dash-price-slab'] ? window._dash_ts['dash-price-slab'].getValue().join(',') : '';
+  const rbm       = window._dash_ts && window._dash_ts['dash-rbm']        ? window._dash_ts['dash-rbm'].getValue().join(',')        : '';
+  const bdm       = window._dash_ts && window._dash_ts['dash-bdm']        ? window._dash_ts['dash-bdm'].getValue().join(',')        : '';
+  const district  = window._dash_ts && window._dash_ts['dash-district']   ? window._dash_ts['dash-district'].getValue().join(',')   : '';
+  const state     = window._dash_ts && window._dash_ts['dash-state']      ? window._dash_ts['dash-state'].getValue().join(',')      : '';
 
-  const commonParams = `type=${apiType}&base=${encodeURIComponent(base)}&comp=${encodeURIComponent(comp)}&base_year=${by}&comp_year=${cy}&category=${encodeURIComponent(cat)}&branch=${encodeURIComponent(branch)}&brand=${encodeURIComponent(brand)}&product=${encodeURIComponent(product)}&rbm=${encodeURIComponent(rbm)}&bdm=${encodeURIComponent(bdm)}&district=${encodeURIComponent(district)}&state=${encodeURIComponent(state)}`;
+  const commonParams = `type=${apiType}&base=${encodeURIComponent(base)}&comp=${encodeURIComponent(comp)}&base_year=${by}&comp_year=${cy}&category=${encodeURIComponent(cat)}&branch=${encodeURIComponent(branch)}&brand=${encodeURIComponent(brand)}&product=${encodeURIComponent(product)}&price_slab=${encodeURIComponent(priceSlab)}&rbm=${encodeURIComponent(rbm)}&bdm=${encodeURIComponent(bdm)}&district=${encodeURIComponent(district)}&state=${encodeURIComponent(state)}`;
 
+  const srPrefix = window.location.pathname.startsWith('/sr/') ? '/sr' : '';
   // Route to the correct export based on the currently visible tab
   if (_activeTab === 'growth') {
-    // Growth & Degrowth tab — dedicated export with 4 sheets
-    window.location.href = `/api/v1/enterprise-dashboard/growth-degrowth/export/?${commonParams}`;
+    window.location.href = `${srPrefix}/api/v1/enterprise-dashboard/growth-degrowth/export/?${commonParams}`;
   } else {
-    // Category / Product / Brand / Branch tabs — pass active tab so backend
-    // generates separate AMT and QTY sheets for just that section
-    window.location.href = `/api/v1/enterprise-dashboard/export/?${commonParams}&tab=${_activeTab}`;
+    window.location.href = `${srPrefix}/api/v1/enterprise-dashboard/export/?${commonParams}&tab=${_activeTab}`;
   }
 }
 
@@ -1559,9 +1580,9 @@ function renderProductReport(table) {
 
   let html = '';
   sorted.forEach(([prod, pv]) => {
-    const pId     = prod.replace(/[\s\W]+/g, '-');
-    const rev_g   = pv.b_rev > 0 ? (pv.c_rev - pv.b_rev) / pv.b_rev * 100 : 0;
-    const qty_g   = pv.b_qty > 0 ? (pv.c_qty - pv.b_qty) / pv.b_qty * 100 : 0;
+    const pId   = prod.replace(/[\s\W]+/g, '-');
+    const rev_g = pv.b_rev > 0 ? (pv.c_rev - pv.b_rev) / pv.b_rev * 100 : 0;
+    const qty_g = pv.b_qty > 0 ? (pv.c_qty - pv.b_qty) / pv.b_qty * 100 : 0;
     const { col5, col9 } = _col59(pv, tot_c_rev, tot_c_qty, false, 0);
 
     // Product row (clickable)
@@ -2281,16 +2302,17 @@ async function loadGrowthDegrowthData() {
       by   = document.getElementById('base-year').value;
       cy   = document.getElementById('comp-year').value;
     }
-    const rbm     = window._dash_ts?.['dash-rbm']?.getValue().join(',')     || '';
-    const bdm     = window._dash_ts?.['dash-bdm']?.getValue().join(',')     || '';
-    const cat     = window._dash_ts?.['dash-cat']?.getValue().join(',')     || '';
-    const branch  = window._dash_ts?.['dash-branch']?.getValue().join(',')  || '';
-    const brand   = window._dash_ts?.['dash-brand']?.getValue().join(',')   || '';
-    const product = window._dash_ts?.['dash-product']?.getValue().join(',') || '';
-    const district= window._dash_ts?.['dash-district']?.getValue().join(',')|| '';
-    const state   = window._dash_ts?.['dash-state']?.getValue().join(',')   || '';
+    const rbm       = window._dash_ts?.['dash-rbm']?.getValue().join(',')        || '';
+    const bdm       = window._dash_ts?.['dash-bdm']?.getValue().join(',')        || '';
+    const cat       = window._dash_ts?.['dash-cat']?.getValue().join(',')        || '';
+    const branch    = window._dash_ts?.['dash-branch']?.getValue().join(',')     || '';
+    const brand     = window._dash_ts?.['dash-brand']?.getValue().join(',')      || '';
+    const product   = window._dash_ts?.['dash-product']?.getValue().join(',')    || '';
+    const priceSlab = window._dash_ts?.['dash-price-slab']?.getValue().join(',') || '';
+    const district  = window._dash_ts?.['dash-district']?.getValue().join(',')   || '';
+    const state     = window._dash_ts?.['dash-state']?.getValue().join(',')      || '';
 
-    const url = `/api/v1/enterprise-dashboard/growth-degrowth/?type=${apiType}&base=${encodeURIComponent(base)}&comp=${encodeURIComponent(comp)}&base_year=${by}&comp_year=${cy}&category=${encodeURIComponent(cat)}&branch=${encodeURIComponent(branch)}&rbm=${encodeURIComponent(rbm)}&bdm=${encodeURIComponent(bdm)}&brand=${encodeURIComponent(brand)}&product=${encodeURIComponent(product)}&district=${encodeURIComponent(district)}&state=${encodeURIComponent(state)}`;
+    const url = `/api/v1/enterprise-dashboard/growth-degrowth/?type=${apiType}&base=${encodeURIComponent(base)}&comp=${encodeURIComponent(comp)}&base_year=${by}&comp_year=${cy}&category=${encodeURIComponent(cat)}&branch=${encodeURIComponent(branch)}&rbm=${encodeURIComponent(rbm)}&bdm=${encodeURIComponent(bdm)}&brand=${encodeURIComponent(brand)}&product=${encodeURIComponent(product)}&price_slab=${encodeURIComponent(priceSlab)}&district=${encodeURIComponent(district)}&state=${encodeURIComponent(state)}`;
     const res  = await fetch(url);
     const json = await res.json();
     if (json.status !== 'success') { console.error('GD API Error:', json.message); return; }
@@ -2316,7 +2338,7 @@ async function loadDashboardData() {
   // Show skeletons
   ['scorecard-tbody'].forEach(id=>{
     const el=document.getElementById(id);
-    if(el) el.innerHTML=`<tr class="loading-row"><td colspan="10"><div class="skeleton" style="height:13px;width:70%"></div></td></tr>`;
+    if(el) el.innerHTML=`<tr class="loading-row"><td colspan="9"><div class="skeleton" style="height:13px;width:70%"></div></td></tr>`;
   });
 
   const type = document.getElementById('comp-type').value;
@@ -2340,21 +2362,26 @@ async function loadDashboardData() {
     by = document.getElementById('base-year').value;
     cy = document.getElementById('comp-year').value;
   }
-  const rbm     = window._dash_ts && window._dash_ts['dash-rbm']     ? window._dash_ts['dash-rbm'].getValue().join(',')     : '';
-  const bdm     = window._dash_ts && window._dash_ts['dash-bdm']     ? window._dash_ts['dash-bdm'].getValue().join(',')     : '';
-  const cat     = window._dash_ts && window._dash_ts['dash-cat']     ? window._dash_ts['dash-cat'].getValue().join(',')     : '';
-  const branch  = window._dash_ts && window._dash_ts['dash-branch']  ? window._dash_ts['dash-branch'].getValue().join(',')  : '';
-  const brand   = window._dash_ts && window._dash_ts['dash-brand']   ? window._dash_ts['dash-brand'].getValue().join(',')   : '';
-  const product = window._dash_ts && window._dash_ts['dash-product'] ? window._dash_ts['dash-product'].getValue().join(',') : '';
-  const district= window._dash_ts && window._dash_ts['dash-district']? window._dash_ts['dash-district'].getValue().join(',') : '';
-  const state   = window._dash_ts && window._dash_ts['dash-state']   ? window._dash_ts['dash-state'].getValue().join(',')   : '';
+  const rbm       = window._dash_ts && window._dash_ts['dash-rbm']        ? window._dash_ts['dash-rbm'].getValue().join(',')        : '';
+  const bdm       = window._dash_ts && window._dash_ts['dash-bdm']        ? window._dash_ts['dash-bdm'].getValue().join(',')        : '';
+  const cat       = window._dash_ts && window._dash_ts['dash-cat']        ? window._dash_ts['dash-cat'].getValue().join(',')        : '';
+  const branch    = window._dash_ts && window._dash_ts['dash-branch']     ? window._dash_ts['dash-branch'].getValue().join(',')     : '';
+  const brand     = window._dash_ts && window._dash_ts['dash-brand']      ? window._dash_ts['dash-brand'].getValue().join(',')      : '';
+  const product   = window._dash_ts && window._dash_ts['dash-product']    ? window._dash_ts['dash-product'].getValue().join(',')    : '';
+  const priceSlab = window._dash_ts && window._dash_ts['dash-price-slab'] ? window._dash_ts['dash-price-slab'].getValue().join(',') : '';
+  const district  = window._dash_ts && window._dash_ts['dash-district']   ? window._dash_ts['dash-district'].getValue().join(',')   : '';
+  const state     = window._dash_ts && window._dash_ts['dash-state']      ? window._dash_ts['dash-state'].getValue().join(',')      : '';
 
   try {
-    const res  = await fetch(`/api/v1/enterprise-dashboard/?type=${apiType}&base=${base}&comp=${comp}&base_year=${by}&comp_year=${cy}&category=${encodeURIComponent(cat)}&branch=${encodeURIComponent(branch)}&rbm=${encodeURIComponent(rbm)}&bdm=${encodeURIComponent(bdm)}&brand=${encodeURIComponent(brand)}&product=${encodeURIComponent(product)}&district=${encodeURIComponent(district)}&state=${encodeURIComponent(state)}`);
+    const res  = await fetch(`/api/v1/enterprise-dashboard/?type=${apiType}&base=${base}&comp=${comp}&base_year=${by}&comp_year=${cy}&category=${encodeURIComponent(cat)}&branch=${encodeURIComponent(branch)}&rbm=${encodeURIComponent(rbm)}&bdm=${encodeURIComponent(bdm)}&brand=${encodeURIComponent(brand)}&product=${encodeURIComponent(product)}&price_slab=${encodeURIComponent(priceSlab)}&district=${encodeURIComponent(district)}&state=${encodeURIComponent(state)}`);
     const json = await res.json();
     if (json.status !== 'success') { alert('Error: '+json.message); return; }
 
     _data = json.data;
+    if (_data && _data.price_slab_config && Object.keys(_data.price_slab_config).length) {
+      window._priceSlabConfig = _data.price_slab_config;
+      if (typeof window.refreshPriceSlabOptions === 'function') window.refreshPriceSlabOptions();
+    }
 
     // ── Render all four panels ──
     renderScorecard(_data.scorecard);
@@ -2436,16 +2463,98 @@ document.addEventListener('DOMContentLoaded', () => {
     dropdownParent: 'body',
     placeholder: 'All...',
   };
-  ['dash-cat','dash-branch','dash-rbm','dash-bdm','dash-brand','dash-product','dash-district','dash-state'].forEach(id => {
-      window._dash_ts[id] = new TomSelect('#'+id, {...tsOpts});
+  ['dash-cat','dash-branch','dash-rbm','dash-bdm','dash-brand','dash-product','dash-price-slab','dash-district','dash-state'].forEach(id => {
+      const extraOpts = (id === 'dash-price-slab')
+        ? { sortField: [{ field: 'order', direction: 'asc' }] }
+        : {};
+      window._dash_ts[id] = new TomSelect('#'+id, {...tsOpts, ...extraOpts});
   });
+
+  // Pre-seed per-product price segmentation config (refreshed dynamically from backend)
+  window._productCatMap = { 'MOBILE': 'MOBILE' };
+  window._priceSlabConfig = {
+    'MOBILE': [
+      { slab_no: 1, segment: 'Entry-Level',              range: 'Below ₹10,000' },
+      { slab_no: 2, segment: 'Budget / Mass Market',     range: '₹10,000 – ₹19,999' },
+      { slab_no: 3, segment: 'Mid-Range',                range: '₹20,000 – ₹34,999' },
+      { slab_no: 4, segment: 'Upper Mid-Range',          range: '₹35,000 – ₹49,999' },
+      { slab_no: 5, segment: 'Premium',                  range: '₹50,000 – ₹59,999' },
+      { slab_no: 6, segment: 'Ultra-Premium',            range: '₹60,000 – ₹79,999' },
+      { slab_no: 7, segment: 'Super Premium',            range: '₹80,000 – ₹99,999' },
+      { slab_no: 8, segment: 'Luxury / Flagship',        range: '₹1,00,000 – ₹1,49,999' },
+      { slab_no: 9, segment: 'Ultra-Luxury / Foldables', range: '₹1,50,000 and Above' },
+    ]
+  };
+
+  window.refreshPriceSlabOptions = function() {
+    if (window._refreshingPriceSlabs) return;
+    const tsSlab = window._dash_ts && window._dash_ts['dash-price-slab'];
+    if (!tsSlab) return;
+    window._refreshingPriceSlabs = true;
+    try {
+      const cfg = window._priceSlabConfig || {};
+      const catMap = window._productCatMap || {};
+      const cfgProds = Object.keys(cfg);
+      const selProds = (window._dash_ts['dash-product'] ? window._dash_ts['dash-product'].getValue() : [])
+        .map(v => String(v).trim().toUpperCase()).filter(Boolean);
+      const selCats = (window._dash_ts['dash-cat'] ? window._dash_ts['dash-cat'].getValue() : [])
+        .map(v => String(v).trim().toUpperCase()).filter(Boolean);
+
+      let matchedProds = cfgProds;
+      if (selProds.length > 0) {
+        matchedProds = cfgProds.filter(pr => selProds.includes(pr.toUpperCase()));
+      } else if (selCats.length > 0) {
+        matchedProds = cfgProds.filter(pr => selCats.includes(String(catMap[pr] || pr).toUpperCase()));
+      }
+
+      const prevVals = [...tsSlab.getValue()];
+      const showProdPrefix = matchedProds.length > 1 || (selProds.length === 0 && cfgProds.length > 1);
+      const validSet = new Set();
+      let orderIdx = 1;
+
+      tsSlab.clear(true);
+      tsSlab.clearOptions();
+
+      matchedProds.forEach(prod => {
+        (cfg[prod] || []).forEach(s => {
+          const val = `${prod}:${s.slab_no}`;
+          const baseLbl = `${s.slab_no}. ${s.segment} (${s.range})`;
+          const text = showProdPrefix ? `${prod} · ${baseLbl}` : baseLbl;
+          validSet.add(val);
+          tsSlab.addOption({ value: val, text: text, order: orderIdx++ });
+        });
+      });
+
+      const kept = prevVals.filter(v => validSet.has(v));
+      if (kept.length > 0) {
+        tsSlab.setValue(kept, true);
+      }
+      if (tsSlab.control_input) {
+        tsSlab.settings.placeholder = (matchedProds.length === 0 && (selProds.length > 0 || selCats.length > 0))
+          ? 'No slabs...'
+          : 'All...';
+        tsSlab.inputState();
+      }
+      tsSlab.refreshOptions(false);
+    } finally {
+      window._refreshingPriceSlabs = false;
+    }
+  };
+
+  window._dash_ts['dash-product'].on('change', () => window.refreshPriceSlabOptions());
+  window._dash_ts['dash-cat'].on('change', () => window.refreshPriceSlabOptions());
+  window.refreshPriceSlabOptions();
+  if (p.get('price_slab')) {
+    const initSlabs = p.get('price_slab').split(',').map(s => s.trim()).filter(Boolean);
+    window._dash_ts['dash-price-slab'].setValue(initSlabs, true);
+  }
 
   // Pre-populate category options (fixed list)
   const cats = ['MOBILE','CE','LAPTOP','ACC','TABLET','OTHER','VALUE ADDED SERVICE','RIG'];
   cats.forEach(c => window._dash_ts['dash-cat'].addOption({value:c, text:c}));
   window._dash_ts['dash-cat'].refreshOptions(false);
 
-  // Load dynamic filters (branches, brands, products, districts, states) from API
+  // Load dynamic filters (branches, brands, products, districts, states, price_slabs) from API
   fetch('/api/v1/special-event-reports/filters/')
     .then(r => r.json())
     .then(j => {
@@ -2462,6 +2571,11 @@ document.addEventListener('DOMContentLoaded', () => {
       fill('dash-product', j.data.products);
       if(j.data.districts) fill('dash-district', j.data.districts);
       if(j.data.states)    fill('dash-state',    j.data.states);
+      if(j.data.product_cat_map) window._productCatMap = j.data.product_cat_map;
+      if(j.data.price_slabs && Object.keys(j.data.price_slabs).length) {
+        window._priceSlabConfig = j.data.price_slabs;
+      }
+      window.refreshPriceSlabOptions();
       // Store last data date and recalculate date pickers so they cap to real data
       if (j.data.max_data_date) {
         window._maxDataDate = j.data.max_data_date;
