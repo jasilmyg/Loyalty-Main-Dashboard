@@ -291,6 +291,42 @@ def fetch_spoo_live_stats(live_short_url: str) -> dict:
         return {}
 
 
+def convert_utc_to_ist(ts_str: str) -> str:
+    """
+    Converts a UTC timestamp string (e.g. '2026-11-06 06:02:15' from spoo.me)
+    to Indian Standard Time (UTC+05:30), formatted as '2026-11-06 11:32:15 AM IST'.
+    """
+    if not ts_str or ts_str == "Never":
+        return ts_str or "Never"
+    clean = str(ts_str).strip()
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            dt_utc = datetime.strptime(clean[:19], fmt).replace(tzinfo=timezone.utc)
+            dt_ist = dt_utc.astimezone(IST)
+            return dt_ist.strftime("%Y-%m-%d %I:%M:%S %p IST")
+        except Exception:
+            continue
+    return clean
+
+
+def format_ist_timestamp(ts_str: str) -> str:
+    """
+    Formats an existing IST timestamp ('2026-11-06 11:32:15') into '2026-11-06 11:32:15 AM IST'.
+    """
+    if not ts_str or ts_str == "Never":
+        return ts_str or "Never"
+    clean = str(ts_str).strip()
+    if "IST" in clean:
+        return clean
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            dt_ist = datetime.strptime(clean[:19], fmt)
+            return dt_ist.strftime("%Y-%m-%d %I:%M:%S %p IST")
+        except Exception:
+            continue
+    return f"{clean} IST"
+
+
 def _init_pg_tables() -> bool:
     """Initializes `utm_links` and `utm_clicks` on the shared DigitalOcean PostgreSQL database if reachable."""
     try:
@@ -1091,17 +1127,19 @@ def get_utm_dashboard_data(
         ext_uniq = int(ext_st.get("unique-clicks") or 0)
         ext_counter = ext_st.get("counter") or {}
         ext_today = int(ext_counter.get(today_str) or 0)
-        ext_last = ext_st.get("last-click") or ""
+        ext_last_utc = ext_st.get("last-click") or ""
+        ext_last_ist = convert_utc_to_ist(ext_last_utc) if ext_last_utc else ""
 
         loc_total = int(local_st.get("total_clicks") or 0)
         loc_uniq = int(local_st.get("unique_visitors") or 0)
         loc_today = int(local_st.get("today_clicks") or 0)
-        loc_last = local_st.get("last_clicked_at") or ""
+        loc_last_raw = local_st.get("last_clicked_at") or ""
+        loc_last_ist = format_ist_timestamp(loc_last_raw) if loc_last_raw else ""
 
         combined_total = loc_total + ext_total
         combined_uniq = loc_uniq + ext_uniq
         combined_today = loc_today + ext_today
-        last_clicked = loc_last if (loc_last and loc_last > ext_last) else (ext_last or loc_last or "Never")
+        last_clicked = loc_last_ist or ext_last_ist or "Never"
 
         d["total_clicks"] = combined_total
         d["unique_visitors"] = combined_uniq
@@ -1140,7 +1178,7 @@ def get_utm_dashboard_data(
             if any(m in os_k.lower() for m in ("android", "ios", "iphone", "ipad", "mobile")):
                 mobile_clicks_ext += int(os_cnt or 0)
 
-        if ext_total > 0 and ext_last:
+        if ext_total > 0 and ext_last_ist:
             live_synthetic_logs.append({
                 "id": f"LIVE-{slug}",
                 "slug": slug,
@@ -1155,7 +1193,7 @@ def get_utm_dashboard_data(
                 "browser_name": ext_st.get("last-click-browser") or "Public Browser",
                 "referrer": d.get("live_short_url", "spoo.me"),
                 "event_type": "live_shortlink",
-                "clicked_at": f"{ext_last} ({ext_total} clicks)",
+                "clicked_at": f"{ext_last_ist} ({ext_total} clicks)",
             })
 
     mobile_clicks_db = 0
@@ -1236,6 +1274,8 @@ def get_utm_dashboard_data(
             for r in conn.execute("SELECT DISTINCT utm_campaign FROM utm_links WHERE utm_campaign != '' ORDER BY utm_campaign").fetchall()
         ]
 
+    for item in db_recent_clicks:
+        item["clicked_at"] = format_ist_timestamp(item.get("clicked_at", ""))
     recent_clicks = live_synthetic_logs + db_recent_clicks[:100]
     total_mobile = mobile_clicks_db + mobile_clicks_ext
     mobile_share_pct = round(total_mobile / total_clicks_all * 100, 1) if total_clicks_all > 0 else 0.0
