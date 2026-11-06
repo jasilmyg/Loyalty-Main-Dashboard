@@ -206,3 +206,10 @@ STARROCKS_DATABASE = os.environ.get('STARROCKS_DATABASE', 'Loyalty_Analytics')
 
 # Hot reload trigger
 AZURE_BLOB_SAS_URL = _os.environ.get('AZURE_BLOB_SAS_URL', None)
+
+# Public Live Domain for UTM Redirect Links (/go/<slug>/)
+PUBLIC_TRACKING_BASE_URL = os.environ.get(
+    'PUBLIC_TRACKING_BASE_URL',
+    'https://loyalty-main-dashboard.onrender.com'
+).rstrip('/')
+

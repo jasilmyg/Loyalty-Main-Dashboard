@@ -3,6 +3,8 @@ from django.views.generic import RedirectView
 from . import views
 from . import portal_views
 from . import product_penetration_v2 as ppv2
+from . import demand_intelligence_views as dii_views
+from . import utm_tracker_views
 from .ai_chat_views import AIChatView, AIChatAPIView
 
 urlpatterns = [
@@ -156,5 +158,20 @@ urlpatterns = [
     path('api/v1/sentiment/', views.SentimentDashboardAPIView.as_view(), name='sentiment_dashboard_api'),
     path('api/v1/sentiment/export/', views.SentimentQueueExportView.as_view(), name='sentiment_queue_export'),
 
+    # 📦 Demand & Inventory Intelligence (ClickHouse Live AI Forecasting & Velocity)
+    path('demand-intelligence/', dii_views.DemandIntelligencePageView.as_view(), name='demand_intelligence'),
+    path('api/v1/demand-intelligence/', dii_views.DemandIntelligenceAPIView.as_view(), name='demand_intelligence_api'),
+    path('api/v1/demand-intelligence/deep-dive/', dii_views.DemandProductDeepDiveAPIView.as_view(), name='demand_intelligence_deep_dive_api'),
+    path('api/v1/demand-intelligence/sku-options/', dii_views.DemandSkuOptionsAPIView.as_view(), name='demand_intelligence_sku_options_api'),
+    path('api/v1/demand-intelligence/export/', dii_views.DemandIntelligenceExportAPIView.as_view(), name='demand_intelligence_export_api'),
+    path('api/v1/demand-intelligence/dead-stock-excel/', dii_views.DemandDeadStockBranchExportAPIView.as_view(), name='demand_dead_stock_branch_export_api'),
+
+    # 🔗 UTM Link Builder & First-Party Click Tracker (myG Future Mangaluru & Campaigns)
+    path('utm-tracker/', utm_tracker_views.UtmTrackerPageView.as_view(), name='utm_tracker'),
+    path('api/v1/utm-tracker/', utm_tracker_views.UtmTrackerAPIView.as_view(), name='utm_tracker_api'),
+    path('api/v1/utm-tracker/export-csv/', utm_tracker_views.UtmClicksExportCSVView.as_view(), name='utm_tracker_export_csv'),
+    path('api/v1/utm-tracker/collect/', utm_tracker_views.UtmCollectBeaconView.as_view(), name='utm_tracker_collect'),
+    path('api/v1/utm-tracker/pixel.gif', utm_tracker_views.UtmCollectBeaconView.as_view(), name='utm_tracker_pixel'),
+    path('go/<str:slug>/', utm_tracker_views.UtmRedirectView.as_view(), name='utm_redirect'),
 ]
 

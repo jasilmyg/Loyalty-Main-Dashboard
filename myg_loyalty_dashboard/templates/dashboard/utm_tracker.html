@@ -1,0 +1,1076 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}UTM Link Builder &amp; Click Tracker — myG Future Mangaluru{% endblock %}
+
+{% block extra_css %}
+<style>
+.utm-hero {
+    background: linear-gradient(135deg, #064e3b 0%, #0f172a 55%, #1e1b4b 100%);
+    border-radius: 20px;
+    padding: 28px 32px;
+    color: #fff;
+    margin-bottom: 24px;
+    box-shadow: 0 12px 36px rgba(6, 78, 59, 0.22);
+    position: relative;
+    overflow: hidden;
+}
+.utm-hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 85% 20%, rgba(16, 185, 129, 0.22) 0%, transparent 55%);
+    pointer-events: none;
+}
+.utm-hero h1 {
+    font-size: 1.55rem;
+    font-weight: 800;
+    letter-spacing: -0.4px;
+    margin: 0 0 6px;
+}
+.utm-hero p {
+    font-size: 0.84rem;
+    color: #a7f3d0;
+    margin: 0;
+}
+.utm-pill-badge {
+    background: rgba(16, 185, 129, 0.16);
+    border: 1px solid rgba(52, 211, 153, 0.4);
+    color: #6ee7b7;
+    border-radius: 999px;
+    padding: 5px 14px;
+    font-size: 0.73rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.utm-quick-box {
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 14px;
+    padding: 16px 18px;
+    margin-top: 18px;
+    backdrop-filter: blur(8px);
+}
+.utm-ch-pills {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+.utm-ch-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #e2e8f0;
+    border-radius: 999px;
+    padding: 5px 13px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.utm-ch-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+}
+.utm-ch-btn.active {
+    background: #10b981;
+    border-color: #34d399;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+}
+.utm-url-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+@media (max-width: 992px) {
+    .utm-url-row {
+        grid-template-columns: 1fr;
+    }
+}
+.utm-url-card {
+    background: rgba(15, 23, 42, 0.72);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 11px;
+    padding: 11px 14px;
+}
+.utm-url-label {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+    color: #94a3b8;
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.utm-url-code {
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.77rem;
+    color: #f8fafc;
+    word-break: break-all;
+    background: rgba(0, 0, 0, 0.28);
+    padding: 7px 10px;
+    border-radius: 7px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 8px;
+}
+.utm-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.utm-kpi-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 15px;
+    padding: 18px 20px;
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+    position: relative;
+    overflow: hidden;
+}
+.utm-kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3.5px;
+}
+.utm-kpi-card.k1::before { background: linear-gradient(90deg, #10b981, #34d399); }
+.utm-kpi-card.k2::before { background: linear-gradient(90deg, #6366f1, #818cf8); }
+.utm-kpi-card.k3::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.utm-kpi-card.k4::before { background: linear-gradient(90deg, #0ea5e9, #38bdf8); }
+.utm-kpi-card.k5::before { background: linear-gradient(90deg, #ec4899, #f472b6); }
+.utm-kpi-card.k6::before { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+.utm-kpi-lbl {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #64748b;
+    margin-bottom: 4px;
+}
+.utm-kpi-val {
+    font-size: 1.65rem;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.5px;
+}
+.utm-kpi-sub {
+    font-size: 0.73rem;
+    color: #64748b;
+    margin-top: 2px;
+}
+.utm-section-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 22px 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.04);
+}
+.utm-section-title {
+    font-size: 0.98rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin-bottom: 2px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.utm-section-sub {
+    font-size: 0.76rem;
+    color: #64748b;
+    margin-bottom: 16px;
+}
+.utm-form-label {
+    font-size: 0.71rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #475569;
+    margin-bottom: 4px;
+    display: block;
+}
+.utm-input {
+    width: 100%;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 9px;
+    padding: 8px 12px;
+    font-size: 0.83rem;
+    color: #0f172a;
+    background: #f8fafc;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.utm-input:focus {
+    background: #fff;
+    border-color: #10b981;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.14);
+}
+.utm-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.81rem;
+}
+.utm-table thead th {
+    background: #f8fafc;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #475569;
+    padding: 10px 12px;
+    border-bottom: 1.5px solid #e2e8f0;
+    white-space: nowrap;
+}
+.utm-table tbody td {
+    padding: 11px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+    color: #334155;
+}
+.utm-table tbody tr:hover {
+    background: #f8fafc;
+}
+.ch-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.ch-whatsapp { background: #dcfce7; color: #15803d; }
+.ch-rcs { background: #dbeafe; color: #1d4ed8; }
+.ch-sms { background: #fef3c7; color: #b45309; }
+.ch-instagram { background: #fce7f3; color: #be185d; }
+.ch-facebook { background: #e0e7ff; color: #4338ca; }
+.ch-google { background: #fee2e2; color: #b91c1c; }
+.ch-qr { background: #f3e8ff; color: #6d28d9; }
+.ch-default { background: #f1f5f9; color: #334155; }
+.utm-tag-chip {
+    display: inline-block;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    color: #334155;
+    border-radius: 6px;
+    padding: 2px 7px;
+    font-family: monospace;
+    font-size: 0.71rem;
+    margin: 1px 2px;
+}
+.utm-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: #0f172a;
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-size: 0.83rem;
+    font-weight: 600;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    z-index: 10050;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    border-left: 4px solid #10b981;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="utmToast" class="utm-toast">
+    <i class="bi bi-check-circle-fill text-success"></i>
+    <span id="utmToastMsg">Copied to clipboard!</span>
+</div>
+
+<!-- HERO & INSTANT CHANNEL UTM SWITCHER -->
+<div class="utm-hero">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                <span class="utm-pill-badge"><i class="bi bi-broadcast-pin"></i> LIVE CAMPAIGN TRACKER</span>
+                <span class="utm-pill-badge" style="background:rgba(99,102,241,0.2);border-color:rgba(129,140,248,0.4);color:#c7d2fe;">
+                    <i class="bi bi-geo-alt-fill"></i> Dakshina Kannada &bull; myG Future Mangaluru
+                </span>
+            </div>
+            <h1><i class="bi bi-link-45deg me-1"></i> UTM Link Generator &amp; Click Tracking Center</h1>
+            <p>
+                Destination Landing Page:
+                <a href="{{ default_target_url }}" target="_blank" rel="noopener" style="color:#6ee7b7;text-decoration:underline;font-family:monospace;">
+                    {{ default_target_url }}
+                </a>
+            </p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="/api/v1/utm-tracker/export-csv/?type=links" class="btn btn-sm fw-bold" style="background:rgba(255,255,255,0.14);color:#fff;border:1px solid rgba(255,255,255,0.25);border-radius:9px;padding:7px 14px;">
+                <i class="bi bi-download me-1"></i> Export All UTM Links (CSV)
+            </a>
+            <a href="/api/v1/utm-tracker/export-csv/?type=clicks" class="btn btn-sm fw-bold" style="background:#10b981;color:#fff;border:none;border-radius:9px;padding:7px 14px;">
+                <i class="bi bi-file-earmark-spreadsheet me-1"></i> Export Click Log (CSV)
+            </a>
+        </div>
+    </div>
+
+    <!-- Quick Channel Switcher & Instant Copy -->
+    <div class="utm-quick-box">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+            <span style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#a7f3d0;">
+                <i class="bi bi-lightning-charge-fill me-1"></i> Select Channel for Ready-to-Share UTM Link:
+            </span>
+            <span id="activeChannelTitle" style="font-size:0.78rem;font-weight:700;color:#fff;">RCS Rich Card — myG Future Mangaluru</span>
+        </div>
+
+        <div class="utm-ch-pills" id="heroChannelPills"></div>
+
+        <div class="utm-url-row">
+            <!-- Direct UTM Destination Link -->
+            <div class="utm-url-card">
+                <div class="utm-url-label">
+                    <span><i class="bi bi-globe2 me-1 text-info"></i> Full Live UTM Destination Link (GA4 / Meta / Google Ads Ready)</span>
+                    <span class="badge bg-info-subtle text-info" style="font-size:0.62rem;">Direct Live UTM</span>
+                </div>
+                <div class="utm-url-code" id="heroFullUtmUrl">{{ default_target_url }}?utm_source=rcs&amp;utm_medium=messaging&amp;utm_campaign=myg_future_mangaluru&amp;utm_term=dakshina_kannada&amp;utm_content=rcs_rich_card</div>
+                <div class="d-flex gap-2 flex-wrap">
+                    <button type="button" class="btn btn-sm btn-success fw-bold" style="font-size:0.75rem;border-radius:7px;" onclick="copyHeroUrl('full')">
+                        <i class="bi bi-clipboard-check me-1"></i> Copy Direct UTM Link
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-light fw-semibold" style="font-size:0.75rem;border-radius:7px;" onclick="openQrModalFromHero('full')">
+                        <i class="bi bi-qr-code me-1"></i> QR Code
+                    </button>
+                    <a id="heroOpenDirectBtn" href="{{ default_target_url }}?utm_source=rcs&utm_medium=messaging&utm_campaign=myg_future_mangaluru&utm_term=dakshina_kannada&utm_content=rcs_rich_card" target="_blank" rel="noopener" class="btn btn-sm btn-outline-light fw-semibold" style="font-size:0.75rem;border-radius:7px;">
+                        <i class="bi bi-box-arrow-up-right me-1"></i> Open Live
+                    </a>
+                </div>
+            </div>
+
+            <!-- Live Public Tracked Domain Link -->
+            <div class="utm-url-card" style="border-color:rgba(52,211,153,0.4);">
+                <div class="utm-url-label">
+                    <span><i class="bi bi-shield-check me-1 text-warning"></i> Your Live Domain Link &amp; Connected Short Link (Cloud PostgreSQL Synced)</span>
+                    <span class="badge bg-warning text-dark" style="font-size:0.62rem;">Render Production + spoo.me Connected</span>
+                </div>
+                <div class="utm-url-code mb-2" id="heroShortRedirectUrl">https://loyalty-main-dashboard.onrender.com/go/mgl-rcs/</div>
+                <div class="d-flex align-items-center justify-content-between mb-2 px-2 py-1 rounded" style="background:rgba(16,185,129,0.14);border:1px solid rgba(52,211,153,0.3);">
+                    <span style="font-size:0.72rem;color:#a7f3d0;">
+                        <i class="bi bi-link-45deg me-1"></i>Connected Short Alias:
+                        <strong id="heroSpooShortUrl" style="font-family:monospace;color:#fff;">https://spoo.me/myg-mgl-rcs</strong>
+                    </span>
+                    <button type="button" class="btn btn-sm py-0 px-2 fw-bold" style="background:#10b981;color:#fff;font-size:0.68rem;border-radius:5px;" onclick="copyHeroUrl('spoo')">
+                        <i class="bi bi-clipboard me-1"></i>Copy spoo.me
+                    </button>
+                </div>
+                <div class="d-flex gap-2 flex-wrap">
+                    <button type="button" class="btn btn-sm btn-warning text-dark fw-bold" style="font-size:0.75rem;border-radius:7px;" onclick="copyHeroUrl('short')">
+                        <i class="bi bi-clipboard-plus me-1"></i> Copy Live Domain Link
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-light fw-semibold" style="font-size:0.75rem;border-radius:7px;" onclick="openQrModalFromHero('short')">
+                        <i class="bi bi-qr-code-scan me-1"></i> Tracked QR Code
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-info fw-semibold" style="font-size:0.75rem;border-radius:7px;" onclick="simulateClickHero()">
+                        <i class="bi bi-cursor-fill me-1"></i> Test Click Tracking
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- KPI ROW -->
+<div class="utm-kpi-grid">
+    <div class="utm-kpi-card k1">
+        <div class="utm-kpi-lbl">Total Tracked Clicks</div>
+        <div class="utm-kpi-val" id="kpiTotalClicks">0</div>
+        <div class="utm-kpi-sub">All recorded link clicks</div>
+    </div>
+    <div class="utm-kpi-card k2">
+        <div class="utm-kpi-lbl">Unique Visitors</div>
+        <div class="utm-kpi-val" id="kpiUniqueVisitors">0</div>
+        <div class="utm-kpi-sub">Distinct device fingerprints</div>
+    </div>
+    <div class="utm-kpi-card k3">
+        <div class="utm-kpi-lbl">Today's Clicks (IST)</div>
+        <div class="utm-kpi-val" id="kpiTodayClicks">0</div>
+        <div class="utm-kpi-sub">Clicks recorded today</div>
+    </div>
+    <div class="utm-kpi-card k4">
+        <div class="utm-kpi-lbl">Active UTM Links</div>
+        <div class="utm-kpi-val" id="kpiActiveLinks">10</div>
+        <div class="utm-kpi-sub">Pre-built + custom channels</div>
+    </div>
+    <div class="utm-kpi-card k5">
+        <div class="utm-kpi-lbl">Top Traffic Source</div>
+        <div class="utm-kpi-val" id="kpiTopSource" style="font-size:1.3rem;">whatsapp</div>
+        <div class="utm-kpi-sub">Highest converting source</div>
+    </div>
+    <div class="utm-kpi-card k6">
+        <div class="utm-kpi-lbl">Mobile Traffic Share</div>
+        <div class="utm-kpi-val" id="kpiMobileShare">0%</div>
+        <div class="utm-kpi-sub">Mobile &amp; Tablet clicks</div>
+    </div>
+</div>
+
+<!-- CUSTOM UTM LINK BUILDER -->
+<div class="utm-section-card">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+        <div>
+            <div class="utm-section-title">
+                <i class="bi bi-sliders2-vertical text-success"></i> Custom UTM Link Builder
+            </div>
+            <div class="utm-section-sub mb-0">
+                Create or customize a UTM-tracked link for <code>myg-future-mangaluru</code> (or any myG offer page) and save it to your tracking table.
+            </div>
+        </div>
+        <div class="d-flex gap-1 flex-wrap">
+            <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:0.73rem;padding:4px 10px;" onclick="fillBuilderPreset('WhatsApp','whatsapp','broadcast','wa_promo')">+ WhatsApp</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:0.73rem;padding:4px 10px;" onclick="fillBuilderPreset('RCS','rcs','messaging','rcs_card')">+ RCS</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:0.73rem;padding:4px 10px;" onclick="fillBuilderPreset('SMS','sms','text_message','sms_alert')">+ SMS</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:0.73rem;padding:4px 10px;" onclick="fillBuilderPreset('Instagram','instagram','social_paid','ig_story')">+ Instagram</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:0.73rem;padding:4px 10px;" onclick="fillBuilderPreset('Facebook','facebook','social_paid','fb_ad')">+ Facebook</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:0.73rem;padding:4px 10px;" onclick="fillBuilderPreset('Google Ads','google','cpc','search_ad')">+ Google Ads</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:0.73rem;padding:4px 10px;" onclick="fillBuilderPreset('QR Code','qr_code','offline_print','flyer_qr')">+ QR Code</button>
+        </div>
+    </div>
+
+    <hr class="my-3" style="border-color:#e2e8f0;">
+
+    <div class="row g-3">
+        <div class="col-md-5">
+            <label class="utm-form-label">Destination Landing Page URL *</label>
+            <input type="url" id="bTargetUrl" class="utm-input" value="{{ default_target_url }}" oninput="updateLiveBuilderPreview()">
+        </div>
+        <div class="col-md-4">
+            <label class="utm-form-label">Link Label / Title *</label>
+            <input type="text" id="bTitle" class="utm-input" value="WhatsApp Special Offer — myG Future Mangaluru" oninput="updateLiveBuilderPreview()">
+        </div>
+        <div class="col-md-3">
+            <label class="utm-form-label">Channel Category</label>
+            <select id="bChannel" class="utm-input" onchange="updateLiveBuilderPreview()">
+                <option value="WhatsApp">WhatsApp</option>
+                <option value="RCS">RCS</option>
+                <option value="SMS">SMS</option>
+                <option value="Instagram">Instagram</option>
+                <option value="Facebook">Facebook</option>
+                <option value="Google Ads">Google Ads</option>
+                <option value="Google Business">Google Business</option>
+                <option value="QR Code">QR Code</option>
+                <option value="YouTube">YouTube</option>
+                <option value="Influencer">Influencer</option>
+                <option value="Email">Email</option>
+                <option value="Custom">Custom</option>
+            </select>
+        </div>
+
+        <div class="col-md-2">
+            <label class="utm-form-label">utm_source * <span class="text-muted fw-normal">(e.g. whatsapp)</span></label>
+            <input type="text" id="bSource" class="utm-input" value="whatsapp" oninput="updateLiveBuilderPreview()">
+        </div>
+        <div class="col-md-2">
+            <label class="utm-form-label">utm_medium * <span class="text-muted fw-normal">(e.g. broadcast)</span></label>
+            <input type="text" id="bMedium" class="utm-input" value="broadcast" oninput="updateLiveBuilderPreview()">
+        </div>
+        <div class="col-md-3">
+            <label class="utm-form-label">utm_campaign * <span class="text-muted fw-normal">(campaign name)</span></label>
+            <input type="text" id="bCampaign" class="utm-input" value="{{ default_campaign }}" oninput="updateLiveBuilderPreview()">
+        </div>
+        <div class="col-md-2">
+            <label class="utm-form-label">utm_term <span class="text-muted fw-normal">(audience/geo)</span></label>
+            <input type="text" id="bTerm" class="utm-input" value="dakshina_kannada" oninput="updateLiveBuilderPreview()">
+        </div>
+        <div class="col-md-3">
+            <label class="utm-form-label">utm_content <span class="text-muted fw-normal">(creative/ad id)</span></label>
+            <input type="text" id="bContent" class="utm-input" value="mangaluru_launch_v1" oninput="updateLiveBuilderPreview()">
+        </div>
+
+        <div class="col-md-3">
+            <label class="utm-form-label">Short Redirect Slug <span class="text-muted fw-normal">(/go/&lt;slug&gt;/)</span></label>
+            <input type="text" id="bSlug" class="utm-input" value="mgl-wa-launch" oninput="updateLiveBuilderPreview()">
+        </div>
+        <div class="col-md-6">
+            <label class="utm-form-label">Live Generated UTM URL Preview</label>
+            <input type="text" id="bPreviewUrl" class="utm-input" style="font-family:monospace;font-size:0.76rem;background:#f1f5f9;" readonly>
+        </div>
+        <div class="col-md-3 d-flex align-items-end gap-2">
+            <button type="button" class="btn btn-success fw-bold w-100" style="border-radius:10px;padding:9px 14px;font-size:0.82rem;" onclick="saveCustomUtmLink()">
+                <i class="bi bi-plus-circle-fill me-1"></i> Save &amp; Track Link
+            </button>
+            <button type="button" class="btn btn-outline-dark fw-bold" style="border-radius:10px;padding:9px 12px;font-size:0.82rem;" onclick="copyText(document.getElementById('bPreviewUrl').value, 'Builder UTM URL copied!')" title="Copy Preview URL">
+                <i class="bi bi-clipboard"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ALL CONFIGURED UTM LINKS & PERFORMANCE TABLE -->
+<div class="utm-section-card">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <div class="utm-section-title">
+                <i class="bi bi-table text-primary"></i> Configured UTM Links &amp; Channel Performance
+            </div>
+            <div class="utm-section-sub mb-0">
+                All ready-to-use UTM links for <strong>myG Future Mangaluru</strong> with 1-click Copy, QR Code, and live click counters.
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <input type="date" id="fltStartDate" class="utm-input" style="width:145px;padding:6px 10px;font-size:0.78rem;" title="Start Date">
+            <input type="date" id="fltEndDate" class="utm-input" style="width:145px;padding:6px 10px;font-size:0.78rem;" title="End Date">
+            <button type="button" class="btn btn-sm btn-primary" style="border-radius:8px;padding:6px 14px;font-size:0.78rem;" onclick="loadUtmDashboard()">
+                <i class="bi bi-funnel-fill me-1"></i> Filter
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" style="border-radius:8px;padding:6px 12px;font-size:0.78rem;" onclick="resetUtmFilters()">
+                Reset
+            </button>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="utm-table">
+            <thead>
+                <tr>
+                    <th>Channel</th>
+                    <th>Campaign Link Title</th>
+                    <th>UTM Tags (source / medium / content)</th>
+                    <th>Direct UTM Link (GA4)</th>
+                    <th>Live Tracked Short Link</th>
+                    <th class="text-end">Total Clicks</th>
+                    <th class="text-end">Unique</th>
+                    <th class="text-end">Today</th>
+                    <th>Last Clicked</th>
+                    <th class="text-center">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="utmLinksTableBody">
+                <tr><td colspan="10" class="text-center py-4 text-muted">Loading UTM links...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- CHARTS ROW -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-7">
+        <div class="utm-section-card h-100 mb-0">
+            <div class="utm-section-title"><i class="bi bi-graph-up text-indigo" style="color:#6366f1;"></i> Daily Clicks &amp; Unique Visitors Trend</div>
+            <div class="utm-section-sub">Day-by-day click volume across all tracked links</div>
+            <div style="height:260px;">
+                <canvas id="chartUtmDaily"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="utm-section-card h-100 mb-0">
+            <div class="utm-section-title"><i class="bi bi-pie-chart-fill text-warning"></i> Traffic Share by Channel (utm_source)</div>
+            <div class="utm-section-sub">Distribution of clicks by marketing source</div>
+            <div style="height:260px;">
+                <canvas id="chartUtmSource"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- RECENT CLICKS LOG & EXTERNAL GTM PIXEL SNIPPET -->
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="utm-section-card mb-0">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div>
+                    <div class="utm-section-title"><i class="bi bi-activity text-danger"></i> Live Click Activity Log</div>
+                    <div class="utm-section-sub mb-0">Most recent 100 clicks with device, OS, in-app browser, and UTM attribution</div>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:0.75rem;border-radius:8px;" onclick="loadUtmDashboard()">
+                    <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+                </button>
+            </div>
+            <div class="table-responsive" style="max-height:360px;overflow-y:auto;">
+                <table class="utm-table">
+                    <thead>
+                        <tr>
+                            <th>Time (IST)</th>
+                            <th>Slug</th>
+                            <th>Source / Medium</th>
+                            <th>Content</th>
+                            <th>Device &amp; OS</th>
+                            <th>Browser / App</th>
+                            <th>Referrer</th>
+                            <th>IP Subnet</th>
+                        </tr>
+                    </thead>
+                    <tbody id="utmRecentClicksBody">
+                        <tr><td colspan="8" class="text-center py-4 text-muted">No clicks recorded yet. Click "Test Click Tracking" to verify!</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="utm-section-card mb-0">
+            <div class="utm-section-title"><i class="bi bi-code-slash text-info"></i> Direct Landing Page Beacon (Optional)</div>
+            <div class="utm-section-sub">
+                Using the <strong>Tracked Short Link</strong> (<code>/go/...</code>) tracks every click automatically without touching <code>mygoffers.in</code>.
+                If you also run ads pointing directly to <code>mygoffers.in</code>, paste this snippet in Google Tag Manager on <code>mygoffers.in</code> to log direct UTM visits here too:
+            </div>
+            <pre id="gtmSnippetCode" style="background:#0f172a;color:#e2e8f0;padding:12px;border-radius:10px;font-size:0.71rem;overflow-x:auto;margin-bottom:10px;"></pre>
+            <button type="button" class="btn btn-sm btn-outline-primary w-100 fw-semibold" style="border-radius:8px;" onclick="copyText(document.getElementById('gtmSnippetCode').textContent, 'GTM Beacon snippet copied!')">
+                <i class="bi bi-clipboard-check me-1"></i> Copy GTM Tracking Script
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- QR CODE MODAL -->
+<div class="modal fade" id="utmQrModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:18px;border:none;box-shadow:0 20px 50px rgba(0,0,0,0.2);">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold" id="qrModalTitle">Campaign QR Code</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center py-4">
+                <div class="p-3 d-inline-block bg-white rounded-4 shadow-sm border mb-3">
+                    <img id="qrModalImg" src="" alt="QR Code" style="width:240px;height:240px;object-fit:contain;">
+                </div>
+                <div class="small text-muted mb-2">Scans redirect to:</div>
+                <div id="qrModalUrl" class="p-2 rounded bg-light border text-break" style="font-family:monospace;font-size:0.73rem;"></div>
+            </div>
+            <div class="modal-footer border-0 pt-0 justify-content-center">
+                <a id="qrDownloadBtn" href="" target="_blank" download="myG_Future_Mangaluru_QR.png" class="btn btn-success fw-bold px-4" style="border-radius:10px;">
+                    <i class="bi bi-download me-1"></i> Open / Save High-Res QR
+                </a>
+                <button type="button" class="btn btn-outline-secondary px-4" style="border-radius:10px;" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let __utmLinks = [];
+let __activeHeroSlug = 'mgl-rcs';
+let __chartDaily = null;
+let __chartSource = null;
+
+function showUtmToast(msg) {
+    const el = document.getElementById('utmToast');
+    document.getElementById('utmToastMsg').textContent = msg;
+    el.style.display = 'flex';
+    clearTimeout(window.__utmToastTimer);
+    window.__utmToastTimer = setTimeout(() => { el.style.display = 'none'; }, 2600);
+}
+
+function copyText(text, label) {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+        showUtmToast(label || 'Copied to clipboard!');
+    }).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showUtmToast(label || 'Copied to clipboard!');
+    });
+}
+
+function getChannelBadgeClass(ch) {
+    const c = (ch || '').toLowerCase();
+    if (c.includes('whatsapp')) return 'ch-whatsapp';
+    if (c.includes('rcs')) return 'ch-rcs';
+    if (c.includes('sms')) return 'ch-sms';
+    if (c.includes('instagram')) return 'ch-instagram';
+    if (c.includes('facebook')) return 'ch-facebook';
+    if (c.includes('google')) return 'ch-google';
+    if (c.includes('qr')) return 'ch-qr';
+    return 'ch-default';
+}
+
+function getChannelIcon(ch) {
+    const c = (ch || '').toLowerCase();
+    if (c.includes('whatsapp')) return 'bi-whatsapp';
+    if (c.includes('rcs')) return 'bi-chat-dots-fill';
+    if (c.includes('sms')) return 'bi-chat-left-text-fill';
+    if (c.includes('instagram')) return 'bi-instagram';
+    if (c.includes('facebook')) return 'bi-facebook';
+    if (c.includes('google')) return 'bi-google';
+    if (c.includes('qr')) return 'bi-qr-code';
+    if (c.includes('youtube')) return 'bi-youtube';
+    return 'bi-link-45deg';
+}
+
+function selectHeroChannel(slug) {
+    __activeHeroSlug = slug;
+    const item = __utmLinks.find(x => x.slug === slug) || __utmLinks[0];
+    if (!item) return;
+
+    document.querySelectorAll('#heroChannelPills .utm-ch-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.slug === item.slug);
+    });
+    document.getElementById('activeChannelTitle').textContent = item.title;
+    document.getElementById('heroFullUtmUrl').textContent = item.full_utm_url;
+    document.getElementById('heroShortRedirectUrl').textContent = item.domain_redirect_url || item.short_redirect_url;
+    const spooEl = document.getElementById('heroSpooShortUrl');
+    if (spooEl) spooEl.textContent = item.live_short_url || item.short_redirect_url;
+    document.getElementById('heroOpenDirectBtn').href = item.full_utm_url;
+}
+
+function copyHeroUrl(kind) {
+    const item = __utmLinks.find(x => x.slug === __activeHeroSlug) || __utmLinks[0];
+    if (!item) return;
+    if (kind === 'spoo') {
+        copyText(item.live_short_url || item.short_redirect_url, `Copied spoo.me short link (${item.channel})!`);
+    } else if (kind === 'short') {
+        copyText(item.domain_redirect_url || item.short_redirect_url, `Copied Live Domain Link (${item.channel})!`);
+    } else {
+        copyText(item.full_utm_url, `Copied Direct UTM Link (${item.channel})!`);
+    }
+}
+
+function openQrModal(title, url) {
+    document.getElementById('qrModalTitle').textContent = title;
+    document.getElementById('qrModalUrl').textContent = url;
+    const qrApi = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=${encodeURIComponent(url)}`;
+    document.getElementById('qrModalImg').src = qrApi;
+    document.getElementById('qrDownloadBtn').href = qrApi;
+    const modal = new bootstrap.Modal(document.getElementById('utmQrModal'));
+    modal.show();
+}
+
+function openQrModalFromHero(kind) {
+    const item = __utmLinks.find(x => x.slug === __activeHeroSlug) || __utmLinks[0];
+    if (!item) return;
+    const url = kind === 'short' ? item.short_redirect_url : item.full_utm_url;
+    openQrModal(`${item.channel} QR Code — myG Future Mangaluru`, url);
+}
+
+function updateLiveBuilderPreview() {
+    const base = (document.getElementById('bTargetUrl').value || '{{ default_target_url }}').trim();
+    const src = (document.getElementById('bSource').value || '').trim().toLowerCase().replace(/\s+/g, '_');
+    const med = (document.getElementById('bMedium').value || '').trim().toLowerCase().replace(/\s+/g, '_');
+    const cmp = (document.getElementById('bCampaign').value || '').trim().toLowerCase().replace(/\s+/g, '_');
+    const trm = (document.getElementById('bTerm').value || '').trim().toLowerCase().replace(/\s+/g, '_');
+    const cnt = (document.getElementById('bContent').value || '').trim().toLowerCase().replace(/\s+/g, '_');
+
+    try {
+        const u = new URL(base);
+        if (src) u.searchParams.set('utm_source', src);
+        if (med) u.searchParams.set('utm_medium', med);
+        if (cmp) u.searchParams.set('utm_campaign', cmp);
+        if (trm) u.searchParams.set('utm_term', trm);
+        if (cnt) u.searchParams.set('utm_content', cnt);
+        document.getElementById('bPreviewUrl').value = u.toString();
+    } catch (e) {
+        const params = new URLSearchParams();
+        if (src) params.set('utm_source', src);
+        if (med) params.set('utm_medium', med);
+        if (cmp) params.set('utm_campaign', cmp);
+        if (trm) params.set('utm_term', trm);
+        if (cnt) params.set('utm_content', cnt);
+        document.getElementById('bPreviewUrl').value = `${base}?${params.toString()}`;
+    }
+}
+
+function fillBuilderPreset(channel, source, medium, content) {
+    document.getElementById('bChannel').value = channel;
+    document.getElementById('bTitle').value = `${channel} Promo — myG Future Mangaluru`;
+    document.getElementById('bSource').value = source;
+    document.getElementById('bMedium').value = medium;
+    document.getElementById('bCampaign').value = '{{ default_campaign }}';
+    document.getElementById('bTerm').value = 'dakshina_kannada';
+    document.getElementById('bContent').value = content;
+    document.getElementById('bSlug').value = `mgl-${source}-${content.replace(/_/g, '-')}`;
+    updateLiveBuilderPreview();
+}
+
+async function saveCustomUtmLink() {
+    const payload = {
+        action: 'save_link',
+        target_url: document.getElementById('bTargetUrl').value,
+        title: document.getElementById('bTitle').value,
+        channel: document.getElementById('bChannel').value,
+        utm_source: document.getElementById('bSource').value,
+        utm_medium: document.getElementById('bMedium').value,
+        utm_campaign: document.getElementById('bCampaign').value,
+        utm_term: document.getElementById('bTerm').value,
+        utm_content: document.getElementById('bContent').value,
+        slug: document.getElementById('bSlug').value,
+    };
+    const res = await fetch('/api/v1/utm-tracker/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+        __activeHeroSlug = data.link.slug;
+        showUtmToast(`Saved & activated link: /go/${data.link.slug}/`);
+        await loadUtmDashboard();
+    }
+}
+
+async function simulateClick(slug) {
+    const res = await fetch('/api/v1/utm-tracker/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({ action: 'simulate_click', slug: slug })
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+        showUtmToast(`Recorded test click on /go/${slug}/!`);
+        await loadUtmDashboard();
+    }
+}
+
+function simulateClickHero() {
+    simulateClick(__activeHeroSlug);
+}
+
+async function deleteUtmLinkBySlug(slug) {
+    if (!confirm(`Delete UTM link /go/${slug}/?`)) return;
+    const res = await fetch(`/api/v1/utm-tracker/?slug=${encodeURIComponent(slug)}`, {
+        method: 'DELETE',
+        headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+        showUtmToast(`Deleted link /go/${slug}/`);
+        await loadUtmDashboard();
+    }
+}
+
+function resetUtmFilters() {
+    document.getElementById('fltStartDate').value = '';
+    document.getElementById('fltEndDate').value = '';
+    loadUtmDashboard();
+}
+
+function renderCharts(dailyTrend, bySource) {
+    const ctxDaily = document.getElementById('chartUtmDaily').getContext('2d');
+    if (__chartDaily) __chartDaily.destroy();
+
+    const labels = dailyTrend.length ? dailyTrend.map(d => d.date) : ['Today'];
+    const clicksData = dailyTrend.length ? dailyTrend.map(d => d.clicks) : [0];
+    const uniqData = dailyTrend.length ? dailyTrend.map(d => d.unique_visitors) : [0];
+
+    __chartDaily = new Chart(ctxDaily, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Total Clicks',
+                    data: clicksData,
+                    backgroundColor: 'rgba(16, 185, 129, 0.75)',
+                    borderColor: '#059669',
+                    borderWidth: 1,
+                    borderRadius: 6
+                },
+                {
+                    label: 'Unique Visitors',
+                    data: uniqData,
+                    backgroundColor: 'rgba(99, 102, 241, 0.75)',
+                    borderColor: '#4f46e5',
+                    borderWidth: 1,
+                    borderRadius: 6
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'top' } },
+            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+        }
+    });
+
+    const ctxSrc = document.getElementById('chartUtmSource').getContext('2d');
+    if (__chartSource) __chartSource.destroy();
+
+    const srcLabels = bySource.length ? bySource.map(s => `${s.utm_source} (${s.utm_medium})`) : ['No clicks yet'];
+    const srcVals = bySource.length ? bySource.map(s => s.clicks) : [1];
+    const palette = ['#10b981', '#6366f1', '#f59e0b', '#ec4899', '#0ea5e9', '#8b5cf6', '#ef4444', '#14b8a6'];
+
+    __chartSource = new Chart(ctxSrc, {
+        type: 'doughnut',
+        data: {
+            labels: srcLabels,
+            datasets: [{
+                data: srcVals,
+                backgroundColor: bySource.length ? palette : ['#e2e8f0'],
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } } }
+        }
+    });
+}
+
+async function loadUtmDashboard() {
+    const start = document.getElementById('fltStartDate').value;
+    const end = document.getElementById('fltEndDate').value;
+    const qs = new URLSearchParams();
+    if (start) qs.set('start_date', start);
+    if (end) qs.set('end_date', end);
+
+    const res = await fetch(`/api/v1/utm-tracker/?${qs.toString()}`);
+    const data = await res.json();
+    if (data.status !== 'ok') return;
+
+    __utmLinks = data.links || [];
+
+    // KPIs
+    document.getElementById('kpiTotalClicks').textContent = (data.kpis.total_clicks || 0).toLocaleString();
+    document.getElementById('kpiUniqueVisitors').textContent = (data.kpis.unique_visitors || 0).toLocaleString();
+    document.getElementById('kpiTodayClicks').textContent = (data.kpis.today_clicks || 0).toLocaleString();
+    document.getElementById('kpiActiveLinks').textContent = (data.kpis.active_links || 0).toLocaleString();
+    document.getElementById('kpiTopSource').textContent = data.kpis.top_source || 'whatsapp';
+    document.getElementById('kpiMobileShare').textContent = `${data.kpis.mobile_share_pct || 0}%`;
+
+    // Hero channel pills
+    const pillsWrap = document.getElementById('heroChannelPills');
+    pillsWrap.innerHTML = __utmLinks.map(item => `
+        <button type="button" class="utm-ch-btn ${item.slug === __activeHeroSlug ? 'active' : ''}"
+                data-slug="${item.slug}" onclick="selectHeroChannel('${item.slug}')">
+            <i class="bi ${getChannelIcon(item.channel)}"></i>
+            ${item.channel}
+            ${item.total_clicks > 0 ? `<span class="badge bg-dark text-white rounded-pill" style="font-size:0.65rem;">${item.total_clicks}</span>` : ''}
+        </button>
+    `).join('');
+    selectHeroChannel(__activeHeroSlug);
+
+    // Links Table
+    const tbody = document.getElementById('utmLinksTableBody');
+    tbody.innerHTML = __utmLinks.map(l => `
+        <tr>
+            <td>
+                <span class="ch-badge ${getChannelBadgeClass(l.channel)}">
+                    <i class="bi ${getChannelIcon(l.channel)}"></i> ${l.channel}
+                </span>
+            </td>
+            <td class="fw-semibold text-dark">${l.title}</td>
+            <td>
+                <span class="utm-tag-chip" title="utm_source">${l.utm_source}</span>
+                <span class="utm-tag-chip" title="utm_medium">${l.utm_medium}</span>
+                ${l.utm_content ? `<span class="utm-tag-chip" title="utm_content">${l.utm_content}</span>` : ''}
+            </td>
+            <td>
+                <div class="d-flex align-items-center gap-1">
+                    <input type="text" class="form-control form-control-sm" value="${l.full_utm_url}" readonly
+                           style="font-family:monospace;font-size:0.71rem;max-width:210px;padding:3px 7px;background:#f8fafc;">
+                    <button class="btn btn-sm btn-outline-success py-0 px-2" title="Copy Direct UTM Link"
+                            onclick="copyText('${l.full_utm_url}', 'Direct UTM link copied!')">
+                        <i class="bi bi-clipboard"></i>
+                    </button>
+                </div>
+            </td>
+            <td>
+                <div class="d-flex flex-column gap-1">
+                    <div class="d-flex align-items-center gap-1">
+                        <a href="${l.domain_redirect_url || l.short_redirect_url}" target="_blank" rel="noopener" style="font-family:monospace;font-size:0.72rem;color:#047857;background:#ecfdf5;padding:2px 7px;border-radius:6px;text-decoration:none;font-weight:700;">${l.domain_redirect_url || l.short_redirect_url}</a>
+                        <button class="btn btn-sm btn-warning py-0 px-2 text-dark fw-bold" title="Copy Live Domain Link"
+                                onclick="copyText('${l.domain_redirect_url || l.short_redirect_url}', 'Live domain link copied!')">
+                            <i class="bi bi-clipboard-check"></i>
+                        </button>
+                    </div>
+                    ${l.live_short_url && l.live_short_url !== (l.domain_redirect_url || '') ? `
+                    <div class="d-flex align-items-center gap-1">
+                        <a href="${l.live_short_url}" target="_blank" rel="noopener" style="font-family:monospace;font-size:0.69rem;color:#4338ca;background:#eef2ff;padding:1px 6px;border-radius:5px;text-decoration:none;">${l.live_short_url}</a>
+                        <button class="btn btn-sm btn-outline-primary py-0 px-1" style="font-size:0.65rem;" title="Copy Connected spoo.me Short Link"
+                                onclick="copyText('${l.live_short_url}', 'Connected short link copied!')">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>` : ''}
+                </div>
+            </td>
+            <td class="text-end fw-bold text-dark">${l.total_clicks.toLocaleString()}</td>
+            <td class="text-end fw-semibold text-primary">${l.unique_visitors.toLocaleString()}</td>
+            <td class="text-end"><span class="badge bg-success-subtle text-success">${l.today_clicks}</span></td>
+            <td class="small text-muted">${l.last_clicked_at}</td>
+            <td class="text-center">
+                <div class="d-inline-flex gap-1">
+                    <button class="btn btn-sm btn-outline-dark py-0 px-2" title="Generate QR Code"
+                            onclick="openQrModal('${l.channel} — myG Future Mangaluru', '${l.short_redirect_url}')">
+                        <i class="bi bi-qr-code"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-primary py-0 px-2" title="Simulate / Test Click"
+                            onclick="simulateClick('${l.slug}')">
+                        <i class="bi bi-cursor-fill"></i>
+                    </button>
+                    <a href="${l.short_redirect_url}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Test Live Redirect in New Tab">
+                        <i class="bi bi-box-arrow-up-right"></i>
+                    </a>
+                    <button class="btn btn-sm btn-outline-danger py-0 px-2" title="Delete Link"
+                            onclick="deleteUtmLinkBySlug('${l.slug}')">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+
+    // Recent Clicks Log
+    const recentBody = document.getElementById('utmRecentClicksBody');
+    if (!data.recent_clicks || data.recent_clicks.length === 0) {
+        recentBody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-muted">No clicks recorded yet. Click the <i class="bi bi-cursor-fill"></i> Test button on any link above or open a <code>/go/...</code> link to verify real-time tracking!</td></tr>`;
+    } else {
+        recentBody.innerHTML = data.recent_clicks.map(c => `
+            <tr>
+                <td class="small fw-semibold text-nowrap">${c.clicked_at}</td>
+                <td><code style="font-size:0.72rem;">${c.slug}</code></td>
+                <td>
+                    <span class="utm-tag-chip">${c.utm_source}</span>
+                    <span class="utm-tag-chip">${c.utm_medium}</span>
+                </td>
+                <td><span class="small text-muted">${c.utm_content || '—'}</span></td>
+                <td class="small">${c.device_type} &bull; ${c.os_name}</td>
+                <td><span class="badge bg-light text-dark border">${c.browser_name}</span></td>
+                <td class="small text-muted">${c.referrer}</td>
+                <td><code class="small text-muted">${c.ip_masked}</code></td>
+            </tr>
+        `).join('');
+    }
+
+    // GTM Snippet
+    const origin = data.base_origin || window.location.origin;
+    document.getElementById('gtmSnippetCode').textContent =
+`<script>
+(function(){
+  var p = new URLSearchParams(window.location.search);
+  if(p.get('utm_source') || p.get('utm_campaign')){
+    var img = new Image(1,1);
+    img.src = "${origin}/api/v1/utm-tracker/pixel.gif?" + p.toString();
+  }
+})();
+<\/script>`;
+
+    renderCharts(data.daily_trend || [], data.by_source || []);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    updateLiveBuilderPreview();
+    loadUtmDashboard();
+});
+</script>
+{% endblock %}
+
