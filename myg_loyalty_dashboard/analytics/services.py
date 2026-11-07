@@ -321,17 +321,20 @@ class AnalyticsService:
             total_ltv        = float(row[0] or 0) if row else 0
             total_customers  = int(row[1] or 0)   if row else 0
             repeat_customers = int(row[2] or 0)   if row else 0
+            repeat_rate = (repeat_customers / total_customers * 100) if total_customers > 0 else 0
+            result = {
+                'total_ltv': total_ltv, 'total_customers': total_customers,
+                'repeat_customers': repeat_customers, 'repeat_purchase_rate': repeat_rate,
+            }
+            cache.set(cache_key, result, 3600)
+            return result
         except Exception as e:
             print(f"[CH] customer_analytics (azure_invoice_report) error: {e}")
             import traceback; traceback.print_exc()
-            total_ltv, total_customers, repeat_customers = 0, 0, 0
-        repeat_rate = (repeat_customers / total_customers * 100) if total_customers > 0 else 0
-        result = {
-            'total_ltv': total_ltv, 'total_customers': total_customers,
-            'repeat_customers': repeat_customers, 'repeat_purchase_rate': repeat_rate,
-        }
-        cache.set(cache_key, result, 3600)
-        return result
+            return {
+                'total_ltv': 0, 'total_customers': 0,
+                'repeat_customers': 0, 'repeat_purchase_rate': 0,
+            }
 
     # ── Frequency Distribution ──────────────────────────────────────────────────────
     def get_frequency_distribution(self, filters):
@@ -380,16 +383,16 @@ class AnalyticsService:
                     segment='4 Visits',4, segment='5-9 Visits',5, segment='10-20 Visits',6,
                     segment='21-50 Visits',7, segment='51-100 Visits',8, 9)
             """, ch_params)
+            result = [{'segment': r[0], 'customers': r[1],
+                     'net_revenue': round(float(r[2] or 0), 2),
+                     'cust_pct':    round(float(r[3] or 0), 2),
+                     'rev_pct':     round(float(r[4] or 0), 2),
+                     'asp':         round(float(r[5] or 0), 2)} for r in rows]
+            cache.set(cache_key, result, 3600)
+            return result
         except Exception as e:
             print(f"[CH] frequency_distribution ClickHouse error: {e}")
-            rows = []
-        result = [{'segment': r[0], 'customers': r[1],
-                 'net_revenue': round(float(r[2] or 0), 2),
-                 'cust_pct':    round(float(r[3] or 0), 2),
-                 'rev_pct':     round(float(r[4] or 0), 2),
-                 'asp':         round(float(r[5] or 0), 2)} for r in rows]
-        cache.set(cache_key, result, 3600)
-        return result
+            return []
 
     SEGMENT_CHUNK_SIZE = 1_000_000
     _SEGMENT_FILTER = {
@@ -1320,9 +1323,7 @@ class AnalyticsService:
         except Exception as e:
             print(f"[CH] loyalty_kpis error: {e}")
 
-        result = {'total_customers': 0, 'repeat_customers': 0, 'repeat_rate': 0, 'avg_gap': 0}
-        cache.set(cache_key, result, 3600)
-        return result
+        return {'total_customers': 0, 'repeat_customers': 0, 'repeat_rate': 0, 'avg_gap': 0}
 
     # ── Unique Branches ──────────────────────────────────────────────────────
     def get_unique_branches(self):

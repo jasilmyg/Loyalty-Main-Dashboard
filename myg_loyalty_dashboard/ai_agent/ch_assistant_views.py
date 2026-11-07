@@ -113,7 +113,7 @@ class ClickHouseAssistantSchemaAPI(_AssistantAccessMixin, View):
             return JsonResponse({"error": f"Could not load schema: {e}"}, status=503)
         slim = [
             {
-                "name": f"{t['database']}.{t['name']}" if t["database"] != "default" else t["name"],
+                "name": f"{t['database']}.{t['name']}" if t["database"] not in ("default", "Loyalty_Analytics") else t["name"],
                 "engine": t["engine"],
                 "rows": t["rows"],
                 "bytes": t["bytes"],

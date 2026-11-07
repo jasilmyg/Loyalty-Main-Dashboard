@@ -14,21 +14,21 @@ import datetime
 import threading
 import logging
 from pathlib import Path
-from typing import Optional, List, Any, Dict, Tuple
+from typing import Optional, List, Any, Dict, Tuple, Sequence
 
 import pymysql
 import pandas as pd
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=True)
 
 logger = logging.getLogger(__name__)
 
-# ─── StarRocks Credentials (loaded strictly from .env / environment) ─────────
-SR_HOST     = os.environ.get("STARROCKS_HOST",     "")
+# ─── StarRocks Credentials (loaded from .env / environment) ──────────────────
+SR_HOST     = os.environ.get("STARROCKS_HOST",     "192.168.0.252")
 SR_PORT     = int(os.environ.get("STARROCKS_PORT", "9030"))
-SR_USER     = os.environ.get("STARROCKS_USER",     "")
-SR_PASSWORD = os.environ.get("STARROCKS_PASSWORD", "")
+SR_USER     = os.environ.get("STARROCKS_USER",     "test1")
+SR_PASSWORD = os.environ.get("STARROCKS_PASSWORD", "1234")
 SR_DATABASE = os.environ.get("STARROCKS_DATABASE", "Loyalty_Analytics")
 
 _sr_local = threading.local()
@@ -301,6 +301,14 @@ def _rewrite_ch_function(fname: str, prev_non_ws_char: str, args: List[str], raw
                 return f"COUNT(DISTINCT IF({args[1]}, {m_dist.group(1)}, NULL))"
             return f"SUM(IF({args[1]} AND ({a0}) IS NOT NULL, 1, 0))"
 
+    if fn == "sum" and len(args) == 1:
+        a0 = args[0].strip()
+        if (
+            not re.match(r"^(?:IF\s*\(|CASE\b|COALESCE\s*\(|CAST\s*\()", a0, re.IGNORECASE)
+            and re.search(r"<=|>=|!=|<>|=|<|>|\b(?:AND|OR|IN|LIKE|REGEXP)\b", a0, re.IGNORECASE)
+        ):
+            return f"SUM(IF({a0}, 1, 0))"
+
     if fn == "sumif" and len(args) == 2:
         return f"SUM(IF({args[1]}, {args[0]}, 0))"
 
@@ -323,6 +331,12 @@ def _rewrite_ch_function(fname: str, prev_non_ws_char: str, args: List[str], raw
 
     if fn == "argmaxif" and len(args) == 3:
         return f"MAX_BY(IF({args[2]}, {args[0]}, NULL), IF({args[2]}, {args[1]}, NULL))"
+
+    if fn == "argminif" and len(args) == 3:
+        return f"MIN_BY(IF({args[2]}, {args[0]}, NULL), IF({args[2]}, {args[1]}, NULL))"
+
+    if fn == "anyif" and len(args) == 2:
+        return f"ANY_VALUE(IF({args[1]}, {args[0]}, NULL))"
 
     if fn == "any" and len(args) == 1:
         # Avoid rewriting SQL `= ANY (...)` comparison operator
@@ -500,6 +514,22 @@ def _rewrite_ch_function(fname: str, prev_non_ws_char: str, args: List[str], raw
 
     if fn == "positioncaseinsensitive" and len(args) == 2:
         return f"LOCATE(LOWER({args[1]}), LOWER({args[0]}))"
+
+    if fn == "lowerutf8" and len(args) == 1:
+        return f"LOWER({args[0]})"
+
+    if fn == "upperutf8" and len(args) == 1:
+        return f"UPPER({args[0]})"
+
+    if fn == "match" and len(args) == 2:
+        return f"({args[0]} REGEXP {args[1]})"
+
+    if fn == "multimatchany" and len(args) == 2:
+        arr_s = args[1].strip()
+        if arr_s.startswith("[") and arr_s.endswith("]"):
+            pats = _split_top_level_args(arr_s[1:-1])
+            if pats:
+                return "(" + " OR ".join(f"({args[0]} REGEXP {p})" for p in pats) + ")"
 
     if fn == "currentdatabase" and len(args) == 0:
         return "DATABASE()"
@@ -767,9 +797,9 @@ def _expand_computed_select_aliases_in_where(sql: str) -> str:
                             al_name = ma.group(2).strip()
                             expr_up = expr_part.upper()
                             if not any(ag in expr_up for ag in _AGG_MARKERS):
-                                if "(" in expr_part:
+                                if "(" in expr_part and len(expr_part) < 500:
                                     where_aliases[al_name] = expr_part
-                                if "(" in expr_part or "." in expr_part:
+                                if ("(" in expr_part or "." in expr_part) and len(expr_part) < 500:
                                     group_aliases[al_name] = expr_part
 
                     if where_kw and where_aliases:
@@ -850,6 +880,15 @@ def _rewrite_ilike_and_date_sub(sql: str) -> str:
         lim_n = m_limby.group(2).strip()
         part_by = m_limby.group(3).strip()
         base_q = sql[: m_limby.start()].strip()
+        if re.search(r"\bCOUNT\(\*\)", ord_by, flags=re.IGNORECASE):
+            base_q = re.sub(
+                r"\bCOUNT\(\*\)(?!\s+AS\b)",
+                "COUNT(*) AS _sr_cnt",
+                base_q,
+                count=1,
+                flags=re.IGNORECASE,
+            )
+            ord_by = re.sub(r"\bCOUNT\(\*\)", "_sr_cnt", ord_by, flags=re.IGNORECASE)
         sql = (
             f"SELECT * FROM ("
             f"SELECT _sr_lb.*, ROW_NUMBER() OVER (PARTITION BY {part_by} ORDER BY {ord_by}) AS _sr_rn "
@@ -980,6 +1019,22 @@ class StarRocksClientAdapter:
         elapsed_ms = (time.perf_counter() - t0) * 1000.0
         record_query_metric("starrocks", sr_sql, elapsed_ms, 1 if res else 0)
         return res[0] if res else None
+
+    def insert(self, table: str, data: List[Sequence[Any]], column_names: Optional[List[str]] = None, **kwargs) -> None:
+        """Insert rows into a StarRocks table (drop-in replacement for clickhouse_connect `.insert()`)."""
+        if not data:
+            return
+        from analytics.clickhouse_service import record_query_metric
+
+        t0 = time.perf_counter()
+        cols_clause = f" ({', '.join(f'`{c}`' for c in column_names)})" if column_names else ""
+        placeholders = ", ".join(["%s"] * len(data[0]))
+        sql = f"INSERT INTO `{table}`{cols_clause} VALUES ({placeholders})"
+        conn = get_raw_sr_connection()
+        with conn.cursor() as cur:
+            cur.executemany(sql, data)
+        elapsed_ms = (time.perf_counter() - t0) * 1000.0
+        record_query_metric("starrocks", sql, elapsed_ms, len(data))
 
 
 _sr_adapter_singleton = StarRocksClientAdapter()

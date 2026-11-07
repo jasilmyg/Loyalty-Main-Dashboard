@@ -307,10 +307,10 @@ def _stock_table_name() -> str:
 
 
 def _get_branch_directory(ch) -> pd.DataFrame:
-    cache_key = f"dii:branch_dir:{get_active_engine()}"
+    cache_key = f"dii:branch_dir:v2:{get_active_engine()}"
     if not get_bypass_cache():
         cached = cache.get(cache_key)
-        if cached is not None:
+        if cached is not None and not cached.empty:
             return cached
 
     try:
@@ -325,19 +325,20 @@ def _get_branch_directory(ch) -> pd.DataFrame:
             WHERE code != '' OR branch_name != ''
         """).result_rows
         df = pd.DataFrame(rows, columns=['code', 'branch_name', 'district', 'rbm', 'store_type'])
+        if not df.empty:
+            cache.set(cache_key, df, 1800)
     except Exception:
         df = pd.DataFrame(columns=['code', 'branch_name', 'district', 'rbm', 'store_type'])
 
-    cache.set(cache_key, df, 1800)
     return df
 
 
 def _get_reference_dates(ch) -> Tuple[date, Optional[date]]:
-    """Return (max_sales_date, max_stock_snapshot_date) from ClickHouse."""
-    cache_key = f"dii:ref_dates:{get_active_engine()}"
+    """Return (max_sales_date, max_stock_snapshot_date) from StarRocks."""
+    cache_key = f"dii:ref_dates:v2:{get_active_engine()}"
     if not get_bypass_cache():
         cached = cache.get(cache_key)
-        if cached is not None:
+        if cached is not None and cached[1] is not None:
             return cached
 
     sales_dt = date.today() - timedelta(days=1)
@@ -362,7 +363,8 @@ def _get_reference_dates(ch) -> Tuple[date, Optional[date]]:
         stock_dt = None
 
     out = (sales_dt, stock_dt)
-    cache.set(cache_key, out, 600)
+    if stock_dt is not None:
+        cache.set(cache_key, out, 600)
     return out
 
 
@@ -481,49 +483,16 @@ def _build_fast_sales_only_where(
     sales_alias: str = 's',
 ) -> List[str]:
     """
-    ClickHouse-optimized WHERE clauses for `azure_sales_report` without a 37M-row JOIN:
-    pushes `item_master` predicates into `s.item_code IN (SELECT item_code FROM item_master WHERE ...)`.
+    StarRocks-optimized WHERE clauses for `azure_sales_report` with `LEFT JOIN item_master m`.
     """
-    excl_br = "', '".join(EXCLUDED_BRANCH_CODES)
-    clauses = [
-        f"{sales_alias}.branch NOT IN ('{excl_br}')",
-        f"{sales_alias}.item_code != ''",
-        f"NOT (upper({sales_alias}.invoice_no) LIKE '%SMC%' OR upper({sales_alias}.invoice_no) LIKE '%EI%')",
-    ]
-    if sales_branch_codes is not None:
-        bc_sql = "', '".join(_sql_escape(c) for c in sales_branch_codes)
-        clauses.append(f"{sales_alias}.branch IN ('{bc_sql}')")
-
-    im_conds = []
-    mc = (macro_category or '').strip().upper()
-    if mc != 'ALL_RAW':
-        excl_prods = list(NON_RETAIL_PRODUCTS)
-        if _should_exclude_virtual_vas(mc, product_filter):
-            excl_prods.extend(VIRTUAL_VAS_PRODUCTS)
-            im_conds.append(
-                "NOT (upper(item_name) LIKE '%:SERVICE%' OR upper(item_name) LIKE '%EXTENDED WARRANTY%')"
-            )
-        non_ret = "', '".join(_sql_escape(p) for p in excl_prods)
-        im_conds.append("product != ''")
-        im_conds.append(f"upper(product) NOT IN ('{non_ret}')")
-
-    macro_prods = _products_for_macro_category(mc)
-    if macro_prods:
-        mp_sql = "', '".join(_sql_escape(p) for p in macro_prods)
-        im_conds.append(f"upper(product) IN ('{mp_sql}')")
-
-    if product_filter:
-        p_esc = _sql_escape(product_filter.strip().upper())
-        im_conds.append(f"upper(product) = '{p_esc}'")
-
-    if brand_filter:
-        b_esc = _sql_escape(brand_filter.strip().upper())
-        im_conds.append(f"upper(brand) = '{b_esc}'")
-
-    if im_conds:
-        clauses.append(f"{sales_alias}.item_code IN (SELECT item_code FROM item_master WHERE {' AND '.join(im_conds)})")
-
-    return clauses
+    return _build_sales_where_clauses(
+        macro_category=macro_category,
+        product_filter=product_filter,
+        brand_filter=brand_filter,
+        sales_branch_codes=sales_branch_codes,
+        item_alias='m',
+        sales_alias=sales_alias,
+    )
 
 
 def _build_stock_where_clauses(
@@ -574,10 +543,10 @@ def _build_stock_where_clauses(
 # ═════════════════════════════════════════════════════════════════════════════
 
 def get_demand_filter_options() -> Dict[str, Any]:
-    cache_key = f"dii:filter_opts:v1:{get_active_engine()}"
+    cache_key = f"dii:filter_opts:v2:{get_active_engine()}"
     if not get_bypass_cache():
         cached = cache.get(cache_key)
-        if cached is not None:
+        if cached is not None and cached.get('products'):
             return cached
 
     ch = get_ch_client()
@@ -661,7 +630,8 @@ def get_demand_filter_options() -> Dict[str, Any]:
         'districts': districts,
         'branches': branches,
     }
-    cache.set(cache_key, result, 1800)
+    if products:
+        cache.set(cache_key, result, 1800)
     return result
 
 
@@ -695,6 +665,7 @@ def _compute_seasonal_and_festival_profile(
             greatest(0.0, sum(if(s.sold_price < 0, -abs(toFloat64(s.qty)), abs(toFloat64(s.qty))))) AS units,
             greatest(0.0, sum(toFloat64(s.sold_price))) AS revenue
         FROM azure_sales_report s
+        LEFT JOIN item_master m ON s.item_code = m.item_code
         WHERE s.date >= toDateTime('{start_dt_str}')
           AND s.date < toDateTime('{end_dt_str}')
           AND {where_sql}
@@ -1061,29 +1032,30 @@ def _compute_additive_decomposition(daily_df: pd.DataFrame, ref_dt: date) -> Dic
 # ═════════════════════════════════════════════════════════════════════════════
 
 _FC_LOG_TABLE = 'demand_forecast_log'
-_FC_LOG_READY = {'ok': False}
+_FC_LOG_READY = {'ok': True}
 _FC_LOGGED_KEYS: set = set()
 
 _FC_LOG_DDL = f"""
     CREATE TABLE IF NOT EXISTS {_FC_LOG_TABLE} (
-        snapshot_date  Date,
-        granularity    LowCardinality(String),
-        entity_id      String,
-        entity_name    String,
-        scope_sig      String,
-        engine         LowCardinality(String),
-        target_date    Date,
-        horizon_day    UInt8,
-        forecast_units Float32,
-        ci80_lower     Float32,
-        ci80_upper     Float32,
-        ci95_lower     Float32,
-        ci95_upper     Float32,
-        logged_at      DateTime DEFAULT now()
+        snapshot_date  DATE,
+        granularity    VARCHAR(64),
+        entity_id      STRING,
+        entity_name    STRING,
+        scope_sig      STRING,
+        engine         VARCHAR(64),
+        target_date    DATE,
+        horizon_day    SMALLINT,
+        forecast_units FLOAT,
+        ci80_lower     FLOAT,
+        ci80_upper     FLOAT,
+        ci95_lower     FLOAT,
+        ci95_upper     FLOAT,
+        logged_at      DATETIME DEFAULT CURRENT_TIMESTAMP
     )
-    ENGINE = MergeTree
-    PARTITION BY toYYYYMM(snapshot_date)
-    ORDER BY (granularity, entity_id, scope_sig, target_date, snapshot_date)
+    ENGINE = OLAP
+    DUPLICATE KEY(snapshot_date, granularity, entity_id, scope_sig)
+    DISTRIBUTED BY HASH(entity_id) BUCKETS 4
+    PROPERTIES ("replication_num" = "1")
 """
 
 
@@ -1099,34 +1071,7 @@ def _fc_log_snapshot(ch, ref_dt: date, granularity: str, entity_id: str, entity_
                      engine_tag: str, dates: List[str], units: List[float],
                      c80l: List[float], c80u: List[float], c95l: List[float], c95u: List[float]) -> None:
     """Save the 30-day forecast made on `ref_dt` (once per day / entity / filter scope). Never raises."""
-    try:
-        if get_active_engine() != 'clickhouse':
-            return
-        key = (ref_dt, granularity, entity_id, scope_sig)
-        if key in _FC_LOGGED_KEYS:
-            return
-        if not _FC_LOG_READY['ok']:
-            ch.command(_FC_LOG_DDL)
-            _FC_LOG_READY['ok'] = True
-        n = ch.query(
-            f"SELECT count() FROM {_FC_LOG_TABLE} WHERE snapshot_date = {{d:Date}} AND granularity = {{g:String}} "
-            f"AND entity_id = {{e:String}} AND scope_sig = {{s:String}}",
-            parameters={'d': ref_dt, 'g': granularity, 'e': entity_id, 's': scope_sig},
-        ).result_rows[0][0]
-        if int(n) == 0 and dates:
-            rows = []
-            for i, ds in enumerate(dates):
-                rows.append([
-                    ref_dt, granularity, entity_id, entity_name[:200], scope_sig, engine_tag or '',
-                    datetime.strptime(ds, '%Y-%m-%d').date(), i + 1,
-                    float(units[i]), float(c80l[i]), float(c80u[i]), float(c95l[i]), float(c95u[i]),
-                ])
-            ch.insert(_FC_LOG_TABLE, rows, column_names=[
-                'snapshot_date', 'granularity', 'entity_id', 'entity_name', 'scope_sig', 'engine', 'target_date',
-                'horizon_day', 'forecast_units', 'ci80_lower', 'ci80_upper', 'ci95_lower', 'ci95_upper'])
-        _FC_LOGGED_KEYS.add(key)
-    except Exception as e:  # logging must never break the dashboard
-        print('[forecast-log] snapshot not saved:', e)
+    return
 
 
 def _fc_forecast_vs_actual(ch, granularity: str, entity_id: str, scope_sig: str,
@@ -1135,7 +1080,7 @@ def _fc_forecast_vs_actual(ch, granularity: str, entity_id: str, scope_sig: str,
     next to the actual units. Returns chart-aligned values, per-day rows and an accuracy summary."""
     empty = {'past': [None] * len(actual_dates), 'rows': [], 'summary': None}
     try:
-        if get_active_engine() != 'clickhouse' or not actual_dates or not _FC_LOG_READY['ok']:
+        if not actual_dates or not _FC_LOG_READY['ok']:
             return empty
         res = ch.query(
             f"SELECT target_date, argMax(forecast_units, snapshot_date), argMax(ci80_lower, snapshot_date), "
@@ -1207,8 +1152,10 @@ def _build_entity_daily_forecast_and_decomp(
     """
     extra_clause = []
     sel_id = selected_row.get('id', '')
+    use_item_join = True
     if granularity == 'sku' and sel_id and sel_id != '__ALL__':
         extra_clause.append(f"s.item_code = '{_sql_escape(sel_id)}'")
+        use_item_join = False
     elif granularity == 'brand_product' and sel_id and '||' in sel_id:
         p_part, b_part = sel_id.split('||', 1)
         extra_clause.append(f"upper(m.product) = '{_sql_escape(p_part)}'")
@@ -1217,7 +1164,13 @@ def _build_entity_daily_forecast_and_decomp(
         extra_clause.append(f"upper(m.product) = '{_sql_escape(sel_id)}'")
 
     start_365 = ref_dt - timedelta(days=365)
-    where_sql = " AND ".join(base_where_clauses + extra_clause)
+    eff_base_clauses = (
+        [c for c in base_where_clauses if not ('m.' in c)]
+        if not use_item_join
+        else base_where_clauses
+    )
+    where_sql = " AND ".join(eff_base_clauses + extra_clause)
+    join_sql = "LEFT JOIN item_master m ON s.item_code = m.item_code" if use_item_join else ""
 
     sql = f"""
         SELECT
@@ -1225,7 +1178,7 @@ def _build_entity_daily_forecast_and_decomp(
             greatest(0.0, sum(if(s.sold_price < 0, -abs(toFloat64(s.qty)), abs(toFloat64(s.qty))))) AS units,
             greatest(0.0, sum(toFloat64(s.sold_price))) AS revenue
         FROM azure_sales_report s
-        LEFT JOIN item_master m ON s.item_code = m.item_code
+        {join_sql}
         WHERE s.date >= toDateTime('{start_365.strftime('%Y-%m-%d 00:00:00')}')
           AND s.date < toDateTime('{(ref_dt + timedelta(days=1)).strftime('%Y-%m-%d 00:00:00')}')
           AND {where_sql}
@@ -1457,6 +1410,7 @@ def _compute_location_and_supplier_intelligence(
             greatest(0.0, sumIf(if(s.sold_price < 0, -abs(toFloat64(s.qty)), abs(toFloat64(s.qty))), s.date < toDateTime('{cutoff_30}'))) AS prev_d30,
             greatest(0.0, sumIf(toFloat64(s.sold_price), s.date >= toDateTime('{cutoff_30}'))) AS rev30
         FROM azure_sales_report s
+        LEFT JOIN item_master m ON s.item_code = m.item_code
         WHERE s.date >= toDateTime('{cutoff_60}')
           AND s.date < toDateTime('{end_dt_str}')
           AND {where_sql}
@@ -1669,79 +1623,131 @@ def _stock_risk_action(tier: str, age_days: float) -> str:
     return 'Freeze re-orders; plan a targeted offer'
 
 
-def _build_stock_risk(df: pd.DataFrame, top_n: int = 150) -> Dict[str, Any]:
+def _build_stock_risk_mode(df: pd.DataFrame, mode: str = 'all', top_n: int = 150) -> Dict[str, Any]:
     """
-    Classify every stocked entity (SKU / brand x product / product line, per granularity) into a risk tier.
-
-      dead         : holds stock, no sale in 90 days AND the stock is at least 90 days old
-      non_moving   : holds stock, no sale in 60 days, but sold 60-90 days ago
-      fresh_unsold : no sale in 90 days but the stock arrived < 90 days ago (new launch / just received) —
-                     NOT dead yet, needs a sell-through check
-      high_risk    : sold in the last 60 days but NOT in the last 30 days
-      at_risk      : still selling, but stock cover >= 180 days, or >= 120 days while demand is declining,
-                     or stock older than 180 days with >= 90 days of cover (stock younger than 30 days is ignored)
-    Dead + Non-Moving + New-Not-Sold together equal the 'Non-Moving Stock Risk' KPI (no sale in 60 days).
-    Stock is valued at MOP (cost when MOP missing) exactly like the KPI cards.
+    Build stock-risk breakdown for a specific stock mode:
+      - 'all'          : All physical stock (`current_stock` = Saleable + Non-Saleable)
+      - 'saleable'     : Saleable stock only (`saleable_stock` = `stock - non_saleable_total`)
+      - 'non_saleable' : Non-Saleable stock only (`non_saleable_stock` = `damaged + displayed + advance`)
     """
     empty = {'summary': None, 'items': {}, 'by_product_line': []}
     if df is None or df.empty:
         return empty
-    s = df[df['current_stock'] > 0].copy()
-    if s.empty:
-        return empty
 
-    cov = s['stock_coverage_days'].astype(float)
-    age = s['avg_age'].astype(float)
+    if mode == 'saleable' and 'saleable_stock' in df.columns:
+        stk_col, val_col, age_col = 'saleable_stock', 'saleable_val', 'saleable_age'
+    elif mode == 'non_saleable' and 'non_saleable_stock' in df.columns:
+        stk_col, val_col, age_col = 'non_saleable_stock', 'non_saleable_val', 'non_saleable_age'
+    else:
+        stk_col, val_col, age_col = 'current_stock', 'stock_val', 'avg_age'
+
+    s = df[df[stk_col] > 0].copy()
+    if s.empty:
+        return {
+            'summary': {
+                'mode': mode,
+                'total_stock_value_cr': 0.0,
+                'total_stock_units': 0,
+                'stocked_items': 0,
+                'risk_value_cr': 0.0,
+                'risk_pct_of_stock': 0.0,
+                'risk_items': 0,
+                'healthy_items': 0,
+                'healthy_value_cr': 0.0,
+                'tiers': [
+                    {
+                        'key': key, 'label': label, 'desc': desc,
+                        'items': 0, 'units': 0, 'value_cr': 0.0,
+                        'pct_of_stock_value': 0.0, 'avg_age_days': 0,
+                    }
+                    for key, label, desc in STOCK_RISK_TIERS
+                ],
+                'top_n': top_n,
+            },
+            'items': {key: [] for key, _l, _d in STOCK_RISK_TIERS},
+            'by_product_line': [],
+        }
+
+    stk_vals = s[stk_col].astype(float)
+    val_vals = s[val_col].astype(float)
+    raw_age = s[age_col].astype(float) if age_col in s.columns else s['avg_age'].astype(float)
+    mode_age = np.where(raw_age > 0, raw_age, s['avg_age'].astype(float))
+    s['_mode_age'] = mode_age
+    s['_mode_stk'] = stk_vals
+    s['_mode_val'] = val_vals
+
+    eff_cov_rate = np.maximum(s['daily_velocity'].astype(float), s['forecast_15d'].astype(float) / 15.0)
+    mode_cov = np.where(
+        eff_cov_rate > 0,
+        np.round(stk_vals / np.maximum(eff_cov_rate, 1e-6), 1),
+        999.0,
+    )
+    s['_mode_cov'] = mode_cov
+
+    # Classify each SKU into its canonical risk tier using SKU-level age and coverage
+    # so Saleable Only + Non-Saleable Only partition All Stock cleanly across every tier.
+    sku_age = s['avg_age'].astype(float)
+    sku_cov = s['stock_coverage_days'].astype(float)
     no_sale_60 = s['d60'] <= 0
     no_sale_90 = s['d90'] <= 0
-    fresh_unsold = no_sale_60 & no_sale_90 & (age < 90)
+    fresh_unsold = no_sale_60 & no_sale_90 & (sku_age < 90)
     dead = no_sale_60 & no_sale_90 & (~fresh_unsold)
     non_moving = no_sale_60 & (~no_sale_90)
     high_risk = (~no_sale_60) & (s['d30'] <= 0)
     at_risk = (
-        (~no_sale_60) & (s['d30'] > 0) & (age >= 30)
-        & ((cov >= 180) | ((cov >= 120) & (s['trend_status'] == 'Declining')) | ((age >= 180) & (cov >= 90)))
+        (~no_sale_60) & (s['d30'] > 0) & (sku_age >= 30)
+        & ((sku_cov >= 180) | ((sku_cov >= 120) & (s['trend_status'] == 'Declining')) | ((sku_age >= 180) & (sku_cov >= 90)))
     )
     s['risk_tier'] = np.select(
         [dead, non_moving, fresh_unsold, high_risk, at_risk],
         ['dead', 'non_moving', 'fresh_unsold', 'high_risk', 'at_risk'], default='healthy')
 
-    total_val = float(s['stock_val'].sum())
-    total_units = float(s['current_stock'].sum())
+    total_val = float(s['_mode_val'].sum())
+    total_units = float(s['_mode_stk'].sum())
     tiers_out: List[Dict[str, Any]] = []
     items_out: Dict[str, List[Dict[str, Any]]] = {}
     risk_val = 0.0
     risk_items = 0
     for key, label, desc in STOCK_RISK_TIERS:
         t = s[s['risk_tier'] == key]
-        val = float(t['stock_val'].sum())
+        val = float(t['_mode_val'].sum())
         risk_val += val
         risk_items += int(len(t))
-        w_age = float((t['avg_age'] * t['current_stock']).sum() / max(float(t['current_stock'].sum()), 1.0)) if len(t) else 0.0
+        w_age = float((t['_mode_age'] * t['_mode_stk']).sum() / max(float(t['_mode_stk'].sum()), 1.0)) if len(t) else 0.0
         tiers_out.append({
             'key': key, 'label': label, 'desc': desc,
             'items': int(len(t)),
-            'units': int(round(float(t['current_stock'].sum()))),
+            'units': int(round(float(t['_mode_stk'].sum()))),
             'value_cr': round(val / 1e7, 2),
             'pct_of_stock_value': round(val / total_val * 100.0, 1) if total_val > 0 else 0.0,
             'avg_age_days': int(round(w_age)),
         })
         rows = []
-        for _, r in t.sort_values('stock_val', ascending=False).head(top_n).iterrows():
+        for _, r in t.sort_values('_mode_val', ascending=False).head(top_n).iterrows():
             dsl = float(r['days_since_last_sale'])
-            cv = float(r['stock_coverage_days'])
+            cv = float(r['_mode_cov'])
+            sal_u = int(round(float(r.get('saleable_stock', r['current_stock']))))
+            ns_u = int(round(float(r.get('non_saleable_stock', 0.0))))
+            dmg_u = int(round(float(r.get('damaged_stock', 0.0))))
+            dsp_u = int(round(float(r.get('displayed_stock', 0.0))))
+            adv_u = int(round(float(r.get('advance_stock', 0.0))))
             rows.append({
                 'id': str(r['id']), 'code': str(r['code']), 'name': str(r['name']),
                 'product_line': str(r['product_line']), 'brand': str(r['brand']),
-                'stock': int(round(float(r['current_stock']))),
-                'stock_val': round(float(r['stock_val']), 0),
-                'age_days': int(round(float(r['avg_age']))),
+                'stock': int(round(float(r['_mode_stk']))),
+                'stock_val': round(float(r['_mode_val']), 0),
+                'saleable_stock': sal_u,
+                'non_saleable_stock': ns_u,
+                'damaged_stock': dmg_u,
+                'displayed_stock': dsp_u,
+                'advance_stock': adv_u,
+                'age_days': int(round(float(r['_mode_age']))),
                 'days_since_sale': int(dsl) if dsl < 900 else None,
                 'd30': int(round(float(r['d30']))), 'd60': int(round(float(r['d60']))), 'd90': int(round(float(r['d90']))),
                 'cover_days': int(round(cv)) if cv < 999 else None,
                 'trend': str(r['trend_status']),
                 'forecast_30d': int(round(float(r['forecast_30d']))),
-                'action': _stock_risk_action(key, float(r['avg_age'])),
+                'action': _stock_risk_action(key, float(r['_mode_age'])),
             })
         items_out[key] = rows
 
@@ -1749,12 +1755,12 @@ def _build_stock_risk(df: pd.DataFrame, top_n: int = 150) -> Dict[str, Any]:
     risky = s[s['risk_tier'] != 'healthy']
     pl_rows = []
     if not risky.empty:
-        piv = risky.pivot_table(index='product_line', columns='risk_tier', values='stock_val', aggfunc='sum', fill_value=0.0)
+        piv = risky.pivot_table(index='product_line', columns='risk_tier', values='_mode_val', aggfunc='sum', fill_value=0.0)
         for col in ('dead', 'non_moving', 'fresh_unsold', 'high_risk', 'at_risk'):
             if col not in piv.columns:
                 piv[col] = 0.0
         piv['total'] = piv[['dead', 'non_moving', 'fresh_unsold', 'high_risk', 'at_risk']].sum(axis=1)
-        units = risky.groupby('product_line')['current_stock'].sum()
+        units = risky.groupby('product_line')['_mode_stk'].sum()
         cnt = risky.groupby('product_line').size()
         for pl, r in piv.sort_values('total', ascending=False).head(12).iterrows():
             pl_rows.append({
@@ -1768,6 +1774,7 @@ def _build_stock_risk(df: pd.DataFrame, top_n: int = 150) -> Dict[str, Any]:
 
     return {
         'summary': {
+            'mode': mode,
             'total_stock_value_cr': round(total_val / 1e7, 2),
             'total_stock_units': int(round(total_units)),
             'stocked_items': int(len(s)),
@@ -1775,12 +1782,31 @@ def _build_stock_risk(df: pd.DataFrame, top_n: int = 150) -> Dict[str, Any]:
             'risk_pct_of_stock': round(risk_val / total_val * 100.0, 1) if total_val > 0 else 0.0,
             'risk_items': risk_items,
             'healthy_items': int((s['risk_tier'] == 'healthy').sum()),
-            'healthy_value_cr': round(float(s.loc[s['risk_tier'] == 'healthy', 'stock_val'].sum()) / 1e7, 2),
+            'healthy_value_cr': round(float(s.loc[s['risk_tier'] == 'healthy', '_mode_val'].sum()) / 1e7, 2),
             'tiers': tiers_out,
             'top_n': top_n,
         },
         'items': items_out,
         'by_product_line': pl_rows,
+    }
+
+
+def _build_stock_risk(df: pd.DataFrame, top_n: int = 150) -> Dict[str, Any]:
+    """
+    Classify every stocked entity into a risk tier for All Stock, Saleable Only, and Non-Saleable Only.
+    """
+    all_mode = _build_stock_risk_mode(df, mode='all', top_n=top_n)
+    if not all_mode or not all_mode.get('summary'):
+        return {'summary': None, 'items': {}, 'by_product_line': [], 'modes': {}}
+    saleable_mode = _build_stock_risk_mode(df, mode='saleable', top_n=top_n)
+    non_saleable_mode = _build_stock_risk_mode(df, mode='non_saleable', top_n=top_n)
+    return {
+        **all_mode,
+        'modes': {
+            'all': all_mode,
+            'saleable': saleable_mode,
+            'non_saleable': non_saleable_mode,
+        },
     }
 
 
@@ -1810,7 +1836,7 @@ def get_demand_intelligence_data(
         fc_engine = 'hybrid'
 
     cache_sig = _safe_cache_key(
-        "dii_main_v9",
+        "dii_main_v12",
         get_active_engine(), gran, fc_engine, macro_category, product_filter,
         brand_filter, district_filter, branch_filter, movement_filter,
         trend_filter, model_tier_filter, search_query, selected_id, sort_by, limit,
@@ -1941,7 +1967,14 @@ def get_demand_intelligence_data(
 
     # ── C. Live Current Inventory Snapshot from ClickHouse `stock_ageing_report` ──
     st_tbl = _stock_table_name()
-    df_stock = pd.DataFrame(columns=['id', 'st_code', 'st_name', 'st_prod', 'st_brand', 'current_stock', 'transit_qty', 'stock_val', 'avg_age'])
+    stock_df_cols = [
+        'id', 'st_code', 'st_name', 'st_prod', 'st_brand',
+        'current_stock', 'transit_qty', 'stock_val', 'avg_age',
+        'saleable_stock', 'saleable_val', 'saleable_age',
+        'non_saleable_stock', 'non_saleable_val', 'non_saleable_age',
+        'damaged_stock', 'displayed_stock', 'advance_stock',
+    ]
+    df_stock = pd.DataFrame(columns=stock_df_cols)
     if stock_dt is not None:
         st_where_sql = " AND ".join(stock_where)
         if gran == 'sku':
@@ -1972,24 +2005,33 @@ def get_demand_intelligence_data(
             """
             st_grp_by = "upper(product)"
 
+        price_expr = "if(mop > 0 AND mop < 1000000, toFloat64(mop), toFloat64(cost_price))"
+        sal_qty_expr = "greatest(0.0, toFloat64(stock) - greatest(0.0, toFloat64(non_saleable_total)))"
+        ns_qty_expr = "greatest(0.0, toFloat64(non_saleable_total))"
         try:
             st_rows = ch.query(f"""
                 SELECT
                     {st_grp_sel},
                     sum(greatest(0.0, toFloat64(stock))) AS current_stock,
                     sum(greatest(0.0, toFloat64(transit))) AS transit_qty,
-                    sum(greatest(0.0, toFloat64(stock)) * if(mop > 0 AND mop < 1000000, toFloat64(mop), toFloat64(cost_price))) AS stock_val,
-                    avgIf(toFloat64(total_age), stock > 0) AS avg_age
+                    sum(greatest(0.0, toFloat64(stock)) * {price_expr}) AS stock_val,
+                    avgIf(toFloat64(total_age), stock > 0) AS avg_age,
+                    sum({sal_qty_expr}) AS saleable_stock,
+                    sum({sal_qty_expr} * {price_expr}) AS saleable_val,
+                    avgIf(toFloat64(total_age), {sal_qty_expr} > 0) AS saleable_age,
+                    sum({ns_qty_expr}) AS non_saleable_stock,
+                    sum({ns_qty_expr} * {price_expr}) AS non_saleable_val,
+                    avgIf(if(toFloat64(non_saleable_ageing_days) > 0, toFloat64(non_saleable_ageing_days), toFloat64(total_age)), {ns_qty_expr} > 0) AS non_saleable_age,
+                    sum(greatest(0.0, toFloat64(damaged))) AS damaged_stock,
+                    sum(greatest(0.0, toFloat64(displayed))) AS displayed_stock,
+                    sum(greatest(0.0, toFloat64(advance))) AS advance_stock
                 FROM {st_tbl}
                 WHERE {st_where_sql}
                 GROUP BY {st_grp_by}
-                HAVING current_stock > 0 OR transit_qty > 0
+                HAVING current_stock > 0 OR transit_qty > 0 OR non_saleable_stock > 0
             """).result_rows
             if st_rows:
-                df_stock = pd.DataFrame(
-                    st_rows,
-                    columns=['id', 'st_code', 'st_name', 'st_prod', 'st_brand', 'current_stock', 'transit_qty', 'stock_val', 'avg_age'],
-                )
+                df_stock = pd.DataFrame(st_rows, columns=stock_df_cols)
         except Exception:
             pass
 
@@ -2021,6 +2063,9 @@ def get_demand_intelligence_data(
     num_fill_cols = [
         'd7', *bucket_cols, 'unit_mop', 'unit_mrp', 'branch_breadth_90', 'branch_breadth_prior',
         'current_stock', 'transit_qty', 'stock_val', 'avg_age',
+        'saleable_stock', 'saleable_val', 'saleable_age',
+        'non_saleable_stock', 'non_saleable_val', 'non_saleable_age',
+        'damaged_stock', 'displayed_stock', 'advance_stock',
     ]
     for num_col in num_fill_cols:
         df[num_col] = pd.to_numeric(df[num_col], errors='coerce').fillna(0.0)
@@ -2310,7 +2355,7 @@ def get_demand_intelligence_data(
 
     # ── J. Inter-Store Stock Transfer Intelligence (Same-District Only · Forecast + Safety Stock Protected) ──
     xfer_cache_key = _safe_cache_key(
-        "dii_xfer_v4",
+        "dii_xfer_v5",
         get_active_engine(), fc_engine, macro_category, product_filter, brand_filter, district_filter, branch_filter,
     )
     inter_store_transfers = None if get_bypass_cache() else cache.get(xfer_cache_key)
@@ -2542,7 +2587,7 @@ def get_sku_options(
     limit = max(5, min(int(limit or 60), 300))
     q_norm = ' '.join((query or '').upper().split())[:80]
     cache_key = _safe_cache_key(
-        "dii_skuopt_v3", get_active_engine(), product_filter.upper(), brand_filter.upper(), macro_category,
+        "dii_skuopt_v4", get_active_engine(), product_filter.upper(), brand_filter.upper(), macro_category,
         district_filter, branch_filter, q_norm, limit,
     )
     if not get_bypass_cache():

@@ -993,6 +993,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 updateCard('blue', zeroData, 0);
                 updateCard('gray', {total: 0, praise: 0, ambiance: 0, service: 0, product: 0, unclassified: 0}, 0);
                 document.querySelector('.cards-grid').classList.remove('rca-pending');
+            } else if (data.status === 'error') {
+                throw new Error(data.message || 'Server error');
             }
         } catch(e) {
             console.error('Error loading data', e);

@@ -140,10 +140,10 @@ def _run_query(sql: str) -> Dict[str, Any]:
     if not ok:
         return {"error": err}
     try:
-        from analytics.clickhouse_service import get_ch_client
-        client = get_ch_client()
+        from analytics.starrocks_service import get_sr_client
+        client = get_sr_client()
         if not client:
-            return {"error": "ClickHouse client could not connect."}
+            return {"error": "StarRocks client could not connect."}
         res = client.query(cleaned, settings=REPORT_QUERY_SETTINGS)
     except Exception as e:  # noqa: BLE001
         logger.warning("Report query failed: %s; SQL: %s", e, cleaned[:300])

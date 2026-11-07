@@ -10,7 +10,11 @@ New & Repeat definition (correct loyalty approach):
 
 from django.core.cache import cache
 import pandas as pd
-from .dashboard_api_logic import build_price_slab_filter_sql
+from .dashboard_api_logic import (
+    build_price_slab_filter_sql,
+    VALID_MOP_SALE_FILTER_SQL,
+    valid_mop_sale_filter_sql,
+)
 
 
 def _get_ch():
@@ -122,7 +126,7 @@ def _fetch_branch_metrics(ch, comp_type, val, year, branch_filter='', brand_filt
         _in_clause('m.product', product_filter),
         build_price_slab_filter_sql(price_slab_filter, product_filter),
     ] if c]
-    where = f"toDate(s.date) != toDate('1970-01-01') AND {date_cond}"
+    where = f"toDate(s.date) != toDate('1970-01-01') AND {date_cond} AND {VALID_MOP_SALE_FILTER_SQL}"
     if extra:
         where += " AND " + " AND ".join(extra)
 
@@ -169,6 +173,7 @@ def _fetch_new_repeat_for_period(ch, period_cond, period_start_date, branch_filt
 
     extra_parts = [c for c in [branch_clause, brand_clause, prod_clause, ps_clause] if c]
     extra_sql   = (" AND " + " AND ".join(extra_parts)) if extra_parts else ""
+    s2_valid_filter = valid_mop_sale_filter_sql('s2')
 
     sql = f"""
         SELECT
@@ -185,6 +190,7 @@ def _fetch_new_repeat_for_period(ch, period_cond, period_start_date, branch_filt
             LEFT JOIN azure_invoice_report i ON s.invoice_no = i.invoice_no
             WHERE toDate(s.date) != toDate('1970-01-01')
               AND {period_cond}
+              AND {VALID_MOP_SALE_FILTER_SQL}
               AND i.customer_mobile != ''
               AND i.customer_mobile IS NOT NULL
               {extra_sql}
@@ -198,6 +204,7 @@ def _fetch_new_repeat_for_period(ch, period_cond, period_start_date, branch_filt
             FROM azure_sales_report s2
             LEFT JOIN azure_invoice_report i2 ON s2.invoice_no = i2.invoice_no
             WHERE toDate(s2.date) != toDate('1970-01-01')
+              AND {s2_valid_filter}
               AND i2.customer_mobile != ''
               AND i2.customer_mobile IS NOT NULL
             GROUP BY mobile
@@ -275,7 +282,7 @@ def build_growth_degrowth_response(request):
         if not base_val or '|' not in base_val or not comp_val or '|' not in comp_val:
             raise ValueError('Date range not ready. Please wait for the date picker to initialize and try again.')
 
-    cache_key = f"gd_v3_{comp_type}_{base_val}_{comp_val}_{base_year}_{comp_year}_{cat}_{product}_{price_slab}_{brand}_{branch}_{rbm}_{bdm}_{district}_{state}"
+    cache_key = f"gd_v4_{comp_type}_{base_val}_{comp_val}_{base_year}_{comp_year}_{cat}_{product}_{price_slab}_{brand}_{branch}_{rbm}_{bdm}_{district}_{state}"
     cached = cache.get(cache_key)
     if cached:
         return cached

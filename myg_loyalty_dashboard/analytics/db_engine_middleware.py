@@ -1,16 +1,15 @@
 """
-Dual-Engine Clone Routing, Cache Isolation & Live Fetch Speed Telemetry Middleware
-----------------------------------------------------------------------------------
-Powers the StarRocks Clone Test portal (`/sr/...`) alongside the Original ClickHouse
-portal (`/...`) without duplicating views or altering Original ClickHouse behavior.
+StarRocks Engine Routing, Cache Isolation & Live Fetch Speed Telemetry Middleware
+---------------------------------------------------------------------------------
+Configures every portal route (`/...` and `/sr/...`) to run exclusively against
+StarRocks (`Loyalty_Analytics`).
 
 Features:
-  1. URL Clone Prefix (`/sr/<any-route>`) transparently resolves to `<any-route>`
-     while activating `engine = 'starrocks'` (`Loyalty_Analytics`).
-  2. Header / Query overrides (`X-DB-Engine: starrocks|clickhouse`, `?db_engine=...`)
-     and live benchmark cache bypass (`X-Bypass-Cache: 1`, `?nocache=1`).
-  3. `EngineAwareFileBasedCache` isolates StarRocks cache entries (`sr:...`) from
-     ClickHouse cache entries and skips cache reads during live DB speed tests.
+  1. Sets `request.db_engine = 'starrocks'` and `set_active_engine('starrocks')`
+     on every request.
+  2. Transparently resolves any legacy `/sr/<any-route>` URL to `<any-route>`.
+  3. `EngineAwareFileBasedCache` prefixes cache keys with `sr:` and skips cache
+     reads during live DB speed tests (`X-Bypass-Cache: 1`, `?nocache=1`).
   4. Attaches `X-DB-Engine`, `X-DB-SQL-Time-Ms`, `X-DB-SQL-Count`, `X-DB-Rows-Fetched`,
      and `X-Server-Total-Ms` headers to every HTTP & API response.
 """
@@ -33,14 +32,12 @@ from analytics.clickhouse_service import (
 class EngineAwareFileBasedCache(FileBasedCache):
     """
     Drop-in replacement for Django's FileBasedCache:
-      - Keeps ClickHouse cache keys 100% identical to original behavior.
-      - Prefixes StarRocks cache keys with `sr:` so the two engines never cross-contaminate.
+      - Prefixes StarRocks cache keys with `sr:`.
       - Returns cache miss on `.get()` when `get_bypass_cache()` is True (`nocache=1` / `X-Bypass-Cache: 1`).
     """
 
     def make_key(self, key, version=None):
-        if get_active_engine() == "starrocks":
-            key = f"sr:{key}"
+        key = f"sr:{key}"
         return super().make_key(key, version=version)
 
     def get(self, key, default=None, version=None):
@@ -51,8 +48,8 @@ class EngineAwareFileBasedCache(FileBasedCache):
 
 class DBEngineCloneMiddleware:
     """
-    Routes `/sr/...` (and `X-DB-Engine: starrocks`) requests to StarRocks `Loyalty_Analytics`
-    while keeping `/` on ClickHouse Cloud, and measures SQL + Server execution speed.
+    Routes all portal requests to StarRocks `Loyalty_Analytics`
+    and measures SQL + Server execution speed.
     """
 
     def __init__(self, get_response):
@@ -64,7 +61,7 @@ class DBEngineCloneMiddleware:
         # Normalize bare `/sr` -> `/sr/`
         if raw_path == "/sr":
             qs = request.META.get("QUERY_STRING", "")
-            target = "/sr/" + (f"?{qs}" if qs else "")
+            target = "/" + (f"?{qs}" if qs else "")
             return HttpResponseRedirect(target)
 
         is_sr_url = False
@@ -77,18 +74,7 @@ class DBEngineCloneMiddleware:
         else:
             request.original_clone_path = raw_path
 
-        # Determine active engine (explicit header takes precedence for side-by-side benchmark calls)
-        hdr_engine = request.headers.get("X-DB-Engine", "").strip().lower()
-        qs_engine = request.GET.get("db_engine", "").strip().lower()
-
-        if hdr_engine in ("starrocks", "clickhouse"):
-            engine = hdr_engine
-        elif qs_engine in ("starrocks", "clickhouse"):
-            engine = qs_engine
-        elif is_sr_url:
-            engine = "starrocks"
-        else:
-            engine = "clickhouse"
+        engine = "starrocks"
 
         bypass_cache = (
             request.GET.get("nocache") == "1"
@@ -96,13 +82,13 @@ class DBEngineCloneMiddleware:
         )
 
         # Expose portal state to views & templates
-        request.db_engine = engine
-        request.is_sr_clone = is_sr_url or (engine == "starrocks")
+        request.db_engine = "starrocks"
+        request.is_sr_clone = is_sr_url
         request.sr_prefix = "/sr" if is_sr_url else ""
         request.clean_portal_path = request.path_info
         request.bypass_cache = bypass_cache
 
-        set_active_engine(engine)
+        set_active_engine("starrocks")
         set_bypass_cache(bypass_cache)
         reset_query_metrics()
 
@@ -114,27 +100,12 @@ class DBEngineCloneMiddleware:
         finally:
             t_server_ms = (time.perf_counter() - t0) * 1000.0
             metrics = get_query_metrics()
-            # Reset context vars cleanly after request completes
-            set_active_engine("clickhouse")
+            set_active_engine("starrocks")
             set_bypass_cache(False)
 
-        # Keep redirects inside `/sr/...` when browsing the StarRocks Clone portal
-        if is_sr_url and response.status_code in (301, 302) and response.has_header("Location"):
-            loc = response["Location"]
-            if loc.startswith("/accounts/login/") and "next=/" in loc and "next=/sr/" not in loc:
-                response["Location"] = loc.replace("next=/", "next=/sr/", 1)
-            elif loc.startswith("/") and not any(
-                loc.startswith(p) for p in ("/sr/", "/accounts/", "/admin/", "/static/")
-            ):
-                response["Location"] = "/sr" + loc
-
         # Attach high-precision speed telemetry headers
-        response["X-DB-Engine"] = engine
-        response["X-DB-Label"] = (
-            "StarRocks (Loyalty_Analytics)"
-            if engine == "starrocks"
-            else "ClickHouse Cloud (default)"
-        )
+        response["X-DB-Engine"] = "starrocks"
+        response["X-DB-Label"] = "StarRocks (Loyalty_Analytics)"
         response["X-DB-SQL-Time-Ms"] = f"{metrics['sql_time_ms']:.2f}"
         response["X-DB-SQL-Count"] = str(metrics["query_count"])
         response["X-DB-Rows-Fetched"] = str(metrics["total_rows"])
@@ -147,7 +118,7 @@ class DBEngineCloneMiddleware:
             marker = b"/*__SSR_DB_TELEMETRY__*/null"
             if marker in response.content:
                 ssr_payload = {
-                    "engine": engine,
+                    "engine": "starrocks",
                     "sql_time_ms": round(metrics["sql_time_ms"], 2),
                     "query_count": metrics["query_count"],
                     "total_rows": metrics["total_rows"],

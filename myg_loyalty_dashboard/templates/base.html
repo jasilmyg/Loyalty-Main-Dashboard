@@ -4,18 +4,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% if request.db_engine == 'starrocks' %}[StarRocks Clone] {% endif %}myG Loyalty Analytics</title>
+    <title>myG Loyalty Analytics</title>
     <script>
     (function() {
-        window.ACTIVE_DB_ENGINE = "{{ request.db_engine|default:'clickhouse' }}";
-        window.IS_SR_CLONE_URL = window.location.pathname === '/sr' || window.location.pathname.startsWith('/sr/');
+        window.ACTIVE_DB_ENGINE = "starrocks";
+        window.IS_SR_CLONE_URL = false;
         window.CLEAN_PORTAL_PATH = "{{ request.clean_portal_path|default:request.path }}";
         window.SSR_DB_TELEMETRY = /*__SSR_DB_TELEMETRY__*/null;
         window.__dbFetchLogs = [];
 
-        // Default Raw DB Speed (Bypass Cache) to ON so database fetch speed analysis is live out of the box
-        if (sessionStorage.getItem('myg_bench_nocache') === null) {
-            sessionStorage.setItem('myg_bench_nocache', '1');
+        // Default Raw DB Speed (Bypass Cache) to OFF for fast cached loads
+        if (sessionStorage.getItem('myg_bench_nocache') === null || sessionStorage.getItem('myg_bench_nocache') === '1') {
+            sessionStorage.setItem('myg_bench_nocache', '0');
         }
         window.isBenchNoCache = function() {
             return sessionStorage.getItem('myg_bench_nocache') === '1';
@@ -1119,42 +1119,22 @@
 
     <!-- Main Content -->
     <main class="main-content w-100">
-        <!-- Dual-Engine Portal Switcher (Original ClickHouse vs Clone Test StarRocks) & Live Fetch Speed Analyzer -->
-        <div id="db-switcher-bar" class="db-switcher-bar {% if request.db_engine == 'starrocks' %}sr-mode{% endif %}">
+        <!-- StarRocks Database Engine Status & Live Fetch Speed Telemetry -->
+        <div id="db-switcher-bar" class="db-switcher-bar sr-mode">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                <!-- Left: Original vs Clone Test Tab Switcher -->
+                <!-- Left: Active StarRocks Connection Badge -->
                 <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <div class="db-tab-group" role="tablist" aria-label="Database Portal Switcher">
-                        <a id="tab-switch-ch" data-no-sr-rewrite="1"
-                           href="{{ request.clean_portal_path|default:'/' }}"
-                           class="db-tab-pill {% if request.db_engine != 'starrocks' %}active-ch{% endif %}"
-                           title="Switch to Original Portal (ClickHouse Cloud)">
-                            <i class="bi bi-lightning-charge-fill"></i>
-                            <span>Original (ClickHouse)</span>
-                        </a>
-                        <a id="tab-open-ch-new" data-no-sr-rewrite="1" target="_blank"
-                           href="{{ request.clean_portal_path|default:'/' }}"
-                           class="db-ext-link" title="Open Original (ClickHouse) in a new browser tab">
-                            <i class="bi bi-box-arrow-up-right"></i>
-                        </a>
-                        <a id="tab-switch-sr" data-no-sr-rewrite="1"
-                           href="/sr{{ request.clean_portal_path|default:'/' }}"
-                           class="db-tab-pill {% if request.db_engine == 'starrocks' %}active-sr{% endif %}"
-                           title="Switch to Clone Test Portal (StarRocks · Loyalty_Analytics)">
+                    <div class="db-tab-group" role="tablist" aria-label="Database Engine">
+                        <span class="db-tab-pill active-sr" title="Connected to StarRocks · Loyalty_Analytics">
                             <i class="bi bi-hdd-network-fill"></i>
-                            <span>Clone Test (StarRocks)</span>
-                        </a>
-                        <a id="tab-open-sr-new" data-no-sr-rewrite="1" target="_blank"
-                           href="/sr{{ request.clean_portal_path|default:'/' }}"
-                           class="db-ext-link" title="Open Clone Test (StarRocks) in a new browser tab">
-                            <i class="bi bi-box-arrow-up-right"></i>
-                        </a>
+                            <span>StarRocks (Loyalty_Analytics)</span>
+                        </span>
                     </div>
                 </div>
 
                 <!-- Center: Live Fetch Speed Telemetry -->
                 <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <div class="db-metric-chip" title="Pure SQL execution time inside the active database engine">
+                    <div class="db-metric-chip" title="Pure SQL execution time inside StarRocks">
                         <span class="lbl">DB SQL Time</span>
                         <span class="val" id="db-stat-sql-ms">— ms</span>
                     </div>
@@ -1166,23 +1146,16 @@
                         <span class="lbl">Queries · Rows</span>
                         <span class="val" id="db-stat-qcount">0 · 0</span>
                     </div>
-                    <div id="db-compare-pill" class="db-compare-badge" style="display:none;"></div>
                 </div>
 
                 <!-- Right: Live Benchmark Controls -->
                 <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <div class="form-check form-switch m-0 d-flex align-items-center gap-1" title="Bypass Django cache so every request measures real live ClickHouse / StarRocks query speed">
+                    <div class="form-check form-switch m-0 d-flex align-items-center gap-1" title="Bypass Django cache so every request measures real live StarRocks query speed">
                         <input class="form-check-input" type="checkbox" role="switch" id="db-nocache-toggle" style="cursor:pointer;">
                         <label class="form-check-label fw-semibold" for="db-nocache-toggle" style="font-size:0.75rem; color:#334155; cursor:pointer;">
                             ⚡ Raw DB Speed
                         </label>
                     </div>
-                    <button type="button" id="btn-compare-engines" class="btn btn-sm fw-bold"
-                            onclick="window.runHeadToHeadBenchmark()"
-                            style="background:#0f172a; color:#fff; border-radius:8px; font-size:0.75rem; padding:0.32rem 0.7rem;"
-                            title="Run current page queries live against BOTH ClickHouse & StarRocks and compare speed">
-                        <i class="bi bi-speedometer2 me-1"></i> Compare CH vs SR
-                    </button>
                     <button type="button" class="btn btn-sm btn-outline-secondary fw-semibold"
                             onclick="window.toggleDbSpeedDrawer()"
                             style="border-radius:8px; font-size:0.75rem; padding:0.32rem 0.65rem;">
@@ -1191,17 +1164,13 @@
                 </div>
             </div>
 
-            <!-- Expandable Per-Query / Side-by-Side Comparison Drawer -->
+            <!-- Expandable Per-Query Drawer -->
             <div id="db-speed-drawer" class="db-drawer" style="display:none;">
                 <div id="db-head2head-results" class="mb-2" style="display:none;"></div>
                 <div class="d-flex justify-content-between align-items-center mb-1">
                     <strong style="color:#1e293b;">
                         Active Connection:
-                        {% if request.db_engine == 'starrocks' %}
-                            <span class="text-primary">StarRocks 4.1.6 · Database: <code>Loyalty_Analytics</code></span>
-                        {% else %}
-                            <span style="color:#ea580c;">ClickHouse Cloud · Database: <code>default</code></span>
-                        {% endif %}
+                        <span class="text-primary">StarRocks · Database: <code>Loyalty_Analytics</code> (192.168.0.252:9030)</span>
                     </strong>
                     <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" style="font-size:0.74rem;" onclick="window.location.reload()">
                         <i class="bi bi-arrow-clockwise"></i> Reload Page Benchmark
@@ -1725,7 +1694,7 @@ async function downloadDormantData() {
     }
 
     function rewriteCloneAnchors(root) {
-        if (!window.IS_SR_CLONE_URL && activeEngine !== 'starrocks') return;
+        if (!window.IS_SR_CLONE_URL) return;
         (root || document).querySelectorAll('a[href]').forEach(a => {
             if (a.dataset && a.dataset.noSrRewrite) return;
             const rawHref = a.getAttribute('href');
@@ -1737,7 +1706,7 @@ async function downloadDormantData() {
 
     // Delegated click guard so dynamically rendered links also stay in /sr/... mode
     document.addEventListener('click', function(e) {
-        if (!window.IS_SR_CLONE_URL && activeEngine !== 'starrocks') return;
+        if (!window.IS_SR_CLONE_URL) return;
         const a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
         if (!a || (a.dataset && a.dataset.noSrRewrite)) return;
         const rawHref = a.getAttribute('href');

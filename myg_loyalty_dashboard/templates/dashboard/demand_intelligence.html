@@ -739,6 +739,63 @@
     .risk-tile .rt-sub { font-size: 0.7rem; color: #64748b; }
     .risk-age-old { color: #b91c1c; font-weight: 800; }
     .risk-action { font-size: 0.72rem; color: #334155; }
+    .risk-mode-switch {
+        display: inline-flex;
+        align-items: center;
+        background: #f1f5f9;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        padding: 3px;
+        gap: 3px;
+    }
+    .risk-mode-btn {
+        border: none;
+        background: transparent;
+        color: #475569;
+        font-size: 0.73rem;
+        font-weight: 700;
+        padding: 0.32rem 0.7rem;
+        border-radius: 7px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        white-space: nowrap;
+    }
+    .risk-mode-btn:hover {
+        color: #0f172a;
+        background: rgba(255, 255, 255, 0.6);
+    }
+    .risk-mode-btn.active {
+        background: #ffffff;
+        color: #0f172a;
+        box-shadow: 0 1px 4px rgba(15, 23, 42, 0.10);
+    }
+    .risk-mode-btn[data-mode="saleable"].active {
+        color: #047857;
+        box-shadow: 0 1px 4px rgba(4, 120, 87, 0.15);
+    }
+    .risk-mode-btn[data-mode="non_saleable"].active {
+        color: #b91c1c;
+        box-shadow: 0 1px 4px rgba(185, 28, 28, 0.15);
+    }
+    .risk-mode-pill {
+        font-size: 0.65rem;
+        font-weight: 800;
+        padding: 1px 6px;
+        border-radius: 999px;
+        background: #e2e8f0;
+        color: #334155;
+    }
+    .risk-mode-btn[data-mode="saleable"].active .risk-mode-pill {
+        background: #d1fae5;
+        color: #065f46;
+    }
+    .risk-mode-btn[data-mode="non_saleable"].active .risk-mode-pill {
+        background: #fee2e2;
+        color: #991b1b;
+    }
 
     /* ── Dashboard & Forecast Loading Indicators ── */
     @keyframes diiProgressSlide {
@@ -1415,7 +1472,24 @@
                         <div class="dii-panel-sub">Stock that is not selling, and stock that is heading that way. Valued at MOP; follows the filters above. Click a tile to see its items.</div>
                     </div>
                     <div class="d-flex align-items-center gap-2 flex-wrap">
-                        <a href="/api/v1/demand-intelligence/dead-stock-excel/" class="btn-dii-purple text-decoration-none" title="Download all 4,832 Dead Stock SKUs (1.3L units · ₹25.03 Cr) with full Branch × SKU breakdown">
+                        <div class="risk-mode-switch" id="risk-mode-switch" role="group" aria-label="Stock Saleability Filter">
+                            <button type="button" class="risk-mode-btn active" data-mode="all" onclick="setStockRiskMode('all')" title="All physical stock (Saleable + Non-Saleable)">
+                                <i class="bi bi-boxes"></i>
+                                <span>All Stock</span>
+                                <span class="risk-mode-pill" id="risk-mode-pill-all">—</span>
+                            </button>
+                            <button type="button" class="risk-mode-btn" data-mode="saleable" onclick="setStockRiskMode('saleable')" title="Saleable stock only (excludes Damaged, Displayed &amp; Advance units)">
+                                <i class="bi bi-check-circle-fill" style="color:#16a34a;"></i>
+                                <span>Saleable Only</span>
+                                <span class="risk-mode-pill" id="risk-mode-pill-saleable">—</span>
+                            </button>
+                            <button type="button" class="risk-mode-btn" data-mode="non_saleable" onclick="setStockRiskMode('non_saleable')" title="Non-Saleable stock only (Damaged + Displayed + Advance units)">
+                                <i class="bi bi-slash-circle-fill" style="color:#dc2626;"></i>
+                                <span>Non-Saleable Only</span>
+                                <span class="risk-mode-pill" id="risk-mode-pill-non_saleable">—</span>
+                            </button>
+                        </div>
+                        <a href="/api/v1/demand-intelligence/dead-stock-excel/" class="btn-dii-purple text-decoration-none" title="Download all Dead Stock SKUs with full Branch × SKU breakdown">
                             <i class="bi bi-file-earmark-excel-fill me-1"></i> Download Dead Stock + Branch (.xlsx)
                         </a>
                         <button type="button" class="btn-dii-outline" onclick="exportStockRiskCsv()">
@@ -2164,6 +2238,7 @@
     let chartRiskProduct = null;
     let currentStockRisk = null;
     let activeRiskTier = '';
+    let activeStockRiskMode = 'all';
 
     function escHtml(str) {
         return String(str == null ? '' : str)
@@ -2978,21 +3053,57 @@
         return '₹' + Math.round(v).toLocaleString('en-IN');
     }
 
+    const RISK_MODE_LABELS = {
+        all: 'All Stock',
+        saleable: 'Saleable Only',
+        non_saleable: 'Non-Saleable Only',
+    };
+
+    function getActiveStockRiskView(sr) {
+        if (!sr) return null;
+        if (sr.modes && sr.modes[activeStockRiskMode]) {
+            return sr.modes[activeStockRiskMode];
+        }
+        return sr;
+    }
+
     function renderStockRisk(sr) {
         const sec = document.getElementById('stock-risk-section');
         if (!sec) return;
         currentStockRisk = sr;
         if (!sr || !sr.summary) { sec.classList.add('d-none'); return; }
         sec.classList.remove('d-none');
-        const sm = sr.summary;
+
+        // Update toggle buttons active state & pill summaries
+        document.querySelectorAll('#risk-mode-switch .risk-mode-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.mode === activeStockRiskMode);
+        });
+        if (sr.modes) {
+            ['all', 'saleable', 'non_saleable'].forEach(mKey => {
+                const pillEl = document.getElementById(`risk-mode-pill-${mKey}`);
+                const mData = sr.modes[mKey];
+                if (pillEl && mData && mData.summary) {
+                    const deadTier = (mData.summary.tiers || []).find(t => t.key === 'dead');
+                    const deadCr = deadTier ? deadTier.value_cr : 0;
+                    pillEl.textContent = `₹${fmtNum(mData.summary.risk_value_cr, 2)} Cr`;
+                    if (pillEl.parentElement) {
+                        pillEl.parentElement.title = `${RISK_MODE_LABELS[mKey]} — Dead Stock: ₹${fmtNum(deadCr, 2)} Cr · Total At-Risk: ₹${fmtNum(mData.summary.risk_value_cr, 2)} Cr · Total Stock: ₹${fmtNum(mData.summary.total_stock_value_cr, 2)} Cr`;
+                    }
+                }
+            });
+        }
+
+        const view = getActiveStockRiskView(sr);
+        const sm = (view && view.summary) ? view.summary : sr.summary;
+        const modeLabel = RISK_MODE_LABELS[activeStockRiskMode] || 'All Stock';
 
         document.getElementById('risk-headline-badge').textContent =
-            `₹${fmtNum(sm.risk_value_cr, 2)} Cr at risk · ${fmtNum(sm.risk_pct_of_stock, 1)}% of ₹${fmtNum(sm.total_stock_value_cr, 2)} Cr stock`;
+            `${modeLabel}: ₹${fmtNum(sm.risk_value_cr, 2)} Cr at risk · ${fmtNum(sm.risk_pct_of_stock, 1)}% of ₹${fmtNum(sm.total_stock_value_cr, 2)} Cr stock`;
 
         // default / keep the selected tier (fall back to the first tier that has items)
         const withItems = sm.tiers.filter(t => t.items > 0);
         if (!activeRiskTier || !sm.tiers.some(t => t.key === activeRiskTier && t.items > 0)) {
-            activeRiskTier = withItems.length ? withItems[0].key : '';
+            activeRiskTier = withItems.length ? withItems[0].key : (sm.tiers[0] ? sm.tiers[0].key : '');
         }
 
         document.getElementById('risk-tiles').innerHTML = sm.tiers.map(t => {
@@ -3006,9 +3117,17 @@
                 `</div></div>`;
         }).join('');
 
-        drawRiskCharts(sr);
+        drawRiskCharts(view);
         renderRiskTable();
     }
+
+    window.setStockRiskMode = function(mode) {
+        if (!['all', 'saleable', 'non_saleable'].includes(mode)) mode = 'all';
+        activeStockRiskMode = mode;
+        if (currentStockRisk) {
+            renderStockRisk(currentStockRisk);
+        }
+    };
 
     function drawRiskCharts(sr) {
         const sm = sr.summary;
@@ -3065,14 +3184,19 @@
     }
 
     function renderRiskTable() {
-        const sr = currentStockRisk;
-        if (!sr || !sr.summary) return;
-        const sm = sr.summary;
+        const view = getActiveStockRiskView(currentStockRisk);
+        if (!view || !view.summary) return;
+        const sm = view.summary;
         const tier = sm.tiers.find(t => t.key === activeRiskTier);
-        const rows = (sr.items && sr.items[activeRiskTier]) || [];
+        const rows = (view.items && view.items[activeRiskTier]) || [];
         const tb = document.getElementById('risk-tbody');
+        const modeBadge = activeStockRiskMode === 'saleable'
+            ? `<span class="badge bg-success-subtle text-success border ms-2" style="font-size:0.68rem;">Saleable Only</span>`
+            : (activeStockRiskMode === 'non_saleable'
+                ? `<span class="badge bg-danger-subtle text-danger border ms-2" style="font-size:0.68rem;">Non-Saleable Only</span>`
+                : `<span class="badge bg-secondary-subtle text-secondary border ms-2" style="font-size:0.68rem;">All Stock</span>`);
         document.getElementById('risk-tier-title').innerHTML = tier
-            ? `<span style="color:${(RISK_META[tier.key] || {}).color};">●</span> ${escHtml(tier.label)} — ${escHtml(tier.desc)}` : '—';
+            ? `<span style="color:${(RISK_META[tier.key] || {}).color};">●</span> ${escHtml(tier.label)} — ${escHtml(tier.desc)}${modeBadge}` : '—';
         document.getElementById('risk-tier-note').textContent = tier
             ? `${fmtNum(tier.items)} items · ${fmtCompact(tier.units)} units · ₹${fmtNum(tier.value_cr, 2)} Cr · listing top ${fmtNum(rows.length)} by stock value` : '';
         if (!rows.length) {
@@ -3082,10 +3206,18 @@
                 const tr = r.trend === 'Growing' ? 'trend-grow' : (r.trend === 'Declining' ? 'trend-decl' : 'trend-stab');
                 const lastSale = r.days_since_sale == null ? '> 90 d' : `${fmtNum(r.days_since_sale)} d ago`;
                 const cover = r.cover_days == null ? '∞' : `${fmtNum(r.cover_days)} d`;
+                let stockSub = '';
+                if (activeStockRiskMode === 'all' && (r.non_saleable_stock || 0) > 0) {
+                    stockSub = `<div style="font-size:0.65rem;color:#dc2626;" title="Saleable: ${fmtNum(r.saleable_stock)} · Non-Saleable: ${fmtNum(r.non_saleable_stock)} (Displayed: ${fmtNum(r.displayed_stock)}, Damaged: ${fmtNum(r.damaged_stock)}, Advance: ${fmtNum(r.advance_stock)})">${fmtNum(r.saleable_stock)} sale · ${fmtNum(r.non_saleable_stock)} non-sale</div>`;
+                } else if (activeStockRiskMode === 'non_saleable') {
+                    stockSub = `<div style="font-size:0.65rem;color:#64748b;">Disp: ${fmtNum(r.displayed_stock)} · Dmg: ${fmtNum(r.damaged_stock)}${r.advance_stock ? ' · Adv: ' + fmtNum(r.advance_stock) : ''}</div>`;
+                } else if (activeStockRiskMode === 'saleable' && (r.non_saleable_stock || 0) > 0) {
+                    stockSub = `<div style="font-size:0.65rem;color:#16a34a;" title="Excluded ${fmtNum(r.non_saleable_stock)} non-saleable units">excl. ${fmtNum(r.non_saleable_stock)} non-sale</div>`;
+                }
                 return `<tr data-pid="${escHtml(r.id)}" onclick="inspectProductRow(this.dataset.pid, true)" title="Click to open this item's forecast">` +
                     `<td><div class="fw-semibold">${escHtml(r.name)}</div><div class="text-muted" style="font-size:0.7rem;">${escHtml(r.code)}</div></td>` +
                     `<td>${escHtml(r.product_line)}</td><td>${escHtml(r.brand)}</td>` +
-                    `<td class="text-end">${fmtNum(r.stock)}</td>` +
+                    `<td class="text-end"><div>${fmtNum(r.stock)}</div>${stockSub}</td>` +
                     `<td class="text-end fw-bold">${riskInr(r.stock_val)}</td>` +
                     `<td class="text-end ${r.age_days >= 180 ? 'risk-age-old' : ''}">${fmtNum(r.age_days)}</td>` +
                     `<td class="text-center">${lastSale}</td>` +
@@ -3098,10 +3230,10 @@
         const nm = sm.tiers.filter(t => ['dead', 'non_moving', 'fresh_unsold'].includes(t.key));
         const nmVal = nm.reduce((a, t) => a + t.value_cr, 0);
         document.getElementById('risk-footnote').innerHTML =
-            `Dead + Non-Moving + New-not-sold = <strong>₹${fmtNum(nmVal, 2)} Cr</strong>, the same figure as the “Non-Moving Stock Risk” card (no sale in 60 days). ` +
-            `<strong>Dead</strong> = no sale for 90+ days and stock older than 90 days; <strong>New stock</strong> = unsold but received under 90 days ago (check display, price and item-code mapping before calling it dead); ` +
-            `<strong>High Risk</strong> = sold in the last 60 days but not in the last 30; <strong>At Risk</strong> = still selling but holds 180+ days of stock (120+ if demand is falling) or is aged 180+ days with 90+ days of cover. ` +
-            `Stock age is the average age of the units on hand.`;
+            `Dead + Non-Moving + New-not-sold (${escHtml(RISK_MODE_LABELS[activeStockRiskMode] || 'All Stock')}) = <strong>₹${fmtNum(nmVal, 2)} Cr</strong>. ` +
+            `<strong>Saleable Only</strong> = Total Stock minus Non-Saleable (Damaged + Displayed + Advance); ` +
+            `<strong>Dead</strong> = no sale for 90+ days and stock older than 90 days; <strong>New stock</strong> = unsold but received under 90 days ago; ` +
+            `<strong>High Risk</strong> = sold in the last 60 days but not in the last 30; <strong>At Risk</strong> = still selling but holds 180+ days of stock (120+ if demand is falling) or is aged 180+ days with 90+ days of cover.`;
     }
 
     window.setRiskTier = function(key) {
@@ -3111,23 +3243,26 @@
     };
 
     window.exportStockRiskCsv = function() {
-        const sr = currentStockRisk;
-        if (!sr || !sr.items) return;
-        const rows = sr.items[activeRiskTier] || [];
+        const view = getActiveStockRiskView(currentStockRisk);
+        if (!view || !view.items) return;
+        const rows = view.items[activeRiskTier] || [];
         if (!rows.length) return;
         const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
-        const head = ['Risk Tier', 'Code', 'Product / SKU', 'Product Line', 'Brand', 'Stock Units', 'Stock Value (MOP)', 'Stock Age (days)',
+        const head = ['Stock Mode', 'Risk Tier', 'Code', 'Product / SKU', 'Product Line', 'Brand', 'Stock Units', 'Saleable Units', 'Non-Saleable Units',
+                      'Displayed Units', 'Damaged Units', 'Advance Units', 'Stock Value (MOP)', 'Stock Age (days)',
                       'Days Since Last Sale', '30d Sales', '60d Sales', '90d Sales', 'Stock Cover (days)', 'Demand Trend', 'Next 30d Forecast', 'Suggested Action'];
         const label = (RISK_META[activeRiskTier] || {}).label || activeRiskTier;
+        const modeLabel = RISK_MODE_LABELS[activeStockRiskMode] || 'All Stock';
         const lines = [head.map(q).join(',')].concat(rows.map(r => [
-            label, r.code, r.name, r.product_line, r.brand, r.stock, r.stock_val, r.age_days,
+            modeLabel, label, r.code, r.name, r.product_line, r.brand, r.stock, r.saleable_stock, r.non_saleable_stock,
+            r.displayed_stock, r.damaged_stock, r.advance_stock, r.stock_val, r.age_days,
             r.days_since_sale == null ? '>90' : r.days_since_sale, r.d30, r.d60, r.d90,
             r.cover_days == null ? 'No demand' : r.cover_days, r.trend, r.forecast_30d, r.action,
         ].map(q).join(',')));
         const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = `stock_risk_${activeRiskTier}_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.download = `stock_risk_${activeStockRiskMode}_${activeRiskTier}_${new Date().toISOString().slice(0, 10)}.csv`;
         document.body.appendChild(a);
         a.click();
         a.remove();

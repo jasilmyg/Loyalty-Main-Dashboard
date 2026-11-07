@@ -1,11 +1,15 @@
 import pandas as pd
 import difflib
+from django.core.cache import cache
 from analytics.clickhouse_service import get_ch_client
 from dashboard.utils import RETAIL_BRANCH_FILTER
 from dashboard.rca_rules import CLS_SQL, CARD_ITEMS
 
 def get_store_mapping(ch):
     """Returns a dict mapping google_reviews store_name to {rbm, bdm, matched_branch}"""
+    cached = cache.get("rca_store_mapping_v1")
+    if cached:
+        return cached
     rows = ch.query(f"SELECT branch_name, rbm, bdm FROM branch_master WHERE {RETAIL_BRANCH_FILTER}").result_rows
     ch_dict = {r[0].strip().upper(): {'rbm': r[1], 'bdm': r[2]} for r in rows if r[0]}
     ch_names = list(ch_dict.keys())
@@ -31,15 +35,22 @@ def get_store_mapping(ch):
         bdm = ch_dict[matched_name]['bdm'] if matched_name else 'Unknown'
         mapping[store] = {'rbm': rbm, 'bdm': bdm, 'matched_branch': matched_name}
         
+    if mapping:
+        cache.set("rca_store_mapping_v1", mapping, 300)
     return mapping
 
 def build_rca_data(request):
-    ch = get_ch_client()
-    mapping = get_store_mapping(ch)
-    
     rbm_filter = request.GET.get('rbm', 'all')
     bdm_filter = request.GET.get('bdm', 'all')
     store_filter = request.GET.get('store', 'all')
+
+    cache_key = f"rca_legacy_cards_v1:{rbm_filter}:{bdm_filter}:{store_filter}"
+    cached = cache.get(cache_key)
+    if cached and cached.get('status') == 'ok' and cached.get('total_reviews', 0) > 0:
+        return cached
+
+    ch = get_ch_client()
+    mapping = get_store_mapping(ch)
     
     # Find matching store_names for the query
     valid_stores = []
@@ -57,23 +68,25 @@ def build_rca_data(request):
         
     # We use ALL star reviews as requested by the user, but we only want to categorize
     # the ones that actually have comments. Empty comments are marked 'Other / Unclassified', 'Unclassified'.
-    stores_sql = ", ".join([f"'{s.replace(chr(39), chr(39)+chr(39))}'" for s in valid_stores])
-    
-    # Query for total reviews (all star ratings)
-    total_reviews = ch.query(f"SELECT count() FROM google_reviews WHERE store_name IN ({stores_sql})").result_rows[0][0]
-    
-    if total_reviews == 0:
-        return {'status': 'empty'}
+    if rbm_filter == 'all' and bdm_filter == 'all' and store_filter == 'all':
+        where_clause = ""
+    else:
+        stores_sql = ", ".join([f"'{s.replace(chr(39), chr(39)+chr(39))}'" for s in valid_stores])
+        where_clause = f"WHERE store_name IN ({stores_sql})"
         
     # Rating-aware classification (see dashboard.rca_rules): 1-2★ (or clearly negative 3★) reviews
     # are issues and are sorted into the three issue cards; everything else is Positive & General.
     res = ch.query(f"""
         SELECT {CLS_SQL} AS cls, count() AS cnt
         FROM google_reviews
-        WHERE store_name IN ({stores_sql})
+        {where_clause}
         GROUP BY cls
     """).result_rows
     counts = {cls: cnt for cls, cnt in res}
+    total_reviews = sum(counts.values())
+
+    if total_reviews == 0:
+        return {'status': 'empty'}
 
     data = {'status': 'ok', 'total_reviews': total_reviews}
     for card, items in CARD_ITEMS.items():
@@ -82,6 +95,7 @@ def build_rca_data(request):
         for i in items:
             block[i] = counts.get(f"{card}/{i}", 0)
         data[card] = block
+    cache.set(cache_key, data, 300)
     return data
 
 def get_rca_filters():

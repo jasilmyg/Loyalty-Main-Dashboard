@@ -204,6 +204,16 @@ def _date_filter_sql(comp_type, val, year=2026, alias='s'):
 EXCLUDED_BRANCHES = ('3GH', 'CSB', 'CSBW')
 EXCLUDED_BRANCHES_SQL = "s.branch NOT IN ('3GH','CSB','CSBW')"
 
+
+def valid_mop_sale_filter_sql(alias: str = 's') -> str:
+    """
+    No-op filter so StarRocks matches the original ClickHouse report logic 100%.
+    """
+    return "1=1"
+
+
+VALID_MOP_SALE_FILTER_SQL = valid_mop_sale_filter_sql('s')
+
 # ── Main ClickHouse fetch (aggregated — pushes work into CH to save RAM) ──────
 def _fetch_period(ch, comp_type, val, year, brand_filter='', branch_filter='', category_filter='', product_filter='', price_slab_filter=''):
     """
@@ -226,7 +236,12 @@ def _fetch_period(ch, comp_type, val, year, brand_filter='', branch_filter='', c
         build_price_slab_filter_sql(price_slab_filter, product_filter),
     ] if c]
 
-    where = f"toDate(s.date) != toDate('1970-01-01') AND {date_cond} AND {EXCLUDED_BRANCHES_SQL}"
+    where = (
+        f"toDate(s.date) != toDate('1970-01-01') "
+        f"AND {date_cond} "
+        f"AND {EXCLUDED_BRANCHES_SQL} "
+        f"AND {VALID_MOP_SALE_FILTER_SQL}"
+    )
     if extra:
         where += " AND " + " AND ".join(extra)
 
@@ -310,6 +325,7 @@ def _fetch_price_segments(ch, comp_type, val, year, brand_filter='', branch_filt
         f"toDate(s.date) != toDate('1970-01-01') "
         f"AND {date_cond} "
         f"AND {EXCLUDED_BRANCHES_SQL} "
+        f"AND {VALID_MOP_SALE_FILTER_SQL} "
         f"AND {prod_upper_expr} IN ('{configured_prods}')"
     )
     if extra:
@@ -367,7 +383,7 @@ def build_api_response(request):
     district   = request.GET.get('district',   '')
     state      = request.GET.get('state',      '')
 
-    cache_key = f"ent_ch_v4_{comp_type}_{base_val}_{comp_val}_{base_year}_{comp_year}_{cat}_{product}_{price_slab}_{brand}_{branch}_{rbm}_{bdm}_{district}_{state}"
+    cache_key = f"ent_ch_v6_{comp_type}_{base_val}_{comp_val}_{base_year}_{comp_year}_{cat}_{product}_{price_slab}_{brand}_{branch}_{rbm}_{bdm}_{district}_{state}"
     cached = cache.get(cache_key)
     if cached:
         return cached
@@ -592,7 +608,12 @@ def build_api_response(request):
         if ps_sql:
             join_item = "LEFT JOIN item_master m ON s.item_code = m.item_code"
             extra.append(ps_sql)
-        where = f"toDate(s.date) != toDate('1970-01-01') AND {date_cond} AND {EXCLUDED_BRANCHES_SQL}"
+        where = (
+            f"toDate(s.date) != toDate('1970-01-01') "
+            f"AND {date_cond} "
+            f"AND {EXCLUDED_BRANCHES_SQL} "
+            f"AND {VALID_MOP_SALE_FILTER_SQL}"
+        )
         if extra:
             where += " AND " + " AND ".join(extra)
         sql = f"""

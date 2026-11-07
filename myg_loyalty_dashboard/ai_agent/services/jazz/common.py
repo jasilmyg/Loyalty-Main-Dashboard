@@ -31,11 +31,11 @@ def esc(value: Any) -> str:
 
 
 def ch_query(sql: str):
-    """Run a read-only query and return the clickhouse_connect result (raises on failure)."""
-    from analytics.clickhouse_service import get_ch_client
-    client = get_ch_client()
+    """Run a read-only query on StarRocks and return the result (raises on failure)."""
+    from analytics.starrocks_service import get_sr_client
+    client = get_sr_client()
     if not client:
-        raise RuntimeError("ClickHouse client could not connect.")
+        raise RuntimeError("StarRocks client could not connect.")
     return client.query(sql, settings=CH_ANALYSIS_SETTINGS)
 
 

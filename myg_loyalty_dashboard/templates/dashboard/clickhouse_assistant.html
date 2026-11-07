@@ -391,7 +391,7 @@
             </div>
             <div class="chx-title">
                 <h1>Jazz AI</h1>
-                <p>ClickHouse intelligence &middot; File Analysis (Excel, CSV, PDF) &middot; Operations &amp; SQL</p>
+                <p>StarRocks intelligence &middot; File Analysis (Excel, CSV, PDF) &middot; Operations &amp; SQL</p>
             </div>
         </div>
         <div class="chx-actions">
@@ -412,7 +412,7 @@
                 <div class="chx-welcome" id="chx-welcome">
                     <div class="hero"><i class="bi bi-robot"></i></div>
                     <h2>What would you like to know about <span>your data</span>?</h2>
-                    <p class="sub">I turn your questions into ClickHouse SQL, run them safely, and explain results. You can also <strong>upload an Excel, CSV, PDF file, or Image</strong> below to do calculations, rankings, visual chart analysis, and deep intelligence.</p>
+                    <p class="sub">I turn your questions into StarRocks SQL, run them safely, and explain results. You can also <strong>upload an Excel, CSV, PDF file, or Image</strong> below to do calculations, rankings, visual chart analysis, and deep intelligence.</p>
 
                     <div class="chx-welcome-actions">
                         <button type="button" class="chx-welcome-upload-btn" id="chx-welcome-upload-btn">
@@ -463,7 +463,7 @@
                     <button class="chx-attach-btn" id="chx-attach-btn" type="button" title="Attach file or image (Excel, CSV, PDF, PNG, JPG, WebP)">
                         <i class="bi bi-paperclip"></i>
                     </button>
-                    <textarea id="chx-input" rows="1" placeholder="Ask a question about ClickHouse or tell me what to analyze on your file/image… (Enter to send)" maxlength="4000"></textarea>
+                    <textarea id="chx-input" rows="1" placeholder="Ask a question about StarRocks or tell me what to analyze on your file/image… (Enter to send)" maxlength="4000"></textarea>
                     <button class="chx-send" id="chx-send" type="submit" title="Send"><i class="bi bi-arrow-up"></i></button>
                 </form>
 
@@ -637,7 +637,7 @@
         }).join('') + '</tr>').join('');
         const note = res.truncated ? ' (showing first ' + res.rows.length.toLocaleString('en-IN') + ')' : '';
         const isFile = (res.source || '').includes('Uploaded');
-        const srcTag = '<span class="chx-source-tag ' + (isFile ? 'file' : 'ch') + '">' + (isFile ? 'DuckDB &middot; File' : 'ClickHouse') + '</span>';
+        const srcTag = '<span class="chx-source-tag ' + (isFile ? 'file' : 'ch') + '">' + (isFile ? 'DuckDB &middot; File' : 'StarRocks') + '</span>';
 
         return '<div class="chx-result"><div class="chx-result-head"><i class="bi bi-table"></i>' +
             '<span>' + res.row_count.toLocaleString('en-IN') + ' row' + (res.row_count === 1 ? '' : 's') + note + ' &middot; ' + res.elapsed_ms + ' ms</span>' +
@@ -857,7 +857,7 @@
         steps.forEach((s, n) => {
             const isSql = s.tool === 'run_sql' || s.tool === 'query_uploaded_file' || s.tool === 'build_excel_report';
             const srcLabel = s.source ? ' [' + esc(s.source) + ']' : '';
-            const toolName = s.tool === 'query_uploaded_file' ? 'Queried Uploaded File' : (s.tool === 'run_sql' ? 'ClickHouse SQL' : (s.tool === 'explain_change' ? 'Root-cause analysis' : (s.tool === 'build_excel_report' ? 'Built Excel report' : (s.tool === 'portal_page_info' ? 'Read portal page' : 'Inspected Table'))));
+            const toolName = s.tool === 'query_uploaded_file' ? 'Queried Uploaded File' : (s.tool === 'run_sql' ? 'StarRocks SQL' : (s.tool === 'explain_change' ? 'Root-cause analysis' : (s.tool === 'build_excel_report' ? 'Built Excel report' : (s.tool === 'portal_page_info' ? 'Read portal page' : 'Inspected Table'))));
             h += '<div class="chx-step"><div class="lbl">' + (n + 1) + '. ' + (s.agent ? '<span class="chx-agent">' + esc(s.agent) + '</span> ' : '') + toolName + srcLabel +
                 (s.error ? ' <span class="bad"><i class="bi bi-x-circle-fill"></i> failed — retried</span>' : ' <span style="color:#16a34a"><i class="bi bi-check-circle-fill"></i></span>') + '</div>' +
                 validationHTML(s.validation) +
@@ -936,9 +936,9 @@
         toBottom();
     }
 
-    const STATUS_DEFAULT = ['Reading the schema…', 'Thinking about the best query…', 'Querying ClickHouse…', 'Analysing the results…'];
+    const STATUS_DEFAULT = ['Reading the schema…', 'Thinking about the best query…', 'Querying StarRocks…', 'Analysing the results…'];
     const STATUS_FILE = ['Uploading and inspecting file…', 'Profiling data & registering in DuckDB…', 'Executing requested operations & calculations…', 'Generating analytical insights…'];
-    const STATUS_IMAGE = ['Uploading image to Gemini Vision…', 'Inspecting visual details & OCR…', 'Cross-referencing against ClickHouse…', 'Generating insights…'];
+    const STATUS_IMAGE = ['Uploading image to Gemini Vision…', 'Inspecting visual details & OCR…', 'Cross-referencing against StarRocks…', 'Generating insights…'];
 
     function showTyping(hasFile, fileType) {
         let statusList = STATUS_DEFAULT;
@@ -1023,7 +1023,7 @@
         stagedFile = null;
         fileInput.value = '';
         stagedFileEl.style.display = 'none';
-        inputEl.placeholder = 'Ask a question about ClickHouse or tell me what to analyze on your file/image… (Enter to send)';
+        inputEl.placeholder = 'Ask a question about StarRocks or tell me what to analyze on your file/image… (Enter to send)';
     }
 
     attachBtn.addEventListener('click', () => fileInput.click());

@@ -123,20 +123,20 @@ def _clean_val(v: Any) -> Any:
 
 
 def run_readonly_query(sql: str) -> Dict[str, Any]:
-    """Execute one read-only ClickHouse SQL statement. Returns a JSON-serializable dict."""
+    """Execute one read-only StarRocks SQL statement. Returns a JSON-serializable dict."""
     ok, cleaned_sql, err = validate_sql(sql)
     if not ok:
         return {"error": err, "sql": sql, "row_count": 0, "columns": [], "rows": [], "elapsed_ms": 0}
 
     t0 = time.time()
     try:
-        from analytics.clickhouse_service import get_ch_client
-        client = get_ch_client()
+        from analytics.starrocks_service import get_sr_client
+        client = get_sr_client()
         if not client:
-            raise RuntimeError("ClickHouse client could not connect.")
+            raise RuntimeError("StarRocks client could not connect.")
         result = client.query(cleaned_sql, settings=CH_QUERY_SETTINGS)
     except Exception as e:  # noqa: BLE001
-        logger.warning("ClickHouse query failed: %s; SQL: %s", e, cleaned_sql[:300])
+        logger.warning("StarRocks query failed: %s; SQL: %s", e, cleaned_sql[:300])
         return {
             "error": str(e),
             "sql": cleaned_sql,
@@ -158,7 +158,7 @@ def run_readonly_query(sql: str) -> Dict[str, Any]:
         "truncated": truncated,
         "elapsed_ms": elapsed_ms,
         "sql": cleaned_sql,
-        "source": "ClickHouse Cloud",
+        "source": "StarRocks",
     }
 
 
@@ -179,30 +179,39 @@ def _human(n: Optional[int]) -> str:
 
 
 def get_schema(force: bool = False) -> Dict[str, Any]:
-    """Return catalog of all non-system tables, engines, rows, sizes and columns."""
+    """Return catalog of all non-system tables, engines, rows, sizes and columns from StarRocks."""
     with _schema_lock:
         if not force and _schema_cache["data"] and (time.time() - _schema_cache["ts"]) < SCHEMA_TTL_SEC:
             return _schema_cache["data"]
 
-    skip = ", ".join(f"'{d}'" for d in SYSTEM_DBS)
-    t = run_readonly_query(
-        f"SELECT database, name, engine, total_rows, total_bytes, sorting_key, partition_key, comment "
-        f"FROM system.tables WHERE database NOT IN ({skip}) ORDER BY database, name"
+    from analytics.starrocks_service import get_sr_client
+    client = get_sr_client()
+    if not client:
+        raise RuntimeError("StarRocks client could not connect.")
+
+    t_res = client.query(
+        "SELECT TABLE_SCHEMA AS db_name, TABLE_NAME AS tbl_name, ENGINE AS engine, "
+        "TABLE_ROWS AS total_rows, DATA_LENGTH AS total_bytes, '' AS sorting_key, "
+        "'' AS partition_key, TABLE_COMMENT AS comment "
+        "FROM information_schema.tables "
+        "WHERE TABLE_SCHEMA = DATABASE() "
+        "ORDER BY TABLE_NAME"
     )
-    c = run_readonly_query(
-        f"SELECT database, `table`, name, type, comment "
-        f"FROM system.columns WHERE database NOT IN ({skip}) ORDER BY database, `table`, position"
+    c_res = client.query(
+        "SELECT TABLE_SCHEMA AS db_name, TABLE_NAME AS tbl_name, COLUMN_NAME AS col_name, "
+        "COLUMN_TYPE AS col_type, COLUMN_COMMENT AS comment "
+        "FROM information_schema.columns "
+        "WHERE TABLE_SCHEMA = DATABASE() "
+        "ORDER BY TABLE_NAME, ORDINAL_POSITION"
     )
-    if "error" in t or "error" in c:
-        raise RuntimeError((t.get("error") or c.get("error")))
 
     cols_by_table: Dict[Tuple[str, str], List[Dict[str, str]]] = {}
-    for db, tbl, name, typ, comment in c["rows"]:
+    for db, tbl, name, typ, comment in (c_res.result_rows or []):
         cols_by_table.setdefault((db, tbl), []).append({"name": name, "type": typ, "comment": comment or ""})
     tables = []
-    for db, name, engine, rows, nbytes, skey, pkey, comment in t["rows"]:
+    for db, name, engine, rows, nbytes, skey, pkey, comment in (t_res.result_rows or []):
         tables.append({
-            "database": db, "name": name, "engine": engine, "rows": rows, "bytes": nbytes,
+            "database": db, "name": name, "engine": engine or "StarRocks", "rows": rows or 0, "bytes": nbytes or 0,
             "sorting_key": skey or "", "partition_key": pkey or "", "comment": comment or "",
             "columns": cols_by_table.get((db, name), []),
         })
@@ -333,25 +342,25 @@ def build_system_prompt(file_ctx: Optional[Dict[str, Any]] = None) -> str:
         portal_txt = jazz_portal.index_text()
     except Exception:  # noqa: BLE001
         portal_txt = ""
-    base_prompt = f"""You are **Jazz AI**, the assistant for the myG Loyalty portal – an expert in ClickHouse, business data analytics, and spreadsheets/documents/images (myG retail stores in Kerala, India; amounts are in Indian Rupees ₹). Today is {today}.
+    base_prompt = f"""You are **Jazz AI**, the assistant for the myG Loyalty portal – an expert in StarRocks SQL, business data analytics, and spreadsheets/documents/images (myG retail stores in Kerala, India; amounts are in Indian Rupees ₹). Today is {today}.
 
 You can answer ANY question related to:
 1. DATA questions (sales, customers, branches, stock, loyalty, pine-lab, OSG, market-basket …) → use the `run_sql` tool.
 2. SCHEMA / STRUCTURE questions (what tables exist, columns, sizes, engines, keys, relationships) → use the schema below,
-   and `inspect_table` for samples / exact DDL.
-3. GENERAL ClickHouse questions (SQL syntax, functions, engines, MergeTree, performance tuning, best practices,
+   and `inspect_table` for samples / exact DDL. For table catalog queries use `information_schema.tables WHERE TABLE_SCHEMA = DATABASE()`.
+3. GENERAL StarRocks & SQL questions (SQL syntax, functions, engines, performance tuning, best practices,
    errors) → answer from your expertise.
 4. UPLOADED FILES & IMAGES (Excel, CSV, PDF, Images) → analyze files in-depth, perform calculations, aggregations, data profiling,
    and multimodal vision analysis. For images (screenshots, invoices, receipts, charts, photos), inspect all visual details,
-   perform OCR, read data tables/graphs, and answer questions or cross-reference against ClickHouse using `run_sql`.
+   perform OCR, read data tables/graphs, and answer questions or cross-reference against StarRocks using `run_sql`.
 
 # Tool rules
 - NEVER invent numbers, table names or columns. For anything data-related you MUST query first.
 - Only read-only queries are permitted.
-- Use ClickHouse SQL dialect for `run_sql`.
+- The database is StarRocks (`Loyalty_Analytics`), with full automatic support for ClickHouse-style analytical functions (`toDate`, `sumIf`, `uniqExact`, `multiIf`, etc.) as well as native StarRocks SQL.
 - Prefer aggregations, add ORDER BY and LIMIT (default LIMIT 50 unless the user wants everything). Never SELECT * on big tables without LIMIT.
 - REPORT / EXCEL REQUESTS: when the user asks for a report, workbook, "Excel", "advanced report", a multi-level / multi-sheet comparison (e.g. RBM → BDM → Branch, year-vs-year, drill-down)
-  or a full list that is bigger than a chat table, call `build_excel_report` ONCE with all sheets (max 8) instead of many `run_sql` calls. For each sheet write ONE complete ClickHouse query
+  or a full list that is bigger than a chat table, call `build_excel_report` ONCE with all sheets (max 8) instead of many `run_sql` calls. For each sheet write ONE complete SQL query
   (no LIMIT unless it is a Top-N sheet; use conditional aggregation like sumIf(..., year = 2025) / sumIf(..., year = 2026) to put both periods side by side, plus Change and Change % columns).
   Column rules: name percentage columns with '%' or 'pct' and give them in percent points (12.5 = 12.5%); name change columns 'Change' / 'Change %' so they get green/red formatting; round money to 0 decimals, percentages to 1.
   Call the tool exactly ONCE (never rebuild just to add insights): the Insights sheet is filled automatically with data-derived gainers/decliners per sheet, and any extra `insights` you pass are added on top.
@@ -378,7 +387,7 @@ You can answer ANY question related to:
   or show only the top few in your markdown.
 - Customer mobile numbers are personal data: show them only if explicitly asked, otherwise aggregate.
 
-# Live database schema (ClickHouse server, database `default`)
+# Live database schema (StarRocks server, database `Loyalty_Analytics`)
 {schema_txt}
 """
 
@@ -672,7 +681,7 @@ def _tool_inspect_table(args: Dict[str, Any], ui_results: List[Dict[str, Any]]) 
     out: Dict[str, Any] = {}
     if "error" in ddl:
         return {"error": ddl["error"]}
-    out["create_table"] = str(ddl["rows"][0][0])[:3500] if ddl["rows"] else ""
+    out["create_table"] = str(ddl["rows"][0][-1])[:3500] if ddl["rows"] else ""
     if n:
         sample = run_readonly_query(f"SELECT * FROM {table} LIMIT {n}")
         if "error" not in sample:
@@ -869,12 +878,12 @@ def ask(
             if name == "run_sql":
                 validation: List[Dict[str, str]] = []
                 result = _tool_run_sql(args, ui_results, validation)
-                step = {"tool": name, "agent": "SQL Analyst", "sql": args.get("sql") or "", "source": "ClickHouse Cloud",
+                step = {"tool": name, "agent": "SQL Analyst", "sql": args.get("sql") or "", "source": "StarRocks",
                         "validation": validation, "validation_status": jazz_validator.worst_status(validation)}
             elif name == "explain_change":
                 result = _tool_explain_change(args, ui_blocks)
                 step = {"tool": name, "agent": "Root-Cause Analyst", "sql": json.dumps({k: v for k, v in args.items() if v}, ensure_ascii=False),
-                        "source": "ClickHouse Cloud (statistical decomposition)"}
+                        "source": "StarRocks (statistical decomposition)"}
             elif name == "portal_page_info":
                 result = _tool_portal_page_info(args)
                 step = {"tool": name, "agent": "Portal Guide", "sql": f"page: {args.get('page', '')}", "source": "Portal code"}
@@ -882,10 +891,10 @@ def ask(
                 result = _tool_build_excel_report(args, ui_blocks, deadline)
                 step = {"tool": name, "agent": "Report Builder",
                         "sql": "\n\n".join(f"-- {s.get('name')}\n{s.get('sql')}" for s in (args.get('sheets') or []) if isinstance(s, dict)),
-                        "source": "ClickHouse Cloud → Excel"}
+                        "source": "StarRocks → Excel"}
             elif name == "inspect_table":
                 result = _tool_inspect_table(args, ui_results)
-                step = {"tool": name, "agent": "Schema Explorer", "sql": f"inspect {args.get('table', '')}", "source": "ClickHouse Cloud"}
+                step = {"tool": name, "agent": "Schema Explorer", "sql": f"inspect {args.get('table', '')}", "source": "StarRocks"}
             elif name == "query_uploaded_file":
                 result = _tool_query_uploaded_file(args, ui_results, file_ctx)
                 step = {"tool": name, "agent": "File Analyst", "sql": args.get("sql") or "", "source": "Uploaded File (DuckDB)"}

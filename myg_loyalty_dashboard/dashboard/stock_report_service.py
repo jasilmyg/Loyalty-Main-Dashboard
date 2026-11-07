@@ -29,15 +29,17 @@ def get_branch_master_df(force_refresh=False):
 
     try:
         ch = get_ch_client()
-        bm = ch.query_df("SELECT code, branch_name, rbm, bdm, district FROM branch_master")
+        bm = ch.query_df("SELECT code, branch_name, rbm, bdm, district, store_type, mapped_warehouse FROM branch_master")
     except Exception as e:
         print(f"Warning: Could not fetch branch_master from {engine}:", e)
-        bm = pd.DataFrame(columns=['code', 'branch_name', 'rbm', 'bdm', 'district'])
+        bm = pd.DataFrame(columns=['code', 'branch_name', 'rbm', 'bdm', 'district', 'store_type', 'mapped_warehouse'])
 
     bm['branch_name_clean'] = bm['branch_name'].astype(str).str.strip().str.upper()
     bm['rbm_clean'] = bm['rbm'].astype(str).str.strip()
     bm['bdm_clean'] = bm['bdm'].astype(str).str.strip()
     bm['district_clean'] = bm['district'].astype(str).str.strip()
+    bm['store_type_clean'] = bm['store_type'].astype(str).str.strip().str.upper()
+    bm['mapped_warehouse_clean'] = bm['mapped_warehouse'].fillna('').astype(str).str.strip().str.upper()
 
     _bm_cache[engine] = (bm, time.time())
     return bm
@@ -101,6 +103,51 @@ def _split_values(values, upper=False):
     return [v.upper() for v in out] if upper else out
 
 
+def _is_future_store(row_name, row_type):
+    """A 'Future' store = a showroom (store type BRANCH) whose name contains FUTURE (godowns are excluded)."""
+    return row_type == 'BRANCH' and 'FUTURE' in row_name
+
+
+def _with_future_store_godowns(bm_df, allowed):
+    """
+    Stock of a Future store's godown belongs to that store: for every Future store in `allowed`,
+    also include its mapped godown (branch_master.mapped_warehouse) so the store's stock = showroom + godown.
+    Returns (sorted_allowed_names, sorted_added_godown_names).
+    """
+    if allowed is None:
+        return None, []
+    names = set(allowed)
+    if 'mapped_warehouse_clean' not in bm_df.columns:
+        return sorted(names), []
+    added = set()
+    stores = bm_df[bm_df['branch_name_clean'].isin(names)]
+    for _, r in stores.iterrows():
+        if not _is_future_store(r['branch_name_clean'], r['store_type_clean']):
+            continue
+        wh = str(r['mapped_warehouse_clean']).strip().upper()
+        if wh and wh not in ('NAN', 'NONE') and wh not in names:
+            added.add(wh)
+    return sorted(names | added), sorted(added)
+
+
+def _branch_allowlist_without_godowns(bm_df, rbm, bdm, district, branch):
+    """Same filter resolution as _branch_allowlist but without the Future-store godown expansion."""
+    allowed = None
+    mask = pd.Series(True, index=bm_df.index)
+    bm_filtered = False
+    for col, val in (('rbm_clean', rbm), ('bdm_clean', bdm), ('district_clean', district)):
+        vals = _split_values(val)
+        if vals:
+            bm_filtered = True
+            mask &= bm_df[col].isin(vals)
+    if bm_filtered:
+        allowed = set(bm_df.loc[mask, 'branch_name_clean'])
+    br_vals = set(_split_values(branch, upper=True))
+    if br_vals:
+        allowed = br_vals if allowed is None else (allowed & br_vals)
+    return None if allowed is None else sorted(allowed)
+
+
 def _branch_allowlist(bm_df, rbm, bdm, district, branch):
     """Resolve RBM/BDM/District/Branch filters to a list of upper-cased branch names.
     Returns None when no filter is applied (no branch restriction)."""
@@ -117,7 +164,10 @@ def _branch_allowlist(bm_df, rbm, bdm, district, branch):
     br_vals = set(_split_values(branch, upper=True))
     if br_vals:
         allowed = br_vals if allowed is None else (allowed & br_vals)
-    return None if allowed is None else sorted(allowed)
+    if allowed is None:
+        return None
+    # Future stores also carry the stock of their godown
+    return _with_future_store_godowns(bm_df, allowed)[0]
 
 
 def _ch_bucket_select(price_expr):
@@ -233,6 +283,7 @@ def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, 
     bypass = force_refresh or get_bypass_cache()
 
     cache_key = (
+        'godown_v1',
         active_engine,
         force_refresh,
         str(rbm or '').strip(),
@@ -257,18 +308,24 @@ def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, 
     bm_df = get_branch_master_df(force_refresh=bypass)
     allowed = _branch_allowlist(bm_df, rbm, bdm, district, branch)
     df_prod, df_brand = _load_stock_frames_clickhouse(ch, snapshot, ch_price_expr, allowed)
+    included_godowns = []
+    if allowed is not None:
+        _base = _branch_allowlist_without_godowns(bm_df, rbm, bdm, district, branch)
+        included_godowns = sorted(set(allowed) - set(_base or []))
 
     return _assemble_stock_report(
         df_prod, df_brand,
         rbm=rbm, bdm=bdm, branch=branch, district=district,
         selected_price_type=selected_price_type, price_label=price_label,
         cache_key=cache_key, as_of_date=_format_as_of(snapshot), data_source=active_engine,
+        included_godowns=included_godowns,
     )
 
 
 
 def _assemble_stock_report(df_prod, df_brand, *, rbm, bdm, branch, district,
-                           selected_price_type, price_label, cache_key, as_of_date, data_source):
+                           selected_price_type, price_label, cache_key, as_of_date, data_source,
+                           included_godowns=None):
     """Build the Category -> Product -> Top-10-Brand tree and the API response from aggregated frames."""
 
     # Pre-index brands by (category, product) and by category
@@ -401,6 +458,7 @@ def _assemble_stock_report(df_prod, df_brand, *, rbm, bdm, branch, district,
         'categories': sorted_categories,
         'grand_total': grand_total,
         'filter_options': get_stock_filter_options(),
+        'included_godowns': list(included_godowns or []),
         'active_filters': {
             'rbm': rbm or '',
             'bdm': bdm or '',

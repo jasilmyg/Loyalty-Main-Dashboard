@@ -14,10 +14,10 @@ from .stock_report_service import (
     get_stock_filter_options
 )
 
-SR_HOST = getattr(settings, 'STARROCKS_HOST', '') or os.environ.get('STARROCKS_HOST', '')
+SR_HOST = getattr(settings, 'STARROCKS_HOST', '') or os.environ.get('STARROCKS_HOST', '192.168.0.252')
 SR_PORT = int(getattr(settings, 'STARROCKS_PORT', 9030) or os.environ.get('STARROCKS_PORT', '9030'))
-SR_USER = getattr(settings, 'STARROCKS_USER', '') or os.environ.get('STARROCKS_USER', '')
-SR_PASS = getattr(settings, 'STARROCKS_PASSWORD', '') or os.environ.get('STARROCKS_PASSWORD', '')
+SR_USER = getattr(settings, 'STARROCKS_USER', '') or os.environ.get('STARROCKS_USER', 'test1')
+SR_PASS = getattr(settings, 'STARROCKS_PASSWORD', '') or os.environ.get('STARROCKS_PASSWORD', '1234')
 SR_DB   = getattr(settings, 'STARROCKS_DATABASE', '') or os.environ.get('STARROCKS_DATABASE', 'Loyalty_Analytics')
 
 SR_PRICE_EXPR = {
