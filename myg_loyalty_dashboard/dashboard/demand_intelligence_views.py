@@ -16,10 +16,12 @@ from django.views import View
 from django.views.generic import TemplateView
 
 from .demand_intelligence_service import (
+    STOCK_RISK_TIERS,
     get_demand_filter_options,
     get_demand_intelligence_data,
     get_single_product_deep_dive,
     get_sku_options,
+    get_stock_risk_export_rows,
 )
 
 
@@ -385,3 +387,62 @@ class DemandDeadStockBranchExportAPIView(LoginRequiredMixin, View):
             return JsonResponse({'error': str(e)}, status=500)
 
 
+
+class DemandStockRiskExportAPIView(LoginRequiredMixin, View):
+    """
+    "Export this list (CSV)" for the Non-Moving / Dead / At-Risk Stock Watch.
+    Returns EVERY SKU of the selected tier + stock mode (the on-screen table is capped at the top 150).
+    Query params: mode (all|saleable|non_saleable), tier (dead|non_moving|fresh_unsold|high_risk|at_risk)
+    plus the dashboard location / category filters.
+    """
+
+    MODE_LABELS = {'all': 'All Stock', 'saleable': 'Saleable Only', 'non_saleable': 'Non-Saleable Only'}
+    HEADER = [
+        'Stock Mode', 'Risk Tier', 'Code', 'Product / SKU', 'Product Line', 'Brand', 'Stock Units',
+        'Saleable Units', 'Non-Saleable Units', 'Displayed Units', 'Damaged Units', 'Advance Units',
+        'Stock Value (MOP)', 'Stock Age (days)', 'Days Since Last Sale', '30d Sales', '60d Sales',
+        '90d Sales', 'Stock Cover (days)', 'Demand Trend', 'Next 30d Forecast', 'Suggested Action',
+    ]
+
+    def get(self, request):
+        import csv
+        from datetime import date
+        try:
+            mode = request.GET.get('mode', 'all').strip()
+            tier = request.GET.get('tier', 'dead').strip()
+            rows, _summary = get_stock_risk_export_rows(
+                mode=mode,
+                tier=tier,
+                granularity=request.GET.get('granularity', 'sku').strip(),
+                macro_category=request.GET.get('macro_category', '').strip(),
+                product_filter=request.GET.get('product', '').strip(),
+                brand_filter=request.GET.get('brand', '').strip(),
+                district_filter=request.GET.get('district', '').strip(),
+                branch_filter=request.GET.get('branch', '').strip(),
+                forecast_engine=request.GET.get('engine', 'hybrid').strip(),
+            )
+            mode_label = self.MODE_LABELS.get(mode, 'All Stock')
+            tier_label = next((lbl for k, lbl, _d in STOCK_RISK_TIERS if k == tier), tier)
+
+            buf = io.StringIO()
+            w = csv.writer(buf, quoting=csv.QUOTE_ALL, lineterminator='\r\n')
+            w.writerow(self.HEADER)
+            for r in rows:
+                w.writerow([
+                    mode_label, tier_label, r['code'], r['name'], r['product_line'], r['brand'],
+                    r['stock'], r['saleable_stock'], r['non_saleable_stock'], r['displayed_stock'],
+                    r['damaged_stock'], r['advance_stock'], int(r['stock_val']), r['age_days'],
+                    '>90' if r['days_since_sale'] is None else r['days_since_sale'],
+                    r['d30'], r['d60'], r['d90'],
+                    'No demand' if r['cover_days'] is None else r['cover_days'],
+                    r['trend'], r['forecast_30d'], r['action'],
+                ])
+
+            resp = HttpResponse('\ufeff' + buf.getvalue(), content_type='text/csv; charset=utf-8')
+            fname = f"stock_risk_{mode}_{tier}_{date.today().isoformat()}.csv"
+            resp['Content-Disposition'] = f'attachment; filename="{fname}"'
+            resp['X-Row-Count'] = str(len(rows))
+            return resp
+        except Exception as e:
+            traceback.print_exc()
+            return JsonResponse({'error': str(e)}, status=500)

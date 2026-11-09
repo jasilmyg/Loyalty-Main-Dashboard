@@ -7,7 +7,7 @@
     <title>myG Loyalty Analytics</title>
     <script>
     (function() {
-        window.ACTIVE_DB_ENGINE = "starrocks";
+        window.ACTIVE_DB_ENGINE = "{{ request.db_engine|default:'starrocks' }}";
         window.IS_SR_CLONE_URL = false;
         window.CLEAN_PORTAL_PATH = "{{ request.clean_portal_path|default:request.path }}";
         window.SSR_DB_TELEMETRY = /*__SSR_DB_TELEMETRY__*/null;
@@ -631,6 +631,17 @@
             border-color: #0284c7;
             box-shadow: 0 3px 12px rgba(37, 99, 235, 0.25);
         }
+        .db-tab-pill.active-ch-live {
+            background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+            color: #ffffff;
+            border-color: #ea580c;
+            box-shadow: 0 3px 12px rgba(234, 88, 12, 0.28);
+        }
+        .db-switcher-bar.ch-mode {
+            background: linear-gradient(135deg, #fff7ed 0%, #ffffff 55%, #fffbeb 100%);
+            border-color: #fdba74;
+            box-shadow: 0 6px 22px rgba(234, 88, 12, 0.10);
+        }
         .db-ext-link {
             display: inline-flex;
             align-items: center;
@@ -695,13 +706,17 @@
 
 <div class="d-flex">
         <!-- Sidebar -->
-    <nav class="sidebar py-4" {% if request.user.username == 'mygusers' or request.user.username == 'myguser' %}style="padding-bottom: 5.5rem !important;"{% endif %}>
+    <nav class="sidebar py-4" {% if request.user.username == 'mygusers' or request.user.username == 'myguser' %}style="display: flex; flex-direction: column; padding-bottom: 0 !important;"{% endif %}>
         <!-- Logo Area -->
         <div class="mb-4 mt-4" style="padding-left: 1.5rem; text-align: center;">
             <img src="{% static 'logo.png' %}" alt="myG FUTURE Logo" style="height: 65px; object-fit: contain; margin-bottom: 0.5rem; display: block; margin-left: auto; margin-right: auto;">
             {% if request.db_engine == 'starrocks' %}
             <span class="badge mt-2" style="background:#e0f2fe; color:#0369a1; font-size: 0.63rem; border: 1px solid #7dd3fc; padding: 4px 10px; border-radius: 6px; display: inline-block; font-weight:700;">
                 <i class="bi bi-hdd-network-fill me-1"></i> StarRocks (Loyalty_Analytics)
+            </span>
+            {% elif request.db_engine == 'clickhouse' %}
+            <span class="badge mt-2" style="background:#fff7ed; color:#c2410c; font-size: 0.63rem; border: 1px solid #fdba74; padding: 4px 10px; border-radius: 6px; display: inline-block; font-weight:700;">
+                <i class="bi bi-cloud-fill me-1"></i> ClickHouse (Backup)
             </span>
             {% else %}
             <span class="badge bg-success-subtle text-success mt-2" style="font-size: 0.63rem; border: 1px solid #a7f3d0; padding: 4px 10px; border-radius: 6px; display: inline-block;">
@@ -813,6 +828,7 @@
             </small>
         </div>
         <ul class="nav flex-column mb-4">
+            {% if request.user.username != 'mygusers' and request.user.username != 'myguser' %}
             <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'demand_intelligence' %}active{% endif %}"
                    href="{% url 'demand_intelligence' %}"
@@ -845,6 +861,12 @@
             <li class="nav-item">
                 <a class="nav-link" href="{% url 'demand_intelligence' %}#inter-store-transfer-section" style="font-size: 0.80rem; padding-top: 0.42rem; padding-bottom: 0.42rem;">
                     <i class="bi bi-arrow-left-right" style="color: #4f46e5;"></i> Inter-Store Transfers
+                </a>
+            </li>
+            {% endif %}
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'demand_intelligence' %}#stock-risk-section" style="font-size: 0.80rem; padding-top: 0.42rem; padding-bottom: 0.42rem;">
+                    <i class="bi bi-exclamation-octagon-fill" style="color: #dc2626;"></i> Dead &amp; At-Risk Stock
                 </a>
             </li>
         </ul>
@@ -1106,7 +1128,7 @@
 
         {% if request.user.username == 'mygusers' or request.user.username == 'myguser' %}
         <!-- Logout button pinned to sidebar bottom for myguser/mygusers -->
-        <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 1rem; border-top: 1px solid #f1f5f9; background: #ffffff;">
+        <div style="position: sticky; bottom: 0; margin-top: auto; flex-shrink: 0; z-index: 2; padding: 1rem; border-top: 1px solid #f1f5f9; background: #ffffff;">
             <form method="post" action="{% url 'logout' %}" class="m-0 p-0">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-sm w-100" style="background: #fff0f0; color: #dc2626; border: 1px solid #fecaca; border-radius: 8px; font-size: 0.82rem; font-weight: 600; padding: 8px 10px;">
@@ -1120,15 +1142,22 @@
     <!-- Main Content -->
     <main class="main-content w-100">
         <!-- StarRocks Database Engine Status & Live Fetch Speed Telemetry -->
-        <div id="db-switcher-bar" class="db-switcher-bar sr-mode">
+        <div id="db-switcher-bar" class="db-switcher-bar {% if request.db_engine == 'clickhouse' %}ch-mode{% else %}sr-mode{% endif %}">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                <!-- Left: Active StarRocks Connection Badge -->
+                <!-- Left: Active DB Connection Badge (StarRocks primary / ClickHouse backup) -->
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                     <div class="db-tab-group" role="tablist" aria-label="Database Engine">
-                        <span class="db-tab-pill active-sr" title="Connected to StarRocks · Loyalty_Analytics">
-                            <i class="bi bi-hdd-network-fill"></i>
-                            <span>StarRocks (Loyalty_Analytics)</span>
+                        {% if request.db_engine == 'clickhouse' %}
+                        <span id="db-engine-pill" class="db-tab-pill active-ch-live" title="StarRocks unreachable · serving data from ClickHouse Cloud backup">
+                            <i class="bi bi-cloud-fill"></i>
+                            <span id="db-engine-pill-label">ClickHouse Cloud (Backup)</span>
                         </span>
+                        {% else %}
+                        <span id="db-engine-pill" class="db-tab-pill active-sr" title="Connected to StarRocks · Loyalty_Analytics">
+                            <i class="bi bi-hdd-network-fill"></i>
+                            <span id="db-engine-pill-label">StarRocks (Loyalty_Analytics)</span>
+                        </span>
+                        {% endif %}
                     </div>
                 </div>
 
@@ -1780,9 +1809,32 @@ async function downloadDormantData() {
         pill.style.display = 'inline-flex';
     }
 
+    // Switch the top engine pill between StarRocks / ClickHouse (backup) based on the
+    // engine that actually served the latest response (X-DB-Engine header).
+    window.__setEngineBadge = function(engine) {
+        if (engine !== 'starrocks' && engine !== 'clickhouse') return;
+        const pill = document.getElementById('db-engine-pill');
+        const label = document.getElementById('db-engine-pill-label');
+        const bar = document.getElementById('db-switcher-bar');
+        if (!pill || !label) return;
+        const icon = pill.querySelector('i');
+        const isCh = engine === 'clickhouse';
+        pill.classList.toggle('active-ch-live', isCh);
+        pill.classList.toggle('active-sr', !isCh);
+        label.textContent = isCh ? 'ClickHouse Cloud (Backup)' : 'StarRocks (Loyalty_Analytics)';
+        pill.title = isCh ? 'StarRocks unreachable · serving data from ClickHouse Cloud backup'
+                          : 'Connected to StarRocks · Loyalty_Analytics';
+        if (icon) icon.className = isCh ? 'bi bi-cloud-fill' : 'bi bi-hdd-network-fill';
+        if (bar) { bar.classList.toggle('ch-mode', isCh); bar.classList.toggle('sr-mode', !isCh); }
+        window.ACTIVE_DB_ENGINE = engine;
+    };
+
     window.__refreshDbTelemetryUI = function() {
         const ssr = window.SSR_DB_TELEMETRY;
         const logs = window.__dbFetchLogs || [];
+
+        const lastEngine = logs.length ? logs[logs.length - 1].engine : (ssr ? ssr.engine : null);
+        if (lastEngine) window.__setEngineBadge(lastEngine);
 
         let totalSqlMs = ssr ? (Number(ssr.sql_time_ms) || 0) : 0;
         let totalFetchMs = ssr ? (Number(ssr.server_total_ms) || 0) : 0;

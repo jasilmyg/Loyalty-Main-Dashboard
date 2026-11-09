@@ -29,6 +29,7 @@ from analytics.clickhouse_service import (
     get_active_engine,
     get_bypass_cache,
     get_ch_client,
+    set_bypass_cache,
 )
 from .dashboard_api_logic import PRODUCT_CAT_MAPPING
 from .demand_ml_engine import run_hybrid_ml_forecasting
@@ -2486,7 +2487,94 @@ def get_demand_intelligence_data(
     }
 
     cache.set(cache_sig, payload, 900)
+    # Keep the full (uncapped) stock-risk frame so "Export this list (CSV)" can return every SKU,
+    # not just the top 150 shown on screen.
+    try:
+        cache.set(
+            _stock_risk_cache_key(gran, fc_engine, macro_category, product_filter, brand_filter,
+                                  district_filter, branch_filter),
+            _compact_stock_risk_frame(df),
+            1800,
+        )
+    except Exception:
+        pass
     return payload
+
+
+# Columns `_build_stock_risk_mode` needs; keeps the cached frame small.
+_STOCK_RISK_COLS = (
+    'id', 'code', 'name', 'product_line', 'brand',
+    'current_stock', 'stock_val', 'avg_age',
+    'saleable_stock', 'saleable_val', 'saleable_age',
+    'non_saleable_stock', 'non_saleable_val', 'non_saleable_age',
+    'damaged_stock', 'displayed_stock', 'advance_stock',
+    'daily_velocity', 'forecast_15d', 'forecast_30d', 'stock_coverage_days',
+    'd30', 'd60', 'd90', 'trend_status', 'days_since_last_sale',
+)
+
+
+def _stock_risk_cache_key(gran, fc_engine, macro_category, product_filter, brand_filter,
+                          district_filter, branch_filter) -> str:
+    return _safe_cache_key(
+        "dii_stock_risk_full_v1", get_active_engine(), gran, fc_engine, macro_category,
+        product_filter, brand_filter, district_filter, branch_filter,
+    )
+
+
+def _compact_stock_risk_frame(df: pd.DataFrame) -> pd.DataFrame:
+    cols = [c for c in _STOCK_RISK_COLS if c in df.columns]
+    s = df[cols]
+    stocked = s['current_stock'] > 0
+    if 'non_saleable_stock' in s.columns:
+        stocked = stocked | (s['non_saleable_stock'] > 0)
+    return s[stocked].copy()
+
+
+def get_stock_risk_export_rows(
+    mode: str = 'all',
+    tier: str = 'dead',
+    granularity: str = 'sku',
+    macro_category: str = '',
+    product_filter: str = '',
+    brand_filter: str = '',
+    district_filter: str = '',
+    branch_filter: str = '',
+    forecast_engine: str = 'hybrid',
+) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    """
+    Return ALL rows (no top-150 cap) of one stock-risk tier for one stock mode, using exactly the
+    same classification as the dashboard. Returns (rows, tier_summary).
+    """
+    mode = mode if mode in ('all', 'saleable', 'non_saleable') else 'all'
+    valid_tiers = [k for k, _l, _d in STOCK_RISK_TIERS]
+    tier = tier if tier in valid_tiers else 'dead'
+    gran = granularity if granularity in ('sku', 'brand_product', 'product_line') else 'sku'
+    fc_engine = (forecast_engine or 'hybrid').strip().lower()
+    if fc_engine not in ('hybrid', 'ml', 'statistical'):
+        fc_engine = 'hybrid'
+
+    key = _stock_risk_cache_key(gran, fc_engine, macro_category, product_filter, brand_filter,
+                                district_filter, branch_filter)
+    df = None if get_bypass_cache() else cache.get(key)
+    if df is None:
+        # Recompute the dashboard dataset (bypassing the payload cache so the frame gets rebuilt).
+        prev = get_bypass_cache()
+        set_bypass_cache(True)
+        try:
+            get_demand_intelligence_data(
+                granularity=gran, macro_category=macro_category, product_filter=product_filter,
+                brand_filter=brand_filter, district_filter=district_filter, branch_filter=branch_filter,
+                forecast_engine=fc_engine,
+            )
+        finally:
+            set_bypass_cache(prev)
+        df = cache.get(key)
+    if df is None or df.empty:
+        return [], {}
+
+    res = _build_stock_risk_mode(df, mode=mode, top_n=10 ** 9)
+    summary = next((t for t in (res.get('summary') or {}).get('tiers', []) if t['key'] == tier), {})
+    return res.get('items', {}).get(tier, []), summary
 
 
 def get_single_product_deep_dive(

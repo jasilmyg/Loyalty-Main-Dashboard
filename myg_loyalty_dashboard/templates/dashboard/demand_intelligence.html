@@ -1492,8 +1492,8 @@
                         <a href="/api/v1/demand-intelligence/dead-stock-excel/" class="btn-dii-purple text-decoration-none" title="Download all Dead Stock SKUs with full Branch × SKU breakdown">
                             <i class="bi bi-file-earmark-excel-fill me-1"></i> Download Dead Stock + Branch (.xlsx)
                         </a>
-                        <button type="button" class="btn-dii-outline" onclick="exportStockRiskCsv()">
-                            <i class="bi bi-download me-1"></i> Export this list (CSV)
+                        <button type="button" id="btn-export-stock-risk" class="btn-dii-outline" onclick="exportStockRiskCsv(event)" title="Download every SKU in the selected tier (not just the top 150 shown)">
+                            <i class="bi bi-download me-1"></i> Export full list (CSV)
                         </button>
                     </div>
                 </div>
@@ -3072,7 +3072,12 @@
         if (!sec) return;
         currentStockRisk = sr;
         if (!sr || !sr.summary) { sec.classList.add('d-none'); return; }
+        const wasHidden = sec.classList.contains('d-none');
         sec.classList.remove('d-none');
+        // Sidebar shortcut (#stock-risk-section): the section is hidden until data loads, so scroll once it appears.
+        if (wasHidden && window.location.hash === '#stock-risk-section') {
+            setTimeout(() => sec.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+        }
 
         // Update toggle buttons active state & pill summaries
         document.querySelectorAll('#risk-mode-switch .risk-mode-btn').forEach(btn => {
@@ -3242,7 +3247,41 @@
         renderRiskTable();
     };
 
-    window.exportStockRiskCsv = function() {
+    // Full export: downloads EVERY SKU of the active tier + stock mode from the server
+    // (the on-screen table only shows the top 150 by value). Falls back to the on-screen rows on error.
+    window.exportStockRiskCsv = async function(evt) {
+        const btn = (evt && evt.currentTarget) || document.getElementById('btn-export-stock-risk');
+        const params = buildQueryParams(true);
+        ['movement', 'trend', 'model_tier', 'search', 'sort_by', 'selected_id'].forEach(k => params.delete(k));
+        params.set('mode', activeStockRiskMode || 'all');
+        params.set('tier', activeRiskTier || 'dead');
+        if (window.isBenchNoCache && window.isBenchNoCache()) params.set('nocache', '1');
+        const oldHtml = btn ? btn.innerHTML : '';
+        if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Preparing full list…'; }
+        try {
+            const res = await fetch('/api/v1/demand-intelligence/stock-risk-export/?' + params.toString());
+            const ctype = res.headers.get('Content-Type') || '';
+            if (!res.ok || !ctype.includes('text/csv')) throw new Error('HTTP ' + res.status);
+            const blob = await res.blob();
+            const cd = res.headers.get('Content-Disposition') || '';
+            const m = cd.match(/filename="([^"]+)"/);
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = m ? m[1] : `stock_risk_${activeStockRiskMode}_${activeRiskTier}_${new Date().toISOString().slice(0, 10)}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        } catch (e) {
+            console.warn('Full stock-risk export failed, exporting on-screen rows instead:', e);
+            exportStockRiskCsvVisible();
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerHTML = oldHtml; }
+        }
+    };
+
+    // Previous behaviour: exports only the rows loaded on screen (top 150).
+    function exportStockRiskCsvVisible() {
         const view = getActiveStockRiskView(currentStockRisk);
         if (!view || !view.items) return;
         const rows = view.items[activeRiskTier] || [];
@@ -3267,7 +3306,7 @@
         a.click();
         a.remove();
         setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    };
+    }
 
     // ── Forecast vs Actual table (days whose forecast was saved earlier and whose sales have now arrived) ──
     function renderFvaTable(boxId, fc) {

@@ -55,7 +55,7 @@ def get_raw_sr_connection() -> pymysql.connections.Connection:
         password=SR_PASSWORD,
         database=SR_DATABASE,
         charset="utf8mb4",
-        connect_timeout=10,
+        connect_timeout=4,
         read_timeout=180,
         write_timeout=180,
         autocommit=True,
@@ -269,6 +269,45 @@ def _looks_like_date_expr(expr: str) -> bool:
     return False
 
 
+def _is_top_level_boolean_expr(expr: str) -> bool:
+    """Return True only if `expr` has a comparison/boolean operator at the top level (outside function parens)."""
+    s = expr.strip()
+    # Unwrap outer parentheses that wrap the entire expression: ((a > 0)) -> a > 0
+    while len(s) >= 2 and s[0] == "(" and s[-1] == ")":
+        depth = 0
+        wrapped = True
+        for idx, ch in enumerate(s):
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+                if depth == 0 and idx < len(s) - 1:
+                    wrapped = False
+                    break
+        if wrapped:
+            s = s[1:-1].strip()
+        else:
+            break
+    if re.match(r"^CASE\b", s, re.IGNORECASE):
+        return False
+    # Strip contents of all parenthesized groups (...) so nested IF(a > 0, ...) doesn't trigger
+    top_chars: List[str] = []
+    depth = 0
+    for ch in s:
+        if ch == "(":
+            if depth == 0:
+                top_chars.append(" ")
+            depth += 1
+        elif ch == ")":
+            depth = max(0, depth - 1)
+            if depth == 0:
+                top_chars.append(" ")
+        elif depth == 0:
+            top_chars.append(ch)
+    top_level = "".join(top_chars)
+    return bool(re.search(r"<=|>=|!=|<>|=|<|>|\b(?:AND|OR|IN|LIKE|REGEXP)\b", top_level, re.IGNORECASE))
+
+
 def _rewrite_ch_function(fname: str, prev_non_ws_char: str, args: List[str], raw_inner: str, literals: List[str]) -> Optional[str]:
     """
     Translate a single ClickHouse function call `fname(args...)` (whose inner arguments
@@ -303,10 +342,7 @@ def _rewrite_ch_function(fname: str, prev_non_ws_char: str, args: List[str], raw
 
     if fn == "sum" and len(args) == 1:
         a0 = args[0].strip()
-        if (
-            not re.match(r"^(?:IF\s*\(|CASE\b|COALESCE\s*\(|CAST\s*\()", a0, re.IGNORECASE)
-            and re.search(r"<=|>=|!=|<>|=|<|>|\b(?:AND|OR|IN|LIKE|REGEXP)\b", a0, re.IGNORECASE)
-        ):
+        if _is_top_level_boolean_expr(a0):
             return f"SUM(IF({a0}, 1, 0))"
 
     if fn == "sumif" and len(args) == 2:
@@ -1037,7 +1073,152 @@ class StarRocksClientAdapter:
         record_query_metric("starrocks", sql, elapsed_ms, len(data))
 
 
-_sr_adapter_singleton = StarRocksClientAdapter()
+# ═════════════════════════════════════════════════════════════════════════════
+# ClickHouse Cloud Backup (used only when the StarRocks connection fails)
+# ═════════════════════════════════════════════════════════════════════════════
+
+CH_BACKUP_ENABLED  = os.environ.get("CLICKHOUSE_BACKUP_ENABLED", "1") not in ("0", "false", "False")
+CH_BACKUP_HOST     = os.environ.get("CLICKHOUSE_HOST", "")
+CH_BACKUP_PORT     = int(os.environ.get("CLICKHOUSE_PORT", "8443"))
+CH_BACKUP_USER     = os.environ.get("CLICKHOUSE_USER", "default")
+CH_BACKUP_PASSWORD = os.environ.get("CLICKHOUSE_PASSWORD", "")
+CH_BACKUP_DATABASE = os.environ.get("CLICKHOUSE_DATABASE", "default")
+CH_BACKUP_SECURE   = os.environ.get("CLICKHOUSE_SECURE", "1") not in ("0", "false", "False")
+# After a StarRocks connection failure, skip StarRocks for this many seconds
+SR_RETRY_COOLDOWN_S = int(os.environ.get("STARROCKS_RETRY_COOLDOWN", "30"))
+
+_sr_down_until = 0.0
+_ch_backup_local = threading.local()
+
+
+def _is_connection_error(exc: BaseException) -> bool:
+    """True for network/connection-level failures (not SQL syntax/semantic errors)."""
+    if isinstance(exc, (ConnectionError, TimeoutError, OSError)):
+        return True
+    if isinstance(exc, (pymysql.err.OperationalError, pymysql.err.InterfaceError)):
+        code = exc.args[0] if exc.args and isinstance(exc.args[0], int) else 0
+        # 2xxx = client/connection errors; 1045 = access denied
+        return code == 0 or 2000 <= code < 3000 or code == 1045
+    return False
+
+
+def _mark_sr_down(exc: BaseException) -> None:
+    global _sr_down_until
+    _sr_down_until = time.time() + SR_RETRY_COOLDOWN_S
+    reset_sr_connection()
+    logger.warning(f"[StarRocks] connection failed ({exc}); using ClickHouse backup for {SR_RETRY_COOLDOWN_S}s")
+
+
+def _sr_in_cooldown() -> bool:
+    return CH_BACKUP_ENABLED and bool(CH_BACKUP_HOST) and time.time() < _sr_down_until
+
+
+_sr_up_until = 0.0
+SR_PROBE_TTL_S = int(os.environ.get("STARROCKS_PROBE_TTL", "15"))
+
+
+def backup_available() -> bool:
+    return CH_BACKUP_ENABLED and bool(CH_BACKUP_HOST)
+
+
+def sr_is_up() -> bool:
+    """
+    Fast StarRocks reachability check (TCP probe, cached). Used to pick the active engine
+    BEFORE queries run, so engine-specific table names / cache keys stay consistent.
+    """
+    global _sr_up_until
+    if not backup_available():
+        return True  # no backup configured: always behave as StarRocks
+    now = time.time()
+    if now < _sr_down_until:
+        return False
+    if now < _sr_up_until:
+        return True
+    import socket
+    try:
+        with socket.create_connection((SR_HOST, SR_PORT), timeout=3):
+            pass
+        _sr_up_until = now + SR_PROBE_TTL_S
+        return True
+    except OSError as e:
+        _mark_sr_down(e)
+        return False
+
+
+def _to_backup_sql(query: str) -> str:
+    """StarRocks uses the legacy `stock_ageing` table; ClickHouse's equivalent is `stock_ageing_report`."""
+    return re.sub(r"\bstock_ageing\b", "stock_ageing_report", query)
+
+
+def get_ch_backup_client():
+    """Return a per-thread clickhouse_connect client (clients are not safe for concurrent queries)."""
+    if not CH_BACKUP_HOST:
+        raise ConnectionError("ClickHouse backup not configured (CLICKHOUSE_HOST missing)")
+    client = getattr(_ch_backup_local, "client", None)
+    if client is None:
+        import clickhouse_connect
+        client = clickhouse_connect.get_client(
+            host=CH_BACKUP_HOST,
+            port=CH_BACKUP_PORT,
+            username=CH_BACKUP_USER,
+            password=CH_BACKUP_PASSWORD,
+            database=CH_BACKUP_DATABASE,
+            secure=CH_BACKUP_SECURE,
+            connect_timeout=30,
+            send_receive_timeout=180,
+        )
+        _ch_backup_local.client = client
+    return client
+
+
+def _ch_backup_query(query: str, parameters: Optional[Dict[str, Any]] = None, **kwargs) -> StarRocksQueryResult:
+    """Run the ORIGINAL (untranslated) ClickHouse SQL on the backup ClickHouse service."""
+    from analytics.clickhouse_service import record_query_metric
+    query = _to_backup_sql(query)
+    t0 = time.perf_counter()
+    try:
+        res = get_ch_backup_client().query(query, parameters=parameters or None)
+    except Exception as e:
+        record_query_metric("clickhouse", query, (time.perf_counter() - t0) * 1000.0, 0, error=str(e))
+        logger.error(f"[ClickHouse backup] Query failed: {e}")
+        raise
+    rows = [tuple(r) for r in res.result_rows]
+    record_query_metric("clickhouse", query, (time.perf_counter() - t0) * 1000.0, len(rows))
+    return StarRocksQueryResult(rows, list(res.column_names))
+
+
+class FallbackClientAdapter(StarRocksClientAdapter):
+    """
+    StarRocks-first client. If StarRocks is unreachable (connection error), the same
+    request is transparently served by ClickHouse Cloud using the original SQL.
+    """
+
+    def query(self, query: str, parameters: Optional[Dict[str, Any]] = None, **kwargs):
+        if _sr_in_cooldown():
+            return _ch_backup_query(query, parameters, **kwargs)
+        try:
+            return super().query(query, parameters=parameters, **kwargs)
+        except Exception as e:
+            if CH_BACKUP_ENABLED and CH_BACKUP_HOST and _is_connection_error(e):
+                _mark_sr_down(e)
+                return _ch_backup_query(query, parameters, **kwargs)
+            raise
+
+    def command(self, cmd: str, parameters: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
+        if _sr_in_cooldown():
+            return get_ch_backup_client().command(_to_backup_sql(cmd), parameters=parameters or None)
+        try:
+            return super().command(cmd, parameters=parameters, **kwargs)
+        except Exception as e:
+            if CH_BACKUP_ENABLED and CH_BACKUP_HOST and _is_connection_error(e):
+                _mark_sr_down(e)
+                return get_ch_backup_client().command(_to_backup_sql(cmd), parameters=parameters or None)
+            raise
+
+    # insert() intentionally NOT redirected: writes must not silently diverge to the backup.
+
+
+_sr_adapter_singleton = FallbackClientAdapter()
 
 
 def get_sr_client() -> StarRocksClientAdapter:

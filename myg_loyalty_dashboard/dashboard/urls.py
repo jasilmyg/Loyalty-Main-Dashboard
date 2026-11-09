@@ -165,6 +165,7 @@ urlpatterns = [
     path('api/v1/demand-intelligence/sku-options/', dii_views.DemandSkuOptionsAPIView.as_view(), name='demand_intelligence_sku_options_api'),
     path('api/v1/demand-intelligence/export/', dii_views.DemandIntelligenceExportAPIView.as_view(), name='demand_intelligence_export_api'),
     path('api/v1/demand-intelligence/dead-stock-excel/', dii_views.DemandDeadStockBranchExportAPIView.as_view(), name='demand_dead_stock_branch_export_api'),
+    path('api/v1/demand-intelligence/stock-risk-export/', dii_views.DemandStockRiskExportAPIView.as_view(), name='demand_stock_risk_export_api'),
 
     # 🔗 UTM Link Builder & First-Party Click Tracker (myG Future Mangaluru & Campaigns)
     path('utm-tracker/', utm_tracker_views.UtmTrackerPageView.as_view(), name='utm_tracker'),
