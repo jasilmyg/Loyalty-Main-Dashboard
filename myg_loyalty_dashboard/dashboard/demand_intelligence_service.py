@@ -304,7 +304,7 @@ def _sql_escape(val: str) -> str:
 
 
 def _stock_table_name() -> str:
-    return 'stock_ageing' if get_active_engine() == 'starrocks' else 'stock_ageing_report'
+    return 'stock_ageing_report'
 
 
 def _get_branch_directory(ch) -> pd.DataFrame:

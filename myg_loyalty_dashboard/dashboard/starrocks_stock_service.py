@@ -51,7 +51,7 @@ def get_latest_sr_snapshot_date(force_refresh=False):
     try:
         conn = get_sr_connection()
         with conn.cursor() as cur:
-            cur.execute("SELECT max(report_date) FROM stock_ageing WHERE stock > 0;")
+            cur.execute("SELECT max(report_date) FROM stock_ageing_report WHERE stock > 0;")
             row = cur.fetchone()
             latest = row[0] if row else None
         conn.close()
@@ -116,7 +116,7 @@ def get_starrocks_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, bra
 
     snapshot = get_latest_sr_snapshot_date(force_refresh)
     if snapshot is None:
-        raise RuntimeError("No stock snapshot found in StarRocks table `stock_ageing`.")
+        raise RuntimeError("No stock snapshot found in StarRocks table `stock_ageing_report`.")
 
     bm_df = get_branch_master_df(force_refresh=force_refresh)
     allowed = _branch_allowlist(bm_df, rbm, bdm, district, branch)
@@ -139,7 +139,7 @@ def get_starrocks_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, bra
     q_prod = f"""
     SELECT product,
            {select_sql}
-    FROM stock_ageing
+    FROM stock_ageing_report
     WHERE {where_sql}
     GROUP BY product
     """
@@ -148,7 +148,7 @@ def get_starrocks_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, bra
     SELECT product,
            if(trim(brand) = '', 'OTHERS', trim(brand)) AS brand,
            {select_sql}
-    FROM stock_ageing
+    FROM stock_ageing_report
     WHERE {where_sql}
     GROUP BY product, if(trim(brand) = '', 'OTHERS', trim(brand))
     """
