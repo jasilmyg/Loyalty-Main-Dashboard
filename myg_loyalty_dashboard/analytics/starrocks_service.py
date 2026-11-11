@@ -1078,11 +1078,18 @@ class StarRocksClientAdapter:
 # ═════════════════════════════════════════════════════════════════════════════
 
 CH_BACKUP_ENABLED  = os.environ.get("CLICKHOUSE_BACKUP_ENABLED", "1") not in ("0", "false", "False")
-CH_BACKUP_HOST     = os.environ.get("CLICKHOUSE_HOST", "")
-CH_BACKUP_PORT     = int(os.environ.get("CLICKHOUSE_PORT", "8443"))
-CH_BACKUP_USER     = os.environ.get("CLICKHOUSE_USER", "default")
-CH_BACKUP_PASSWORD = os.environ.get("CLICKHOUSE_PASSWORD", "")
-CH_BACKUP_DATABASE = os.environ.get("CLICKHOUSE_DATABASE", "default")
+# ClickHouse Cloud (primary engine). Host defaults to the live `Loyalty Analytics` service so the portal is
+# ClickHouse-first even when only the password is configured (e.g. on Render). The legacy CH_PASSWORD /
+# CH_USER names are accepted as a fallback; CH_HOST is NOT used (it points at the retired service).
+def _ch_env(name: str, legacy: str, default: str = "") -> str:
+    return os.environ.get(name) or (os.environ.get(legacy) if legacy else "") or default
+
+
+CH_BACKUP_HOST     = _ch_env("CLICKHOUSE_HOST", "", "pdhsuv47ec.ap-south-1.aws.clickhouse.cloud")
+CH_BACKUP_PORT     = int(_ch_env("CLICKHOUSE_PORT", "", "8443"))
+CH_BACKUP_USER     = _ch_env("CLICKHOUSE_USER", "CH_USER", "default")
+CH_BACKUP_PASSWORD = _ch_env("CLICKHOUSE_PASSWORD", "CH_PASSWORD")
+CH_BACKUP_DATABASE = _ch_env("CLICKHOUSE_DATABASE", "", "default")
 CH_BACKUP_SECURE   = os.environ.get("CLICKHOUSE_SECURE", "1") not in ("0", "false", "False")
 # After a StarRocks connection failure, skip StarRocks for this many seconds
 SR_RETRY_COOLDOWN_S = int(os.environ.get("STARROCKS_RETRY_COOLDOWN", "30"))

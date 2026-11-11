@@ -32,6 +32,22 @@ services:
         sync: false   # Set CH password in Render Dashboard → Environment tab
       - key: CH_DATABASE
         value: default
+      # Analytics engine: ClickHouse Cloud first, StarRocks only as fallback when ClickHouse fails.
+      # (the portal reads CLICKHOUSE_*; the legacy CH_* above are only a fallback)
+      - key: ANALYTICS_PRIMARY_ENGINE
+        value: clickhouse
+      - key: CLICKHOUSE_HOST
+        value: pdhsuv47ec.ap-south-1.aws.clickhouse.cloud
+      - key: CLICKHOUSE_PORT
+        value: "8443"
+      - key: CLICKHOUSE_USER
+        value: default
+      - key: CLICKHOUSE_PASSWORD
+        sync: false   # Set ClickHouse password in Render Dashboard → Environment tab
+      - key: CLICKHOUSE_DATABASE
+        value: default
+      - key: CLICKHOUSE_SECURE
+        value: "1"
       - key: AZURE_BLOB_SAS_URL
         sync: false   # Set Azure SAS token in Render Dashboard
 
