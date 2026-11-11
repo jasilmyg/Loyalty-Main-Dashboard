@@ -1084,10 +1084,17 @@ def _ch_env(name: str, default: str = "") -> str:
     return os.environ.get(name) or default
 
 
+def _ch_port(default: int = 8443) -> int:
+    """Parse CLICKHOUSE_PORT safely: a non-numeric value must never crash the portal at import time."""
+    raw = (os.environ.get("CLICKHOUSE_PORT") or "").strip()
+    return int(raw) if raw.isdigit() else default
+
+
 CH_BACKUP_HOST     = _ch_env("CLICKHOUSE_HOST", "pdhsuv47ec.ap-south-1.aws.clickhouse.cloud")
-CH_BACKUP_PORT     = int(_ch_env("CLICKHOUSE_PORT", "8443"))
+CH_BACKUP_PORT     = _ch_port()
 CH_BACKUP_USER     = _ch_env("CLICKHOUSE_USER", "default")
-CH_BACKUP_PASSWORD = _ch_env("CLICKHOUSE_PASSWORD", "ZFlujj9SA_Iei")
+_CH_DEFAULT_PASSWORD = "ZFlujj9SA_Iei"
+CH_BACKUP_PASSWORD = _ch_env("CLICKHOUSE_PASSWORD", _CH_DEFAULT_PASSWORD)
 CH_BACKUP_DATABASE = _ch_env("CLICKHOUSE_DATABASE", "default")
 CH_BACKUP_SECURE   = os.environ.get("CLICKHOUSE_SECURE", "1") not in ("0", "false", "False")
 # After a StarRocks connection failure, skip StarRocks for this many seconds
@@ -1233,16 +1240,30 @@ def get_ch_backup_client():
     client = getattr(_ch_backup_local, "client", None)
     if client is None:
         import clickhouse_connect
-        client = clickhouse_connect.get_client(
-            host=CH_BACKUP_HOST,
-            port=CH_BACKUP_PORT,
-            username=CH_BACKUP_USER,
-            password=CH_BACKUP_PASSWORD,
-            database=CH_BACKUP_DATABASE,
-            secure=CH_BACKUP_SECURE,
-            connect_timeout=30,
-            send_receive_timeout=180,
-        )
+
+        def _connect(pw):
+            return clickhouse_connect.get_client(
+                host=CH_BACKUP_HOST,
+                port=CH_BACKUP_PORT,
+                username=CH_BACKUP_USER,
+                password=pw,
+                database=CH_BACKUP_DATABASE,
+                secure=CH_BACKUP_SECURE,
+                connect_timeout=30,
+                send_receive_timeout=180,
+            )
+
+        try:
+            client = _connect(CH_BACKUP_PASSWORD)
+        except Exception as e:
+            # A mistyped CLICKHOUSE_PASSWORD env var (auth failure) falls back to the built-in password
+            msg = str(e).lower()
+            auth_failed = "authentication failed" in msg or "code: 516" in msg or "code: 194" in msg
+            if auth_failed and CH_BACKUP_PASSWORD != _CH_DEFAULT_PASSWORD:
+                logger.warning("[ClickHouse] CLICKHOUSE_PASSWORD rejected; retrying with the built-in password")
+                client = _connect(_CH_DEFAULT_PASSWORD)
+            else:
+                raise
         _ch_backup_local.client = client
     return client
 
