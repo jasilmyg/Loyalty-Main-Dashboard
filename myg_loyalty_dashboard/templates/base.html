@@ -716,7 +716,7 @@
             </span>
             {% elif request.db_engine == 'clickhouse' %}
             <span class="badge mt-2" style="background:#fff7ed; color:#c2410c; font-size: 0.63rem; border: 1px solid #fdba74; padding: 4px 10px; border-radius: 6px; display: inline-block; font-weight:700;">
-                <i class="bi bi-cloud-fill me-1"></i> ClickHouse (Backup)
+                <i class="bi bi-cloud-fill me-1"></i> ClickHouse Cloud (Primary)
             </span>
             {% else %}
             <span class="badge bg-success-subtle text-success mt-2" style="font-size: 0.63rem; border: 1px solid #a7f3d0; padding: 4px 10px; border-radius: 6px; display: inline-block;">
@@ -1144,13 +1144,13 @@
         <!-- StarRocks Database Engine Status & Live Fetch Speed Telemetry -->
         <div id="db-switcher-bar" class="db-switcher-bar {% if request.db_engine == 'clickhouse' %}ch-mode{% else %}sr-mode{% endif %}">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                <!-- Left: Active DB Connection Badge (StarRocks primary / ClickHouse backup) -->
+                <!-- Left: Active DB Connection Badge (ClickHouse first / StarRocks fallback) -->
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                     <div class="db-tab-group" role="tablist" aria-label="Database Engine">
                         {% if request.db_engine == 'clickhouse' %}
-                        <span id="db-engine-pill" class="db-tab-pill active-ch-live" title="StarRocks unreachable · serving data from ClickHouse Cloud backup">
+                        <span id="db-engine-pill" class="db-tab-pill active-ch-live" title="Serving data from ClickHouse Cloud (first choice; StarRocks is the fallback)">
                             <i class="bi bi-cloud-fill"></i>
-                            <span id="db-engine-pill-label">ClickHouse Cloud (Backup)</span>
+                            <span id="db-engine-pill-label">ClickHouse Cloud (Primary)</span>
                         </span>
                         {% else %}
                         <span id="db-engine-pill" class="db-tab-pill active-sr" title="Connected to StarRocks · Loyalty_Analytics">
@@ -1821,8 +1821,8 @@ async function downloadDormantData() {
         const isCh = engine === 'clickhouse';
         pill.classList.toggle('active-ch-live', isCh);
         pill.classList.toggle('active-sr', !isCh);
-        label.textContent = isCh ? 'ClickHouse Cloud (Backup)' : 'StarRocks (Loyalty_Analytics)';
-        pill.title = isCh ? 'StarRocks unreachable · serving data from ClickHouse Cloud backup'
+        label.textContent = isCh ? 'ClickHouse Cloud (Primary)' : 'StarRocks (Loyalty_Analytics)';
+        pill.title = isCh ? 'Serving data from ClickHouse Cloud (first choice; StarRocks is the fallback)'
                           : 'Connected to StarRocks · Loyalty_Analytics';
         if (icon) icon.className = isCh ? 'bi bi-cloud-fill' : 'bi bi-hdd-network-fill';
         if (bar) { bar.classList.toggle('ch-mode', isCh); bar.classList.toggle('sr-mode', !isCh); }

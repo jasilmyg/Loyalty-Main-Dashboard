@@ -106,7 +106,7 @@ class DBEngineCloneMiddleware:
         # Attach high-precision speed telemetry headers
         response["X-DB-Engine"] = engine
         response["X-DB-Label"] = (
-            "StarRocks (Loyalty_Analytics)" if engine == "starrocks" else "ClickHouse Cloud (backup)"
+            "StarRocks (Loyalty_Analytics)" if engine == "starrocks" else "ClickHouse Cloud (primary)"
         )
         response["X-DB-SQL-Time-Ms"] = f"{metrics['sql_time_ms']:.2f}"
         response["X-DB-SQL-Count"] = str(metrics["query_count"])
