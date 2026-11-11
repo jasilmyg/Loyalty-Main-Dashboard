@@ -27,10 +27,10 @@ def set_active_engine(engine: str = "starrocks") -> None:
 
 
 def get_active_engine() -> str:
-    """Return active analytics engine: 'starrocks', or 'clickhouse' while StarRocks is unreachable."""
+    """Return the engine serving requests: 'clickhouse' first (default), 'starrocks' as fallback."""
     try:
-        from analytics.starrocks_service import sr_is_up
-        return "starrocks" if sr_is_up() else "clickhouse"
+        from analytics.starrocks_service import active_engine
+        return active_engine()
     except Exception:
         return "starrocks"
 
@@ -71,7 +71,7 @@ def get_query_metrics() -> dict:
     total_ms = sum(item["elapsed_ms"] for item in lst)
     total_rows = sum(item["rows"] for item in lst)
     return {
-        "engine": "starrocks",
+        "engine": get_active_engine(),
         "sql_time_ms": round(total_ms, 2),
         "query_count": len(lst),
         "total_rows": total_rows,
@@ -123,8 +123,8 @@ CH_DATABASE = os.environ.get("STARROCKS_DATABASE", "Loyalty_Analytics")
 
 def get_ch_client():
     """
-    Returns the timed StarRocks `Loyalty_Analytics` client adapter (`StarRocksClientAdapter`),
-    which translates ClickHouse SQL queries and executes them on StarRocks.
+    Returns the analytics client adapter: queries go to ClickHouse Cloud first (original SQL) and
+    fall back to StarRocks `Loyalty_Analytics` (translated SQL). Writes (`.insert`) go to StarRocks.
     """
     from analytics.starrocks_service import get_sr_client
     return get_sr_client()
@@ -132,27 +132,27 @@ def get_ch_client():
 
 def ch_query(sql: str, params: dict = None) -> list:
     """
-    Run an analytics query on StarRocks (`Loyalty_Analytics`).
+    Run an analytics query: ClickHouse Cloud first, StarRocks (`Loyalty_Analytics`) as fallback.
     Returns list of tuples (same format as Django cursor.fetchall()).
     """
     client = get_ch_client()
     if client is None:
-        raise ConnectionError("starrocks not available")
+        raise ConnectionError("analytics engine not available")
     result = client.query(sql, parameters=params or {})
     return result.result_rows
 
 
 def ch_query_with_fallback(ch_sql: str, pg_sql: str, params: dict = None) -> tuple:
     """
-    Execute query on StarRocks (`Loyalty_Analytics`).
-    Returns (rows, 'starrocks').
+    Execute query on the analytics engine (ClickHouse first, StarRocks fallback).
+    Returns (rows, engine_name).
     """
     rows = ch_query(ch_sql, params)
-    return rows, "starrocks"
+    return rows, get_active_engine()
 
 
 def is_ch_available() -> bool:
-    """Health check for StarRocks (`Loyalty_Analytics`)."""
+    """Health check for the analytics engine (ClickHouse first, StarRocks fallback)."""
     try:
         client = get_ch_client()
         if client is None:

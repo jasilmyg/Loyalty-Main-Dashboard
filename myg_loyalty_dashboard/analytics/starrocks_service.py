@@ -1145,6 +1145,76 @@ def sr_is_up() -> bool:
         return False
 
 
+# ── ClickHouse-first engine selection ─────────────────────────────────────────
+# Which engine serves queries first: 'clickhouse' (default) or 'starrocks'.
+PRIMARY_ENGINE = os.environ.get("ANALYTICS_PRIMARY_ENGINE", "clickhouse").strip().lower()
+# After a ClickHouse connection failure, skip ClickHouse for this many seconds (StarRocks serves meanwhile)
+CH_RETRY_COOLDOWN_S = int(os.environ.get("CLICKHOUSE_RETRY_COOLDOWN", "30"))
+CH_PROBE_TTL_S = int(os.environ.get("CLICKHOUSE_PROBE_TTL", "15"))
+_ch_down_until = 0.0
+_ch_up_until = 0.0
+
+
+def ch_primary() -> bool:
+    """True when ClickHouse Cloud is configured and is the first-choice engine."""
+    return PRIMARY_ENGINE == "clickhouse" and backup_available()
+
+
+def _is_ch_connection_error(exc: BaseException) -> bool:
+    """Network/connection-level ClickHouse failures (not SQL errors)."""
+    if isinstance(exc, (ConnectionError, TimeoutError, OSError)):
+        return True
+    mod = type(exc).__module__ or ""
+    if mod.startswith("urllib3") or mod.startswith("requests"):
+        return True
+    # clickhouse_connect raises OperationalError for HTTP/network failures (DatabaseError for SQL errors)
+    return mod.startswith("clickhouse_connect") and type(exc).__name__ == "OperationalError"
+
+
+def _mark_ch_down(exc: BaseException) -> None:
+    global _ch_down_until
+    _ch_down_until = time.time() + CH_RETRY_COOLDOWN_S
+    try:
+        _ch_backup_local.client = None  # force a fresh connection next time
+    except Exception:
+        pass
+    logger.warning(f"[ClickHouse] connection failed ({exc}); using StarRocks for {CH_RETRY_COOLDOWN_S}s")
+
+
+def _ch_in_cooldown() -> bool:
+    return time.time() < _ch_down_until
+
+
+def ch_is_up() -> bool:
+    """Fast ClickHouse Cloud reachability check (cached TCP probe)."""
+    global _ch_up_until
+    if not backup_available():
+        return False
+    now = time.time()
+    if now < _ch_down_until:
+        return False
+    if now < _ch_up_until:
+        return True
+    import socket
+    try:
+        with socket.create_connection((CH_BACKUP_HOST, CH_BACKUP_PORT), timeout=3):
+            pass
+        _ch_up_until = now + CH_PROBE_TTL_S
+        return True
+    except OSError as e:
+        _mark_ch_down(e)
+        return False
+
+
+def active_engine() -> str:
+    """Engine that will serve the next request: ClickHouse first, StarRocks otherwise."""
+    if ch_primary():
+        if ch_is_up():
+            return "clickhouse"
+        return "starrocks"
+    return "starrocks" if sr_is_up() else "clickhouse"
+
+
 def _to_backup_sql(query: str) -> str:
     """StarRocks uses the legacy `stock_ageing` table; ClickHouse's equivalent is `stock_ageing_report`."""
     return re.sub(r"\bstock_ageing\b", "stock_ageing_report", query)
@@ -1189,28 +1259,50 @@ def _ch_backup_query(query: str, parameters: Optional[Dict[str, Any]] = None, **
 
 class FallbackClientAdapter(StarRocksClientAdapter):
     """
-    StarRocks-first client. If StarRocks is unreachable (connection error), the same
-    request is transparently served by ClickHouse Cloud using the original SQL.
+    ClickHouse-first client (default). Every request is first served by ClickHouse Cloud using the
+    original SQL; if ClickHouse is unreachable (or rejects the query) the same request falls back to
+    StarRocks (translated SQL). Set ANALYTICS_PRIMARY_ENGINE=starrocks to restore StarRocks-first,
+    where ClickHouse only serves requests while StarRocks is unreachable.
     """
 
     def query(self, query: str, parameters: Optional[Dict[str, Any]] = None, **kwargs):
-        if _sr_in_cooldown():
+        ch_tried = False
+        if ch_primary() and not _ch_in_cooldown():
+            ch_tried = True
+            try:
+                return _ch_backup_query(query, parameters, **kwargs)
+            except Exception as e:
+                if _is_ch_connection_error(e):
+                    _mark_ch_down(e)
+                else:
+                    logger.warning(f"[ClickHouse] query failed ({e}); falling back to StarRocks")
+        if _sr_in_cooldown() and not ch_tried:
             return _ch_backup_query(query, parameters, **kwargs)
         try:
             return super().query(query, parameters=parameters, **kwargs)
         except Exception as e:
-            if CH_BACKUP_ENABLED and CH_BACKUP_HOST and _is_connection_error(e):
+            if CH_BACKUP_ENABLED and CH_BACKUP_HOST and not ch_tried and _is_connection_error(e):
                 _mark_sr_down(e)
                 return _ch_backup_query(query, parameters, **kwargs)
             raise
 
     def command(self, cmd: str, parameters: Optional[Dict[str, Any]] = None, **kwargs) -> Any:
-        if _sr_in_cooldown():
+        ch_tried = False
+        if ch_primary() and not _ch_in_cooldown():
+            ch_tried = True
+            try:
+                return get_ch_backup_client().command(_to_backup_sql(cmd), parameters=parameters or None)
+            except Exception as e:
+                if _is_ch_connection_error(e):
+                    _mark_ch_down(e)
+                else:
+                    logger.warning(f"[ClickHouse] command failed ({e}); falling back to StarRocks")
+        if _sr_in_cooldown() and not ch_tried:
             return get_ch_backup_client().command(_to_backup_sql(cmd), parameters=parameters or None)
         try:
             return super().command(cmd, parameters=parameters, **kwargs)
         except Exception as e:
-            if CH_BACKUP_ENABLED and CH_BACKUP_HOST and _is_connection_error(e):
+            if CH_BACKUP_ENABLED and CH_BACKUP_HOST and not ch_tried and _is_connection_error(e):
                 _mark_sr_down(e)
                 return get_ch_backup_client().command(_to_backup_sql(cmd), parameters=parameters or None)
             raise
