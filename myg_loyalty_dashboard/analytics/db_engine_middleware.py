@@ -37,7 +37,7 @@ class EngineAwareFileBasedCache(FileBasedCache):
     """
 
     def make_key(self, key, version=None):
-        key = f"sr:{key}"
+        key = f"{'sr' if get_active_engine() == 'starrocks' else 'ch'}:{key}"
         return super().make_key(key, version=version)
 
     def get(self, key, default=None, version=None):
@@ -74,7 +74,7 @@ class DBEngineCloneMiddleware:
         else:
             request.original_clone_path = raw_path
 
-        engine = "starrocks"
+        engine = get_active_engine()  # 'starrocks', or 'clickhouse' while StarRocks is down
 
         bypass_cache = (
             request.GET.get("nocache") == "1"
@@ -82,13 +82,13 @@ class DBEngineCloneMiddleware:
         )
 
         # Expose portal state to views & templates
-        request.db_engine = "starrocks"
+        request.db_engine = engine
         request.is_sr_clone = is_sr_url
         request.sr_prefix = "/sr" if is_sr_url else ""
         request.clean_portal_path = request.path_info
         request.bypass_cache = bypass_cache
 
-        set_active_engine("starrocks")
+        set_active_engine(engine)
         set_bypass_cache(bypass_cache)
         reset_query_metrics()
 
@@ -100,12 +100,14 @@ class DBEngineCloneMiddleware:
         finally:
             t_server_ms = (time.perf_counter() - t0) * 1000.0
             metrics = get_query_metrics()
-            set_active_engine("starrocks")
+            engine = get_active_engine()
             set_bypass_cache(False)
 
         # Attach high-precision speed telemetry headers
-        response["X-DB-Engine"] = "starrocks"
-        response["X-DB-Label"] = "StarRocks (Loyalty_Analytics)"
+        response["X-DB-Engine"] = engine
+        response["X-DB-Label"] = (
+            "StarRocks (Loyalty_Analytics)" if engine == "starrocks" else "ClickHouse Cloud (backup)"
+        )
         response["X-DB-SQL-Time-Ms"] = f"{metrics['sql_time_ms']:.2f}"
         response["X-DB-SQL-Count"] = str(metrics["query_count"])
         response["X-DB-Rows-Fetched"] = str(metrics["total_rows"])
@@ -118,7 +120,7 @@ class DBEngineCloneMiddleware:
             marker = b"/*__SSR_DB_TELEMETRY__*/null"
             if marker in response.content:
                 ssr_payload = {
-                    "engine": "starrocks",
+                    "engine": engine,
                     "sql_time_ms": round(metrics["sql_time_ms"], 2),
                     "query_count": metrics["query_count"],
                     "total_rows": metrics["total_rows"],

@@ -27,8 +27,12 @@ def set_active_engine(engine: str = "starrocks") -> None:
 
 
 def get_active_engine() -> str:
-    """Return active analytics engine ('starrocks')."""
-    return "starrocks"
+    """Return active analytics engine: 'starrocks', or 'clickhouse' while StarRocks is unreachable."""
+    try:
+        from analytics.starrocks_service import sr_is_up
+        return "starrocks" if sr_is_up() else "clickhouse"
+    except Exception:
+        return "starrocks"
 
 
 def set_bypass_cache(flag: bool) -> None:
@@ -53,7 +57,7 @@ def record_query_metric(engine: str, sql: str, elapsed_ms: float, row_count: int
         _query_metrics_var.set(lst)
     compact_sql = " ".join(str(sql).split())[:180]
     lst.append({
-        "engine": "starrocks",
+        "engine": engine or "starrocks",
         "elapsed_ms": round(float(elapsed_ms), 2),
         "rows": int(row_count or 0),
         "sql_preview": compact_sql,
