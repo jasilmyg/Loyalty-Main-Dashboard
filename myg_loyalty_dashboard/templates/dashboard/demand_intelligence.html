@@ -365,57 +365,6 @@
         margin-top: 0.75rem;
     }
 
-    /* ── Decomposition Mini-Cards ── */
-    .decomp-box {
-        background: #f8fafc;
-        border: 1px solid #f1f5f9;
-        border-radius: 12px;
-        padding: 0.65rem 0.75rem;
-        height: 100%;
-    }
-    .decomp-lbl {
-        font-size: 0.74rem;
-        font-weight: 700;
-        color: #1e293b;
-        margin-bottom: 0.35rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-    /* ── Top Festival & Seasonal Drivers ── */
-    .driver-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0.58rem 0.65rem;
-        border-radius: 11px;
-        margin-bottom: 0.42rem;
-        background: #f8fafc;
-        border: 1px solid #f1f5f9;
-        transition: all 0.15s;
-    }
-    .driver-row:hover {
-        background: #ffffff;
-        border-color: #e2e8f0;
-    }
-    .driver-icon {
-        width: 32px;
-        height: 32px;
-        border-radius: 9px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 0.92rem;
-        flex-shrink: 0;
-    }
-    .driver-lift-pill {
-        font-size: 0.74rem;
-        font-weight: 800;
-        padding: 0.2rem 0.55rem;
-        border-radius: 999px;
-    }
-
     /* ── Location Forecast Heatmap Table ── */
     .heatmap-table th {
         font-size: 0.69rem;
@@ -509,57 +458,7 @@
         border-color: #0f172a;
     }
 
-    .mover-mini-card {
-        border: 1px solid #f1f5f9;
-        background: #f8fafc;
-        border-radius: 12px;
-        padding: 0.55rem 0.75rem;
-        cursor: pointer;
-        transition: all 0.15s;
-    }
-    .mover-mini-card:hover {
-        background: #ffffff;
-        border-color: #cbd5e1;
-        transform: translateY(-1px);
-    }
-
-    /* ── Hybrid ML Diagnostics, Engine Benchmark Cards & Tier Badges ── */
-    .engine-bench-card {
-        border: 1.5px solid #e2e8f0;
-        background: #f8fafc;
-        border-radius: 14px;
-        padding: 0.72rem 0.85rem;
-        cursor: pointer;
-        transition: all 0.16s;
-        height: 100%;
-    }
-    .engine-bench-card:hover {
-        background: #ffffff;
-        border-color: #a5b4fc;
-        transform: translateY(-1px);
-    }
-    .engine-bench-card.active-eng {
-        background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%);
-        border-color: #6366f1;
-        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.14);
-    }
-    .tier-route-tile {
-        border: 1px solid #e2e8f0;
-        background: #ffffff;
-        border-radius: 12px;
-        padding: 0.58rem 0.75rem;
-        cursor: pointer;
-        transition: all 0.15s;
-        height: 100%;
-    }
-    .tier-route-tile:hover {
-        border-color: #818cf8;
-        box-shadow: 0 3px 10px rgba(99, 102, 241, 0.08);
-    }
-    .tier-route-tile.active-tier {
-        background: #eef2ff;
-        border-color: #4f46e5;
-    }
+    /* ── AI Model Tier Badges ── */
     .badge-tier {
         font-size: 0.65rem;
         font-weight: 800;
@@ -574,17 +473,6 @@
     .tier-tsb  { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
     .tier-cold { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
     .tier-stat { background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; }
-    .feat-bar-track {
-        height: 7px;
-        background: #f1f5f9;
-        border-radius: 999px;
-        overflow: hidden;
-    }
-    .feat-bar-fill {
-        height: 100%;
-        border-radius: 999px;
-        transition: width 0.35s ease;
-    }
 
     /* ── Inter-Store Stock Transfer Intelligence ── */
     .xfer-kpi-tile {
@@ -1539,220 +1427,6 @@
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════════════ -->
-    <!-- 5. SEASONALITY DECOMPOSITION & FESTIVAL DEMAND PATTERNS             -->
-    <!-- ═══════════════════════════════════════════════════════════════════ -->
-    <div class="row g-3 mb-3" id="seasonality-festival-section">
-        <!-- Left 8 Cols: 4-Panel Additive Seasonality Decomposition + 12-Month Seasonal Curve -->
-        <div class="col-12 col-xl-8">
-            <div class="dii-panel">
-                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                    <div>
-                        <h2 class="dii-panel-title">
-                            <i class="bi bi-sliders2-vertical" style="color:#7c3aed;"></i>
-                            Seasonality Decomposition &amp; Annual Cycle
-                        </h2>
-                        <div class="dii-panel-sub">52-week Additive Decomposition (Trend + Seasonality + Festival Effect + Residual) from ClickHouse</div>
-                    </div>
-                    <span class="badge bg-light text-dark border fw-semibold" style="font-size:0.72rem;">Weekly · Last 52 Weeks</span>
-                </div>
-
-                <div class="row g-2 mb-3">
-                    <div class="col-12 col-md-6 col-lg-3">
-                        <div class="decomp-box">
-                            <div class="decomp-lbl"><span>Trend</span><span style="color:#7c3aed;font-size:0.68rem;">Long-Term</span></div>
-                            <div style="height:110px;"><canvas id="decompTrendChart"></canvas></div>
-                        </div>
-                    </div>
-                    <div class="col-12 col-md-6 col-lg-3">
-                        <div class="decomp-box">
-                            <div class="decomp-lbl"><span>Seasonality</span><span style="color:#0ea5e9;font-size:0.68rem;">Cyclical</span></div>
-                            <div style="height:110px;"><canvas id="decompSeasonChart"></canvas></div>
-                        </div>
-                    </div>
-                    <div class="col-12 col-md-6 col-lg-3">
-                        <div class="decomp-box">
-                            <div class="decomp-lbl"><span>Festival Effect</span><span style="color:#10b981;font-size:0.68rem;">Onam/Vishu/Diwali</span></div>
-                            <div style="height:110px;"><canvas id="decompHolidayChart"></canvas></div>
-                        </div>
-                    </div>
-                    <div class="col-12 col-md-6 col-lg-3">
-                        <div class="decomp-box">
-                            <div class="decomp-lbl"><span>Residual</span><span style="color:#64748b;font-size:0.68rem;">Noise</span></div>
-                            <div style="height:110px;"><canvas id="decompResidualChart"></canvas></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Monthly Seasonality Index Bar Chart -->
-                <div class="pt-2 border-top">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <span class="fw-bold text-dark" style="font-size:0.8rem;">
-                            <i class="bi bi-calendar3 me-1 text-primary"></i> Monthly Seasonal Demand Index (100 = Normal Baseline)
-                        </span>
-                        <span class="text-muted" style="font-size:0.7rem;">Multi-year ClickHouse seasonal profile</span>
-                    </div>
-                    <div style="height:135px;">
-                        <canvas id="monthlySeasonalityChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Right 4 Cols: Top Festival & Calendar Demand Drivers -->
-        <div class="col-12 col-xl-4">
-            <div class="dii-panel">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <div>
-                        <h2 class="dii-panel-title">
-                            <i class="bi bi-stars" style="color:#f59e0b;"></i>
-                            Seasonal &amp; Festival Drivers
-                        </h2>
-                        <div class="dii-panel-sub">Empirical demand lift (%) measured on ClickHouse sales</div>
-                    </div>
-                </div>
-
-                <div id="festival-drivers-list" class="mt-2"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════════════════════ -->
-    <!-- 5B. HYBRID AI ENGINE BENCHMARK, 3-TIER ROUTING & FEATURE IMPORTANCE -->
-    <!-- ═══════════════════════════════════════════════════════════════════ -->
-    <div class="row g-3 mb-3" id="ml-intelligence-section">
-        <!-- Left 7 Cols: Clickable Engine Benchmark Comparison + 3-Tier SKU Routing -->
-        <div class="col-12 col-xl-7">
-            <div class="dii-panel">
-                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                    <div>
-                        <h2 class="dii-panel-title">
-                            <i class="bi bi-cpu-fill" style="color:#6366f1;"></i>
-                            3-Tier Hybrid AI Engine &amp; Out-of-Time Holdout Benchmark
-                        </h2>
-                        <div class="dii-panel-sub">Click any engine below to switch live forecasts, or click a routing tier to filter SKUs</div>
-                    </div>
-                    <span class="badge bg-indigo-subtle border fw-bold" id="ml-telemetry-pill" style="background:#eef2ff;color:#4338ca;border-color:#c7d2fe !important;font-size:0.69rem;">
-                        LightGBM · Training on ClickHouse…
-                    </span>
-                </div>
-
-                <!-- 3 Clickable Engine Comparison Cards -->
-                <div class="row g-2 mb-3">
-                    <div class="col-12 col-md-4">
-                        <div class="engine-bench-card active-eng" id="eng-card-hybrid" onclick="switchForecastEngine('hybrid')">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <span class="fw-bolder text-dark" style="font-size:0.78rem;">Hybrid AI Ensemble</span>
-                                <span class="badge" style="background:#4f46e5;color:#fff;font-size:0.6rem;">RECOMMENDED</span>
-                            </div>
-                            <div class="d-flex align-items-baseline gap-2">
-                                <span class="fw-bolder" style="font-size:1.32rem;color:#4338ca;" id="eng-hyb-acc">—%</span>
-                                <span class="text-muted fw-semibold" style="font-size:0.71rem;" id="eng-hyb-wape">WAPE: —%</span>
-                            </div>
-                            <div class="text-muted mt-1" style="font-size:0.68rem;" id="eng-hyb-weights">
-                                Optimal ML + TSB + Stat blend
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-12 col-md-4">
-                        <div class="engine-bench-card" id="eng-card-ml" onclick="switchForecastEngine('ml')">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <span class="fw-bolder text-dark" style="font-size:0.78rem;">LightGBM + Croston-TSB</span>
-                                <span class="badge bg-light text-secondary border" style="font-size:0.6rem;">PURE ML</span>
-                            </div>
-                            <div class="d-flex align-items-baseline gap-2">
-                                <span class="fw-bolder" style="font-size:1.32rem;color:#6d28d9;" id="eng-ml-acc">—%</span>
-                                <span class="text-muted fw-semibold" style="font-size:0.71rem;" id="eng-ml-wape">WAPE: —%</span>
-                            </div>
-                            <div class="text-muted mt-1" style="font-size:0.68rem;">
-                                Tweedie GBDT (p=1.08) + TSB Slow
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-12 col-md-4">
-                        <div class="engine-bench-card" id="eng-card-statistical" onclick="switchForecastEngine('statistical')">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <span class="fw-bolder text-dark" style="font-size:0.78rem;">Statistical Time-Series</span>
-                                <span class="badge bg-light text-secondary border" style="font-size:0.6rem;">BASELINE</span>
-                            </div>
-                            <div class="d-flex align-items-baseline gap-2">
-                                <span class="fw-bolder" style="font-size:1.32rem;color:#334155;" id="eng-stat-acc">—%</span>
-                                <span class="text-muted fw-semibold" style="font-size:0.71rem;" id="eng-stat-wape">WAPE: —%</span>
-                            </div>
-                            <div class="text-muted mt-1" style="font-size:0.68rem;">
-                                De-Seasonalized Holt-Winters
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 4 Clickable Tier Routing & Stockout De-Censoring Tiles -->
-                <div class="pt-2 border-top">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="fw-bold text-dark" style="font-size:0.77rem;">
-                            <i class="bi bi-diagram-3-fill me-1 text-primary"></i> Automated 3-Tier SKU Routing &amp; Shelf Stockout Recovery
-                        </span>
-                        <span class="text-muted" style="font-size:0.68rem;">Click tile to filter matrix below</span>
-                    </div>
-                    <div class="row g-2">
-                        <div class="col-6 col-md-3">
-                            <div class="tier-route-tile" data-tile-tier="LightGBM" onclick="setModelTierFilter('LightGBM')">
-                                <div class="badge-tier tier-lgbm mb-1"><i class="bi bi-cpu"></i> Tier 1 · LightGBM</div>
-                                <div class="fw-bolder text-dark" style="font-size:1.02rem;" id="tier1-cnt">—</div>
-                                <div class="text-muted" style="font-size:0.66rem;" id="tier1-vol">Fast/Steady · —% vol</div>
-                            </div>
-                        </div>
-                        <div class="col-6 col-md-3">
-                            <div class="tier-route-tile" data-tile-tier="Croston-TSB" onclick="setModelTierFilter('Croston-TSB')">
-                                <div class="badge-tier tier-tsb mb-1"><i class="bi bi-bullseye"></i> Tier 2 · Croston-TSB</div>
-                                <div class="fw-bolder text-dark" style="font-size:1.02rem;" id="tier2-cnt">—</div>
-                                <div class="text-muted" style="font-size:0.66rem;" id="tier2-vol">Intermittent · —% vol</div>
-                            </div>
-                        </div>
-                        <div class="col-6 col-md-3">
-                            <div class="tier-route-tile" data-tile-tier="Cold-Start" onclick="setModelTierFilter('Cold-Start')">
-                                <div class="badge-tier tier-cold mb-1"><i class="bi bi-stars"></i> Tier 3 · Cold-Start</div>
-                                <div class="fw-bolder text-dark" style="font-size:1.02rem;" id="tier3-cnt">—</div>
-                                <div class="text-muted" style="font-size:0.66rem;" id="tier3-vol">&lt;30d Launch · —% vol</div>
-                            </div>
-                        </div>
-                        <div class="col-6 col-md-3">
-                            <div class="tier-route-tile" data-tile-tier="Decensored" onclick="setModelTierFilter('Decensored')">
-                                <div class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle mb-1" style="font-size:0.64rem;font-weight:800;border-radius:999px;">
-                                    <i class="bi bi-shield-plus"></i> De-Censored
-                                </div>
-                                <div class="fw-bolder text-dark" style="font-size:1.02rem;" id="decens-cnt">—</div>
-                                <div class="text-muted" style="font-size:0.66rem;">0-Stock Gaps Corrected</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Right 5 Cols: LightGBM Gain Feature Importance Bars -->
-        <div class="col-12 col-xl-5">
-            <div class="dii-panel">
-                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
-                    <div>
-                        <h2 class="dii-panel-title">
-                            <i class="bi bi-bar-chart-steps" style="color:#7c3aed;"></i>
-                            LightGBM Feature Importance (Gain %)
-                        </h2>
-                        <div class="dii-panel-sub">Learned demand drivers across velocity, TSB intermittency, MOP discount &amp; hierarchy</div>
-                    </div>
-                    <span class="badge bg-light text-secondary border" style="font-size:0.66rem;" id="ml-conformal-pill" title="Conformal prediction quantile scaling calibrated on out-of-time holdout">
-                        Conformal CI: 80% / 95%
-                    </span>
-                </div>
-
-                <div id="lgbm-feature-bars" class="mt-2 d-flex flex-column gap-2">
-                    <div class="text-muted small py-3 text-center">Extracting LightGBM split gain importances…</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════════════════════ -->
     <!-- 6. LOCATION FORECAST HEATMAP & SUPPLIER PIPELINE                    -->
     <!-- ═══════════════════════════════════════════════════════════════════ -->
     <div class="row g-3 mb-3" id="location-risk-section">
@@ -2069,37 +1743,6 @@
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════════════ -->
-    <!-- 7. DEMAND GROWTH vs DECLINING DEMAND SPOTLIGHT                      -->
-    <!-- ═══════════════════════════════════════════════════════════════════ -->
-    <div class="row g-3 mb-3">
-        <div class="col-12 col-lg-6">
-            <div class="dii-panel">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h2 class="dii-panel-title">
-                        <i class="bi bi-arrow-up-right-circle-fill text-success"></i>
-                        Surging &amp; Growing Demand Leaders
-                    </h2>
-                    <span class="badge bg-success-subtle text-success fw-bold" id="growing-count-badge">0 Growing</span>
-                </div>
-                <div class="row g-2" id="top-growing-grid"></div>
-            </div>
-        </div>
-
-        <div class="col-12 col-lg-6">
-            <div class="dii-panel">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h2 class="dii-panel-title">
-                        <i class="bi bi-arrow-down-right-circle-fill text-danger"></i>
-                        Declining Demand Watchlist
-                    </h2>
-                    <span class="badge bg-danger-subtle text-danger fw-bold" id="declining-count-badge">0 Declining</span>
-                </div>
-                <div class="row g-2" id="top-declining-grid"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════════════════════ -->
     <!-- 8. MASTER PRODUCT DEMAND, VELOCITY, FSN & FORECASTING MATRIX        -->
     <!-- ═══════════════════════════════════════════════════════════════════ -->
     <div class="dii-panel mb-4" id="velocity-fsn-section">
@@ -2110,7 +1753,7 @@
                     Product-Wise Sales Velocity, Multi-Window Demand, FSN &amp; Forecast Matrix
                 </h2>
                 <div class="dii-panel-sub">
-                    Click any row to load its daily forecast, confidence intervals, seasonality decomposition &amp; stock coverage insight above
+                    Click any row to load its daily forecast, confidence intervals &amp; stock coverage insight above
                 </div>
             </div>
             <div class="text-muted fw-semibold" style="font-size:0.76rem;" id="table-count-label">
@@ -2229,11 +1872,6 @@
     const plCache = {};             // product-line forecast cache (per product line + filters)
     let chartSparkAcc = null;
     let chartSparkMape = null;
-    let chartDecompTrend = null;
-    let chartDecompSeason = null;
-    let chartDecompHoliday = null;
-    let chartDecompResid = null;
-    let chartMonthlySeason = null;
     let chartRiskTier = null;
     let chartRiskProduct = null;
     let currentStockRisk = null;
@@ -2461,9 +2099,6 @@
         document.getElementById('chip-cnt-fast').textContent = fmtNum(kpis.fast_moving_count);
         document.getElementById('chip-cnt-slow').textContent = fmtNum(kpis.slow_moving_count);
         document.getElementById('chip-cnt-non').textContent = fmtNum(kpis.non_moving_count);
-
-        document.getElementById('growing-count-badge').textContent = `${fmtNum(kpis.growing_count)} Growing`;
-        document.getElementById('declining-count-badge').textContent = `${fmtNum(kpis.declining_count)} Declining`;
     }
 
     // ── Render Selected SKU Forecast Chart + Exact Image 2 Coverage Insight Card + Decomposition ──
@@ -2553,7 +2188,6 @@
         });
 
         drawSkuForecastChart(dd.forecast_chart);
-        drawDecompositionCharts(dd.decomposition);
         loadProductLineForecast(sp);
     }
 
@@ -3349,137 +2983,6 @@
             `<div class="text-muted mt-1" style="font-size:0.7rem;">Forecast = the last forecast saved before that day. Accuracy = 100% − |actual − forecast| ÷ actual. Showing the latest 14 days.</div>`;
     }
 
-    function makeMiniDecomp(canvasId, prev, labels, data, color, type = 'line') {
-        const el = document.getElementById(canvasId);
-        if (!el) return null;
-        if (prev) prev.destroy();
-        return new Chart(el, {
-            type: type,
-            data: {
-                labels: labels,
-                datasets: [{
-                    data: data,
-                    borderColor: color,
-                    backgroundColor: type === 'bar' ? color : (color + '18'),
-                    borderWidth: type === 'bar' ? 0 : 1.8,
-                    fill: type === 'line',
-                    pointRadius: 0,
-                    tension: 0.32,
-                }],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: (c) => `${fmtNum(c.parsed.y, 1)} units`,
-                        },
-                    },
-                },
-                scales: {
-                    x: {
-                        grid: { display: false },
-                        ticks: { maxTicksLimit: 4, font: { size: 9 }, color: '#94a3b8' },
-                    },
-                    y: {
-                        grid: { color: '#eef2f6' },
-                        ticks: { maxTicksLimit: 3, font: { size: 9 }, color: '#94a3b8' },
-                    },
-                },
-            },
-        });
-    }
-
-    function drawDecompositionCharts(dc) {
-        if (!dc) return;
-        const lbls = dc.labels || [];
-        chartDecompTrend = makeMiniDecomp('decompTrendChart', chartDecompTrend, lbls, dc.trend || [], '#7c3aed', 'line');
-        chartDecompSeason = makeMiniDecomp('decompSeasonChart', chartDecompSeason, lbls, dc.seasonality || [], '#0ea5e9', 'line');
-        chartDecompHoliday = makeMiniDecomp('decompHolidayChart', chartDecompHoliday, lbls, dc.holiday || [], '#10b981', 'line');
-        chartDecompResid = makeMiniDecomp('decompResidualChart', chartDecompResid, lbls, dc.residual || [], '#8b5cf6', 'bar');
-    }
-
-    // ── Render Monthly Seasonality & Festival Drivers ──
-    function renderSeasonalityAndDrivers(monthly, drivers) {
-        const mEl = document.getElementById('monthlySeasonalityChart');
-        if (mEl && monthly && monthly.length) {
-            if (chartMonthlySeason) chartMonthlySeason.destroy();
-            const vals = monthly.map(m => m.index);
-            const bgCols = vals.map(v => v >= 112 ? '#6366f1' : (v >= 100 ? '#38bdf8' : '#cbd5e1'));
-            chartMonthlySeason = new Chart(mEl, {
-                type: 'bar',
-                data: {
-                    labels: monthly.map(m => m.name),
-                    datasets: [{
-                        label: 'Seasonal Demand Index',
-                        data: vals,
-                        backgroundColor: bgCols,
-                        borderRadius: 6,
-                    }],
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            callbacks: {
-                                label: (c) => {
-                                    const mObj = monthly[c.dataIndex];
-                                    const sign = mObj.lift_pct >= 0 ? '+' : '';
-                                    return `Index: ${mObj.index} (${sign}${mObj.lift_pct}% vs avg · ~${fmtCompact(mObj.avg_daily_units)}/day)`;
-                                },
-                            },
-                        },
-                    },
-                    scales: {
-                        x: { grid: { display: false }, ticks: { font: { size: 10.5, weight: '600' }, color: '#475569' } },
-                        y: { beginAtZero: false, suggestedMin: 60, grid: { color: '#f1f5f9' }, ticks: { maxTicksLimit: 4, font: { size: 10 }, color: '#94a3b8' } },
-                    },
-                },
-            });
-        }
-
-        const dContainer = document.getElementById('festival-drivers-list');
-        if (dContainer) {
-            if (!drivers || !drivers.length) {
-                dContainer.innerHTML = '<div class="text-muted small py-3 text-center">No seasonal driver data</div>';
-                return;
-            }
-            dContainer.innerHTML = drivers.map(d => {
-                const pos = Number(d.lift_pct) >= 0;
-                const pillStyle = pos
-                    ? 'background:#dcfce7;color:#15803d;'
-                    : 'background:#fee2e2;color:#b91c1c;';
-                const horizonTag = d.in_30d_horizon
-                    ? '<span class="badge ms-1" style="background:#fef3c7;color:#b45309;font-size:0.6rem;">ACTIVE IN 30D</span>'
-                    : '';
-                return `
-                    <div class="driver-row">
-                        <div class="d-flex align-items-center gap-2">
-                            <div class="driver-icon" style="background:${escHtml(d.color)}18;color:${escHtml(d.color)};">
-                                <i class="bi ${escHtml(d.icon)}"></i>
-                            </div>
-                            <div>
-                                <div class="fw-bold text-dark" style="font-size:0.8rem;">
-                                    ${escHtml(d.label)} ${horizonTag}
-                                </div>
-                                <div class="text-muted" style="font-size:0.69rem;">
-                                    Window: ${escHtml(d.next_date)}
-                                </div>
-                            </div>
-                        </div>
-                        <span class="driver-lift-pill" style="${pillStyle}">
-                            ${pos ? '+' : ''}${Number(d.lift_pct).toFixed(1)}%
-                        </span>
-                    </div>
-                `;
-            }).join('');
-        }
-    }
-
     // ── Render District Stockout Risk, Location Heatmap & Suppliers ──
     function renderLocationsAndSuppliers(districts, locations, suppliers) {
         const rGrid = document.getElementById('district-risk-grid');
@@ -3571,63 +3074,11 @@
         }
     }
 
-    // ── Render Top Growing & Declining Spotlight Cards ──
-    function renderGrowthAndDecline(growing, declining) {
-        const gEl = document.getElementById('top-growing-grid');
-        if (gEl) {
-            if (!growing || !growing.length) {
-                gEl.innerHTML = '<div class="col-12 text-muted small py-2">No high-volume growing products in current filter.</div>';
-            } else {
-                gEl.innerHTML = growing.map(p => {
-                    productRowMap[p.id] = p;
-                    return `
-                        <div class="col-12 col-md-6">
-                            <div class="mover-mini-card" onclick="inspectProductRow('${escHtml(p.id)}', true)">
-                                <div class="d-flex justify-content-between align-items-start gap-2">
-                                    <div style="min-width:0;">
-                                        <div class="fw-bold text-dark text-truncate" style="font-size:0.78rem;" title="${escHtml(p.name)}">${escHtml(p.name)}</div>
-                                        <div class="text-muted" style="font-size:0.67rem;">${escHtml(p.brand)} · 30d: <strong>${fmtNum(p.d30)}</strong> (vs ${fmtNum(p.prev_d30)})</div>
-                                    </div>
-                                    <span class="trend-grow flex-shrink-0">+${Number(p.growth_pct).toFixed(1)}%</span>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-            }
-        }
-
-        const dEl = document.getElementById('top-declining-grid');
-        if (dEl) {
-            if (!declining || !declining.length) {
-                dEl.innerHTML = '<div class="col-12 text-muted small py-2">No high-volume declining products in current filter.</div>';
-            } else {
-                dEl.innerHTML = declining.map(p => {
-                    productRowMap[p.id] = p;
-                    return `
-                        <div class="col-12 col-md-6">
-                            <div class="mover-mini-card" onclick="inspectProductRow('${escHtml(p.id)}', true)">
-                                <div class="d-flex justify-content-between align-items-start gap-2">
-                                    <div style="min-width:0;">
-                                        <div class="fw-bold text-dark text-truncate" style="font-size:0.78rem;" title="${escHtml(p.name)}">${escHtml(p.name)}</div>
-                                        <div class="text-muted" style="font-size:0.67rem;">${escHtml(p.brand)} · 30d: <strong>${fmtNum(p.d30)}</strong> (vs ${fmtNum(p.prev_d30)})</div>
-                                    </div>
-                                    <span class="trend-decl flex-shrink-0">${Number(p.growth_pct).toFixed(1)}%</span>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-            }
-        }
-    }
-
-    // ── Render Hybrid ML Engine Benchmark, 3-Tier Routing & Feature Importance ──
+    // ── Sync Top Hero Engine Badge & Selector ──
     function renderMLDiagnostics(ml, meta) {
         if (!ml) return;
         const activeEng = ml.active_engine || meta?.forecast_engine || 'hybrid';
 
-        // Update Top Hero Badge
         const topBadge = document.getElementById('top-engine-badge');
         if (topBadge) {
             if (activeEng === 'statistical') {
@@ -3642,99 +3093,9 @@
             }
         }
 
-        // Sync engine dropdown
         const engSel = document.getElementById('flt-engine');
         if (engSel && engSel.value !== activeEng) {
             engSel.value = activeEng;
-        }
-
-        // Telemetry pill
-        const telEl = document.getElementById('ml-telemetry-pill');
-        if (telEl) {
-            if (ml.lgbm_trained) {
-                telEl.textContent = `LightGBM v${ml.lgbm_version || '4.7'} · ${fmtNum(ml.num_trees)} trees · ${fmtNum(ml.train_samples)} folds · ${ml.train_ms} ms`;
-            } else {
-                telEl.textContent = `Croston-TSB + Statistical Fallback · ${ml.train_ms || '—'} ms`;
-            }
-        }
-
-        // Conformal CI pill
-        const confEl = document.getElementById('ml-conformal-pill');
-        if (confEl && ml.conformal_ci) {
-            confEl.textContent = `Conformal CI · q80=${ml.conformal_ci.q80_scale} · q95=${ml.conformal_ci.q95_scale}`;
-        }
-
-        // Engine comparison cards
-        const cmp = ml.portfolio_engine_comparison || ml.holdout_sku_benchmark || {};
-        ['hybrid', 'ml', 'statistical'].forEach(k => {
-            const card = document.getElementById(`eng-card-${k}`);
-            if (card) card.classList.toggle('active-eng', k === activeEng);
-        });
-        document.getElementById('eng-hyb-acc').textContent = `${fmtNum(cmp.hybrid_accuracy_pct, 1)}%`;
-        document.getElementById('eng-hyb-wape').textContent = `WAPE: ${fmtNum(cmp.hybrid_wape_pct, 1)}%`;
-        document.getElementById('eng-ml-acc').textContent = `${fmtNum(cmp.ml_accuracy_pct, 1)}%`;
-        document.getElementById('eng-ml-wape').textContent = `WAPE: ${fmtNum(cmp.ml_wape_pct, 1)}%`;
-        document.getElementById('eng-stat-acc').textContent = `${fmtNum(cmp.stat_accuracy_pct, 1)}%`;
-        document.getElementById('eng-stat-wape').textContent = `WAPE: ${fmtNum(cmp.stat_wape_pct, 1)}%`;
-
-        const gainPp = Number(cmp.gain_vs_stat_pp ?? cmp.hybrid_gain_vs_stat_pp ?? 0);
-        const gainTxt = gainPp > 0 ? ` · <strong class="text-success">+${gainPp.toFixed(1)}pp vs Stat</strong>` : '';
-        document.getElementById('eng-hyb-weights').innerHTML =
-            `${ml.ensemble_ml_weight_pct || 70}% ML/TSB + ${ml.ensemble_stat_weight_pct || 30}% Stat${gainTxt}`;
-
-        // 3-Tier SKU Routing & Stockout De-Censoring tiles
-        const tr = ml.tier_routing || {};
-        document.getElementById('tier1-cnt').textContent = `${fmtNum(tr.tier1_lgbm_count)} items`;
-        document.getElementById('tier1-vol').textContent = `Fast/Steady · ${fmtNum(tr.tier1_volume_share_pct, 1)}% vol`;
-        document.getElementById('tier2-cnt').textContent = `${fmtNum(tr.tier2_tsb_count)} items`;
-        document.getElementById('tier2-vol').textContent = `Intermittent · ${fmtNum(tr.tier2_volume_share_pct, 1)}% vol`;
-        document.getElementById('tier3-cnt').textContent = `${fmtNum(tr.tier3_coldstart_count)} items`;
-        document.getElementById('tier3-vol').textContent = `<30d Launch · ${fmtNum(tr.tier3_volume_share_pct, 1)}% vol`;
-        document.getElementById('decens-cnt').textContent = `${fmtNum(tr.stockout_decensored_count)} items`;
-
-        document.querySelectorAll('.tier-route-tile[data-tile-tier]').forEach(t => {
-            t.classList.toggle('active-tier', t.dataset.tileTier === activeModelTier);
-        });
-
-        // LightGBM Feature Importance Gain Bars
-        const fBox = document.getElementById('lgbm-feature-bars');
-        if (fBox) {
-            const feats = ml.feature_importances || [];
-            if (!feats.length) {
-                fBox.innerHTML = '<div class="text-muted small py-3 text-center">No feature importance telemetry for current slice</div>';
-            } else {
-                const maxPct = Math.max(...feats.map(f => Number(f.importance_pct || 0)), 1);
-                const catColors = {
-                    'Velocity': '#6366f1',
-                    'Intermittency': '#0284c7',
-                    'Price & Promo': '#10b981',
-                    'Seasonality': '#f59e0b',
-                    'Distribution': '#8b5cf6',
-                    'Footprint': '#8b5cf6',
-                    'Hierarchy': '#ec4899',
-                    'Momentum': '#14b8a6',
-                    'Volatility': '#64748b',
-                };
-                fBox.innerHTML = feats.slice(0, 7).map(f => {
-                    const pct = Number(f.importance_pct || 0);
-                    const w = Math.max(4, Math.min(100, (pct / maxPct) * 100));
-                    const col = catColors[f.category] || '#6366f1';
-                    return `
-                        <div>
-                            <div class="d-flex justify-content-between align-items-center mb-1" style="font-size:0.74rem;">
-                                <div class="text-truncate pe-2">
-                                    <span class="fw-bold text-dark">${escHtml(f.label)}</span>
-                                    <span class="badge ms-1" style="background:${col}18;color:${col};font-size:0.59rem;">${escHtml(f.category)}</span>
-                                </div>
-                                <span class="fw-bolder" style="color:${col};">${pct.toFixed(1)}%</span>
-                            </div>
-                            <div class="feat-bar-track">
-                                <div class="feat-bar-fill" style="width:${w.toFixed(1)}%;background:${col};"></div>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-            }
         }
     }
 
@@ -4237,10 +3598,8 @@
             productRowMap = {};
             renderKPIs(data.meta || {}, data.kpis || {});
             renderMLDiagnostics(data.ml_diagnostics || {}, data.meta || {});
-            renderSeasonalityAndDrivers(data.monthly_seasonality || [], data.festival_drivers || []);
             renderLocationsAndSuppliers(data.district_risk || [], data.location_heatmap || [], data.suppliers || []);
             renderInterStoreTransfers(data.inter_store_transfers || {});
-            renderGrowthAndDecline(data.top_growing || [], data.top_declining || []);
             renderStockRisk(data.stock_risk || null);
             renderMasterTable(data.products || [], data.meta || {});
             renderDeepDive(data.deep_dive || {});
@@ -4304,20 +3663,10 @@
         }
     };
 
-    window.switchForecastEngine = function(eng) {
-        const engSel = document.getElementById('flt-engine');
-        if (engSel) engSel.value = eng;
-        reloadDemandDashboard(false);
-    };
-
     window.setModelTierFilter = function(tier) {
-        // Toggle off if clicking the same active routing tile again
         activeModelTier = (activeModelTier === tier && tier !== '') ? '' : tier;
         document.querySelectorAll('.filter-chip[data-tier]').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.tier === activeModelTier);
-        });
-        document.querySelectorAll('.tier-route-tile[data-tile-tier]').forEach(t => {
-            t.classList.toggle('active-tier', t.dataset.tileTier === activeModelTier);
         });
         reloadDemandDashboard(false);
     };
@@ -4415,7 +3764,6 @@
         document.querySelectorAll('.filter-chip[data-mv]').forEach(b => b.classList.toggle('active', b.dataset.mv === ''));
         document.querySelectorAll('.filter-chip[data-tr]').forEach(b => b.classList.toggle('active', b.dataset.tr === ''));
         document.querySelectorAll('.filter-chip[data-tier]').forEach(b => b.classList.toggle('active', b.dataset.tier === ''));
-        document.querySelectorAll('.tier-route-tile[data-tile-tier]').forEach(t => t.classList.remove('active-tier'));
         reloadDemandDashboard(true);
     };
 
