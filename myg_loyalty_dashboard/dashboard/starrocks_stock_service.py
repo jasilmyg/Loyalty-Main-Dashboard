@@ -43,29 +43,88 @@ def get_sr_connection():
         autocommit=True
     )
 
+def _ch_literal(v):
+    if isinstance(v, (int, float)):
+        return str(v)
+    return "'" + str(v).replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
+def _inline_params(sql, params):
+    """Replace %s placeholders with escaped literals (ClickHouse HTTP client has no %s binding)."""
+    parts = sql.split('%s')
+    if len(parts) - 1 != len(params):
+        raise ValueError("placeholder / parameter count mismatch")
+    out = [parts[0]]
+    for p, rest in zip(params, parts[1:]):
+        out.append(_ch_literal(p))
+        out.append(rest)
+    return ''.join(out)
+
+
+def _clickhouse_first():
+    try:
+        from analytics.starrocks_service import ch_primary, ch_is_up
+        return ch_primary() and ch_is_up()
+    except Exception:
+        return False
+
+
+def _fetch_df(build_sql, params):
+    """
+    Run a stock query ClickHouse-first, StarRocks as fallback.
+    `build_sql(dialect)` returns SQL text for 'clickhouse' or 'starrocks'.
+    Returns (DataFrame, engine_used).
+    """
+    if _clickhouse_first():
+        try:
+            from analytics.starrocks_service import get_ch_backup_client
+            df = get_ch_backup_client().query_df(_inline_params(build_sql('clickhouse'), params))
+            return df, 'clickhouse'
+        except Exception as e:
+            try:
+                from analytics.starrocks_service import _is_ch_connection_error, _mark_ch_down
+                if _is_ch_connection_error(e):
+                    _mark_ch_down(e)
+            except Exception:
+                pass
+            print("Warning: ClickHouse stock query failed, falling back to StarRocks:", e)
+    conn = get_sr_connection()
+    try:
+        with conn.cursor(pymysql.cursors.DictCursor) as cur:
+            cur.execute(build_sql('starrocks'), params)
+            return pd.DataFrame(cur.fetchall()), 'starrocks'
+    finally:
+        conn.close()
+
+
 def get_latest_sr_snapshot_date(force_refresh=False):
     global _sr_snapshot_cache
     if not force_refresh and _sr_snapshot_cache['date'] is not None and (time.time() - _sr_snapshot_cache['ts'] < 300):
         return _sr_snapshot_cache['date']
-    
+
     try:
-        conn = get_sr_connection()
-        with conn.cursor() as cur:
-            cur.execute("SELECT max(report_date) FROM stock_ageing_report WHERE stock > 0;")
-            row = cur.fetchone()
-            latest = row[0] if row else None
-        conn.close()
-        if latest:
+        df, _engine = _fetch_df(lambda d: "SELECT max(report_date) AS latest FROM stock_ageing_report WHERE stock > 0", [])
+        latest = df['latest'].iloc[0] if not df.empty else None
+        if latest is not None and not pd.isna(latest):
+            if hasattr(latest, 'date') and callable(latest.date):
+                latest = latest.date()  # Timestamp / datetime -> date
             _sr_snapshot_cache['date'] = latest
             _sr_snapshot_cache['ts'] = time.time()
             return latest
     except Exception as e:
-        print("Warning: could not read latest stock snapshot from StarRocks:", e)
+        print("Warning: could not read latest stock snapshot:", e)
     return None
 
-def _sr_bucket_select(price_expr):
+
+def _sr_bucket_select(price_expr, dialect='starrocks'):
     p = price_expr
     a = 'total_age'
+    if dialect == 'clickhouse':
+        def to_int(x):
+            return f"toInt64(round({x}))"
+    else:
+        def to_int(x):
+            return f"cast({x} as signed)"
     return f"""
     round(sum(if({a} < 30, stock * ({p}), 0)) / 1e7, 2) AS val_lt_30,
     round(sum(if({a} >= 30 and {a} < 60, stock * ({p}), 0)) / 1e7, 2) AS val_30_60,
@@ -76,15 +135,15 @@ def _sr_bucket_select(price_expr):
     round(sum(if({a} > 180 and {a} <= 365, stock * ({p}), 0)) / 1e7, 2) AS val_180_365,
     round(sum(if({a} > 365, stock * ({p}), 0)) / 1e7, 2) AS val_gt_365,
     round(sum(stock * ({p})) / 1e7, 2) AS total_val,
-    cast(sum(if({a} < 30, stock, 0)) as signed) AS qty_lt_30,
-    cast(sum(if({a} >= 30 and {a} < 60, stock, 0)) as signed) AS qty_30_60,
-    cast(sum(if({a} >= 60 and {a} <= 90, stock, 0)) as signed) AS qty_60_90,
-    cast(sum(if({a} >= 30 and {a} <= 90, stock, 0)) as signed) AS qty_30_90,
-    cast(sum(if({a} > 90 and {a} <= 180, stock, 0)) as signed) AS qty_90_180,
-    cast(sum(if({a} > 180, stock, 0)) as signed) AS qty_gt_180,
-    cast(sum(if({a} > 180 and {a} <= 365, stock, 0)) as signed) AS qty_180_365,
-    cast(sum(if({a} > 365, stock, 0)) as signed) AS qty_gt_365,
-    cast(sum(stock) as signed) AS total_qty
+    {to_int(f'sum(if({a} < 30, stock, 0))')} AS qty_lt_30,
+    {to_int(f'sum(if({a} >= 30 and {a} < 60, stock, 0))')} AS qty_30_60,
+    {to_int(f'sum(if({a} >= 60 and {a} <= 90, stock, 0))')} AS qty_60_90,
+    {to_int(f'sum(if({a} >= 30 and {a} <= 90, stock, 0))')} AS qty_30_90,
+    {to_int(f'sum(if({a} > 90 and {a} <= 180, stock, 0))')} AS qty_90_180,
+    {to_int(f'sum(if({a} > 180, stock, 0))')} AS qty_gt_180,
+    {to_int(f'sum(if({a} > 180 and {a} <= 365, stock, 0))')} AS qty_180_365,
+    {to_int(f'sum(if({a} > 365, stock, 0))')} AS qty_gt_365,
+    {to_int('sum(stock)')} AS total_qty
     """
 
 def get_starrocks_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, district=None, price_type='mop'):
@@ -134,37 +193,31 @@ def get_starrocks_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, bra
         params.extend(list(allowed))
 
     where_sql = " AND ".join(where_clauses)
-    select_sql = _sr_bucket_select(sr_price_expr)
 
-    q_prod = f"""
+    def q_prod(dialect):
+        return f"""
     SELECT product,
-           {select_sql}
+           {_sr_bucket_select(sr_price_expr, dialect)}
     FROM stock_ageing_report
     WHERE {where_sql}
     GROUP BY product
     """
 
-    q_brand = f"""
+    def q_brand(dialect):
+        # alias is `brand_norm` (not `brand`) so it never shadows the source column in ClickHouse
+        return f"""
     SELECT product,
-           if(trim(brand) = '', 'OTHERS', trim(brand)) AS brand,
-           {select_sql}
+           if(trim(brand) = '', 'OTHERS', trim(brand)) AS brand_norm,
+           {_sr_bucket_select(sr_price_expr, dialect)}
     FROM stock_ageing_report
     WHERE {where_sql}
-    GROUP BY product, if(trim(brand) = '', 'OTHERS', trim(brand))
+    GROUP BY product, brand_norm
     """
 
-    conn = get_sr_connection()
-    try:
-        with conn.cursor(pymysql.cursors.DictCursor) as cur:
-            cur.execute(q_prod, params)
-            rows_prod = cur.fetchall()
-            df_prod = pd.DataFrame(rows_prod)
-
-            cur.execute(q_brand, params)
-            rows_brand = cur.fetchall()
-            df_brand = pd.DataFrame(rows_brand)
-    finally:
-        conn.close()
+    df_prod, engine_used = _fetch_df(q_prod, params)
+    df_brand, _ = _fetch_df(q_brand, params)
+    if not df_brand.empty:
+        df_brand = df_brand.rename(columns={'brand_norm': 'brand'})
 
     if df_prod.empty:
         df_prod = pd.DataFrame(columns=['product', 'val_lt_30', 'val_30_60', 'val_60_90', 'val_30_90', 'val_90_180',
@@ -190,7 +243,7 @@ def get_starrocks_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, bra
         df_prod, df_brand,
         rbm=rbm, bdm=bdm, branch=branch, district=district,
         selected_price_type=selected_price_type, price_label=price_label,
-        cache_key=cache_key, as_of_date=as_of_str, data_source='starrocks'
+        cache_key=cache_key, as_of_date=as_of_str, data_source=engine_used
     )
     _sr_cached_results[cache_key] = (report, time.time())
     return report
