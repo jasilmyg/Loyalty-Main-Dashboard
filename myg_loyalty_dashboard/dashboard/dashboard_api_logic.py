@@ -206,10 +206,13 @@ EXCLUDED_BRANCHES_SQL = "s.branch NOT IN ('3GH','CSB','CSBW')"
 
 
 def valid_mop_sale_filter_sql(alias: str = 's') -> str:
-    """
-    No-op filter so StarRocks matches the original ClickHouse report logic 100%.
-    """
-    return "1=1"
+    """Exclude rows where sold_price == 0, direct discount == 0, and mop > 0."""
+    p = f"{alias}." if alias else ""
+    return (
+        f"(NOT (COALESCE({p}sold_price, 0) = 0 "
+        f"AND COALESCE({p}discount, 0) = 0 "
+        f"AND COALESCE({p}mop, 0) > 0))"
+    )
 
 
 VALID_MOP_SALE_FILTER_SQL = valid_mop_sale_filter_sql('s')
@@ -383,7 +386,7 @@ def build_api_response(request):
     district   = request.GET.get('district',   '')
     state      = request.GET.get('state',      '')
 
-    cache_key = f"ent_ch_v6_{comp_type}_{base_val}_{comp_val}_{base_year}_{comp_year}_{cat}_{product}_{price_slab}_{brand}_{branch}_{rbm}_{bdm}_{district}_{state}"
+    cache_key = f"ent_ch_v7_{comp_type}_{base_val}_{comp_val}_{base_year}_{comp_year}_{cat}_{product}_{price_slab}_{brand}_{branch}_{rbm}_{bdm}_{district}_{state}"
     cached = cache.get(cache_key)
     if cached:
         return cached

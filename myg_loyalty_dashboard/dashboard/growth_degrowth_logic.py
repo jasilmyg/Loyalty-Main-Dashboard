@@ -282,7 +282,7 @@ def build_growth_degrowth_response(request):
         if not base_val or '|' not in base_val or not comp_val or '|' not in comp_val:
             raise ValueError('Date range not ready. Please wait for the date picker to initialize and try again.')
 
-    cache_key = f"gd_v4_{comp_type}_{base_val}_{comp_val}_{base_year}_{comp_year}_{cat}_{product}_{price_slab}_{brand}_{branch}_{rbm}_{bdm}_{district}_{state}"
+    cache_key = f"gd_v5_{comp_type}_{base_val}_{comp_val}_{base_year}_{comp_year}_{cat}_{product}_{price_slab}_{brand}_{branch}_{rbm}_{bdm}_{district}_{state}"
     cached = cache.get(cache_key)
     if cached:
         return cached
