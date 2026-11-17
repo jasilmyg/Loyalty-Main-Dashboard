@@ -47,6 +47,11 @@ def get_branch_master_df(force_refresh=False):
 
 # ─── ClickHouse source: table `stock_ageing_report` (one row per stock line, per dated snapshot) ───
 STOCK_CH_TABLE = 'stock_ageing_report'
+
+# The report counts SALEABLE stock only. `stock` on a line includes the non-saleable units, and
+# non_saleable_total = damaged + displayed + advance, so the saleable quantity of a line is stock - non_saleable_total.
+# Lines with no saleable units are left out; units and values are computed on the saleable quantity only.
+SALEABLE_QTY = 'greatest(stock - non_saleable_total, 0)'
 _snapshot_cache = {}
 
 # Valuation expressions on the ClickHouse columns (MOP/dealer fall back to cost when 0; MRP falls back to MOP when invalid)
@@ -183,16 +188,16 @@ def _ch_bucket_select(price_expr):
         ('180_365', f'{a} > 180 AND {a} <= 365'),
         ('gt_365', f'{a} > 365'),
     ]
-    vals = [f"round(sumIf(stock * ({price_expr}), {c}) / 1e7, 2) AS val_{k}" for k, c in buckets]
-    vals.append(f"round(sum(stock * ({price_expr})) / 1e7, 2) AS total_val")
-    qtys = [f"sumIf(stock, {c}) AS qty_{k}" for k, c in buckets]
-    qtys.append("sum(stock) AS total_qty")
+    vals = [f"round(sumIf({SALEABLE_QTY} * ({price_expr}), {c}) / 1e7, 6) AS val_{k}" for k, c in buckets]
+    vals.append(f"round(sum({SALEABLE_QTY} * ({price_expr})) / 1e7, 6) AS total_val")
+    qtys = [f"sumIf({SALEABLE_QTY}, {c}) AS qty_{k}" for k, c in buckets]
+    qtys.append(f"sum({SALEABLE_QTY}) AS total_qty")
     return ',\n        '.join(vals + qtys)
 
 
 def _load_stock_frames_clickhouse(ch, snapshot, ch_price_expr, allowed_branches):
     """Aggregate the chosen snapshot in ClickHouse -> (df_prod, df_brand) with a `category` column."""
-    where = ["report_date = {snap:Date}", "stock > 0"]
+    where = ["report_date = {snap:Date}", f"{SALEABLE_QTY} > 0"]
     params = {'snap': snapshot}
     if allowed_branches is not None:
         where.append("has({branches:Array(String)}, upper(trim(branch)))")
@@ -367,7 +372,7 @@ def _assemble_stock_report(df_prod, df_brand, *, rbm, bdm, branch, district,
 
         # Aggregate for category level brands
         for k in ['val_lt_30', 'val_30_60', 'val_60_90', 'val_30_90', 'val_90_180', 'val_gt_180', 'val_180_365', 'val_gt_365', 'total_val']:
-            cat_brands_agg[cat][brand_name][k] = round(cat_brands_agg[cat][brand_name][k] + b_item[k], 2)
+            cat_brands_agg[cat][brand_name][k] = round(cat_brands_agg[cat][brand_name][k] + b_item[k], 6)
         for k in ['qty_lt_30', 'qty_30_60', 'qty_60_90', 'qty_30_90', 'qty_90_180', 'qty_gt_180', 'qty_180_365', 'qty_gt_365', 'total_qty']:
             cat_brands_agg[cat][brand_name][k] += b_item[k]
 
@@ -426,11 +431,19 @@ def _assemble_stock_report(df_prod, df_brand, *, rbm, bdm, branch, district,
 
         # Accumulate Category Totals
         for k in ['val_lt_30', 'val_30_60', 'val_60_90', 'val_30_90', 'val_90_180', 'val_gt_180', 'val_180_365', 'val_gt_365', 'total_val']:
-            categories[cat][k] = round(categories[cat][k] + prod_item[k], 2)
-            grand_total[k] = round(grand_total[k] + prod_item[k], 2)
+            categories[cat][k] = round(categories[cat][k] + prod_item[k], 6)
+            grand_total[k] = round(grand_total[k] + prod_item[k], 6)
         for k in ['qty_lt_30', 'qty_30_60', 'qty_60_90', 'qty_30_90', 'qty_90_180', 'qty_gt_180', 'qty_180_365', 'qty_gt_365', 'total_qty']:
             categories[cat][k] += prod_item[k]
             grand_total[k] += prod_item[k]
+
+    # Values are summed at 6-decimal precision (SQL rounds to 6 dp) and rounded to 2 dp only here, so the
+    # bucket totals add up to the grand total without per-row rounding drift.
+    _val_keys = ['val_lt_30', 'val_30_60', 'val_60_90', 'val_30_90', 'val_90_180', 'val_gt_180', 'val_180_365', 'val_gt_365', 'total_val']
+    for _k in _val_keys:
+        grand_total[_k] = round(grand_total[_k], 2)
+        for _c in categories.values():
+            _c[_k] = round(_c[_k], 2)
 
     # Attach category overall top 10 brands
     for cat_name, cat_obj in categories.items():
@@ -455,6 +468,7 @@ def _assemble_stock_report(df_prod, df_brand, *, rbm, bdm, branch, district,
         'data_source': data_source,
         'price_type': selected_price_type,
         'price_label': price_label,
+        'saleable_only': True,
         'categories': sorted_categories,
         'grand_total': grand_total,
         'filter_options': get_stock_filter_options(),
@@ -469,3 +483,85 @@ def _assemble_stock_report(df_prod, df_brand, *, rbm, bdm, branch, district,
     }
     _cached_results[cache_key] = (result, time.time())
     return result
+
+
+# ─── KPI-card drill-down: the stock lines behind each ageing bucket ───
+# Bucket boundaries are identical to the KPI cards / table columns (30-90 = 30-60 + 60-90, inclusive of 90).
+STOCK_BUCKETS = {
+    'fresh': ('Fresh Stock (< 30 days)', 'total_age < 30'),
+    'mid': ('Mid Ageing (30 - 90 days)', 'total_age >= 30 AND total_age <= 90'),
+    'old': ('Ageing (90 - 180 days)', 'total_age > 90 AND total_age <= 180'),
+    'critical': ('Critical Ageing (> 180 days)', 'total_age > 180'),
+}
+
+
+def get_stock_bucket_lines(bucket, price_type='mop', rbm=None, bdm=None, branch=None, district=None):
+    """
+    Line-level stock (branch x item x IMEI/batch) of one ageing bucket from the latest snapshot, honouring the
+    same RBM/BDM/District/Branch filters and valuation basis as the report. Returns (DataFrame, meta dict).
+    """
+    key = str(bucket or '').strip().lower()
+    if key not in STOCK_BUCKETS:
+        raise ValueError(f"Unknown ageing bucket '{bucket}'. Use one of: {', '.join(STOCK_BUCKETS)}")
+    label, cond = STOCK_BUCKETS[key]
+
+    norm = (price_type or 'mop').lower().strip()
+    if norm in ('cost', 'cost_price', 'cost price'):
+        ptype, plabel = 'cost_price', 'Cost Price'
+    elif norm in ('dealer', 'dealer_price', 'dealer price', 'dp'):
+        ptype, plabel = 'dealer_price', 'Dealer Price'
+    elif norm == 'mrp':
+        ptype, plabel = 'mrp', 'MRP'
+    else:
+        ptype, plabel = 'mop', 'MOP'
+    price_expr = CH_PRICE_EXPR[ptype]
+
+    from analytics.clickhouse_service import get_active_engine
+    ch = _get_ch()
+    if ch is None:
+        raise StockDataUnavailable(f"{get_active_engine()} is unreachable - stock ageing data cannot be loaded.")
+    snapshot = get_latest_snapshot_date(ch, force_refresh=True)
+    if snapshot is None:
+        raise StockDataUnavailable(f"No snapshot found in table `{STOCK_CH_TABLE}`.")
+
+    bm_df = get_branch_master_df()
+    allowed = _branch_allowlist(bm_df, rbm, bdm, district, branch)
+    where = ["report_date = {snap:Date}", f"{SALEABLE_QTY} > 0", f"({cond})"]
+    params = {'snap': snapshot}
+    if allowed is not None:
+        where.append("has({branches:Array(String)}, upper(trim(branch)))")
+        params['branches'] = list(allowed)
+
+    sql = f"""
+        SELECT branch, item_category, product, if(trim(brand) = '', 'OTHERS', trim(brand)) AS brand,
+               item_code, item, item_group, supplier_name, imei_batch,
+               {SALEABLE_QTY} AS saleable_stock, total_age, branch_age,
+               multiIf(total_age < 30, '< 30', total_age < 60, '30-60', total_age <= 90, '60-90',
+                       total_age <= 180, '90-180', total_age <= 365, '180-365', '> 365') AS age_band,
+               ({price_expr}) AS unit_price,
+               {SALEABLE_QTY} * ({price_expr}) AS stock_value
+        FROM {STOCK_CH_TABLE}
+        WHERE {' AND '.join(where)}
+        ORDER BY stock_value DESC
+    """
+    df = ch.query_df(sql, parameters=params)
+    if df is not None and 'saleable_stock' in df.columns:
+        df = df.rename(columns={'saleable_stock': 'stock'})   # export code calls the (saleable) quantity `stock`
+    _expected = ['branch', 'item_category', 'product', 'brand', 'item_code', 'item', 'item_group', 'supplier_name',
+                 'imei_batch', 'stock', 'total_age', 'branch_age', 'age_band', 'unit_price', 'stock_value']
+    if df is None or df.empty or 'product' not in df.columns:
+        df = pd.DataFrame(columns=_expected)     # filters matched no stock lines -> header-only workbook
+    df['category'] = df['product'].map(PRODUCT_CAT_MAPPING).fillna('OTHER')
+    df['branch_key'] = df['branch'].astype(str).str.strip().str.upper()
+    geo = (bm_df[['branch_name_clean', 'rbm_clean', 'bdm_clean', 'district_clean']]
+           .drop_duplicates('branch_name_clean')
+           .rename(columns={'branch_name_clean': 'branch_key', 'rbm_clean': 'rbm', 'bdm_clean': 'bdm', 'district_clean': 'district'}))
+    df = df.merge(geo, on='branch_key', how='left').drop(columns=['branch_key'])
+    for c in ('rbm', 'bdm', 'district'):
+        df[c] = df[c].fillna('')
+    meta = {
+        'bucket': key, 'label': label, 'price_type': ptype, 'price_label': plabel,
+        'snapshot': snapshot, 'as_of_date': _format_as_of(snapshot),
+        'filters': {'rbm': rbm or '', 'bdm': bdm or '', 'district': district or '', 'branch': branch or ''},
+    }
+    return df, meta

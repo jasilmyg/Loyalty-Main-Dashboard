@@ -335,6 +335,13 @@
     border-color: #94a3b8;
     color: #0f172a;
   }
+  .kpi-dl { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:6px;
+            border:1px solid #e2e8f0; background:#f8fafc; color:#475569; font-size:0.75rem; text-decoration:none; flex:0 0 auto;
+            transition:all .15s ease; }
+  .kpi-dl:hover { background:#0f172a; color:#fff; border-color:#0f172a; }
+  .kpi-dl.busy { pointer-events:none; opacity:.6; }
+  .kpi-dl.busy i { animation: kpiDlSpin 0.9s linear infinite; }
+  @keyframes kpiDlSpin { to { transform: rotate(360deg); } }
 </style>
 
 <div class="dash-wrap py-3 px-2 px-md-3">
@@ -462,33 +469,53 @@
     <!-- Summary KPI cards -->
     <div class="p-3 pb-2" style="background:#fafafa; border-bottom:1px solid #f1f5f9;">
       <div class="row g-2">
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md">
           <div class="p-2 px-3 rounded-3" style="background:#ffffff; border:1px solid #e2e8f0; border-left:4px solid #3b82f6;">
             <div class="d-flex align-items-center justify-content-between">
               <div style="font-size:0.68rem; font-weight:700; color:var(--text-3); text-transform:uppercase;">Total Stock Valuation</div>
+              <span class="badge" title="Only saleable stock is counted. Damaged, displayed and advance-booked units are excluded." style="background:#ecfdf5; color:#047857; font-size:0.62rem; font-weight:700; border:1px solid #a7f3d0;">SALEABLE</span>
               <span id="kpi-stock-price-badge" class="badge" style="background:#eff6ff; color:#2563eb; font-size:0.62rem; font-weight:700; border:1px solid #bfdbfe;">MOP</span>
             </div>
             <div id="kpi-stock-total-val" style="font-size:1.25rem; font-weight:800; color:#1e293b;">₹ 0.00 Cr</div>
             <div id="kpi-stock-total-qty" style="font-size:0.72rem; color:var(--text-3);">0 units across all categories</div>
           </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md">
           <div class="p-2 px-3 rounded-3" style="background:#ffffff; border:1px solid #e2e8f0; border-left:4px solid #10b981;">
-            <div style="font-size:0.68rem; font-weight:700; color:var(--text-3); text-transform:uppercase;">Fresh Stock (&lt; 30 Days)</div>
+            <div class="d-flex align-items-center justify-content-between">
+              <div style="font-size:0.68rem; font-weight:700; color:var(--text-3); text-transform:uppercase;">Fresh Stock (&lt; 30 Days)</div>
+              <a href="#" class="kpi-dl" data-bucket="fresh" title="Download Fresh Stock stock details (Excel)" aria-label="Download Fresh Stock stock details"><i class="bi bi-download"></i></a>
+            </div>
             <div id="kpi-stock-fresh-val" style="font-size:1.25rem; font-weight:800; color:#059669;">₹ 0.00 Cr</div>
             <div id="kpi-stock-fresh-pct" style="font-size:0.72rem; color:#059669;">0% of total</div>
           </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md">
           <div class="p-2 px-3 rounded-3" style="background:#ffffff; border:1px solid #e2e8f0; border-left:4px solid #f59e0b;">
-            <div style="font-size:0.68rem; font-weight:700; color:var(--text-3); text-transform:uppercase;">Mid Ageing (30 - 90 Days)</div>
+            <div class="d-flex align-items-center justify-content-between">
+              <div style="font-size:0.68rem; font-weight:700; color:var(--text-3); text-transform:uppercase;">Mid Ageing (30 - 90 Days)</div>
+              <a href="#" class="kpi-dl" data-bucket="mid" title="Download Mid Ageing stock details (Excel)" aria-label="Download Mid Ageing stock details"><i class="bi bi-download"></i></a>
+            </div>
             <div id="kpi-stock-mid-val" style="font-size:1.25rem; font-weight:800; color:#d97706;">₹ 0.00 Cr</div>
             <div id="kpi-stock-mid-pct" style="font-size:0.72rem; color:#d97706;">0% of total</div>
           </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md">
+          <div class="p-2 px-3 rounded-3" style="background:#ffffff; border:1px solid #e2e8f0; border-left:4px solid #f97316;">
+            <div class="d-flex align-items-center justify-content-between">
+              <div style="font-size:0.68rem; font-weight:700; color:var(--text-3); text-transform:uppercase;">Ageing (90 - 180 Days)</div>
+              <a href="#" class="kpi-dl" data-bucket="old" title="Download Ageing 90-180 days stock details (Excel)" aria-label="Download Ageing 90-180 days stock details"><i class="bi bi-download"></i></a>
+            </div>
+            <div id="kpi-stock-old-val" style="font-size:1.25rem; font-weight:800; color:#ea580c;">₹ 0.00 Cr</div>
+            <div id="kpi-stock-old-pct" style="font-size:0.72rem; color:#ea580c;">0% of total</div>
+          </div>
+        </div>
+        <div class="col-6 col-md">
           <div class="p-2 px-3 rounded-3" style="background:#ffffff; border:1px solid #e2e8f0; border-left:4px solid #ef4444;">
-            <div style="font-size:0.68rem; font-weight:700; color:var(--text-3); text-transform:uppercase;">Critical Ageing (&gt; 180 Days)</div>
+            <div class="d-flex align-items-center justify-content-between">
+              <div style="font-size:0.68rem; font-weight:700; color:var(--text-3); text-transform:uppercase;">Critical Ageing (&gt; 180 Days)</div>
+              <a href="#" class="kpi-dl" data-bucket="critical" title="Download Critical Ageing stock details (Excel)" aria-label="Download Critical Ageing stock details"><i class="bi bi-download"></i></a>
+            </div>
             <div id="kpi-stock-aged-val" style="font-size:1.25rem; font-weight:800; color:#dc2626;">₹ 0.00 Cr</div>
             <div id="kpi-stock-aged-qty" style="font-size:0.72rem; color:#dc2626;">0 units aged</div>
           </div>
@@ -673,6 +700,13 @@ async function loadStockAgeingReport(forceRefresh = false) {
   document.querySelectorAll('a[href*="/api/v1/stock-ageing-report/export/"]').forEach(a => {
     a.href = exportUrl;
   });
+  // KPI-card download icons: same filters + price basis, one bucket each
+  document.querySelectorAll('a.kpi-dl[data-bucket]').forEach(a => {
+    const bp = new URLSearchParams(params);
+    bp.delete('refresh');
+    bp.set('bucket', a.dataset.bucket);
+    a.href = `/api/v1/stock-ageing-report/bucket-export/?${bp.toString()}`;
+  });
 
   try {
     const res = await fetch(url);
@@ -727,6 +761,8 @@ function renderStockKPIs() {
   const midVal = (gt.val_30_60 || 0) + (gt.val_60_90 || 0);
   const midPct = totalVal > 0 ? ((midVal / totalVal) * 100).toFixed(1) : 0;
 
+  const oldVal = gt.val_90_180 || 0;
+  const oldPct = totalVal > 0 ? ((oldVal / totalVal) * 100).toFixed(1) : 0;
   const agedVal = gt.val_gt_180 || 0;
   const agedQty = gt.qty_gt_180 || 0;
 
@@ -745,6 +781,8 @@ function renderStockKPIs() {
   const elFreshPct = document.getElementById('kpi-stock-fresh-pct');
   const elMidVal = document.getElementById('kpi-stock-mid-val');
   const elMidPct = document.getElementById('kpi-stock-mid-pct');
+  const elOldVal = document.getElementById('kpi-stock-old-val');
+  const elOldPct = document.getElementById('kpi-stock-old-pct');
   const elAgedVal = document.getElementById('kpi-stock-aged-val');
   const elAgedQty = document.getElementById('kpi-stock-aged-qty');
 
@@ -754,9 +792,44 @@ function renderStockKPIs() {
   if (elFreshPct) elFreshPct.textContent = `${freshPct}% of total inventory`;
   if (elMidVal) elMidVal.textContent = `₹ ${midVal.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})} Cr`;
   if (elMidPct) elMidPct.textContent = `${midPct}% of total inventory`;
+  if (elOldVal) elOldVal.textContent = `₹ ${oldVal.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})} Cr`;
+  if (elOldPct) elOldPct.textContent = `${oldPct}% of total inventory`;
   if (elAgedVal) elAgedVal.textContent = `₹ ${agedVal.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})} Cr`;
-  if (elAgedQty) elAgedQty.textContent = `${agedQty.toLocaleString('en-IN')} units aged`;
+  const agedPct = totalVal > 0 ? ((agedVal / totalVal) * 100).toFixed(1) : 0;
+  if (elAgedQty) elAgedQty.textContent = `${agedPct}% of total inventory · ${agedQty.toLocaleString('en-IN')} units aged`;
 }
+
+document.addEventListener('click', async (ev) => {
+  const a = ev.target.closest('a.kpi-dl[data-bucket]');
+  if (!a) return;
+  ev.preventDefault();
+  if (a.classList.contains('busy') || !a.href || a.getAttribute('href') === '#') return;
+  a.classList.add('busy');
+  try {
+    const res = await fetch(a.href);
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { msg = (await res.json()).message || msg; } catch (e) {}
+      alert('Could not download the stock details: ' + msg);
+      return;
+    }
+    const blob = await res.blob();
+    const cd = res.headers.get('Content-Disposition') || '';
+    const m = cd.match(/filename="?([^";]+)"?/);
+    const url = URL.createObjectURL(blob);
+    const dlA = document.createElement('a');
+    dlA.href = url;
+    dlA.download = m ? m[1] : `stock_${a.dataset.bucket}.xlsx`;
+    document.body.appendChild(dlA);
+    dlA.click();
+    dlA.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  } catch (e) {
+    alert('Could not download the stock details: ' + e.message);
+  } finally {
+    a.classList.remove('busy');
+  }
+});
 
 function setStockMetric(metric) {
   window._stockMetric = metric;

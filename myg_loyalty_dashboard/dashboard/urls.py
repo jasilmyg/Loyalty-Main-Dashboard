@@ -63,6 +63,7 @@ urlpatterns = [
     path('stock-ageing-report/', views.StockAgeingReportPageView.as_view(), name='stock_ageing_report'),
     path('api/v1/stock-ageing-report/', views.StockAgeingReportAPIView.as_view(), name='stock_ageing_report_api'),
     path('api/v1/stock-ageing-report/export/', views.StockAgeingExportAPIView.as_view(), name='stock_ageing_export_api'),
+    path('api/v1/stock-ageing-report/bucket-export/', views.StockAgeingBucketExportAPIView.as_view(), name='stock_ageing_bucket_export_api'),
     path('monthly-retention/', views.MonthlyRetentionView.as_view(), name='monthly_retention'),
     path('api/v1/monthly-retention/', views.MonthlyRetentionAPIView.as_view(), name='monthly_retention_api'),
     path('campaign-analysis/', views.CampaignAnalysisView.as_view(), name='campaign_analysis'),

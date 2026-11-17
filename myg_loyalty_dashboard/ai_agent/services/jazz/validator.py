@@ -17,6 +17,22 @@ _DATE_PREDICATE = re.compile(r"(toDate\s*\(\s*(\w+\.)?date\s*\)|\b(\w+\.)?date)\
 _REVENUE_COL = re.compile(r"\b(sold_price|invoice_total|taxable)\b", re.I)
 _DATE_LITERAL = re.compile(r"'(20\d\d-\d\d-\d\d)")
 
+# Return-quantity rule: on azure_sales_report a negative sold_price line is a return and its qty must count as -1.
+_SALES_LINES = re.compile(r"\bazure_sales_report\b", re.I)
+_QTY_AGG = re.compile(r"\b(?:sum|avg)\w*\s*\(\s*[^()]*?\bqty\b", re.I)
+_QTY_RULE = re.compile(r"sold_price\s*<\s*0|sold_price\s*>=?\s*0", re.I)
+QTY_RULE_FIX = "if(sold_price < 0, -1, qty)"
+
+
+def qty_rule_violation(sql: str) -> str:
+    """Returns an error message when `sql` totals the raw qty of azure_sales_report without the negative-price rule."""
+    s = sql or ""
+    if _SALES_LINES.search(s) and _QTY_AGG.search(s) and not _QTY_RULE.search(s):
+        return ("Quantity rule: in azure_sales_report a line with a NEGATIVE sold_price is a return and its quantity must be counted as -1 "
+                f"(never the raw qty). Replace qty with `{QTY_RULE_FIX}` - e.g. sum({QTY_RULE_FIX}) AS units, "
+                f"sumIf({QTY_RULE_FIX}, <condition>) AS units_x - then run the query again.")
+    return ""
+
 
 def _check(name: str, status: str, detail: str) -> Dict[str, str]:
     return {"name": name, "status": status, "detail": detail}
@@ -41,6 +57,8 @@ def review_sql(sql: str) -> List[Dict[str, str]]:
                 checks.append(_check("Internal-data exclusion", "warn",
                                      "Revenue is aggregated without the SMC/EI/HEAD OFFICE exclusion used on the dashboards – "
                                      "totals may differ from the portal."))
+        if _SALES_LINES.search(low) and re.search(r"\bqty\b", low, re.I) and _QTY_RULE.search(low):
+            checks.append(_check("Return qty rule", "ok", "Returns (sold_price < 0) are counted as quantity -1."))
         try:
             latest = C.latest_sales_date()
             future = [d for d in _DATE_LITERAL.findall(low) if d > f"{latest}"]
@@ -57,7 +75,7 @@ def review_result(res: Dict[str, Any], checks: List[Dict[str, str]]) -> List[Dic
     if "error" in res:
         checks.append(_check("Syntax & schema", "fail", str(res["error"])[:300]))
         return checks
-    checks.append(_check("Syntax & schema", "ok", f"Executed in {res.get('elapsed_ms', 0)} ms."))
+    checks.append(_check("Syntax & schema", "ok", "Served from the 5-minute result cache." if res.get("cached") else f"Executed in {res.get('elapsed_ms', 0)} ms."))
     rows = res.get("rows") or []
     if res.get("row_count", 0) == 0:
         checks.append(_check("Result sanity", "warn", "Query returned 0 rows – check filters, spelling of names and date range."))

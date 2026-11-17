@@ -20,6 +20,14 @@ SALES_EXCLUSION_SQL = (
 
 CH_ANALYSIS_SETTINGS = {"readonly": 1, "max_execution_time": 45, "max_result_rows": 2_000_000, "result_overflow_mode": "break"}
 
+# Business rule: on azure_sales_report a line with a NEGATIVE sold_price is a return, and its quantity counts as -1
+# (the raw `qty` column is not reliable for returns). Every units / quantity figure must use this expression.
+EFFECTIVE_QTY_SQL = "if({a}sold_price < 0, -1, {a}qty)"
+
+
+def effective_qty(alias: str = "") -> str:
+    return EFFECTIVE_QTY_SQL.format(a=f"{alias}." if alias else "")
+
 
 def sales_exclusion(alias: str = "") -> str:
     return SALES_EXCLUSION_SQL.format(a=f"{alias}." if alias else "")
@@ -30,13 +38,18 @@ def esc(value: Any) -> str:
     return str(value).replace("\\", "\\\\").replace("'", "\\'")
 
 
-def ch_query(sql: str):
-    """Run a read-only query on StarRocks and return the result (raises on failure)."""
-    from analytics.starrocks_service import get_sr_client
-    client = get_sr_client()
+def get_jazz_ch_client():
+    """Return the direct ClickHouse client for Jazz AI (bypasses StarRocks fallback)."""
+    from analytics.starrocks_service import get_ch_backup_client
+    client = get_ch_backup_client()
     if not client:
-        raise RuntimeError("StarRocks client could not connect.")
-    return client.query(sql, settings=CH_ANALYSIS_SETTINGS)
+        raise RuntimeError("ClickHouse client could not connect.")
+    return client
+
+
+def ch_query(sql: str):
+    """Run a read-only query on ClickHouse and return the result (raises on failure)."""
+    return get_jazz_ch_client().query(sql, settings=CH_ANALYSIS_SETTINGS)
 
 
 def ch_df(sql: str):

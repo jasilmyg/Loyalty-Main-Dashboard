@@ -140,11 +140,8 @@ def _run_query(sql: str) -> Dict[str, Any]:
     if not ok:
         return {"error": err}
     try:
-        from analytics.starrocks_service import get_sr_client
-        client = get_sr_client()
-        if not client:
-            return {"error": "StarRocks client could not connect."}
-        res = client.query(cleaned, settings=REPORT_QUERY_SETTINGS)
+        from .common import get_jazz_ch_client
+        res = get_jazz_ch_client().query(cleaned, settings=REPORT_QUERY_SETTINGS)
     except Exception as e:  # noqa: BLE001
         logger.warning("Report query failed: %s; SQL: %s", e, cleaned[:300])
         return {"error": str(e)[:400]}

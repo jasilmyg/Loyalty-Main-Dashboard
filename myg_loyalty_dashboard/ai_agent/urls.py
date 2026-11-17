@@ -2,6 +2,7 @@ from django.urls import path
 from .views import EnterpriseAIAgentView, EnterpriseAIAgentAPIView, ExportReportView, PerformanceDashboardView
 from .ch_assistant_views import (
     ClickHouseAssistantPage, ClickHouseAssistantChatAPI, ClickHouseAssistantSchemaAPI, ClickHouseAssistantReportDownload,
+    ClickHouseAssistantFeedbackAPI, ClickHouseAssistantHistoryAPI, ClickHouseAssistantSavedPromptAPI,
 )
 
 urlpatterns = [
@@ -15,4 +16,7 @@ urlpatterns = [
     path('api/v1/clickhouse/chat/', ClickHouseAssistantChatAPI.as_view(), name='clickhouse_assistant_chat_api'),
     path('api/v1/clickhouse/schema/', ClickHouseAssistantSchemaAPI.as_view(), name='clickhouse_assistant_schema_api'),
     path('api/v1/clickhouse/report/<str:report_id>/', ClickHouseAssistantReportDownload.as_view(), name='clickhouse_assistant_report_download'),
+    path('api/v1/clickhouse/feedback/', ClickHouseAssistantFeedbackAPI.as_view(), name='clickhouse_assistant_feedback_api'),
+    path('api/v1/clickhouse/history/', ClickHouseAssistantHistoryAPI.as_view(), name='clickhouse_assistant_history_api'),
+    path('api/v1/clickhouse/saved/', ClickHouseAssistantSavedPromptAPI.as_view(), name='clickhouse_assistant_saved_api'),
 ]

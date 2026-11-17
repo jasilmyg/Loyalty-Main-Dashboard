@@ -112,10 +112,10 @@ def _base_sql(per: Dict[str, Any], branch_codes: Optional[List[str]], filters: D
         branch_clause = f"AND branch IN ({codes})"
     outer = ("WHERE " + " AND ".join(where_outer)) if where_outer else ""
     return f"""(
-  SELECT s.d AS d, s.p AS p, s.branch AS branch, s.invoice_no AS invoice_no, s.sold_price AS sold_price, s.qty AS qty,
+  SELECT s.d AS d, s.p AS p, s.branch AS branch, s.invoice_no AS invoice_no, s.sold_price AS sold_price, s.eff_qty AS qty,
          i.product AS product, i.brand AS brand
   FROM (
-    SELECT toDate(date) AS d, branch, item_code, invoice_no, sold_price, qty,
+    SELECT toDate(date) AS d, branch, item_code, invoice_no, sold_price, {C.effective_qty()} AS eff_qty,
            if(toDate(date) BETWEEN '{cs}' AND '{ce}', 1, 2) AS p
     FROM azure_sales_report
     WHERE (toDate(date) BETWEEN '{cs}' AND '{ce}' OR toDate(date) BETWEEN '{bs}' AND '{be}')
@@ -276,7 +276,7 @@ def _stock_cover(products: List[str], units_current: Dict[str, float], days: int
     try:
         plist = ",".join(f"'{C.esc(p)}'" for p in products)
         df = C.ch_df(f"""
-            SELECT product, sum(stock) AS stock FROM stock_ageing_report
+            SELECT product, sum(greatest(stock - non_saleable_total, 0)) AS stock FROM stock_ageing_report
             WHERE report_date = (SELECT max(report_date) FROM stock_ageing_report) AND product IN ({plist})
             GROUP BY product""")
     except Exception as e:  # noqa: BLE001
@@ -447,7 +447,10 @@ def explain_change(
         "data_through": f"{per['latest']}",
         "definition": "Sales = sum(sold_price) from azure_sales_report excluding internal/transfer invoices "
                       "(SMC / EI invoices, HEAD OFFICE, UG SMART CHOICE, 3GH, CSB, CSBW)."
-                      if metric == "sales" else "Same internal/transfer exclusions as the dashboards.",
+                      if metric == "sales" else (
+                          "Units = sum of quantity from azure_sales_report where a line with negative sold_price (a return) counts as -1 unit; "
+                          "same internal/transfer exclusions as the dashboards." if metric == "units"
+                          else "Same internal/transfer exclusions as the dashboards."),
     }
     return res
 

@@ -4,6 +4,7 @@
 {% block title %}Demand & Inventory Intelligence | myG Loyalty Analytics{% endblock %}
 
 {% block content %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css">
 <style>
     /* ── Bilytica TANABU'-Inspired Enterprise Demand Forecasting UI ── */
     .dii-wrap {
@@ -95,6 +96,81 @@
         background-color: #fff;
         border-color: #6366f1;
         box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.14);
+    }
+
+    /* ── Searchable Cascading Select (TomSelect matching .dii-select) ── */
+    .dii-wrap .ts-wrapper.single {
+        width: 100%;
+    }
+    .dii-wrap .ts-wrapper.single .ts-control {
+        background-color: #f8fafc !important;
+        border: 1px solid #e2e8f0 !important;
+        border-radius: 10px !important;
+        padding: 0.42rem 1.8rem 0.42rem 0.7rem !important;
+        min-height: 34px !important;
+        font-size: 0.8rem !important;
+        font-weight: 600 !important;
+        color: #1e293b !important;
+        box-shadow: none !important;
+        cursor: pointer;
+        flex-wrap: nowrap !important;
+        overflow: hidden;
+    }
+    .dii-wrap .ts-wrapper.single .ts-control .item {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+    }
+    .dii-wrap .ts-wrapper.single.focus .ts-control {
+        background-color: #ffffff !important;
+        border-color: #6366f1 !important;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.14) !important;
+    }
+    .dii-wrap .ts-dropdown {
+        z-index: 1090 !important;
+        border-radius: 12px !important;
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: 0 14px 32px rgba(15, 23, 42, 0.14) !important;
+        overflow: hidden;
+        font-size: 0.8rem;
+    }
+    .dii-wrap .ts-dropdown .dropdown-input-wrap {
+        padding: 6px 8px;
+        border-bottom: 1px solid #e2e8f0;
+        background: #f8fafc;
+    }
+    .dii-wrap .ts-dropdown .dropdown-input {
+        width: 100%;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 0.35rem 0.6rem;
+        font-size: 0.78rem;
+        outline: none;
+    }
+    .dii-wrap .ts-dropdown .dropdown-input:focus {
+        border-color: #6366f1;
+    }
+    .dii-wrap .ts-dropdown .ts-dropdown-content {
+        max-height: 270px;
+    }
+    .dii-wrap .ts-dropdown .option {
+        padding: 0.42rem 0.72rem;
+        font-weight: 600;
+        color: #1e293b;
+    }
+    .dii-wrap .ts-dropdown .option.active {
+        background: #eef2ff !important;
+        color: #4338ca !important;
+    }
+    .dii-wrap .ts-dropdown .option.selected {
+        background: #e0e7ff !important;
+        color: #3730a3 !important;
+        font-weight: 700;
+    }
+    #quick-sku-box .ts-wrapper.single {
+        flex: 0 0 175px;
+        max-width: 175px;
     }
 
     .btn-dii-purple {
@@ -686,89 +762,112 @@
     }
 
     /* ── Dashboard & Forecast Loading Indicators ── */
-    @keyframes diiProgressSlide {
-        0%   { background-position: 200% 0; }
-        100% { background-position: -200% 0; }
-    }
     .dii-topbar { position: relative; overflow: visible; }
-    .dii-progress-track {
+
+    /* ── Single centered loading panel (the ONLY loading indicator on this page) ── */
+    @keyframes diiLoaderSpin { to { transform: rotate(360deg); } }
+    @keyframes diiLoaderSlide {
+        0%   { transform: translateX(-100%); }
+        100% { transform: translateX(260%); }
+    }
+    @keyframes diiLoaderPop {
+        from { opacity: 0; transform: translateY(8px) scale(0.97); }
+        to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .dii-center-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 2100;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(15, 23, 42, 0.28);
+        backdrop-filter: blur(3px);
+        -webkit-backdrop-filter: blur(3px);
+        animation: diiLoaderFade 0.18s ease-out;
+    }
+    @keyframes diiLoaderFade { from { opacity: 0; } to { opacity: 1; } }
+    .dii-center-loader.d-none { display: none !important; }
+    .dii-center-loader-card {
+        width: min(400px, calc(100vw - 48px));
+        padding: 1.7rem 1.8rem 1.4rem;
+        border-radius: 20px;
+        background: #ffffff;
+        border: 1px solid #e0e7ff;
+        box-shadow: 0 24px 60px rgba(30, 27, 75, 0.28), 0 4px 14px rgba(79, 70, 229, 0.12);
+        text-align: center;
+        animation: diiLoaderPop 0.22s ease-out;
+    }
+    .dii-center-loader-ring {
+        width: 54px;
+        height: 54px;
+        margin: 0 auto 1rem;
+        border-radius: 50%;
+        border: 4px solid #e0e7ff;
+        border-top-color: #4f46e5;
+        border-right-color: #8b5cf6;
+        animation: diiLoaderSpin 0.85s linear infinite;
+    }
+    .dii-center-loader-title {
+        font-size: 1rem;
+        font-weight: 800;
+        color: #1e1b4b;
+        letter-spacing: -0.01em;
+        margin-bottom: 0.25rem;
+    }
+    .dii-center-loader-msg {
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: #64748b;
+        line-height: 1.4;
+        min-height: 1.1rem;
+        margin-bottom: 1rem;
+        word-break: break-word;
+    }
+    .dii-center-loader-track {
+        height: 5px;
+        border-radius: 999px;
+        background: #eef2ff;
+        overflow: hidden;
+        position: relative;
+    }
+    .dii-center-loader-track::after {
+        content: '';
         position: absolute;
         top: 0;
+        bottom: 0;
         left: 0;
-        right: 0;
-        height: 4px;
-        border-radius: 16px 16px 0 0;
-        overflow: hidden;
-        pointer-events: none;
-    }
-    .dii-progress-bar {
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 25%, #0ea5e9 50%, #8b5cf6 75%, #6366f1 100%);
-        background-size: 200% 100%;
-        animation: diiProgressSlide 1.35s linear infinite;
-    }
-    .dii-loading-banner {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.36rem 0.8rem;
+        width: 38%;
         border-radius: 999px;
-        background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%);
-        border: 1px solid #a5b4fc;
-        color: #4338ca;
-        font-size: 0.75rem;
+        background: linear-gradient(90deg, #6366f1, #8b5cf6, #0ea5e9);
+        animation: diiLoaderSlide 1.25s ease-in-out infinite;
+    }
+    .dii-center-loader-timer {
+        margin-top: 0.75rem;
+        font-size: 0.72rem;
         font-weight: 700;
-        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.14);
-    }
-    .dii-floating-loader {
-        position: fixed;
-        top: 16px;
-        right: 24px;
-        z-index: 2050;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.55rem;
-        padding: 0.5rem 0.95rem;
-        border-radius: 999px;
-        background: rgba(15, 23, 42, 0.92);
-        color: #ffffff;
-        font-size: 0.78rem;
-        font-weight: 700;
-        box-shadow: 0 10px 25px rgba(15, 23, 42, 0.28);
-        backdrop-filter: blur(6px);
-    }
-    .dii-wrap.dii-loading-active .dii-kpi-card,
-    .dii-wrap.dii-loading-active .dii-ribbon {
-        opacity: 0.62;
-        transition: opacity 0.2s ease;
-    }
-    .qs-spinner {
-        position: absolute;
-        right: 10px;
-        top: 50%;
-        transform: translateY(-50%);
-        color: #4f46e5;
-        pointer-events: none;
+        color: #94a3b8;
+        font-variant-numeric: tabular-nums;
     }
 </style>
 
 <div class="dii-wrap" id="dii-root-wrap">
 
-    <!-- Floating top-right status pill so loading is always visible anywhere on screen -->
-    <div id="dii-floating-loader" class="dii-floating-loader d-none" role="status" aria-live="polite">
-        <span class="spinner-border spinner-border-sm" style="color:#a5b4fc;"></span>
-        <span id="dii-floating-loader-text">Loading Demand &amp; Inventory Intelligence…</span>
-        <span id="dii-floating-loader-timer" class="badge rounded-pill" style="background:rgba(255,255,255,0.16);font-size:0.68rem;font-variant-numeric:tabular-nums;">0.0s</span>
+    <!-- Single centered loading panel — the only loading indicator on this page -->
+    <div id="dii-center-loader" class="dii-center-loader d-none" role="status" aria-live="polite" aria-busy="true">
+        <div class="dii-center-loader-card">
+            <div class="dii-center-loader-ring" aria-hidden="true"></div>
+            <div class="dii-center-loader-title">Loading Demand &amp; Inventory Intelligence</div>
+            <div id="dii-center-loader-msg" class="dii-center-loader-msg">Preparing forecast and inventory data…</div>
+            <div class="dii-center-loader-track" aria-hidden="true"></div>
+            <div id="dii-center-loader-timer" class="dii-center-loader-timer">0.0s</div>
+        </div>
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════════════ -->
     <!-- 1. EXECUTIVE COMMAND BAR & FILTERS                                  -->
     <!-- ═══════════════════════════════════════════════════════════════════ -->
     <div class="dii-topbar">
-        <div id="dii-top-progress" class="dii-progress-track d-none">
-            <div class="dii-progress-bar"></div>
-        </div>
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
             <div class="d-flex align-items-center gap-3">
                 <div class="dii-brand-icon">
@@ -779,11 +878,6 @@
                         <h1 class="dii-title">Demand &amp; Inventory Intelligence</h1>
                         <span id="top-engine-badge" class="badge" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);font-size:0.68rem;font-weight:800;padding:0.32em 0.7em;border-radius:999px;">
                             HYBRID LIGHTGBM + CROSTON-TSB · CLICKHOUSE LIVE
-                        </span>
-                        <span id="dii-inline-loader" class="dii-loading-banner d-none">
-                            <span class="spinner-border spinner-border-sm" style="width:0.85rem;height:0.85rem;border-width:0.14em;"></span>
-                            <span id="dii-inline-loader-text">Loading data…</span>
-                            <span id="dii-inline-loader-timer" style="color:#6366f1;font-variant-numeric:tabular-nums;">0.0s</span>
                         </span>
                     </div>
                     <p class="dii-subtitle">
@@ -796,9 +890,6 @@
             <div class="qs-box" id="quick-sku-box">
                 <label class="dii-filter-lbl d-flex align-items-center justify-content-between">
                     <span><i class="bi bi-search me-1" style="color:#6366f1;"></i>Quick SKU Select <span class="text-muted fw-normal" style="text-transform:none;letter-spacing:0;">— pick a product, then any of its SKUs</span></span>
-                    <span id="qs-status-pill" class="d-none" style="color:#4f46e5;font-size:0.68rem;font-weight:700;text-transform:none;letter-spacing:0;">
-                        <span class="spinner-border spinner-border-sm me-1" style="width:0.7rem;height:0.7rem;border-width:0.13em;"></span><span id="qs-status-text">Loading SKUs…</span>
-                    </span>
                 </label>
                 <div class="qs-row">
                     <select id="qs-product" class="dii-select" style="flex:0 0 160px;" onchange="qsProductChanged()" title="Product line">
@@ -808,8 +899,7 @@
                         {% endfor %}
                     </select>
                     <div class="position-relative flex-grow-1">
-                        <input type="text" id="qs-input" class="dii-select pe-4" autocomplete="off" placeholder="Search SKU code, name or brand…" oninput="qsOnInput()" onfocus="qsOnFocus()" onkeydown="qsOnKey(event)">
-                        <span id="qs-spinner" class="qs-spinner d-none"><span class="spinner-border spinner-border-sm" style="width:0.9rem;height:0.9rem;border-width:0.15em;"></span></span>
+                        <input type="text" id="qs-input" class="dii-select" autocomplete="off" placeholder="Search SKU code, name or brand…" oninput="qsOnInput()" onfocus="qsOnFocus()" onkeydown="qsOnKey(event)">
                         <div id="qs-list" class="qs-list d-none"></div>
                     </div>
                 </div>
@@ -853,7 +943,7 @@
             </div>
             <div>
                 <label class="dii-filter-lbl"><i class="bi bi-collection me-1"></i>Category</label>
-                <select id="flt-macro-cat" class="dii-select" onchange="reloadDemandDashboard(true)">
+                <select id="flt-macro-cat" class="dii-select" onchange="onMacroCategoryChange()">
                     <option value="">Core Retail (All Categories)</option>
                     {% for mc in filter_options.macro_categories %}
                     <option value="{{ mc.code }}">{{ mc.label }}</option>
@@ -862,8 +952,8 @@
                 </select>
             </div>
             <div>
-                <label class="dii-filter-lbl"><i class="bi bi-box-seam me-1"></i>Product Line</label>
-                <select id="flt-product" class="dii-select" onchange="reloadDemandDashboard(true)">
+                <label class="dii-filter-lbl"><i class="bi bi-box-seam me-1"></i>Product Line <span id="flt-product-count" style="color:#6366f1;font-weight:800;text-transform:none;"></span></label>
+                <select id="flt-product" class="dii-select" onchange="onProductFilterChange()">
                     <option value="">All Product Lines</option>
                     {% for p in filter_options.products %}
                     <option value="{{ p }}">{{ p }}</option>
@@ -871,8 +961,8 @@
                 </select>
             </div>
             <div>
-                <label class="dii-filter-lbl"><i class="bi bi-tag me-1"></i>Brand</label>
-                <select id="flt-brand" class="dii-select" onchange="reloadDemandDashboard(true)">
+                <label class="dii-filter-lbl"><i class="bi bi-tag me-1"></i>Brand <span id="flt-brand-count" style="color:#6366f1;font-weight:800;text-transform:none;"></span></label>
+                <select id="flt-brand" class="dii-select" onchange="onBrandFilterChange()">
                     <option value="">All Brands</option>
                     {% for b in filter_options.brands %}
                     <option value="{{ b }}">{{ b }}</option>
@@ -1140,9 +1230,6 @@
 
                 <div style="height:310px;position:relative;">
                     <canvas id="skuForecastChart"></canvas>
-                    <div id="sku-loading" class="d-none position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" style="background:rgba(255,255,255,0.82);font-size:0.84rem;font-weight:700;color:#4f46e5;z-index:5;border-radius:10px;">
-                        <span class="spinner-border spinner-border-sm me-2"></span><span id="sku-loading-text">Computing AI demand forecast &amp; confidence bands…</span>
-                    </div>
                 </div>
                 <div id="sku-fva-box" class="mt-3"></div>
             </div>
@@ -1152,9 +1239,6 @@
         <div class="col-12 col-xl-4 d-flex flex-column gap-3">
             <!-- Card A: Exact Image 2 Metric & Stock Coverage Insight Card -->
             <div class="dii-panel position-relative" style="height:auto;">
-                <div id="cov-loading" class="d-none position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" style="background:rgba(255,255,255,0.78);font-size:0.8rem;font-weight:700;color:#059669;z-index:5;border-radius:16px;">
-                    <span class="spinner-border spinner-border-sm me-2"></span><span id="cov-loading-text">Updating stock coverage…</span>
-                </div>
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <h2 class="dii-panel-title">
                         <i class="bi bi-clipboard2-pulse-fill" style="color:#059669;"></i>
@@ -1237,7 +1321,7 @@
                             Whole Product Forecast
                             <span class="badge bg-light text-secondary border fw-semibold" style="font-size:0.68rem;" id="pl-scope-badge">All brands &amp; SKUs</span>
                         </h2>
-                        <div class="dii-panel-sub">Combined demand of every brand and SKU in the selected product line vs its AI forecast (80% &amp; 95% confidence bands)</div>
+                        <div class="dii-panel-sub" id="pl-scope-sub">Combined demand of every brand and SKU in the selected product line vs its AI forecast (80% &amp; 95% confidence bands)</div>
                     </div>
                     <div class="d-flex align-items-center gap-2">
                         <span style="font-size:0.72rem;font-weight:700;color:#64748b;">Forecast Horizon:</span>
@@ -1279,7 +1363,7 @@
                 </div>
 
                 <div class="d-flex align-items-center gap-3 flex-wrap mb-2" style="font-size:0.73rem;font-weight:600;color:#475569;">
-                    <span><span style="display:inline-block;width:14px;height:2.5px;background:#0f172a;vertical-align:middle;margin-right:5px;"></span>Actual Demand (all SKUs)</span>
+                    <span><span style="display:inline-block;width:14px;height:2.5px;background:#0f172a;vertical-align:middle;margin-right:5px;"></span>Actual Demand (all SKUs in scope)</span>
                     <span><span style="display:inline-block;width:14px;height:2.5px;background:#7c3aed;vertical-align:middle;margin-right:5px;"></span>AI Forecast (whole product)</span>
                     <span><span style="display:inline-block;width:12px;height:10px;background:rgba(124,58,237,0.24);border-radius:2px;vertical-align:middle;margin-right:5px;"></span>80% Confidence</span>
                     <span><span style="display:inline-block;width:12px;height:10px;background:rgba(124,58,237,0.11);border-radius:2px;vertical-align:middle;margin-right:5px;"></span>95% Confidence</span>
@@ -1289,9 +1373,6 @@
 
                 <div style="height:310px;position:relative;">
                     <canvas id="plForecastChart"></canvas>
-                    <div id="pl-loading" class="d-none position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" style="background:rgba(255,255,255,0.78);font-size:0.82rem;font-weight:700;color:#4f46e5;z-index:5;">
-                        <span class="spinner-border spinner-border-sm me-2"></span><span id="pl-loading-text">Computing whole-product forecast…</span>
-                    </div>
                 </div>
                 <div id="pl-fva-box" class="mt-3"></div>
             </div>
@@ -1830,8 +1911,7 @@
                 <tbody id="master-products-tbody">
                     <tr>
                         <td colspan="18" class="text-center py-5 text-muted">
-                            <div class="spinner-border spinner-border-sm text-primary me-2"></div>
-                            Training Hybrid LightGBM + Croston-TSB models &amp; calculating velocity on ClickHouse…
+                            Forecast data will appear here once loading completes.
                         </td>
                     </tr>
                 </tbody>
@@ -1843,8 +1923,196 @@
 {% endblock %}
 
 {% block extra_js %}
+{{ filter_options|json_script:"dii-filter-options-data" }}
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <script>
 (function() {
+    // ── Catalog Filter Metadata (Category -> Product Line <-> Brand) ──
+    let FILTER_OPTIONS = {};
+    try {
+        FILTER_OPTIONS = JSON.parse(document.getElementById('dii-filter-options-data')?.textContent || '{}') || {};
+    } catch (_e) {
+        FILTER_OPTIONS = {};
+    }
+    const PRODUCT_META = (FILTER_OPTIONS && FILTER_OPTIONS.product_meta) ? FILTER_OPTIONS.product_meta : {};
+    const BASE_PRODUCTS = Array.isArray(FILTER_OPTIONS.products) ? FILTER_OPTIONS.products : [];
+    const BASE_BRANDS = Array.isArray(FILTER_OPTIONS.brands) ? FILTER_OPTIONS.brands : [];
+    const BASE_PRODUCT_SET = new Set(BASE_PRODUCTS);
+    const BASE_BRAND_ORDER = new Map(BASE_BRANDS.map((b, idx) => [b, idx]));
+    const ALL_PRODS_ORDERED = Object.keys(PRODUCT_META).length
+        ? [
+            ...BASE_PRODUCTS.filter(p => Object.prototype.hasOwnProperty.call(PRODUCT_META, p)),
+            ...Object.keys(PRODUCT_META).filter(p => !BASE_PRODUCT_SET.has(p)).sort(),
+        ]
+        : BASE_PRODUCTS.slice();
+
+    const tsControls = {};
+    const tsSuppressChange = {};
+    const lastSelectSignature = {};
+    let isCascadingFilters = false;
+
+    function prodMatchesMacro(prod, macroCat) {
+        const m = PRODUCT_META[prod];
+        const mc = String(macroCat || '').trim().toUpperCase();
+        if (!m) return !mc || mc === 'CORE' || mc === 'ALL_RAW';
+        if (mc === 'ALL_RAW') return true;
+        if (m.non_retail) return false;
+        if (mc === 'VALUE ADDED SERVICE') {
+            return Boolean(m.virtual_vas || m.cat === 'VALUE ADDED SERVICE');
+        }
+        if (m.virtual_vas) return false;
+        if (!mc || mc === 'CORE') return true;
+        return m.cat === mc;
+    }
+
+    function syncSelectElement(id, items, emptyLabel, targetValue) {
+        const el = document.getElementById(id);
+        if (!el) return '';
+        const valSet = new Set(items);
+        const nextVal = (targetValue && valSet.has(targetValue)) ? targetValue : '';
+        const sig = `${emptyLabel}\n${items.join('\n')}`;
+        const ts = tsControls[id];
+
+        if (lastSelectSignature[id] === sig) {
+            if (el.value !== nextVal) el.value = nextVal;
+            if (ts && ts.getValue() !== nextVal) {
+                tsSuppressChange[id] = true;
+                try { ts.setValue(nextVal, true); } finally { tsSuppressChange[id] = false; }
+            }
+            return nextVal;
+        }
+        lastSelectSignature[id] = sig;
+
+        const frag = document.createDocumentFragment();
+        const opt0 = document.createElement('option');
+        opt0.value = '';
+        opt0.textContent = emptyLabel;
+        frag.appendChild(opt0);
+        for (let i = 0; i < items.length; i++) {
+            const v = items[i];
+            const opt = document.createElement('option');
+            opt.value = v;
+            opt.textContent = v;
+            frag.appendChild(opt);
+        }
+        el.innerHTML = '';
+        el.appendChild(frag);
+        el.value = nextVal;
+
+        if (ts) {
+            tsSuppressChange[id] = true;
+            try {
+                ts.clear(true);
+                ts.clearOptions();
+                ts.addOption({ value: '', text: emptyLabel });
+                if (items.length) {
+                    ts.addOptions(items.map(v => ({ value: v, text: v })));
+                }
+                ts.setValue(nextVal, true);
+                ts.refreshOptions(false);
+            } finally {
+                tsSuppressChange[id] = false;
+            }
+        }
+        return nextVal;
+    }
+
+    function refreshCatalogFilters(source) {
+        if (!Object.keys(PRODUCT_META).length || isCascadingFilters) return;
+        isCascadingFilters = true;
+        try {
+            const mc = document.getElementById('flt-macro-cat')?.value || '';
+            let curProd = document.getElementById('flt-product')?.value || '';
+            let curBrand = document.getElementById('flt-brand')?.value || '';
+
+            const catProds = ALL_PRODS_ORDERED.filter(p => prodMatchesMacro(p, mc));
+            const catProdSet = new Set(catProds);
+            if (curProd && !catProdSet.has(curProd)) curProd = '';
+
+            // When a specific Product Line is chosen, show ONLY that product's brands;
+            // otherwise show all brands belonging to the selected Category.
+            let allowedBrands = [];
+            if (curProd && PRODUCT_META[curProd]) {
+                allowedBrands = (PRODUCT_META[curProd].brands || []).slice();
+            } else {
+                const brSet = new Set();
+                for (const p of catProds) {
+                    const brList = PRODUCT_META[p]?.brands || [];
+                    for (const b of brList) brSet.add(b);
+                }
+                allowedBrands = Array.from(brSet).sort((a, b) => {
+                    const ia = BASE_BRAND_ORDER.has(a) ? BASE_BRAND_ORDER.get(a) : 1e9;
+                    const ib = BASE_BRAND_ORDER.has(b) ? BASE_BRAND_ORDER.get(b) : 1e9;
+                    return ia !== ib ? ia - ib : a.localeCompare(b);
+                });
+            }
+
+            const allowedBrandSet = new Set(allowedBrands);
+            if (curBrand && !allowedBrandSet.has(curBrand)) curBrand = '';
+
+            // If a Brand is chosen while Product Line is All, narrow Product Lines to products with that Brand.
+            let allowedProds = catProds;
+            if (!curProd && curBrand) {
+                allowedProds = catProds.filter(p => (PRODUCT_META[p]?.brands || []).includes(curBrand));
+            }
+
+            const prodEmptyLabel = curBrand
+                ? `All ${curBrand} Products (${allowedProds.length})`
+                : `All Product Lines (${allowedProds.length})`;
+            const brandEmptyLabel = curProd
+                ? `All ${curProd} Brands (${allowedBrands.length})`
+                : `All Brands (${allowedBrands.length})`;
+
+            curProd = syncSelectElement('flt-product', allowedProds, prodEmptyLabel, curProd);
+            curBrand = syncSelectElement('flt-brand', allowedBrands, brandEmptyLabel, curBrand);
+
+            const qsCur = (source === 'product' || source === 'category' || source === 'reset')
+                ? curProd
+                : (document.getElementById('qs-product')?.value || '');
+            syncSelectElement('qs-product', catProds, `All Product Lines (${catProds.length})`, qsCur);
+
+            const prodHint = document.getElementById('flt-product-count');
+            if (prodHint) {
+                prodHint.textContent = curBrand ? `(${allowedProds.length} for ${curBrand})` : `(${allowedProds.length})`;
+            }
+            const brHint = document.getElementById('flt-brand-count');
+            if (brHint) {
+                brHint.textContent = curProd ? `(${allowedBrands.length} for ${curProd})` : `(${allowedBrands.length})`;
+            }
+        } finally {
+            isCascadingFilters = false;
+        }
+    }
+
+    function initCatalogTomSelects() {
+        if (typeof window.TomSelect !== 'function') return;
+        [
+            { id: 'flt-product', placeholder: 'All Product Lines' },
+            { id: 'flt-brand', placeholder: 'All Brands' },
+            { id: 'qs-product', placeholder: 'All Product Lines' },
+        ].forEach(({ id, placeholder }) => {
+            const el = document.getElementById(id);
+            if (!el || el.tomselect) return;
+            const ts = new window.TomSelect(el, {
+                plugins: ['dropdown_input'],
+                maxItems: 1,
+                create: false,
+                allowEmptyOption: true,
+                maxOptions: null,
+                placeholder: placeholder,
+                sortField: [{ field: '$order' }],
+                onDropdownOpen() {
+                    const inp = this.dropdown?.querySelector('.dropdown-input');
+                    if (inp) {
+                        inp.placeholder = 'Type to search…';
+                        setTimeout(() => inp.focus(), 10);
+                    }
+                },
+            });
+            tsControls[id] = ts;
+        });
+    }
+
     // ── State ──
     let currentPayload = null;
     let currentDeepDive = null;
@@ -2212,6 +2480,7 @@
         const actualSeries = (fc.actual_units || []).concat(new Array(fcLabels.length).fill(null));
         const pastFc = (fc.past_forecast_units || []).concat(new Array(fcLabels.length).fill(null));
         const hasPastFc = (fc.past_forecast_units || []).some(v => v != null);
+        const isBacktestFc = fc.compare_summary?.source === 'backtest';
         const padBefore = actLen > 0 ? new Array(actLen - 1).fill(null).concat([lastActualVal]) : [];
 
         const forecastSeries = padBefore.concat((fc.forecast_units || []).slice(0, h));
@@ -2273,7 +2542,8 @@
                         tension: 0.3,
                     },
                     ...(hasPastFc ? [{
-                        label: 'Forecast (made earlier)',
+                        label: isBacktestFc ? 'Backtest Forecast (out-of-time)' : 'Forecast (made earlier)',
+                        isPastForecast: true,
                         data: pastFc,
                         borderColor: '#7c3aed',
                         backgroundColor: '#7c3aed',
@@ -2319,7 +2589,7 @@
                             },
                             footer(items) {
                                 const a = items.find(i => i.dataset.label === 'Actual Demand');
-                                const f = items.find(i => i.dataset.label === 'Forecast (made earlier)');
+                                const f = items.find(i => i.dataset.isPastForecast);
                                 if (!a || !f || a.parsed.y == null || f.parsed.y == null) return '';
                                 const d = a.parsed.y - f.parsed.y;
                                 const pct = f.parsed.y > 0 ? (d / f.parsed.y) * 100 : 0;
@@ -2360,21 +2630,27 @@
     }
 
     function setPLLoading(on, pl) {
-        const box = document.getElementById('pl-loading');
-        if (!box) return;
-        box.classList.toggle('d-none', !on);
-        const t = document.getElementById('pl-loading-text');
-        if (t && on) t.textContent = `Computing whole-product forecast for ${pl}…`;
+        // Whole-product forecast shares the single centered loading panel.
+        diiLoaderSet('pl', on, on ? `Computing whole-product forecast for ${pl}…` : '');
     }
 
-    function renderProductLineForecast(dd, sp, pl) {
+    function renderProductLineForecast(dd, sp, pl, brandSel) {
         const p = dd.selected_product || {};
         plDeepDive = dd;
         setPLLoading(false);
 
-        document.getElementById('pl-name').textContent = `${pl} — all brands & SKUs`;
+        // Scope follows the Brand filter: one brand -> only that brand's SKUs; no brand -> every brand.
+        const scopeLbl = brandSel ? `${brandSel} ${pl}` : pl;
+        const scopeTxt = brandSel ? `${brandSel} brand only` : 'all brands & SKUs';
+        document.getElementById('pl-name').textContent = `${scopeLbl} — ${scopeTxt}`;
         document.getElementById('pl-meta').innerHTML =
-            `Product Line: <strong>${escHtml(pl)}</strong> &nbsp;|&nbsp; Brands: <strong>All</strong> &nbsp;|&nbsp; Scope: <strong>every SKU sold in this product line</strong>`;
+            `Product Line: <strong>${escHtml(pl)}</strong> &nbsp;|&nbsp; Brands: <strong>${escHtml(brandSel || 'All')}</strong> &nbsp;|&nbsp; Scope: <strong>${brandSel ? `every ${escHtml(brandSel)} SKU in this product line` : 'every SKU sold in this product line'}</strong>`;
+        const scopeBadge = document.getElementById('pl-scope-badge');
+        if (scopeBadge) scopeBadge.textContent = brandSel ? `${brandSel} only` : 'All brands & SKUs';
+        const subEl = document.getElementById('pl-scope-sub');
+        if (subEl) subEl.textContent = brandSel
+            ? `Combined demand of every ${brandSel} SKU in the selected product line vs its AI forecast (80% & 95% confidence bands)`
+            : 'Combined demand of every brand and SKU in the selected product line vs its AI forecast (80% & 95% confidence bands)';
         const trEl = document.getElementById('pl-trend-badge');
         const gp = Number(p.growth_pct || 0);
         if (p.trend_status === 'Growing') { trEl.className = 'trend-grow'; trEl.textContent = `↑ Growing (${gp >= 0 ? '+' : ''}${gp.toFixed(1)}%)`; }
@@ -2385,8 +2661,8 @@
         document.getElementById('pl-fc-15d').textContent = fmtNum(p.forecast_15d);
         document.getElementById('pl-fc-30d').textContent = fmtNum(p.forecast_30d);
 
-        document.getElementById('pl-cov-tag').textContent = pl;
-        document.getElementById('pl-cov-header').textContent = `All ${pl}`;
+        document.getElementById('pl-cov-tag').textContent = scopeLbl;
+        document.getElementById('pl-cov-header').textContent = brandSel ? scopeLbl : `All ${pl}`;
         document.getElementById('pl-cur-stock').textContent = fmtNum(p.current_stock);
         document.getElementById('pl-transit-pill').textContent = p.transit_qty > 0 ? `(+${fmtNum(p.transit_qty)} transit)` : '';
         document.getElementById('pl-30d-sales').textContent = fmtNum(p.last_30d_sales);
@@ -2398,14 +2674,16 @@
         document.getElementById('pl-cov-days').textContent = p.stock_coverage_label || `${p.stock_coverage_days} days`;
         const ins = document.getElementById('pl-insight-box');
         ins.className = 'cov-insight-banner ' + (p.insight_severity || 'healthy');
-        ins.textContent = p.insight_text || '';
+        let insTxt = String(p.insight_text || '');
+        if (brandSel && insTxt.startsWith(`Insight: ${pl} `)) insTxt = `Insight: ${scopeLbl} ` + insTxt.slice(`Insight: ${pl} `.length);
+        ins.textContent = insTxt;
 
         // How big is the selected SKU inside the whole product line?
         const shareEl = document.getElementById('pl-sku-share');
         const tot30 = Number(p.forecast_30d || 0);
         if (sp && sp.id !== '__ALL__' && Number(sp.forecast_30d || 0) > 0 && tot30 > 0) {
             const pct = Number(sp.forecast_30d) / tot30 * 100;
-            shareEl.innerHTML = `<i class="bi bi-pie-chart-fill me-1" style="color:#6366f1;"></i>Selected SKU <strong>${escHtml(sp.name || sp.code)}</strong> is about <strong>${pct.toFixed(1)}%</strong> of the ${escHtml(pl)} 30-day forecast (${fmtNum(sp.forecast_30d)} of ${fmtNum(tot30)} units).`;
+            shareEl.innerHTML = `<i class="bi bi-pie-chart-fill me-1" style="color:#6366f1;"></i>Selected SKU <strong>${escHtml(sp.name || sp.code)}</strong> is about <strong>${pct.toFixed(1)}%</strong> of the ${escHtml(scopeLbl)} 30-day forecast (${fmtNum(sp.forecast_30d)} of ${fmtNum(tot30)} units).`;
         } else {
             shareEl.textContent = '';
         }
@@ -2424,13 +2702,14 @@
         sec.classList.remove('d-none');
         const val = id => document.getElementById(id)?.value || '';
         const engine = val('flt-engine') || 'hybrid';
-        const key = [pl, engine, val('flt-macro-cat'), val('flt-district'), val('flt-branch')].join('|');
+        const brandSel = String(val('flt-brand') || '').trim().toUpperCase();   // '' = all brands
+        const key = [pl, brandSel, engine, val('flt-macro-cat'), val('flt-district'), val('flt-branch')].join('|');
         const mySeq = ++plReqSeq;
         if (plCache[key]) {
-            renderProductLineForecast(plCache[key], sp, pl);
+            renderProductLineForecast(plCache[key], sp, pl, brandSel);
             return;
         }
-        setPLLoading(true, pl);
+        setPLLoading(true, brandSel ? `${brandSel} ${pl}` : pl);
         try {
             const csrftoken = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
             const res = await fetch('/api/v1/demand-intelligence/deep-dive/', {
@@ -2442,7 +2721,7 @@
                     engine: engine,
                     macro_category: val('flt-macro-cat'),
                     product: pl,
-                    brand: '',                     // whole product = every brand
+                    brand: brandSel,               // '' = every brand; otherwise only the selected brand's SKUs
                     district: val('flt-district'),
                     branch: val('flt-branch'),
                     row_meta: null,
@@ -2452,7 +2731,7 @@
             if (mySeq !== plReqSeq) return;        // a newer selection has superseded this request
             if (!res.ok || !dd.selected_product) throw new Error(dd.error || `HTTP ${res.status}`);
             plCache[key] = dd;
-            renderProductLineForecast(dd, sp, pl);
+            renderProductLineForecast(dd, sp, pl, brandSel);
         } catch (e) {
             if (mySeq !== plReqSeq) return;
             console.error('Whole product-line forecast error:', e);
@@ -2524,11 +2803,8 @@
     }
 
     function setQsLoading(on, msg) {
-        document.getElementById('qs-spinner')?.classList.toggle('d-none', !on);
-        const pill = document.getElementById('qs-status-pill');
-        if (pill) pill.classList.toggle('d-none', !on);
-        const txt = document.getElementById('qs-status-text');
-        if (txt && msg) txt.textContent = msg;
+        // Intentionally empty: Quick SKU Select no longer shows its own spinners.
+        // Loading feedback comes from the single centered loading panel (via inspectProductRow).
     }
 
     async function qsFetch(q) {
@@ -2537,7 +2813,7 @@
         setQsLoading(true, pl ? `Loading ${pl} SKUs…` : 'Searching SKUs…');
         const box = document.getElementById('qs-list');
         if (box) {
-            box.innerHTML = `<div class="qs-item text-muted d-flex align-items-center py-2"><span class="spinner-border spinner-border-sm text-primary me-2"></span><span>Loading ${pl ? escHtml(pl) + ' ' : ''}SKUs from ClickHouse…</span></div>`;
+            box.innerHTML = `<div class="qs-item text-muted py-2">Loading ${pl ? escHtml(pl) + ' ' : ''}SKUs…</div>`;
             box.classList.remove('d-none');
             qsOpen = true;
         }
@@ -2572,6 +2848,7 @@
     };
 
     window.qsProductChanged = function() {
+        if (tsSuppressChange['qs-product'] || isCascadingFilters) return;
         const inp = document.getElementById('qs-input');
         if (inp) { inp.value = ''; inp.focus(); }
         qsPickedLabel = '';
@@ -2655,17 +2932,6 @@
     }
 
     (function initQuickSkuSelect() {
-        const fp = document.getElementById('flt-product');
-        const qp = document.getElementById('qs-product');
-        if (fp && qp) {
-            qp.value = fp.value;
-            fp.addEventListener('change', () => {
-                qp.value = fp.value;
-                qsPickedLabel = '';
-                const inp = document.getElementById('qs-input');
-                if (inp) inp.value = '';
-            });
-        }
         document.addEventListener('click', ev => {
             if (!ev.target.closest('#quick-sku-box')) qsHide();
         });
@@ -2942,45 +3208,68 @@
         setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     }
 
-    // ── Forecast vs Actual table (days whose forecast was saved earlier and whose sales have now arrived) ──
+    // ── Forecast vs Actual table (saved snapshots, with causal out-of-time backtest fallback) ──
     function renderFvaTable(boxId, fc) {
         const box = document.getElementById(boxId);
         if (!box) return;
         const rows = (fc && fc.compare) || [];
         const sm = fc && fc.compare_summary;
         if (!rows.length || !sm) {
-            box.innerHTML = '<div class="text-muted" style="font-size:0.75rem;"><i class="bi bi-clock-history me-1"></i>' +
+            box.innerHTML = '<div class="rounded-3 p-3 text-muted" style="background:#f8fafc;border:1px dashed #cbd5e1;font-size:0.75rem;">' +
+                '<i class="bi bi-clock-history me-1"></i>' +
                 '<strong>Forecast vs actual tracking is on.</strong> Every day\'s forecast is saved; when a forecast day arrives and its sales are loaded, ' +
                 'the saved forecast and the actual units appear here and on the chart (dashed purple line).</div>';
             return;
         }
+        const isBacktest = sm.source === 'backtest';
+        const srcBadge = isBacktest
+            ? '<span class="badge ms-1" style="background:#eef2ff;color:#4338ca;border:1px solid #c7d2fe;font-size:0.65rem;font-weight:700;">Out-of-Time Backtest · Live saving active today</span>'
+            : '<span class="badge ms-1" style="background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;font-size:0.65rem;font-weight:700;">Saved Forecast Snapshots</span>';
         const pill = (lbl, val, color) =>
             `<div class="px-3 py-1 rounded-3 text-center" style="background:#fff;border:1px solid #e2e8f0;">` +
             `<div style="font-size:0.63rem;font-weight:700;color:#64748b;text-transform:uppercase;">${lbl}</div>` +
             `<div class="fw-bolder" style="font-size:0.92rem;color:${color};">${val}</div></div>`;
         const bias = Number(sm.bias_pct || 0);
+        const inStockBasis = sm.accuracy_basis === 'in_stock' && Number(sm.stock_limited_days || 0) > 0;
+        const accLabel = inStockBasis ? 'Accuracy (in-stock days)' : 'Forecast accuracy';
+        const limCover = Number(sm.stock_limited_cover_days || 2);
         const pills = pill('Days tracked', fmtNum(sm.days_tracked), '#0f172a') +
-            pill('Forecast accuracy', `${fmtNum(sm.accuracy_pct, 1)}%`, sm.accuracy_pct >= 80 ? '#059669' : (sm.accuracy_pct >= 65 ? '#ca8a04' : '#dc2626')) +
+            pill(accLabel, `${fmtNum(sm.accuracy_pct, 1)}%`, sm.accuracy_pct >= 80 ? '#059669' : (sm.accuracy_pct >= 65 ? '#ca8a04' : '#dc2626')) +
+            (inStockBasis ? pill('Stock-limited days', `${fmtNum(sm.stock_limited_days)} of ${fmtNum(sm.days_tracked)}`, '#b45309') : '') +
             pill('Bias', `${bias >= 0 ? '+' : ''}${bias.toFixed(1)}% ${bias >= 0 ? '(over)' : '(under)'}`, '#4f46e5') +
             pill('Actual inside 80% band', `${fmtNum(sm.within_80_band_pct, 0)}%`, '#7c3aed') +
             pill('Total forecast / actual', `${fmtNum(sm.total_forecast)} / ${fmtNum(sm.total_actual)}`, '#0f172a');
         const body = rows.slice().reverse().slice(0, 14).map(r => {
             const diffCls = r.diff >= 0 ? 'text-success' : 'text-danger';
-            const accCls = r.acc_pct >= 80 ? 'text-success' : (r.acc_pct >= 60 ? 'text-warning' : 'text-danger');
-            return `<tr><td>${escHtml(r.label)}</td><td class="text-end">${fmtNum(r.forecast, 1)}</td><td class="text-end fw-bold">${fmtNum(r.actual, 1)}</td>` +
+            const lim = !!r.stock_limited;
+            const accCls = lim ? 'text-muted' : (r.acc_pct >= 80 ? 'text-success' : (r.acc_pct >= 60 ? 'text-warning' : 'text-danger'));
+            const limBadge = lim
+                ? ` <span class="badge" title="On-hand stock was under ${limCover} days of forecast demand (${fmtNum(r.stock_on_hand)} units), so sales were limited by supply, not demand. Not counted in the headline accuracy." style="background:#fef3c7;color:#92400e;border:1px solid #fde68a;font-size:0.58rem;font-weight:700;">stock-limited</span>`
+                : '';
+            return `<tr${lim ? ' style="background:#fffbeb;"' : ''}><td>${escHtml(r.label)}${limBadge}</td><td class="text-end">${fmtNum(r.forecast, 1)}</td><td class="text-end fw-bold">${fmtNum(r.actual, 1)}</td>` +
                 `<td class="text-end ${diffCls}">${r.diff >= 0 ? '+' : ''}${fmtNum(r.diff, 1)}</td>` +
                 `<td class="text-end ${accCls}">${fmtNum(r.acc_pct, 0)}%</td>` +
                 `<td class="text-center">${r.in_80_band ? '✔' : '✖'}</td><td class="text-muted">${escHtml(r.forecast_made_on)}</td></tr>`;
         }).join('');
+        const heading = isBacktest
+            ? 'Walk-Forward Forecast vs Actual — out-of-time backtest'
+            : 'Forecast vs Actual — days that have arrived';
+        const originCol = isBacktest ? 'Backtest origin' : 'Forecast made on';
+        const stockNote = inStockBasis
+            ? ` Highlighted days were stock-limited (under ${limCover} days of stock on hand): sales there reflect available stock, so they are excluded from the headline accuracy (all-days accuracy: ${fmtNum(sm.accuracy_all_pct, 1)}%).`
+            : '';
+        const footnote = isBacktest
+            ? 'No saved snapshot existed yet for earlier days of this selection (today\'s live forecast is saved automatically and replaces backtest rows as new sales load). Each day shown was predicted out-of-time 1–7 days ahead using only prior sales.'
+            : 'Forecast = the last forecast saved before that day. Accuracy = 100% − |actual − forecast| ÷ actual. Showing the latest 14 days.' + stockNote;
         box.innerHTML =
             `<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">` +
-            `<div class="fw-bolder" style="font-size:0.85rem;"><i class="bi bi-clipboard2-check-fill me-1" style="color:#7c3aed;"></i>Forecast vs Actual — days that have arrived</div>` +
+            `<div class="fw-bolder" style="font-size:0.85rem;"><i class="bi bi-clipboard2-check-fill me-1" style="color:#7c3aed;"></i>${heading} ${srcBadge}</div>` +
             `<div class="d-flex gap-2 flex-wrap">${pills}</div></div>` +
             `<div class="table-responsive" style="max-height:260px;overflow-y:auto;"><table class="table table-sm mb-0" style="font-size:0.76rem;">` +
             `<thead><tr><th>Day</th><th class="text-end">Forecast</th><th class="text-end">Actual</th><th class="text-end">Actual − Forecast</th>` +
-            `<th class="text-end">Accuracy</th><th class="text-center" title="Actual fell inside the 80% confidence band">In 80% band</th><th>Forecast made on</th></tr></thead>` +
+            `<th class="text-end">Accuracy</th><th class="text-center" title="Actual fell inside the 80% confidence band">In 80% band</th><th>${originCol}</th></tr></thead>` +
             `<tbody>${body}</tbody></table></div>` +
-            `<div class="text-muted mt-1" style="font-size:0.7rem;">Forecast = the last forecast saved before that day. Accuracy = 100% − |actual − forecast| ÷ actual. Showing the latest 14 days.</div>`;
+            `<div class="text-muted mt-1" style="font-size:0.7rem;">${footnote}</div>`;
     }
 
     // ── Render District Stockout Risk, Location Heatmap & Suppliers ──
@@ -3516,34 +3805,58 @@
         window.location.href = '/api/v1/demand-intelligence/export/?' + params.toString();
     };
 
-    // ── Global & Forecast Panel Loading Indicator Helpers ──
-    let diiLoadTimer = null;
-    let diiLoadStart = 0;
+    // ── Single centered loading panel (only loading indicator on this page) ──
+    // Several requests can overlap (dashboard reload, SKU deep-dive, whole-product forecast);
+    // the panel stays up until every one of them has finished and never flickers on fast calls.
+    var diiLoaderKeys = {};
+    var diiLoaderTimer = null;
+    var diiLoaderDelay = null;
+    var diiLoaderStart = 0;
+    var DII_LOADER_DELAY_MS = 180;
+
+    function diiLoaderActive() {
+        return Object.keys(diiLoaderKeys).length > 0;
+    }
+
+    function diiLoaderRender() {
+        const el = document.getElementById('dii-center-loader');
+        if (!el) return;
+        const keys = Object.keys(diiLoaderKeys);
+        if (!keys.length) {
+            if (diiLoaderDelay) { clearTimeout(diiLoaderDelay); diiLoaderDelay = null; }
+            if (diiLoaderTimer) { clearInterval(diiLoaderTimer); diiLoaderTimer = null; }
+            el.classList.add('d-none');
+            return;
+        }
+        // newest message wins
+        const msg = diiLoaderKeys[keys[keys.length - 1]];
+        const msgEl = document.getElementById('dii-center-loader-msg');
+        if (msgEl && msg) msgEl.textContent = msg;
+        if (!el.classList.contains('d-none') || diiLoaderDelay) return;
+        diiLoaderDelay = setTimeout(() => {
+            diiLoaderDelay = null;
+            if (!diiLoaderActive()) return;
+            const timerEl = document.getElementById('dii-center-loader-timer');
+            diiLoaderStart = performance.now();
+            if (timerEl) timerEl.textContent = '0.0s';
+            el.classList.remove('d-none');
+            diiLoaderTimer = setInterval(() => {
+                if (timerEl) timerEl.textContent = ((performance.now() - diiLoaderStart) / 1000).toFixed(1) + 's';
+            }, 100);
+        }, DII_LOADER_DELAY_MS);
+    }
+
+    function diiLoaderSet(key, on, msg) {
+        if (on) diiLoaderKeys[key] = msg || diiLoaderKeys[key] || 'Preparing forecast and inventory data…';
+        else delete diiLoaderKeys[key];
+        diiLoaderRender();
+    }
 
     function setSkuLoading(on, msg) {
-        const skuBox = document.getElementById('sku-loading');
-        const covBox = document.getElementById('cov-loading');
-        if (skuBox) skuBox.classList.toggle('d-none', !on);
-        if (covBox) covBox.classList.toggle('d-none', !on);
-        const txt = document.getElementById('sku-loading-text');
-        if (txt && msg) txt.textContent = msg;
+        diiLoaderSet('sku', on, msg);
     }
 
     function setDashboardLoading(on, customMsg) {
-        const wrap = document.getElementById('dii-root-wrap');
-        const prog = document.getElementById('dii-top-progress');
-        const inl = document.getElementById('dii-inline-loader');
-        const flt = document.getElementById('dii-floating-loader');
-        const inlTxt = document.getElementById('dii-inline-loader-text');
-        const fltTxt = document.getElementById('dii-floating-loader-text');
-        const inlTim = document.getElementById('dii-inline-loader-timer');
-        const fltTim = document.getElementById('dii-floating-loader-timer');
-
-        if (diiLoadTimer) {
-            clearInterval(diiLoadTimer);
-            diiLoadTimer = null;
-        }
-
         if (on) {
             const prod = document.getElementById('flt-product')?.value || '';
             const brnd = document.getElementById('flt-brand')?.value || '';
@@ -3551,31 +3864,10 @@
             const scopeParts = [prod, brnd, dist].filter(Boolean);
             const msg = customMsg || (scopeParts.length
                 ? `Loading forecast & inventory for ${scopeParts.join(' · ')}…`
-                : 'Loading Demand & Inventory Intelligence…');
-
-            if (inlTxt) inlTxt.textContent = msg;
-            if (fltTxt) fltTxt.textContent = msg;
-            if (inlTim) inlTim.textContent = '0.0s';
-            if (fltTim) fltTim.textContent = '0.0s';
-
-            wrap?.classList.add('dii-loading-active');
-            prog?.classList.remove('d-none');
-            inl?.classList.remove('d-none');
-            flt?.classList.remove('d-none');
-            setSkuLoading(true, msg);
-
-            diiLoadStart = performance.now();
-            diiLoadTimer = setInterval(() => {
-                const sec = ((performance.now() - diiLoadStart) / 1000).toFixed(1) + 's';
-                if (inlTim) inlTim.textContent = sec;
-                if (fltTim) fltTim.textContent = sec;
-            }, 100);
+                : 'Preparing forecast and inventory data…');
+            diiLoaderSet('dashboard', true, msg);
         } else {
-            wrap?.classList.remove('dii-loading-active');
-            prog?.classList.add('d-none');
-            inl?.classList.add('d-none');
-            flt?.classList.add('d-none');
-            setSkuLoading(false);
+            diiLoaderSet('dashboard', false);
         }
     }
 
@@ -3715,6 +4007,33 @@
         reloadDemandDashboard(false);
     };
 
+    function clearQuickSkuInput() {
+        qsPickedLabel = '';
+        const qi = document.getElementById('qs-input');
+        if (qi) qi.value = '';
+    }
+
+    window.onMacroCategoryChange = function() {
+        if (tsSuppressChange['flt-macro-cat'] || isCascadingFilters) return;
+        refreshCatalogFilters('category');
+        clearQuickSkuInput();
+        reloadDemandDashboard(true);
+    };
+
+    window.onProductFilterChange = function() {
+        if (tsSuppressChange['flt-product'] || isCascadingFilters) return;
+        refreshCatalogFilters('product');
+        clearQuickSkuInput();
+        reloadDemandDashboard(true);
+    };
+
+    window.onBrandFilterChange = function() {
+        if (tsSuppressChange['flt-brand'] || isCascadingFilters) return;
+        refreshCatalogFilters('brand');
+        clearQuickSkuInput();
+        reloadDemandDashboard(true);
+    };
+
     window.onDistrictChange = function() {
         const dist = document.getElementById('flt-district')?.value || '';
         const brSel = document.getElementById('flt-branch');
@@ -3746,8 +4065,9 @@
         document.getElementById('flt-branch').value = '';
         document.getElementById('flt-search').value = '';
         document.getElementById('flt-sort').value = 'd30';
-        { const qp = document.getElementById('qs-product'); if (qp) qp.value = ''; const qi = document.getElementById('qs-input'); if (qi) qi.value = ''; qsPickedLabel = ''; }
+        { const qp = document.getElementById('qs-product'); if (qp) qp.value = ''; clearQuickSkuInput(); }
         Array.from(document.getElementById('flt-branch').options).forEach(o => { o.hidden = false; });
+        refreshCatalogFilters('reset');
         activeMovement = '';
         activeTrend = '';
         activeModelTier = '';
@@ -3773,6 +4093,8 @@
     };
 
     document.addEventListener('DOMContentLoaded', () => {
+        initCatalogTomSelects();
+        refreshCatalogFilters('init');
         reloadDemandDashboard(true);
     });
 })();

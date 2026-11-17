@@ -376,6 +376,46 @@
     .chx-rca-foot .ok { color: #16a34a; font-weight: 700; } .chx-rca-foot .bad { color: #dc2626; font-weight: 700; }
     .chx-rca details > summary { cursor: pointer; font-size: .72rem; font-weight: 700; color: var(--chx-indigo); padding: .3rem .95rem; list-style: none; }
     .chx-rca details > summary::-webkit-details-marker { display: none; }
+
+    /* ── Advanced Jazz AI: charts, follow-ups, feedback, history, voice ───────── */
+    .chx-viewtoggle { display: inline-flex; border: 1px solid var(--chx-line); border-radius: 8px; overflow: hidden; background: #fff; }
+    .chx-viewtoggle button { border: 0 !important; border-radius: 0 !important; background: transparent !important; padding: .22rem .6rem !important; }
+    .chx-viewtoggle button.active { background: #4f46e5 !important; color: #fff !important; }
+    .chx-chartbar { display: none; align-items: center; gap: .5rem; flex-wrap: wrap; padding: .5rem .8rem 0; font-size: .72rem; color: #475569; }
+    .chx-chartbar select { font-size: .72rem; border: 1px solid var(--chx-line); border-radius: 7px; padding: .15rem .4rem; background: #fff; }
+    .chx-result.chart-mode .chx-chartbar { display: flex; }
+    .chx-chartwrap { display: none; position: relative; height: 300px; padding: .5rem .9rem .8rem; }
+    .chx-result.chart-mode .chx-chartwrap { display: block; }
+    .chx-result.chart-mode .chx-tablewrap { display: none; }
+    .chx-followups { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .8rem; }
+    .chx-followups button { border: 1px solid #c7d2fe; background: #f5f7ff; color: #3730a3; font-size: .76rem; font-weight: 600; padding: .35rem .8rem; border-radius: 999px; cursor: pointer; transition: all .15s; text-align: left; }
+    .chx-followups button:hover { background: #4f46e5; color: #fff; border-color: #4f46e5; transform: translateY(-1px); }
+    .chx-meta .fb.on-up { color: #16a34a; background: #f0fdf4; } .chx-meta .fb.on-down { color: #dc2626; background: #fef2f2; }
+    .chx-star { border: 0; background: transparent; color: rgba(255,255,255,.55); cursor: pointer; font-size: .8rem; padding: 0 .25rem; margin-left: .4rem; }
+    .chx-star:hover, .chx-star.on { color: #fde047; }
+    .chx-mic-btn { width: 38px; height: 38px; flex-shrink: 0; border: 0; border-radius: 12px; cursor: pointer; display: grid; place-items: center; background: #f1f5f9; color: #64748b; font-size: 1.05rem; margin-bottom: 2px; transition: all .18s; }
+    .chx-mic-btn:hover { background: #e0e7ff; color: var(--chx-indigo); }
+    .chx-mic-btn.rec { background: #fee2e2; color: #dc2626; animation: chx-pulse 1.2s infinite; }
+    .chx-status-live { display: flex; flex-direction: column; gap: .15rem; }
+    .chx-status-live .done { color: #94a3b8; font-size: .72rem; }
+    .chx-status-live .done i { color: #16a34a; }
+    .chx-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 380px; max-width: 94vw; z-index: 1200; background: #fff; border-left: 1px solid var(--chx-line); box-shadow: -14px 0 40px rgba(15,23,42,.14); transform: translateX(105%); transition: transform .25s ease; display: flex; flex-direction: column; font-family: 'Inter', sans-serif; }
+    .chx-drawer.open { transform: none; }
+    .chx-drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.1rem .5rem; font-weight: 800; }
+    .chx-drawer-head button { border: 0; background: transparent; font-size: 1.1rem; cursor: pointer; color: var(--chx-muted); }
+    .chx-drawer-tabs { display: flex; gap: .4rem; padding: 0 1.1rem .6rem; }
+    .chx-drawer-tabs button { flex: 1; border: 1px solid var(--chx-line); background: #fff; font-size: .78rem; font-weight: 700; padding: .4rem; border-radius: 9px; cursor: pointer; color: #475569; }
+    .chx-drawer-tabs button.active { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+    .chx-drawer-search { margin: 0 1.1rem .6rem; padding: .45rem .7rem; border: 1px solid var(--chx-line); border-radius: 10px; font-size: .8rem; outline: 0; background: #f8fafc; }
+    .chx-drawer-list { flex: 1; overflow-y: auto; padding: 0 1.1rem 1rem; }
+    .chx-hitem { border: 1px solid var(--chx-line); border-radius: 11px; padding: .6rem .75rem; margin-bottom: .5rem; cursor: pointer; font-size: .8rem; transition: all .15s; position: relative; }
+    .chx-hitem:hover { border-color: var(--chx-indigo); background: #fafbff; }
+    .chx-hitem .q { font-weight: 600; color: #1e293b; padding-right: 1.4rem; }
+    .chx-hitem .ts { font-size: .66rem; color: #94a3b8; margin-top: .2rem; }
+    .chx-hitem .rm { position: absolute; top: .45rem; right: .5rem; border: 0; background: transparent; color: #cbd5e1; cursor: pointer; }
+    .chx-hitem .rm:hover { color: #dc2626; }
+    .chx-toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); background: #0f172a; color: #fff; padding: .5rem 1rem; border-radius: 10px; font-size: .8rem; z-index: 1300; opacity: 0; transition: opacity .2s; pointer-events: none; }
+    .chx-toast.show { opacity: .95; }
 </style>
 {% endblock %}
 
@@ -391,7 +431,7 @@
             </div>
             <div class="chx-title">
                 <h1>Jazz AI</h1>
-                <p>StarRocks intelligence &middot; File Analysis (Excel, CSV, PDF) &middot; Operations &amp; SQL</p>
+                <p>ClickHouse intelligence &middot; File Analysis (Excel, CSV, PDF) &middot; Operations &amp; SQL</p>
             </div>
         </div>
         <div class="chx-actions">
@@ -400,6 +440,7 @@
             </span>
             <span class="chx-chip"><i class="bi bi-shield-check"></i> Read-only</span>
             <span class="chx-chip model" id="chx-model" title="AI model used for the last answer" style="display:none;"></span>
+            <button class="chx-btn" id="chx-open-history" type="button" title="Recent questions & saved prompts"><i class="bi bi-clock-history"></i> History</button>
             <button class="chx-btn" id="chx-toggle-schema" type="button" title="Show / hide the schema explorer"><i class="bi bi-layout-sidebar-inset-reverse"></i> Schema</button>
             <button class="chx-btn" id="chx-new" type="button"><i class="bi bi-plus-lg"></i> New chat</button>
         </div>
@@ -412,7 +453,7 @@
                 <div class="chx-welcome" id="chx-welcome">
                     <div class="hero"><i class="bi bi-robot"></i></div>
                     <h2>What would you like to know about <span>your data</span>?</h2>
-                    <p class="sub">I turn your questions into StarRocks SQL, run them safely, and explain results. You can also <strong>upload an Excel, CSV, PDF file, or Image</strong> below to do calculations, rankings, visual chart analysis, and deep intelligence.</p>
+                    <p class="sub">I turn your questions into ClickHouse SQL, run them safely, and explain results. You can also <strong>upload an Excel, CSV, PDF file, or Image</strong> below to do calculations, rankings, visual chart analysis, and deep intelligence.</p>
 
                     <div class="chx-welcome-actions">
                         <button type="button" class="chx-welcome-upload-btn" id="chx-welcome-upload-btn">
@@ -463,7 +504,8 @@
                     <button class="chx-attach-btn" id="chx-attach-btn" type="button" title="Attach file or image (Excel, CSV, PDF, PNG, JPG, WebP)">
                         <i class="bi bi-paperclip"></i>
                     </button>
-                    <textarea id="chx-input" rows="1" placeholder="Ask a question about StarRocks or tell me what to analyze on your file/image… (Enter to send)" maxlength="4000"></textarea>
+                    <textarea id="chx-input" rows="1" placeholder="Ask a question about ClickHouse or tell me what to analyze on your file/image… (Enter to send, / to focus)" maxlength="4000"></textarea>
+                    <button class="chx-mic-btn" id="chx-mic" type="button" title="Voice input" style="display:none;"><i class="bi bi-mic"></i></button>
                     <button class="chx-send" id="chx-send" type="submit" title="Send"><i class="bi bi-arrow-up"></i></button>
                 </form>
 
@@ -486,6 +528,18 @@
         </aside>
     </div>
 </div>
+
+<!-- History / saved prompts drawer -->
+<aside class="chx-drawer" id="chx-drawer" aria-label="History">
+    <div class="chx-drawer-head"><span><i class="bi bi-clock-history me-1"></i> Jazz AI history</span><button type="button" id="chx-drawer-close" title="Close"><i class="bi bi-x-lg"></i></button></div>
+    <div class="chx-drawer-tabs">
+        <button type="button" class="active" data-htab="history">Recent</button>
+        <button type="button" data-htab="saved">★ Saved</button>
+    </div>
+    <input type="search" class="chx-drawer-search" id="chx-drawer-search" placeholder="Search…">
+    <div class="chx-drawer-list" id="chx-drawer-list"></div>
+</aside>
+<div class="chx-toast" id="chx-toast"></div>
 {% endblock %}
 
 {% block extra_js %}
@@ -496,6 +550,9 @@
     const CHAT_URL = '{% url "clickhouse_assistant_chat_api" %}';
     const SCHEMA_URL = '{% url "clickhouse_assistant_schema_api" %}';
     const REPORT_URL = '{% url "clickhouse_assistant_report_download" "REPORT_ID" %}';
+    const FEEDBACK_URL = '{% url "clickhouse_assistant_feedback_api" %}';
+    const HISTORY_URL = '{% url "clickhouse_assistant_history_api" %}';
+    const SAVED_URL = '{% url "clickhouse_assistant_saved_api" %}';
     const STORE_KEY = 'chx_assistant_chat_v2';
     const SESSION_ID_KEY = 'chx_assistant_session_id';
 
@@ -628,7 +685,52 @@
         return out.join('');
     }
 
-    /* ───────────── Results & Steps ───────────── */
+    /* ───────────── Results, auto-charts & steps ───────────── */
+    const resCharts = [];
+    const PALETTE = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#06b6d4', '#a855f7', '#84cc16', '#f97316'];
+    const compactNum = (v) => { if (v === null || v === undefined || isNaN(v)) return ''; const a = Math.abs(v); const s = v < 0 ? '-' : '';
+        if (a >= 1e7) return s + (a / 1e7).toFixed(2).replace(/\.?0+$/, '') + ' Cr'; if (a >= 1e5) return s + (a / 1e5).toFixed(2).replace(/\.?0+$/, '') + ' L';
+        if (a >= 1e3) return s + (a / 1e3).toFixed(1).replace(/\.0$/, '') + 'K'; return s + (Number.isInteger(a) ? a : a.toFixed(2)); };
+
+    // Decide whether (and how) a result set can be charted. Returns null when it should stay a plain table.
+    function chartSpec(res) {
+        if (!res || !res.columns || !res.rows || res.rows.length < 2 || res.rows.length > 400) return null;
+        const cols = res.columns, rows = res.rows;
+        const isNum = (ci) => { let n = 0, t = 0; rows.forEach((r) => { if (r[ci] !== null && r[ci] !== undefined) { t++; if (typeof r[ci] === 'number') n++; } }); return t > 0 && n === t; };
+        const measures = [], labels = [];
+        cols.forEach((c, ci) => { if (isNum(ci) && !NON_NUM_COLS.test(c)) measures.push(ci); else labels.push(ci); });
+        if (!measures.length || !labels.length) return null;
+        const li = labels[0];
+        const sample = rows.slice(0, 5).map((r) => String(r[li]));
+        const timeLike = sample.every((s) => /^\d{4}-\d{2}(-\d{2})?([ T].*)?$/.test(s)) || /(^|_)(date|month|day|week|year|period)(_|$)/i.test(cols[li]);
+        const maxCat = timeLike ? 400 : 30;
+        const n = Math.min(rows.length, maxCat);
+        const auto = timeLike ? rows.length >= 3 : (rows.length <= 12);
+        return { li, measures, timeLike, n, defType: timeLike ? 'line' : (rows.length > 8 ? 'barh' : 'bar'), auto };
+    }
+
+    function drawResultChart(box) {
+        const key = box.getAttribute('data-res'); if (!key) return;
+        const [mi, ri] = key.split(':').map(Number);
+        const res = messages[mi] && messages[mi].results && messages[mi].results[ri]; if (!res || !window.Chart) return;
+        const spec = chartSpec(res); if (!spec) return;
+        const canvas = box.querySelector('canvas'); if (!canvas) return;
+        const prev = resCharts.findIndex((c) => c.canvas === canvas); if (prev >= 0) { try { resCharts[prev].destroy(); } catch (e) { /* */ } resCharts.splice(prev, 1); }
+        const type = res._ctype || spec.defType;
+        const metric = (res._metric !== undefined && spec.measures.includes(res._metric)) ? res._metric : spec.measures[0];
+        const rowsN = res.rows.slice(0, spec.n);
+        const labels = rowsN.map((r) => { const v = r[spec.li]; return v === null || v === undefined ? '(blank)' : String(v).replace(/T00:00:00$/, '').slice(0, 28); });
+        const mkSet = (mx, idx) => ({ label: res.columns[mx], data: rowsN.map((r) => r[mx]), backgroundColor: type === 'pie' ? labels.map((_, i) => PALETTE[i % PALETTE.length]) : PALETTE[idx % PALETTE.length] + (type === 'line' ? '33' : 'cc'),
+            borderColor: PALETTE[idx % PALETTE.length], borderWidth: type === 'line' ? 2 : 1, tension: .3, fill: type === 'line', pointRadius: rowsN.length > 60 ? 0 : 3, borderRadius: type === 'line' || type === 'pie' ? 0 : 5 });
+        const datasets = [mkSet(metric, spec.measures.indexOf(metric))];
+        const horiz = type === 'barh';
+        const cfg = { type: type === 'barh' ? 'bar' : type, data: { labels, datasets },
+            options: { responsive: true, maintainAspectRatio: false, indexAxis: horiz ? 'y' : 'x',
+                plugins: { legend: { display: type === 'pie', position: 'right' }, tooltip: { callbacks: { label: (c) => ' ' + c.dataset.label + ': ' + (typeof c.parsed === 'object' ? (horiz ? c.parsed.x : c.parsed.y) : c.parsed).toLocaleString('en-IN', { maximumFractionDigits: 2 }) } } },
+                scales: type === 'pie' ? {} : { [horiz ? 'x' : 'y']: { beginAtZero: true, ticks: { callback: (v) => compactNum(v) }, grid: { color: '#eef2f7' } }, [horiz ? 'y' : 'x']: { grid: { display: false }, ticks: { autoSkip: true, maxRotation: horiz ? 0 : 50 } } } } };
+        resCharts.push(new Chart(canvas, cfg));
+    }
+
     function resultHTML(res, idx) {
         const head = '<tr>' + res.columns.map((c) => '<th>' + esc(c) + '</th>').join('') + '</tr>';
         const body = res.rows.map((r) => '<tr>' + r.map((v, ci) => {
@@ -637,14 +739,44 @@
         }).join('') + '</tr>').join('');
         const note = res.truncated ? ' (showing first ' + res.rows.length.toLocaleString('en-IN') + ')' : '';
         const isFile = (res.source || '').includes('Uploaded');
-        const srcTag = '<span class="chx-source-tag ' + (isFile ? 'file' : 'ch') + '">' + (isFile ? 'DuckDB &middot; File' : 'StarRocks') + '</span>';
+        const srcTag = '<span class="chx-source-tag ' + (isFile ? 'file' : 'ch') + '">' + (isFile ? 'DuckDB &middot; File' : 'ClickHouse') + '</span>';
+        const spec = chartSpec(res);
+        if (spec && res._view === undefined) res._view = spec.auto ? 'chart' : 'table';
+        const chartMode = !!spec && res._view === 'chart';
+        const curType = res._ctype || (spec && spec.defType);
+        const curMetric = (spec && res._metric !== undefined && spec.measures.includes(res._metric)) ? res._metric : (spec && spec.measures[0]);
+        const toggle = spec ? '<span class="chx-viewtoggle"><button type="button" data-view="' + idx + ':table" class="' + (chartMode ? '' : 'active') + '"><i class="bi bi-table"></i> Table</button>' +
+            '<button type="button" data-view="' + idx + ':chart" class="' + (chartMode ? 'active' : '') + '"><i class="bi bi-bar-chart-line"></i> Chart</button></span>' : '';
+        const typeOpts = [['bar', 'Bar'], ['barh', 'Horizontal bar'], ['line', 'Line'], ['pie', 'Pie']].map((t) => '<option value="' + t[0] + '"' + (t[0] === curType ? ' selected' : '') + '>' + t[1] + '</option>').join('');
+        const metricOpts = spec ? spec.measures.map((m) => '<option value="' + m + '"' + (m === curMetric ? ' selected' : '') + '>' + esc(res.columns[m]) + '</option>').join('') : '';
+        const chartPart = spec ? '<div class="chx-chartbar">Type <select data-ctype="' + idx + '">' + typeOpts + '</select>' +
+            (spec.measures.length > 1 ? ' Metric <select data-cmetric="' + idx + '">' + metricOpts + '</select>' : '') +
+            (res.truncated || res.rows.length > spec.n ? ' <span style="color:#94a3b8">showing first ' + spec.n + ' rows</span>' : '') + '</div>' +
+            '<div class="chx-chartwrap" data-res="' + idx + '"><canvas></canvas></div>' : '';
 
-        return '<div class="chx-result"><div class="chx-result-head"><i class="bi bi-table"></i>' +
-            '<span>' + res.row_count.toLocaleString('en-IN') + ' row' + (res.row_count === 1 ? '' : 's') + note + ' &middot; ' + res.elapsed_ms + ' ms</span>' +
-            srcTag + '<span class="grow"></span>' +
-            '<button type="button" data-csv="' + idx + '"><i class="bi bi-download"></i> CSV</button></div>' +
+        return '<div class="chx-result' + (chartMode ? ' chart-mode' : '') + '" data-resbox="' + idx + '"><div class="chx-result-head"><i class="bi bi-table"></i>' +
+            '<span>' + res.row_count.toLocaleString('en-IN') + ' row' + (res.row_count === 1 ? '' : 's') + note + ' &middot; ' + (res.cached ? 'cached' : res.elapsed_ms + ' ms') + '</span>' +
+            srcTag + '<span class="grow"></span>' + toggle +
+            '<button type="button" data-csv="' + idx + '"><i class="bi bi-download"></i> CSV</button></div>' + chartPart +
             '<div class="chx-tablewrap"><table class="chx-table"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div></div>';
     }
+
+    function initResultCharts(root) {
+        root.querySelectorAll('.chx-result.chart-mode .chx-chartwrap').forEach(drawResultChart);
+    }
+    document.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-view]'); if (!b) return;
+        const [mi, ri, mode] = b.dataset.view.split(':'); const res = messages[+mi].results[+ri]; res._view = mode;
+        const box = b.closest('.chx-result'); box.classList.toggle('chart-mode', mode === 'chart');
+        box.querySelectorAll('[data-view]').forEach((x) => x.classList.toggle('active', x === b));
+        if (mode === 'chart') drawResultChart(box.querySelector('.chx-chartwrap')); save();
+    });
+    document.addEventListener('change', (e) => {
+        const t = e.target; const isT = t.matches && t.matches('[data-ctype]'), isM = t.matches && t.matches('[data-cmetric]'); if (!isT && !isM) return;
+        const [mi, ri] = (t.dataset.ctype || t.dataset.cmetric).split(':').map(Number); const res = messages[mi].results[ri];
+        if (isT) res._ctype = t.value; else res._metric = +t.value;
+        drawResultChart(t.closest('.chx-result').querySelector('.chx-chartwrap')); save();
+    });
 
     /* ───────────── Root-cause analysis card ───────────── */
     const rcaStore = {};
@@ -857,7 +989,7 @@
         steps.forEach((s, n) => {
             const isSql = s.tool === 'run_sql' || s.tool === 'query_uploaded_file' || s.tool === 'build_excel_report';
             const srcLabel = s.source ? ' [' + esc(s.source) + ']' : '';
-            const toolName = s.tool === 'query_uploaded_file' ? 'Queried Uploaded File' : (s.tool === 'run_sql' ? 'StarRocks SQL' : (s.tool === 'explain_change' ? 'Root-cause analysis' : (s.tool === 'build_excel_report' ? 'Built Excel report' : (s.tool === 'portal_page_info' ? 'Read portal page' : 'Inspected Table'))));
+            const toolName = s.tool === 'query_uploaded_file' ? 'Queried Uploaded File' : (s.tool === 'run_sql' ? 'ClickHouse SQL' : (s.tool === 'explain_change' ? 'Root-cause analysis' : (s.tool === 'build_excel_report' ? 'Built Excel report' : (s.tool === 'portal_page_info' ? 'Read portal page' : 'Inspected Table'))));
             h += '<div class="chx-step"><div class="lbl">' + (n + 1) + '. ' + (s.agent ? '<span class="chx-agent">' + esc(s.agent) + '</span> ' : '') + toolName + srcLabel +
                 (s.error ? ' <span class="bad"><i class="bi bi-x-circle-fill"></i> failed — retried</span>' : ' <span style="color:#16a34a"><i class="bi bi-check-circle-fill"></i></span>') + '</div>' +
                 validationHTML(s.validation) +
@@ -882,7 +1014,7 @@
                     '<span class="uf-size">' + esc(m.attachment.size_str || '') + ' &middot; ' + finfo.label + '</span></div></div>';
             }
             if (m.content) {
-                uHtml += '<div>' + esc(m.content) + '</div>';
+                uHtml += '<div>' + esc(m.content) + '<button type="button" class="chx-star" data-star="' + mi + '" title="Save this prompt"><i class="bi bi-star"></i></button></div>';
             }
             wrap.innerHTML = '<div class="chx-bubble-user">' + uHtml + '</div>';
         } else {
@@ -903,22 +1035,30 @@
             (m.ui_blocks || []).forEach((b, bi) => { if (b.type === 'rca') inner += rcaHTML(b, mi + '-' + bi); else if (b.type === 'report_file') inner += reportCardHTML(b); });
             (m.results || []).forEach((r, ri) => { inner += resultHTML(r, mi + ':' + ri); });
             inner += stepsHTML(m.steps);
+            if (!m.error && m.followups && m.followups.length && mi === messages.length - 1) {
+                inner += '<div class="chx-followups">' + m.followups.map((f) => '<button type="button" data-followup="' + esc(f) + '"><i class="bi bi-arrow-return-right"></i> ' + esc(f) + '</button>').join('') + '</div>';
+            }
             if (!m.error) {
                 const agents = [...new Set((m.steps || []).map((s) => s.agent).filter(Boolean))];
+                const fbBtns = m.log_id ? '<button type="button" class="fb' + (m.rating === 1 ? ' on-up' : '') + '" data-fb="' + mi + ':1" title="Helpful"><i class="bi bi-hand-thumbs-up' + (m.rating === 1 ? '-fill' : '') + '"></i></button>' +
+                    '<button type="button" class="fb' + (m.rating === -1 ? ' on-down' : '') + '" data-fb="' + mi + ':-1" title="Wrong number / not helpful"><i class="bi bi-hand-thumbs-down' + (m.rating === -1 ? '-fill' : '') + '"></i></button>' : '';
                 inner += '<div class="chx-meta">' +
                     agents.map((a) => '<span class="agent-tag">' + esc(a) + '</span>').join('') +
                     (m.model ? '<span class="tag">' + esc(m.model) + '</span>' : '') +
                     (m.ms ? '<span>' + (m.ms / 1000).toFixed(1) + 's</span>' : '') +
-                    '<span class="grow"></span><button type="button" data-copy-answer="' + mi + '"><i class="bi bi-clipboard"></i> Copy answer</button></div>';
+                    (m.cache_hits ? '<span title="Served from the 5-minute result cache"><i class="bi bi-lightning-charge-fill" style="color:#eab308"></i> cached</span>' : '') +
+                    '<span class="grow"></span>' + fbBtns + '<button type="button" data-copy-answer="' + mi + '"><i class="bi bi-clipboard"></i> Copy answer</button></div>';
             }
             wrap.innerHTML = '<div class="chx-avatar"><i class="bi bi-robot"></i></div><div class="chx-card' + (m.error ? ' error' : '') + '">' + inner + '</div>';
         }
         streamEl.appendChild(wrap);
         initRca(wrap);
+        initResultCharts(wrap);
     }
 
     function renderAll() {
         rcaCharts.forEach((c) => { try { c.destroy(); } catch (e) { /* ignore */ } }); rcaCharts = [];
+        resCharts.splice(0).forEach((c) => { try { c.destroy(); } catch (e) { /* ignore */ } });
         streamEl.innerHTML = '';
         welcomeEl.style.display = messages.length ? 'none' : '';
         messages.forEach((m, i) => addMessageEl(m, i));
@@ -936,9 +1076,9 @@
         toBottom();
     }
 
-    const STATUS_DEFAULT = ['Reading the schema…', 'Thinking about the best query…', 'Querying StarRocks…', 'Analysing the results…'];
+    const STATUS_DEFAULT = ['Reading the schema…', 'Thinking about the best query…', 'Querying ClickHouse…', 'Analysing the results…'];
     const STATUS_FILE = ['Uploading and inspecting file…', 'Profiling data & registering in DuckDB…', 'Executing requested operations & calculations…', 'Generating analytical insights…'];
-    const STATUS_IMAGE = ['Uploading image to Gemini Vision…', 'Inspecting visual details & OCR…', 'Cross-referencing against StarRocks…', 'Generating insights…'];
+    const STATUS_IMAGE = ['Uploading image to Gemini Vision…', 'Inspecting visual details & OCR…', 'Cross-referencing against ClickHouse…', 'Generating insights…'];
 
     function showTyping(hasFile, fileType) {
         let statusList = STATUS_DEFAULT;
@@ -954,6 +1094,30 @@
         el._t = setInterval(() => { n = Math.min(n + 1, statusList.length - 1); const s = $('chx-status'); if (s) s.textContent = statusList[n]; }, 3500);
     }
     function hideTyping() { const el = $('chx-typing'); if (el) { clearInterval(el._t); el.remove(); } }
+    // live progress from the streaming endpoint: shows finished steps (✓) above the current one
+    function setStatus(text) {
+        const el = $('chx-typing'), s = $('chx-status'); if (!el || !s) return;
+        clearInterval(el._t);
+        if (s.textContent === text) return;
+        const box = s.parentElement; let done = box.querySelector('.chx-done');
+        if (!done) { done = document.createElement('div'); done.className = 'chx-done'; box.parentElement.insertBefore(done, box); done.style.cssText = 'font-size:.72rem;color:#94a3b8;margin-bottom:.35rem;'; }
+        done.insertAdjacentHTML('beforeend', '<div><i class="bi bi-check-circle-fill" style="color:#16a34a"></i> ' + esc(s.textContent) + '</div>');
+        while (done.children.length > 4) done.removeChild(done.firstChild);
+        s.textContent = text; toBottom();
+    }
+
+    // reads newline-delimited JSON events from a streaming fetch response
+    async function readStream(response, onEvent) {
+        const reader = response.body.getReader(); const dec = new TextDecoder(); let buf = '';
+        for (;;) {
+            const { done, value } = await reader.read(); if (done) break;
+            buf += dec.decode(value, { stream: true });
+            let nl; while ((nl = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1); if (line) { try { onEvent(JSON.parse(line)); } catch (e) { /* skip */ } } }
+        }
+        if (buf.trim()) { try { onEvent(JSON.parse(buf.trim())); } catch (e) { /* skip */ } }
+    }
+
+    function toast(t) { const el = $('chx-toast'); el.textContent = t; el.classList.add('show'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 1800); }
 
     /* ───────────── persistence ───────────── */
     function save() {
@@ -1023,7 +1187,7 @@
         stagedFile = null;
         fileInput.value = '';
         stagedFileEl.style.display = 'none';
-        inputEl.placeholder = 'Ask a question about StarRocks or tell me what to analyze on your file/image… (Enter to send)';
+        inputEl.placeholder = 'Ask a question about ClickHouse or tell me what to analyze on your file/image… (Enter to send)';
     }
 
     attachBtn.addEventListener('click', () => fileInput.click());
@@ -1130,6 +1294,7 @@
                 fd.append('question', text);
                 fd.append('history', JSON.stringify(history));
                 fd.append('session_id', sessionId);
+                fd.append('stream', 'true');
 
                 response = await fetch(CHAT_URL, {
                     method: 'POST',
@@ -1142,15 +1307,25 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
                     credentials: 'same-origin',
-                    body: JSON.stringify({ question: text, history, session_id: sessionId }),
+                    body: JSON.stringify({ question: text, history, session_id: sessionId, stream: true }),
                 });
             }
 
             let data = {};
-            try { data = await response.json(); } catch (e) { /* non-JSON */ }
+            const ctype = response.headers.get('content-type') || '';
+            if (response.ok && ctype.includes('ndjson') && response.body) {
+                await readStream(response, (ev) => {
+                    if (ev.type === 'status') setStatus(ev.text);
+                    else if (ev.type === 'final') data = ev.data || {};
+                    else if (ev.type === 'error') data = { error: ev.error };
+                });
+                if (!data.answer && !data.error) data = { error: 'The connection closed before the answer was complete. Please try again.' };
+            } else {
+                try { data = await response.json(); } catch (e) { /* non-JSON */ }
+            }
             hideTyping();
 
-            if (!response.ok || data.error) {
+            if ((!response.ok && !data.answer) || data.error) {
                 messages.push({ role: 'assistant', error: true, content: '⚠️ ' + (data.error || ('Request failed (HTTP ' + response.status + ').')) });
             } else {
                 if (data.file_info) {
@@ -1165,6 +1340,9 @@
                     model: data.model,
                     ms: data.elapsed_ms,
                     file_info: data.file_info,
+                    followups: data.followups || [],
+                    log_id: data.log_id || null,
+                    cache_hits: data.cache_hits || 0,
                 });
             }
         } catch (e) {
@@ -1262,6 +1440,82 @@
     }
     $('chx-refresh-schema').addEventListener('click', () => loadSchema(true));
     $('chx-toggle-schema').addEventListener('click', () => $('chx-schema').classList.toggle('collapsed'));
+
+    /* ───────────── Follow-ups, feedback, saved prompts ───────────── */
+    const postJSON = (url, body, method) => fetch(url, { method: method || 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF }, credentials: 'same-origin', body: body ? JSON.stringify(body) : undefined });
+    document.addEventListener('click', async (e) => {
+        const fu = e.target.closest('[data-followup]');
+        if (fu) { send(fu.dataset.followup); return; }
+        const fb = e.target.closest('[data-fb]');
+        if (fb) {
+            const [mi, val] = fb.dataset.fb.split(':').map(Number); const m = messages[mi]; if (!m || !m.log_id) return;
+            let comment = '';
+            if (val === -1) { const c = window.prompt('What was wrong? (optional – e.g. the number, the period or the filter)', ''); if (c === null) return; comment = c; }
+            try {
+                const r = await postJSON(FEEDBACK_URL, { log_id: m.log_id, rating: val, comment });
+                if (!r.ok) { let d = {}; try { d = await r.json(); } catch (x) { /* */ } throw new Error(d.error || 'Could not save feedback'); }
+                m.rating = val; save(); renderAll();
+                toast(val === 1 ? 'Thanks – marked as helpful' : 'Thanks – we will review this answer');
+            } catch (err) { toast(err.message || 'Could not save feedback'); }
+            return;
+        }
+        const st = e.target.closest('[data-star]');
+        if (st) {
+            const m = messages[+st.dataset.star]; if (!m || !m.content) return;
+            try { const r = await postJSON(SAVED_URL, { prompt: m.content }); if (!r.ok) { let d = {}; try { d = await r.json(); } catch (x) { /* */ } throw new Error(d.error || 'Could not save prompt'); } st.classList.add('on'); st.innerHTML = '<i class="bi bi-star-fill"></i>'; toast('Prompt saved ★'); }
+            catch (err) { toast(err.message || 'Could not save prompt'); }
+        }
+    });
+
+    /* ───────────── History / saved drawer ───────────── */
+    const drawer = $('chx-drawer'), drawerList = $('chx-drawer-list');
+    let histData = { history: [], saved: [] }, histTab = 'history';
+    function renderDrawer() {
+        const f = ($('chx-drawer-search').value || '').toLowerCase().trim();
+        const items = (histTab === 'history' ? histData.history : histData.saved).filter((x) => !f || (x.question || x.prompt).toLowerCase().includes(f));
+        if (!items.length) { drawerList.innerHTML = '<div class="chx-empty">' + (histTab === 'history' ? 'No questions yet.' : 'No saved prompts yet. Click the ★ next to any question you asked.') + '</div>'; return; }
+        drawerList.innerHTML = items.map((x) => '<div class="chx-hitem" data-ask-q="' + esc(x.question || x.prompt) + '"><div class="q">' + esc(x.question || x.prompt) + '</div>' +
+            (x.ts ? '<div class="ts">' + esc(x.ts) + (x.rating === 1 ? ' · 👍' : x.rating === -1 ? ' · 👎' : '') + '</div>' : '') +
+            (histTab === 'saved' ? '<button type="button" class="rm" data-rm="' + x.id + '" title="Remove"><i class="bi bi-trash"></i></button>' : '') + '</div>').join('');
+    }
+    async function openDrawer() {
+        drawer.classList.add('open'); drawerList.innerHTML = '<div class="chx-empty">Loading…</div>';
+        try { const r = await fetch(HISTORY_URL, { credentials: 'same-origin' }); histData = await r.json(); } catch (e) { histData = { history: [], saved: [] }; }
+        renderDrawer();
+    }
+    $('chx-open-history').addEventListener('click', openDrawer);
+    $('chx-drawer-close').addEventListener('click', () => drawer.classList.remove('open'));
+    $('chx-drawer-search').addEventListener('input', renderDrawer);
+    document.querySelectorAll('[data-htab]').forEach((b) => b.addEventListener('click', () => {
+        histTab = b.dataset.htab; document.querySelectorAll('[data-htab]').forEach((x) => x.classList.toggle('active', x === b)); renderDrawer();
+    }));
+    drawerList.addEventListener('click', async (e) => {
+        const rm = e.target.closest('[data-rm]');
+        if (rm) { e.stopPropagation(); await postJSON(SAVED_URL + '?id=' + rm.dataset.rm, null, 'DELETE'); histData.saved = histData.saved.filter((x) => String(x.id) !== rm.dataset.rm); renderDrawer(); return; }
+        const it = e.target.closest('[data-ask-q]'); if (it) { drawer.classList.remove('open'); send(it.dataset.askQ); }
+    });
+
+    /* ───────────── Voice input & shortcuts ───────────── */
+    (function initVoice() {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition; const mic = $('chx-mic');
+        if (!SR || !mic) return;
+        mic.style.display = ''; let rec = null;
+        mic.addEventListener('click', () => {
+            if (rec) { rec.stop(); return; }
+            rec = new SR(); rec.lang = 'en-IN'; rec.interimResults = true; rec.continuous = false;
+            const base = inputEl.value ? inputEl.value + ' ' : '';
+            rec.onresult = (ev) => { inputEl.value = base + Array.from(ev.results).map((r) => r[0].transcript).join(''); autosize(); };
+            rec.onend = () => { rec = null; mic.classList.remove('rec'); inputEl.focus(); };
+            rec.onerror = () => { rec = null; mic.classList.remove('rec'); toast('Voice input unavailable'); };
+            mic.classList.add('rec'); rec.start();
+        });
+    })();
+    document.addEventListener('keydown', (e) => {
+        const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target.tagName || '')) || e.target.isContentEditable;
+        if (e.key === '/' && !typing && !e.ctrlKey && !e.metaKey) { e.preventDefault(); inputEl.focus(); }
+        else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); drawer.classList.contains('open') ? drawer.classList.remove('open') : openDrawer(); }
+        else if (e.key === 'Escape') { drawer.classList.remove('open'); }
+    });
 
     /* Initialize */
     load(); renderAll(); loadSchema(false); inputEl.focus();

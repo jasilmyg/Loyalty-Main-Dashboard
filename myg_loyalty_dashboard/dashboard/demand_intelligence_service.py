@@ -33,6 +33,8 @@ from analytics.clickhouse_service import (
 )
 from .dashboard_api_logic import PRODUCT_CAT_MAPPING
 from .demand_ml_engine import run_hybrid_ml_forecasting
+from .demand_daily_features import fetch_daily_rows, window_features
+from .demand_model_store import get_pretrained_model
 from .inter_store_transfer_engine import compute_inter_store_transfer_intelligence
 
 # ── Non-merchandise / internal / consumable products excluded in Core Retail mode ──
@@ -411,12 +413,18 @@ def _resolve_location_filters(
 
 def _products_for_macro_category(macro_cat: str) -> Optional[List[str]]:
     mc = (macro_cat or '').strip().upper()
-    if not mc or mc in ('CORE', 'ALL_RAW'):
+    if not mc or mc in ('CORE', 'ALL_RAW', 'OTHER'):
         return None
     matched = {prod for prod, cat in PRODUCT_CAT_MAPPING.items() if cat == mc}
     if mc == 'VALUE ADDED SERVICE':
         matched.update(VIRTUAL_VAS_PRODUCTS)
     return sorted(matched) if matched else None
+
+
+def _non_other_mapped_products() -> List[str]:
+    non_other = {prod for prod, cat in PRODUCT_CAT_MAPPING.items() if cat != 'OTHER'}
+    non_other.update(VIRTUAL_VAS_PRODUCTS)
+    return sorted(non_other)
 
 
 def _should_exclude_virtual_vas(macro_category: str = '', product_filter: str = '') -> bool:
@@ -427,6 +435,52 @@ def _should_exclude_virtual_vas(macro_category: str = '', product_filter: str = 
     if pf and pf in VIRTUAL_VAS_PRODUCTS:
         return False
     return True
+
+
+def _append_catalog_where_clauses(
+    clauses: List[str],
+    macro_category: str,
+    product_filter: str,
+    brand_filter: str,
+    prod_col: str,
+    brand_col: str,
+    name_col: str,
+) -> None:
+    """Append shared retail, macro-category, product-line, and brand filters."""
+    mc = (macro_category or '').strip().upper()
+    if mc != 'ALL_RAW':
+        excl_prods = list(NON_RETAIL_PRODUCTS)
+        if _should_exclude_virtual_vas(mc, product_filter):
+            excl_prods.extend(VIRTUAL_VAS_PRODUCTS)
+            clauses.append(
+                f"NOT (upper({name_col}) LIKE '%:SERVICE%' OR upper({name_col}) LIKE '%EXTENDED WARRANTY%')"
+            )
+        non_ret = "', '".join(_sql_escape(p) for p in excl_prods)
+        clauses.append(f"trim({prod_col}) != ''")
+        clauses.append(f"upper(trim({prod_col})) NOT IN ('{non_ret}')")
+
+    if mc == 'OTHER':
+        excl_other = _non_other_mapped_products()
+        if excl_other:
+            ex_sql = "', '".join(_sql_escape(p) for p in excl_other)
+            clauses.append(f"upper(trim({prod_col})) NOT IN ('{ex_sql}')")
+    else:
+        macro_prods = _products_for_macro_category(mc)
+        if macro_prods:
+            mp_sql = "', '".join(_sql_escape(p) for p in macro_prods)
+            clauses.append(f"upper(trim({prod_col})) IN ('{mp_sql}')")
+
+    if product_filter:
+        p_esc = _sql_escape(product_filter.strip().upper())
+        clauses.append(f"upper(trim({prod_col})) = '{p_esc}'")
+
+    if brand_filter:
+        b_norm = brand_filter.strip().upper()
+        b_esc = _sql_escape(b_norm)
+        if b_norm == 'GENERAL':
+            clauses.append(f"(trim({brand_col}) = '' OR upper(trim({brand_col})) = 'GENERAL')")
+        else:
+            clauses.append(f"upper(trim({brand_col})) = '{b_esc}'")
 
 
 def _build_sales_where_clauses(
@@ -443,32 +497,15 @@ def _build_sales_where_clauses(
         f"{sales_alias}.item_code != ''",
         f"NOT (upper({sales_alias}.invoice_no) LIKE '%SMC%' OR upper({sales_alias}.invoice_no) LIKE '%EI%')",
     ]
-
-    mc = (macro_category or '').strip().upper()
-    if mc != 'ALL_RAW':
-        excl_prods = list(NON_RETAIL_PRODUCTS)
-        if _should_exclude_virtual_vas(mc, product_filter):
-            excl_prods.extend(VIRTUAL_VAS_PRODUCTS)
-            clauses.append(
-                f"NOT (upper({item_alias}.item_name) LIKE '%:SERVICE%' OR upper({item_alias}.item_name) LIKE '%EXTENDED WARRANTY%')"
-            )
-        non_ret = "', '".join(_sql_escape(p) for p in excl_prods)
-        clauses.append(f"{item_alias}.product != ''")
-        clauses.append(f"upper({item_alias}.product) NOT IN ('{non_ret}')")
-
-    macro_prods = _products_for_macro_category(mc)
-    if macro_prods:
-        mp_sql = "', '".join(_sql_escape(p) for p in macro_prods)
-        clauses.append(f"upper({item_alias}.product) IN ('{mp_sql}')")
-
-    if product_filter:
-        p_esc = _sql_escape(product_filter.strip().upper())
-        clauses.append(f"upper({item_alias}.product) = '{p_esc}'")
-
-    if brand_filter:
-        b_esc = _sql_escape(brand_filter.strip().upper())
-        clauses.append(f"upper({item_alias}.brand) = '{b_esc}'")
-
+    _append_catalog_where_clauses(
+        clauses,
+        macro_category=macro_category,
+        product_filter=product_filter,
+        brand_filter=brand_filter,
+        prod_col=f"{item_alias}.product",
+        brand_col=f"{item_alias}.brand",
+        name_col=f"{item_alias}.item_name",
+    )
     if sales_branch_codes is not None:
         bc_sql = "', '".join(_sql_escape(c) for c in sales_branch_codes)
         clauses.append(f"{sales_alias}.branch IN ('{bc_sql}')")
@@ -507,31 +544,15 @@ def _build_stock_where_clauses(
         f"report_date = toDate('{stock_dt.strftime('%Y-%m-%d')}')",
         "item_code != ''",
     ]
-    mc = (macro_category or '').strip().upper()
-    if mc != 'ALL_RAW':
-        excl_prods = list(NON_RETAIL_PRODUCTS)
-        if _should_exclude_virtual_vas(mc, product_filter):
-            excl_prods.extend(VIRTUAL_VAS_PRODUCTS)
-            clauses.append(
-                "NOT (upper(item) LIKE '%:SERVICE%' OR upper(item) LIKE '%EXTENDED WARRANTY%')"
-            )
-        non_ret = "', '".join(_sql_escape(p) for p in excl_prods)
-        clauses.append("product != ''")
-        clauses.append(f"upper(product) NOT IN ('{non_ret}')")
-
-    macro_prods = _products_for_macro_category(mc)
-    if macro_prods:
-        mp_sql = "', '".join(_sql_escape(p) for p in macro_prods)
-        clauses.append(f"upper(product) IN ('{mp_sql}')")
-
-    if product_filter:
-        p_esc = _sql_escape(product_filter.strip().upper())
-        clauses.append(f"upper(product) = '{p_esc}'")
-
-    if brand_filter:
-        b_esc = _sql_escape(brand_filter.strip().upper())
-        clauses.append(f"upper(brand) = '{b_esc}'")
-
+    _append_catalog_where_clauses(
+        clauses,
+        macro_category=macro_category,
+        product_filter=product_filter,
+        brand_filter=brand_filter,
+        prod_col="product",
+        brand_col="brand",
+        name_col="item",
+    )
     if stock_branch_names is not None:
         bn_sql = "', '".join(_sql_escape(b) for b in stock_branch_names)
         clauses.append(f"upper(trim(branch)) IN ('{bn_sql}')")
@@ -544,10 +565,10 @@ def _build_stock_where_clauses(
 # ═════════════════════════════════════════════════════════════════════════════
 
 def get_demand_filter_options() -> Dict[str, Any]:
-    cache_key = f"dii:filter_opts:v2:{get_active_engine()}"
+    cache_key = f"dii:filter_opts:v3:{get_active_engine()}"
     if not get_bypass_cache():
         cached = cache.get(cache_key)
-        if cached is not None and cached.get('products'):
+        if cached is not None and cached.get('products') and cached.get('product_meta') is not None:
             return cached
 
     ch = get_ch_client()
@@ -558,6 +579,7 @@ def get_demand_filter_options() -> Dict[str, Any]:
             'macro_categories': [],
             'products': [],
             'brands': [],
+            'product_meta': {},
             'districts': [],
             'branches': [],
         }
@@ -566,41 +588,106 @@ def get_demand_filter_options() -> Dict[str, Any]:
     bm_df = _get_branch_directory(ch)
 
     cutoff_dt = (ref_dt - timedelta(days=90)).strftime('%Y-%m-%d 00:00:00')
-    non_ret = "', '".join(_sql_escape(p) for p in NON_RETAIL_PRODUCTS)
+    excl_br = "', '".join(EXCLUDED_BRANCH_CODES)
 
-    products = []
-    brands = []
+    # Collect all active (product, brand) combinations from 90d sales and latest stock
+    # without top-N truncation so every product line and all of its brands are selectable.
+    prod_scores: Dict[str, List[float]] = {}
+    prod_brand_scores: Dict[str, Dict[str, List[float]]] = {}
+
+    def _add_pair(raw_prod: Any, raw_br: Any, qty: float, rev: float, stk: float) -> None:
+        prod = str(raw_prod or '').strip().upper()
+        br = str(raw_br or '').strip().upper() or 'GENERAL'
+        if not prod or br == 'UNKNOWN':
+            return
+        ps = prod_scores.setdefault(prod, [0.0, 0.0, 0.0])
+        ps[0] += qty
+        ps[1] += rev
+        ps[2] += stk
+        pbs = prod_brand_scores.setdefault(prod, {}).setdefault(br, [0.0, 0.0, 0.0])
+        pbs[0] += rev
+        pbs[1] += qty
+        pbs[2] += stk
+
     try:
-        prod_rows = ch.query(f"""
-            SELECT upper(trim(m.product)) AS prod, sum(abs(toFloat64(s.qty))) AS q
+        sales_pair_rows = ch.query(f"""
+            SELECT
+                upper(trim(m.product)) AS prod,
+                if(trim(m.brand) != '', upper(trim(m.brand)), 'GENERAL') AS br,
+                sum(abs(toFloat64(s.qty))) AS qty_90d,
+                sum(greatest(0.0, toFloat64(s.sold_price))) AS rev_90d
             FROM azure_sales_report s
             INNER JOIN item_master m ON s.item_code = m.item_code
             WHERE s.date >= toDateTime('{cutoff_dt}')
-              AND m.product != ''
-              AND upper(m.product) NOT IN ('{non_ret}')
-            GROUP BY prod
-            ORDER BY q DESC
-            LIMIT 60
+              AND s.item_code != ''
+              AND s.branch NOT IN ('{excl_br}')
+              AND NOT (upper(s.invoice_no) LIKE '%SMC%' OR upper(s.invoice_no) LIKE '%EI%')
+              AND trim(m.product) != ''
+            GROUP BY prod, br
         """).result_rows
-        products = [r[0] for r in prod_rows if r[0]]
-    except Exception:
-        pass
+        for prod, br, q, rev in sales_pair_rows:
+            _add_pair(prod, br, float(q or 0.0), float(rev or 0.0), 0.0)
+    except Exception as e:
+        print('[demand_filter_options] sales pairs query failed:', e)
 
-    try:
-        brand_rows = ch.query(f"""
-            SELECT upper(trim(m.brand)) AS br, sum(toFloat64(s.sold_price)) AS rev
-            FROM azure_sales_report s
-            INNER JOIN item_master m ON s.item_code = m.item_code
-            WHERE s.date >= toDateTime('{cutoff_dt}')
-              AND m.brand != ''
-              AND upper(m.product) NOT IN ('{non_ret}')
-            GROUP BY br
-            ORDER BY rev DESC
-            LIMIT 80
-        """).result_rows
-        brands = [r[0] for r in brand_rows if r[0] and r[0] != 'UNKNOWN']
-    except Exception:
-        pass
+    if stock_dt is not None:
+        try:
+            stock_pair_rows = ch.query(f"""
+                SELECT
+                    upper(trim(product)) AS prod,
+                    if(trim(brand) != '', upper(trim(brand)), 'GENERAL') AS br,
+                    sum(greatest(0.0, toFloat64(stock)) + greatest(0.0, toFloat64(transit))) AS stk
+                FROM {_stock_table_name()}
+                WHERE report_date = toDate('{stock_dt.strftime('%Y-%m-%d')}')
+                  AND item_code != ''
+                  AND trim(product) != ''
+                  AND (toFloat64(stock) > 0 OR toFloat64(transit) > 0)
+                GROUP BY prod, br
+            """).result_rows
+            for prod, br, stk in stock_pair_rows:
+                _add_pair(prod, br, 0.0, 0.0, float(stk or 0.0))
+        except Exception as e:
+            print('[demand_filter_options] stock pairs query failed:', e)
+
+    non_retail_set = {p.upper() for p in NON_RETAIL_PRODUCTS}
+    virtual_vas_set = {p.upper() for p in VIRTUAL_VAS_PRODUCTS}
+
+    ordered_prods = sorted(
+        prod_scores.keys(),
+        key=lambda p: (-prod_scores[p][0], -prod_scores[p][2], -prod_scores[p][1], p),
+    )
+
+    products: List[str] = []
+    retail_brand_scores: Dict[str, List[float]] = {}
+    product_meta: Dict[str, Dict[str, Any]] = {}
+
+    for prod in ordered_prods:
+        is_nr = prod in non_retail_set
+        is_vas = prod in virtual_vas_set
+        cat = 'VALUE ADDED SERVICE' if is_vas else PRODUCT_CAT_MAPPING.get(prod, 'OTHER')
+        br_map = prod_brand_scores.get(prod, {})
+        sorted_prod_brands = [
+            br
+            for br, _sc in sorted(br_map.items(), key=lambda kv: (-kv[1][0], -kv[1][1], -kv[1][2], kv[0]))
+        ]
+        product_meta[prod] = {
+            'cat': cat,
+            'non_retail': is_nr,
+            'virtual_vas': is_vas,
+            'brands': sorted_prod_brands,
+        }
+        if not is_nr and not is_vas:
+            products.append(prod)
+            for br, sc in br_map.items():
+                rbs = retail_brand_scores.setdefault(br, [0.0, 0.0, 0.0])
+                rbs[0] += sc[0]
+                rbs[1] += sc[1]
+                rbs[2] += sc[2]
+
+    brands = [
+        br
+        for br, _sc in sorted(retail_brand_scores.items(), key=lambda kv: (-kv[1][0], -kv[1][1], -kv[1][2], kv[0]))
+    ]
 
     retail_bm = bm_df[
         (~bm_df['store_type'].isin(['HEAD OFFICE', 'WAREHOUSE', 'GODOWN', 'FUTURE GODOWN']))
@@ -628,6 +715,7 @@ def get_demand_filter_options() -> Dict[str, Any]:
         'macro_categories': macro_cats,
         'products': products,
         'brands': brands,
+        'product_meta': product_meta,
         'districts': districts,
         'branches': branches,
     }
@@ -685,6 +773,8 @@ def _compute_seasonal_and_festival_profile(
             'payday_lift_pct': 0.0,
             'festival_drivers': [],
             'future_30d_multipliers': ones_30.tolist(),
+            'future_30d_base_mults': ones_30.tolist(),
+            'future_30d_fest_mults': ones_30.tolist(),
             'future_30d_dates': [(ref_dt + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(1, 31)],
             'hist_mult_sums': {'H15': 15.0, 'H30': 30.0, 'H90': 90.0},
             'bucket_mult_sums': [15.0] * 9,
@@ -835,25 +925,32 @@ def _compute_seasonal_and_festival_profile(
     # 5. Helper for daily calendar + seasonal multiplier (DOW × Payday × Monthly × Festival)
     month_mult_map = {int(m['month']): max(0.70, min(1.45, float(m['index']) / 100.0)) for m in monthly_seasonality}
 
-    def _day_calendar_mult(dt_obj: date) -> float:
-        mv = float(dow_mult[dt_obj.weekday()])
+    def _day_calendar_parts(dt_obj: date) -> tuple:
         # Subtle monthly seasonal modulation (35% weight so recent local level carries 65%)
         m_mod = 1.0 + 0.35 * (month_mult_map.get(dt_obj.month, 1.0) - 1.0)
-        mv *= m_mod
-        if dt_obj.day <= 5:
-            mv *= payday_mult
+        base_v = m_mod * (payday_mult if dt_obj.day <= 5 else 1.0)
         fi = _FESTIVAL_DATE_MAP.get(dt_obj)
+        fest_v = 1.0
         if fi:
             ep = emp_fest_mult_by_key.get(fi['key'], fi['prior_weight'])
-            mv *= (1.0 + (ep - 1.0) * fi['intensity'])
-        return float(np.clip(mv, 0.62, 2.75))
+            fest_v = 1.0 + (ep - 1.0) * fi['intensity']
+        return float(base_v), float(fest_v)
+
+    def _day_calendar_mult(dt_obj: date) -> float:
+        base_v, fest_v = _day_calendar_parts(dt_obj)
+        return _combine_calendar_multipliers(float(dow_mult[dt_obj.weekday()]), base_v, fest_v)
 
     future_dates: List[str] = []
     future_mults: List[float] = []
+    future_base_mults: List[float] = []
+    future_fest_mults: List[float] = []
     for step in range(1, 31):
         f_dt = ref_dt + timedelta(days=step)
+        base_v, fest_v = _day_calendar_parts(f_dt)
         future_dates.append(f_dt.strftime('%Y-%m-%d'))
-        future_mults.append(round(_day_calendar_mult(f_dt), 4))
+        future_base_mults.append(round(base_v, 4))
+        future_fest_mults.append(round(fest_v, 4))
+        future_mults.append(round(_combine_calendar_multipliers(float(dow_mult[f_dt.weekday()]), base_v, fest_v), 4))
 
     # Historical calendar multiplier sums for trailing 15d, 30d, 90d (strips Onam/festival inflation from base velocity!)
     units_arr = ts_df['units'].values.astype(float)
@@ -932,6 +1029,8 @@ def _compute_seasonal_and_festival_profile(
         'festival_drivers': all_drivers,
         'emp_fest_mult_by_key': emp_fest_mult_by_key,
         'future_30d_multipliers': future_mults,
+        'future_30d_base_mults': future_base_mults,
+        'future_30d_fest_mults': future_fest_mults,
         'future_30d_dates': future_dates,
         'hist_mult_sums': {'H15': round(H15, 3), 'H30': round(H30, 3), 'H90': round(H90, 3)},
         'bucket_mult_sums': bucket_mult_sums,
@@ -946,6 +1045,109 @@ def _compute_seasonal_and_festival_profile(
             'weekly_mape_spark': weekly_mape_spark,
         },
     }
+
+
+def _combine_calendar_multipliers(dow_v: float, base_v: float, fest_v: float) -> float:
+    """
+    Combine day-of-week, non-festival calendar (month × payday), and festival multipliers.
+    When both a weekday surge (dow_v > 1) and a festival lift (fest_v > 1) coincide,
+    attenuate the smaller overlapping lift so weekend × festival stacking does not
+    over-amplify ordinary festival weekends.
+    """
+    if dow_v > 1.0 and fest_v > 1.0:
+        dow_ex = dow_v - 1.0
+        fest_ex = fest_v - 1.0
+        big_ex = max(dow_ex, fest_ex)
+        small_ex = min(dow_ex, fest_ex)
+        dow_fest = 1.0 + big_ex + 0.45 * small_ex
+    else:
+        dow_fest = dow_v * fest_v
+    return float(np.clip(dow_fest * base_v, 0.62, 2.75))
+
+
+def _compute_entity_blended_dow_mult(
+    edf_full: pd.DataFrame,
+    global_dow: List[float],
+    ref_dt: date,
+) -> List[float]:
+    """
+    Empirical-Bayes blend of an entity's own de-festivalized weekday demand curve with
+    the portfolio `global_dow` multipliers. Steady weekday SKUs avoid inheriting spurious
+    portfolio Saturday spikes while sparse/cold-start SKUs fall back smoothly to `global_dow`.
+    """
+    base_dow = [float(x) for x in (global_dow if global_dow and len(global_dow) == 7 else [1.0] * 7)]
+    b_mean = float(np.mean(base_dow)) or 1.0
+    base_dow = [x / b_mean for x in base_dow]
+
+    if edf_full is None or edf_full.empty:
+        return base_dow
+
+    cutoff = ref_dt - timedelta(days=90)
+    recent = edf_full[edf_full['d'] >= cutoff].copy()
+    if recent.empty:
+        return base_dow
+
+    # Trim leading zero cold-start days before the entity's first sale in the window
+    pos_idx = recent.index[recent['units'] > 0]
+    if len(pos_idx) == 0:
+        return base_dow
+    active = recent.loc[pos_idx[0]:].copy()
+    if len(active) < 21:
+        return base_dow
+
+    # Exclude high-intensity festival surge days so event spikes do not skew a single weekday
+    is_major_fest = [
+        (_FESTIVAL_DATE_MAP.get(d, {}).get('intensity', 0.0) >= 0.45)
+        for d in active['d']
+    ]
+    clean = active[[not f for f in is_major_fest]].copy()
+    n_nonzero = int((clean['units'] > 0).sum())
+    if len(clean) < 21 or n_nonzero < 14:
+        return base_dow
+
+    overall_mean = float(clean['units'].mean())
+    if overall_mean <= 0.15:
+        return base_dow
+
+    # Normalize each day relative to its own ISO week mean to remove launch/trend drift
+    iso_cal = pd.to_datetime(clean['d']).dt.isocalendar()
+    clean['iso_yr'] = iso_cal.year.astype(int)
+    clean['iso_wk'] = iso_cal.week.astype(int)
+    clean['wd'] = pd.to_datetime(clean['d']).dt.dayofweek.astype(int)
+
+    wk_stats = clean.groupby(['iso_yr', 'iso_wk'])['units'].agg(['count', 'mean']).reset_index()
+    valid_wks = wk_stats[(wk_stats['count'] >= 5) & (wk_stats['mean'] >= max(0.2, 0.25 * overall_mean))]
+    if len(valid_wks) < 3:
+        return base_dow
+
+    clean = clean.merge(
+        valid_wks[['iso_yr', 'iso_wk', 'mean']].rename(columns={'mean': 'wk_mean'}),
+        on=['iso_yr', 'iso_wk'],
+        how='inner',
+    )
+    if clean.empty:
+        return base_dow
+
+    clean['ratio'] = np.clip(clean['units'].astype(float) / clean['wk_mean'].astype(float), 0.25, 2.25)
+    reliability = min(1.0, n_nonzero / 28.0)
+
+    blended = []
+    for wd in range(7):
+        wd_vals = clean.loc[clean['wd'] == wd, 'ratio'].values
+        k = len(wd_vals)
+        if k < 3:
+            blended.append(base_dow[wd])
+            continue
+        emp_wd = float(0.45 * np.median(wd_vals) + 0.55 * np.mean(wd_vals))
+        emp_wd = float(np.clip(emp_wd, 0.65, 1.45))
+        w = min(0.84, k / (k + 2.0)) * reliability
+        blended.append(w * emp_wd + (1.0 - w) * base_dow[wd])
+
+    blended_arr = np.clip(np.array(blended, dtype=float), 0.68, 1.42)
+    blended_mean = float(np.mean(blended_arr))
+    if blended_mean > 0:
+        blended_arr = blended_arr / blended_mean
+    return [round(float(x), 4) for x in blended_arr]
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1033,10 +1235,32 @@ def _compute_additive_decomposition(daily_df: pd.DataFrame, ref_dt: date) -> Dic
 # ═════════════════════════════════════════════════════════════════════════════
 
 _FC_LOG_TABLE = 'demand_forecast_log'
-_FC_LOG_READY = {'ok': True}
+_FC_LOG_READY: Dict[str, bool] = {'clickhouse': False, 'starrocks': False}
 _FC_LOGGED_KEYS: set = set()
 
-_FC_LOG_DDL = f"""
+_FC_LOG_DDL_CH = f"""
+    CREATE TABLE IF NOT EXISTS {_FC_LOG_TABLE} (
+        snapshot_date  Date,
+        granularity    LowCardinality(String),
+        entity_id      String,
+        entity_name    String,
+        scope_sig      String,
+        engine         LowCardinality(String),
+        target_date    Date,
+        horizon_day    UInt8,
+        forecast_units Float32,
+        ci80_lower     Float32,
+        ci80_upper     Float32,
+        ci95_lower     Float32,
+        ci95_upper     Float32,
+        logged_at      DateTime DEFAULT now()
+    )
+    ENGINE = MergeTree
+    PARTITION BY toYYYYMM(snapshot_date)
+    ORDER BY (granularity, entity_id, scope_sig, target_date, snapshot_date)
+"""
+
+_FC_LOG_DDL_SR = f"""
     CREATE TABLE IF NOT EXISTS {_FC_LOG_TABLE} (
         snapshot_date  DATE,
         granularity    VARCHAR(64),
@@ -1059,81 +1283,388 @@ _FC_LOG_DDL = f"""
     PROPERTIES ("replication_num" = "1")
 """
 
+_LEGACY_DEFAULT_HYBRID_SCOPE_SIG = '704ee78b4b90f71b'
+
+
+def _fc_scope_sigs(
+    base_where_clauses: List[str],
+    engine_tag: str,
+    granularity: str = 'sku',
+    entity_id: str = '',
+) -> Tuple[str, List[str]]:
+    """
+    Signature(s) of filters that actually change an entity's own demand series.
+    Ignores Category / Product / Brand clauses when `entity_id` already uniquely
+    identifies an SKU or BrandxProduct (and only keeps Brand for `product_line`),
+    while retaining full catalog clauses for `__ALL__` portfolio aggregates.
+    Also returns compatible legacy scope hashes saved prior to filter canonicalization.
+    """
+    eng = (engine_tag or 'hybrid').strip().lower()
+    if entity_id == '__ALL__':
+        keep = list(base_where_clauses)
+    else:
+        keep = []
+        for c in base_where_clauses:
+            if c.startswith('s.') or c.startswith('NOT (upper(s.'):
+                keep.append(c)
+            elif granularity == 'product_line' and 'm.brand' in c:
+                keep.append(c)
+
+    primary = hashlib.md5(('||'.join(keep) + '##' + eng).encode('utf-8')).hexdigest()[:16]
+    sigs = [primary]
+
+    has_loc_filter = any(c.startswith('s.branch IN') for c in keep)
+    has_brand_subfilter = any('m.brand' in c for c in keep)
+    if entity_id != '__ALL__' and not has_loc_filter and not has_brand_subfilter and eng == 'hybrid':
+        if _LEGACY_DEFAULT_HYBRID_SCOPE_SIG not in sigs:
+            sigs.append(_LEGACY_DEFAULT_HYBRID_SCOPE_SIG)
+    return primary, sigs
+
 
 def _fc_scope_sig(base_where_clauses: List[str], engine_tag: str) -> str:
-    """Signature of the filters that change an entity's own demand series (district / branch / location),
-    ignoring product / brand / category clauses because the entity itself already defines them."""
-    keep = [c for c in base_where_clauses
-            if not (c.startswith('upper(m.product)') or c.startswith('upper(m.brand)'))]
-    return hashlib.md5(('||'.join(keep) + '##' + (engine_tag or '')).encode('utf-8')).hexdigest()[:16]
+    return _fc_scope_sigs(base_where_clauses, engine_tag)[0]
+
+
+def _fc_get_log_client(ch):
+    """
+    Return `(engine_name, client)` whose `.query`, `.command`, and `.insert`
+    target the active database (`get_ch_backup_client()` for ClickHouse Cloud,
+    since `FallbackClientAdapter.insert()` intentionally does not write to ClickHouse).
+    """
+    eng = get_active_engine()
+    if eng == 'clickhouse':
+        from analytics.starrocks_service import get_ch_backup_client
+        return 'clickhouse', get_ch_backup_client()
+    return 'starrocks', ch
+
+
+def _fc_ensure_log_table(eng: str, client) -> None:
+    if _FC_LOG_READY.get(eng):
+        return
+    if eng == 'clickhouse':
+        exists_rows = client.query(f"EXISTS TABLE {_FC_LOG_TABLE}").result_rows
+        if not (exists_rows and int(exists_rows[0][0]) == 1):
+            client.command(_FC_LOG_DDL_CH)
+    else:
+        client.command(_FC_LOG_DDL_SR)
+    _FC_LOG_READY[eng] = True
 
 
 def _fc_log_snapshot(ch, ref_dt: date, granularity: str, entity_id: str, entity_name: str, scope_sig: str,
                      engine_tag: str, dates: List[str], units: List[float],
                      c80l: List[float], c80u: List[float], c95l: List[float], c95u: List[float]) -> None:
     """Save the 30-day forecast made on `ref_dt` (once per day / entity / filter scope). Never raises."""
-    return
+    try:
+        if not entity_id or not dates:
+            return
+        eng, wclient = _fc_get_log_client(ch)
+        key = (eng, ref_dt, granularity, entity_id, scope_sig)
+        if key in _FC_LOGGED_KEYS:
+            return
+        _fc_ensure_log_table(eng, wclient)
+
+        if eng == 'clickhouse':
+            n = wclient.query(
+                f"SELECT count() FROM {_FC_LOG_TABLE} WHERE snapshot_date = {{d:Date}} AND granularity = {{g:String}} "
+                f"AND entity_id = {{e:String}} AND scope_sig = {{s:String}}",
+                parameters={'d': ref_dt, 'g': granularity, 'e': entity_id, 's': scope_sig},
+            ).result_rows[0][0]
+        else:
+            ref_s = ref_dt.strftime('%Y-%m-%d')
+            n = wclient.query(
+                f"SELECT count() FROM {_FC_LOG_TABLE} "
+                f"WHERE snapshot_date = '{ref_s}' AND granularity = '{_sql_escape(granularity)}' "
+                f"AND entity_id = '{_sql_escape(entity_id)}' AND scope_sig = '{_sql_escape(scope_sig)}'"
+            ).result_rows[0][0]
+
+        if int(n) == 0:
+            rows = []
+            for i, ds in enumerate(dates):
+                rows.append([
+                    ref_dt, granularity, entity_id, entity_name[:200], scope_sig, engine_tag or '',
+                    datetime.strptime(ds, '%Y-%m-%d').date(), i + 1,
+                    float(units[i]), float(c80l[i]), float(c80u[i]), float(c95l[i]), float(c95u[i]),
+                ])
+            wclient.insert(
+                _FC_LOG_TABLE,
+                rows,
+                column_names=[
+                    'snapshot_date', 'granularity', 'entity_id', 'entity_name', 'scope_sig', 'engine',
+                    'target_date', 'horizon_day', 'forecast_units', 'ci80_lower', 'ci80_upper',
+                    'ci95_lower', 'ci95_upper',
+                ],
+            )
+        _FC_LOGGED_KEYS.add(key)
+    except Exception as e:
+        print('[forecast-log] snapshot not saved:', e)
 
 
-def _fc_forecast_vs_actual(ch, granularity: str, entity_id: str, scope_sig: str,
-                           actual_dates: List[str], actual_units: List[float]) -> Dict[str, Any]:
+def _summarize_fva_rows(rows: List[Dict[str, Any]], sum_a: float, sum_f: float, sum_abs: float, in_band: int, source: str) -> Dict[str, Any]:
+    return {
+        'source': source,
+        'days_tracked': len(rows),
+        'wape_pct': round(100.0 * sum_abs / max(sum_a, 1.0), 1),
+        'accuracy_pct': round(max(0.0, 100.0 - 100.0 * sum_abs / max(sum_a, 1.0)), 1),
+        'bias_pct': round(100.0 * (sum_f - sum_a) / max(sum_a, 1.0), 1),
+        'within_80_band_pct': round(100.0 * in_band / max(len(rows), 1), 1),
+        'total_forecast': round(sum_f, 0),
+        'total_actual': round(sum_a, 0),
+        'first_day': rows[0]['date'] if rows else None,
+    }
+
+
+def _fc_walk_forward_backtest(
+    edf_full: pd.DataFrame,
+    actual_dates: List[str],
+    actual_units: List[float],
+    eval_days: int = 14,
+) -> Dict[str, Any]:
+    """
+    Strictly causal 7-day rolling walk-forward backtest over recent arrived days when
+    no saved `demand_forecast_log` snapshot exists yet for the selected entity/scope.
+    Uses only observations strictly before each weekly forecast origin (zero future leakage).
+    """
+    n_act = len(actual_dates)
+    win = min(eval_days, n_act)
+    empty = {'past': [None] * n_act, 'rows': [], 'summary': None}
+    if win <= 0 or edf_full is None or len(edf_full) < win + 21:
+        return empty
+    full_units = edf_full['units'].values.astype(float)
+    if float(np.sum(actual_units[-win:])) <= 0.0 and float(np.sum(full_units[-35:])) <= 0.0:
+        return empty
+
+    full_dates = pd.to_datetime(edf_full['d']).dt.date.tolist()
+    n_full = len(full_units)
+    start_eval = n_full - win
+    pred_by_date: Dict[str, Tuple[float, float, float, date]] = {}
+
+    block_start = start_eval
+    while block_start < n_full:
+        orig_idx = block_start - 1
+        h_vals = full_units[:orig_idx + 1]
+        h_dates = full_dates[:orig_idx + 1]
+        orig_dt = h_dates[-1]
+
+        last7 = float(np.mean(h_vals[-7:]))
+        last28 = float(np.mean(h_vals[-28:]))
+        last56 = float(np.mean(h_vals[-56:])) if len(h_vals) >= 56 else last28
+        level = 0.45 * last7 + 0.35 * last28 + 0.20 * last56
+        ratio = last7 / max(last28, 0.25) if last28 > 0 else 1.0
+        mom = 1.0 + 0.25 * float(np.clip(ratio - 1.0, -0.35, 0.35))
+
+        wd_sum = [0.0] * 7
+        wd_cnt = [0] * 7
+        tail_56_v = h_vals[-56:]
+        tail_56_d = h_dates[-56:]
+        for dt_v, u_v in zip(tail_56_d, tail_56_v):
+            wd = dt_v.weekday()
+            wd_sum[wd] += float(u_v)
+            wd_cnt[wd] += 1
+        overall_wd = max(float(np.mean(tail_56_v)), 1e-6)
+        wd_mult = []
+        for w_i in range(7):
+            if wd_cnt[w_i] > 0 and overall_wd > 0:
+                wd_mult.append(float(np.clip((wd_sum[w_i] / wd_cnt[w_i]) / overall_wd, 0.65, 1.45)))
+            else:
+                wd_mult.append(1.0)
+
+        r30 = h_vals[-30:]
+        roll7 = pd.Series(r30).rolling(7, min_periods=1, center=True).mean().values
+        sig_hist = max(float(np.std(r30 - roll7)), float(np.mean(r30)) * 0.14, 0.25 if level > 0 else 0.0)
+
+        block_end = min(block_start + 7, n_full)
+        for t_idx in range(block_start, block_end):
+            t_dt = full_dates[t_idx]
+            h_step = t_idx - orig_idx
+            yhat = max(0.0, level * mom * wd_mult[t_dt.weekday()])
+            band80 = 1.2816 * sig_hist * math.sqrt(1.0 + 0.045 * h_step)
+            lo80 = max(0.0, yhat - band80)
+            hi80 = yhat + band80
+            pred_by_date[t_dt.strftime('%Y-%m-%d')] = (yhat, lo80, hi80, orig_dt)
+
+        block_start = block_end
+
+    past: List[Optional[float]] = []
+    rows: List[Dict[str, Any]] = []
+    sum_a = sum_f = sum_abs = 0.0
+    in_band = 0
+    for ds, act in zip(actual_dates, actual_units):
+        rec = pred_by_date.get(ds)
+        if rec is None:
+            past.append(None)
+            continue
+        f, lo80, hi80, orig_dt = rec
+        past.append(round(f, 1))
+        a = float(act)
+        diff = a - f
+        acc = max(0.0, 100.0 - 100.0 * abs(diff) / max(a, 1.0))
+        ok80 = lo80 <= a <= hi80
+        in_band += 1 if ok80 else 0
+        sum_a += a
+        sum_f += f
+        sum_abs += abs(diff)
+        rows.append({
+            'date': ds,
+            'label': datetime.strptime(ds, '%Y-%m-%d').strftime('%d %b'),
+            'forecast': round(f, 1),
+            'actual': round(a, 1),
+            'diff': round(diff, 1),
+            'acc_pct': round(acc, 1),
+            'in_80_band': bool(ok80),
+            'forecast_made_on': orig_dt.strftime('%d %b'),
+        })
+
+    if not rows:
+        return empty
+    return {
+        'past': past,
+        'rows': rows,
+        'summary': _summarize_fva_rows(rows, sum_a, sum_f, sum_abs, in_band, source='backtest'),
+    }
+
+
+STOCK_LIMITED_COVER_DAYS = 2.5   # on-hand stock below this many days of forecast demand = sales were supply-limited
+
+
+def _fc_flag_stock_limited(ch, granularity: str, entity_id: str, rows: List[Dict[str, Any]]) -> None:
+    """Tag each Forecast-vs-Actual row whose SKU had < STOCK_LIMITED_COVER_DAYS of stock on hand that day.
+    Sales on such days measure available stock, not demand, so they are scored separately.
+    Uses the latest stock_ageing snapshot on/before each day. Never raises."""
+    if granularity != 'sku' or not rows or not entity_id:
+        return
+    try:
+        first = datetime.strptime(rows[0]['date'], '%Y-%m-%d').date() - timedelta(days=7)
+        last = datetime.strptime(rows[-1]['date'], '%Y-%m-%d').date()
+        res = ch.query(
+            f"SELECT report_date, sum(stock) FROM {_stock_table_name()} "
+            f"WHERE item_code = '{_sql_escape(entity_id)}' AND report_date >= '{first}' AND report_date <= '{last}' "
+            f"GROUP BY report_date ORDER BY report_date"
+        ).result_rows
+        snaps = []
+        for d, s in res:
+            d = d.date() if isinstance(d, datetime) else d
+            snaps.append((d, float(s or 0.0)))
+        if not snaps:
+            return
+        for r in rows:
+            day = datetime.strptime(r['date'], '%Y-%m-%d').date()
+            prev = [s for d, s in snaps if d <= day]
+            if not prev:
+                continue
+            stock = prev[-1]
+            r['stock_on_hand'] = round(stock, 0)
+            r['stock_limited'] = bool(stock < STOCK_LIMITED_COVER_DAYS * max(float(r['forecast']), 0.5))
+    except Exception as e:
+        print('[forecast-log] stock-limited flag skipped:', e)
+
+
+def _fva_summary_from_rows(rows: List[Dict[str, Any]], source: str) -> Dict[str, Any]:
+    """Headline accuracy over IN-STOCK days (when enough exist); all-day figures are kept alongside."""
+    def agg(rs):
+        sa = sum(r['actual'] for r in rs)
+        sf = sum(r['forecast'] for r in rs)
+        sab = sum(abs(r['actual'] - r['forecast']) for r in rs)
+        inb = sum(1 for r in rs if r['in_80_band'])
+        return sa, sf, sab, inb
+
+    sa_all, sf_all, sab_all, inb_all = agg(rows)
+    limited = [r for r in rows if r.get('stock_limited')]
+    scored = [r for r in rows if not r.get('stock_limited')]
+    use = scored if (limited and len(scored) >= 3) else rows
+    sa, sf, sab, inb = agg(use)
+    out = {
+        'source': source,
+        'days_tracked': len(rows),
+        'wape_pct': round(100.0 * sab / max(sa, 1.0), 1),
+        'accuracy_pct': round(max(0.0, 100.0 - 100.0 * sab / max(sa, 1.0)), 1),
+        'bias_pct': round(100.0 * (sf - sa) / max(sa, 1.0), 1),
+        'within_80_band_pct': round(100.0 * inb / max(len(use), 1), 1),
+        'total_forecast': round(sf_all, 0),
+        'total_actual': round(sa_all, 0),
+        'first_day': rows[0]['date'] if rows else None,
+        'accuracy_basis': 'in_stock' if use is scored and limited else 'all',
+        'stock_limited_days': len(limited),
+        'stock_limited_cover_days': STOCK_LIMITED_COVER_DAYS,
+        'scored_days': len(use),
+        'accuracy_all_pct': round(max(0.0, 100.0 - 100.0 * sab_all / max(sa_all, 1.0)), 1),
+        'bias_all_pct': round(100.0 * (sf_all - sa_all) / max(sa_all, 1.0), 1),
+    }
+    return out
+
+
+def _fc_forecast_vs_actual(
+    ch,
+    granularity: str,
+    entity_id: str,
+    scope_sigs: List[str],
+    actual_dates: List[str],
+    actual_units: List[float],
+    edf_full: Optional[pd.DataFrame] = None,
+) -> Dict[str, Any]:
     """For days that have now arrived: the forecast saved BEFORE the day (latest snapshot made earlier)
-    next to the actual units. Returns chart-aligned values, per-day rows and an accuracy summary."""
+    next to the actual units. Falls back to causal walk-forward backtest when no snapshot exists yet."""
     empty = {'past': [None] * len(actual_dates), 'rows': [], 'summary': None}
     try:
-        if not actual_dates or not _FC_LOG_READY['ok']:
-            return empty
-        res = ch.query(
-            f"SELECT target_date, argMax(forecast_units, snapshot_date), argMax(ci80_lower, snapshot_date), "
-            f"argMax(ci80_upper, snapshot_date), max(snapshot_date) "
-            f"FROM {_FC_LOG_TABLE} WHERE granularity = {{g:String}} AND entity_id = {{e:String}} AND scope_sig = {{s:String}} "
-            f"AND target_date >= {{a:Date}} AND target_date <= {{b:Date}} AND snapshot_date < target_date "
-            f"GROUP BY target_date ORDER BY target_date",
-            parameters={'g': granularity, 'e': entity_id, 's': scope_sig,
-                        'a': datetime.strptime(actual_dates[0], '%Y-%m-%d').date(),
-                        'b': datetime.strptime(actual_dates[-1], '%Y-%m-%d').date()},
-        ).result_rows
-        if not res:
-            return empty
-        by_date = {r[0].strftime('%Y-%m-%d'): r for r in res}
-        past = []
-        rows = []
-        sum_a = sum_f = sum_abs = 0.0
-        in_band = 0
-        for ds, act in zip(actual_dates, actual_units):
-            r = by_date.get(ds)
-            if r is None:
-                past.append(None)
-                continue
-            f = float(r[1])
-            past.append(round(f, 1))
-            a = float(act)
-            diff = a - f
-            acc = max(0.0, 100.0 - 100.0 * abs(diff) / max(a, 1.0))
-            ok80 = float(r[2]) <= a <= float(r[3])
-            in_band += 1 if ok80 else 0
-            sum_a += a
-            sum_f += f
-            sum_abs += abs(diff)
-            rows.append({
-                'date': ds, 'label': datetime.strptime(ds, '%Y-%m-%d').strftime('%d %b'),
-                'forecast': round(f, 1), 'actual': round(a, 1), 'diff': round(diff, 1),
-                'acc_pct': round(acc, 1), 'in_80_band': bool(ok80),
-                'forecast_made_on': r[4].strftime('%d %b'),
-            })
-        summary = {
-            'days_tracked': len(rows),
-            'wape_pct': round(100.0 * sum_abs / max(sum_a, 1.0), 1),
-            'accuracy_pct': round(max(0.0, 100.0 - 100.0 * sum_abs / max(sum_a, 1.0)), 1),
-            'bias_pct': round(100.0 * (sum_f - sum_a) / max(sum_a, 1.0), 1),
-            'within_80_band_pct': round(100.0 * in_band / max(len(rows), 1), 1),
-            'total_forecast': round(sum_f, 0), 'total_actual': round(sum_a, 0),
-            'first_day': rows[0]['date'] if rows else None,
-        }
-        return {'past': past, 'rows': rows, 'summary': summary}
+        if actual_dates and entity_id and scope_sigs:
+            sigs_sql = "', '".join(_sql_escape(s) for s in scope_sigs)
+            res = ch.query(
+                f"SELECT target_date, argMax(forecast_units, snapshot_date), argMax(ci80_lower, snapshot_date), "
+                f"argMax(ci80_upper, snapshot_date), max(snapshot_date) "
+                f"FROM {_FC_LOG_TABLE} WHERE granularity = {{g:String}} AND entity_id = {{e:String}} "
+                f"AND scope_sig IN ('{sigs_sql}') "
+                f"AND target_date >= {{a:Date}} AND target_date <= {{b:Date}} AND snapshot_date < target_date "
+                f"GROUP BY target_date ORDER BY target_date",
+                parameters={
+                    'g': granularity,
+                    'e': entity_id,
+                    'a': datetime.strptime(actual_dates[0], '%Y-%m-%d').date(),
+                    'b': datetime.strptime(actual_dates[-1], '%Y-%m-%d').date(),
+                },
+            ).result_rows
+            if res:
+                by_date = {r[0].strftime('%Y-%m-%d'): r for r in res}
+                past = []
+                rows = []
+                sum_a = sum_f = sum_abs = 0.0
+                in_band = 0
+                for ds, act in zip(actual_dates, actual_units):
+                    r = by_date.get(ds)
+                    if r is None:
+                        past.append(None)
+                        continue
+                    f = float(r[1])
+                    past.append(round(f, 1))
+                    a = float(act)
+                    diff = a - f
+                    acc = max(0.0, 100.0 - 100.0 * abs(diff) / max(a, 1.0))
+                    ok80 = float(r[2]) <= a <= float(r[3])
+                    in_band += 1 if ok80 else 0
+                    sum_a += a
+                    sum_f += f
+                    sum_abs += abs(diff)
+                    rows.append({
+                        'date': ds,
+                        'label': datetime.strptime(ds, '%Y-%m-%d').strftime('%d %b'),
+                        'forecast': round(f, 1),
+                        'actual': round(a, 1),
+                        'diff': round(diff, 1),
+                        'acc_pct': round(acc, 1),
+                        'in_80_band': bool(ok80),
+                        'forecast_made_on': r[4].strftime('%d %b'),
+                    })
+                if rows:
+                    _fc_flag_stock_limited(ch, granularity, entity_id, rows)
+                    return {
+                        'past': past,
+                        'rows': rows,
+                        'summary': _fva_summary_from_rows(rows, 'saved'),
+                    }
     except Exception as e:
         print('[forecast-log] compare failed:', e)
-        return empty
+
+    if edf_full is not None and not edf_full.empty:
+        return _fc_walk_forward_backtest(edf_full, actual_dates, actual_units)
+    return empty
 
 
 def _build_entity_daily_forecast_and_decomp(
@@ -1207,8 +1738,28 @@ def _build_entity_daily_forecast_and_decomp(
     actual_labels = [d.strftime('%b %d') for d in hist_60['d']]
     actual_units = [round(float(u), 1) for u in hist_60['units']]
 
-    # Daily forecast trajectory for Next 30 Days scaled exactly so sum(1..7)=forecast_7d, sum(1..30)=forecast_30d
-    mults_30 = np.array(seasonal_profile['future_30d_multipliers'], dtype=float)
+    # Daily forecast trajectory for Next 30 Days using entity-blended weekday shape & dampened calendar mults
+    global_dow = seasonal_profile.get('dow_multipliers', [1.0] * 7)
+    entity_dow = _compute_entity_blended_dow_mult(edf_full, global_dow, ref_dt)
+    base_mults_30 = seasonal_profile.get('future_30d_base_mults')
+    fest_mults_30 = seasonal_profile.get('future_30d_fest_mults')
+    f_dates_30 = seasonal_profile.get('future_30d_dates', [])
+    if base_mults_30 and fest_mults_30 and len(base_mults_30) == 30 and len(fest_mults_30) == 30:
+        entity_mults = []
+        for idx in range(30):
+            f_dt = ref_dt + timedelta(days=idx + 1)
+            if idx < len(f_dates_30):
+                try:
+                    f_dt = date.fromisoformat(str(f_dates_30[idx])[:10])
+                except Exception:
+                    pass
+            e_dow_v = float(entity_dow[f_dt.weekday()])
+            entity_mults.append(
+                _combine_calendar_multipliers(e_dow_v, float(base_mults_30[idx]), float(fest_mults_30[idx]))
+            )
+        mults_30 = np.array(entity_mults, dtype=float)
+    else:
+        mults_30 = np.array(seasonal_profile['future_30d_multipliers'], dtype=float)
     f30_target = float(selected_row.get('forecast_30d', 0.0))
     mult_sum_30 = max(float(np.sum(mults_30)), 1e-6)
     base_rate = f30_target / mult_sum_30
@@ -1273,11 +1824,11 @@ def _build_entity_daily_forecast_and_decomp(
                 })
 
     # Save today's forecast, then fetch what was forecast earlier for the days that have now arrived
-    _scope_sig = _fc_scope_sig(base_where_clauses, engine_tag)
     _ent_id = str(selected_row.get('id', '') or '')
+    _scope_sig, _scope_sigs = _fc_scope_sigs(base_where_clauses, engine_tag, granularity, _ent_id)
     _fc_log_snapshot(ch, ref_dt, granularity, _ent_id, str(selected_row.get('name', '') or ''), _scope_sig, engine_tag,
                      forecast_dates, forecast_units, ci80_lower, ci80_upper, ci95_lower, ci95_upper)
-    fva = _fc_forecast_vs_actual(ch, granularity, _ent_id, _scope_sig, actual_dates, actual_units)
+    fva = _fc_forecast_vs_actual(ch, granularity, _ent_id, _scope_sigs, actual_dates, actual_units, edf_full=edf_full)
 
     # Construct Product Coverage & Actionable Insight Card (Exact Image 2 structure + 7/15/30d)
     cur_stock = int(round(float(selected_row.get('current_stock', 0))))
@@ -1811,6 +2362,35 @@ def _build_stock_risk(df: pd.DataFrame, top_n: int = 150) -> Dict[str, Any]:
     }
 
 
+def _fc_snapshot_top_entities(ch, ref_dt: date, records: List[Dict[str, Any]], sales_where: List[str],
+                              seasonal_profile: Dict[str, Any], conformal_ci: Optional[Dict[str, float]],
+                              engine_tag: str, workers: int = 6) -> Dict[str, int]:
+    """Build (and thereby save) the 30-day forecast snapshot of many SKUs in parallel.
+    `_build_entity_daily_forecast_and_decomp` logs the snapshot as a side effect (once per day / SKU / scope)."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    stats = {'ok': 0, 'failed': 0}
+
+    def _one(rec):
+        _build_entity_daily_forecast_and_decomp(
+            ch=ch, ref_dt=ref_dt, selected_row=rec, granularity='sku',
+            base_where_clauses=sales_where, seasonal_profile=seasonal_profile,
+            conformal_ci=conformal_ci, engine_tag=engine_tag,
+        )
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futs = {pool.submit(_one, r): r for r in records}
+        for f in as_completed(futs):
+            try:
+                f.result()
+                stats['ok'] += 1
+            except Exception as e:  # noqa: BLE001
+                stats['failed'] += 1
+                if stats['failed'] <= 5:
+                    print(f"[forecast-snapshot] {futs[f].get('id')} failed: {e}")
+    print(f"[forecast-snapshot] {ref_dt}: {stats['ok']} SKUs processed, {stats['failed']} failed")
+    return stats
+
+
 def get_demand_intelligence_data(
     granularity: str = 'sku',
     macro_category: str = '',
@@ -1826,6 +2406,7 @@ def get_demand_intelligence_data(
     selected_id: str = '',
     sort_by: str = 'd30',
     limit: int = 250,
+    snapshot_top_n: int = 0,
 ) -> Dict[str, Any]:
     """
     Main entry point returning full Demand & Inventory Intelligence dashboard payload
@@ -1836,11 +2417,15 @@ def get_demand_intelligence_data(
     if fc_engine not in ('hybrid', 'ml', 'statistical'):
         fc_engine = 'hybrid'
 
+    # Backend-trained whole-history model (None -> falls back to the request-scoped model)
+    pretrained_model = get_pretrained_model(gran)
+    model_tag = pretrained_model.trained_at if pretrained_model is not None else 'request-scoped'
+
     cache_sig = _safe_cache_key(
-        "dii_main_v12",
+        "dii_main_v18",
         get_active_engine(), gran, fc_engine, macro_category, product_filter,
         brand_filter, district_filter, branch_filter, movement_filter,
-        trend_filter, model_tier_filter, search_query, selected_id, sort_by, limit,
+        trend_filter, model_tier_filter, search_query, selected_id, sort_by, limit, model_tag,
     )
     if not get_bypass_cache():
         cached = cache.get(cache_sig)
@@ -1878,7 +2463,7 @@ def get_demand_intelligence_data(
 
     # ── A. Compute Empirical Seasonality, Festival Lift & Backtest Accuracy ──
     prof_cache_key = _safe_cache_key(
-        "dii_prof_v4",
+        "dii_prof_v5",
         get_active_engine(), macro_category, product_filter, brand_filter, district_filter, branch_filter,
     )
     seasonal_profile = None if get_bypass_cache() else cache.get(prof_cache_key)
@@ -2140,6 +2725,18 @@ def get_demand_intelligence_data(
     )
 
     # ── E2. 3-Tier Hybrid ML Forecasting (LightGBM Tweedie + Croston-TSB + Statistical) ──
+    # Daily-resolution window stats (14d sum / peak day / peak share) used by the spike-robust level correction
+    # (SKU-level only; a single festival/bulk-order day must not be extrapolated as a run-rate).
+    if gran == 'sku' and not df.empty:
+        try:
+            _drows = fetch_daily_rows(ch, ref_dt, sales_where)
+            _dw = window_features(_drows, df['id'].astype(str).values, k=0)
+            df['dl_w3'], df['dl_w7'], df['dl_med14'] = _dw['w3'], _dw['w7'], _dw['med14']
+            df['dl_maxsh14'], df['dl_nz14'] = _dw['maxsh14'], _dw['nz14']
+            df['dl_max14'], df['dl_sum14'] = _dw['max14'], _dw['sum14']
+            df['dl_r7ex'] = _dw['r7ex']
+        except Exception as e:  # noqa: BLE001
+            print('[demand-model] daily window stats unavailable, spike correction skipped:', e)
     df, ml_diagnostics = run_hybrid_ml_forecasting(
         df=df,
         bucket_mult_sums=bucket_mult_sums,
@@ -2150,6 +2747,7 @@ def get_demand_intelligence_data(
         ref_dt_date=ref_dt,
         has_stock_snapshot=(stock_dt is not None),
         forecast_engine=fc_engine,
+        pretrained=pretrained_model,
     )
 
     # Stock Coverage & Replenishment Recommendations
@@ -2342,6 +2940,15 @@ def get_demand_intelligence_data(
         conformal_ci=ml_diagnostics.get('conformal_ci'),
         engine_tag=fc_engine,
     )
+
+    # Nightly job hook: save today's 30-day forecast for the top-N SKUs so "Forecast vs Actual"
+    # always compares against a fresh 1-day-ahead forecast instead of one saved a week or two ago.
+    if snapshot_top_n and gran == 'sku' and not df_sorted.empty:
+        _fc_snapshot_top_entities(
+            ch=ch, ref_dt=ref_dt, records=_serialize_records(df_sorted.head(int(snapshot_top_n))),
+            sales_where=sales_where, seasonal_profile=seasonal_profile,
+            conformal_ci=ml_diagnostics.get('conformal_ci'), engine_tag=fc_engine,
+        )
 
     # ── I. Location Risk, Branch Forecast Heatmap & Supplier Pipeline ──
     district_risk, location_heatmap, suppliers = _compute_location_and_supplier_intelligence(
@@ -2616,7 +3223,7 @@ def get_single_product_deep_dive(
 
     # Reuse cached seasonal profile if available
     prof_cache_key = _safe_cache_key(
-        "dii_prof_v4",
+        "dii_prof_v5",
         get_active_engine(), macro_category, product_filter, brand_filter, district_filter, branch_filter,
     )
     seasonal_profile = None if get_bypass_cache() else cache.get(prof_cache_key)

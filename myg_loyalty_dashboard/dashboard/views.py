@@ -6191,3 +6191,105 @@ class StockAgeingExportAPIView(View):
 
 
 
+
+
+class StockAgeingBucketExportAPIView(View):
+    """Excel download of the stock lines behind one KPI card (fresh / mid / old / critical), with the report's filters."""
+    def get(self, request):
+        import io
+        import xlsxwriter
+        from .stock_report_service import get_stock_bucket_lines
+
+        g = request.GET
+        try:
+            df, meta = get_stock_bucket_lines(
+                g.get('bucket', ''), price_type=g.get('price_type', 'mop'),
+                rbm=g.get('rbm', '').strip() or None, bdm=g.get('bdm', '').strip() or None,
+                branch=g.get('branch', '').strip() or None, district=g.get('district', '').strip() or None)
+        except ValueError as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+        out = io.BytesIO()
+        wb = xlsxwriter.Workbook(out, {'in_memory': True, 'constant_memory': True, 'nan_inf_to_errors': True})
+        f_title = wb.add_format({'bold': True, 'font_size': 13, 'font_color': '#0F172A', 'font_name': 'Segoe UI'})
+        f_sub = wb.add_format({'italic': True, 'font_size': 9, 'font_color': '#64748B', 'font_name': 'Segoe UI'})
+        f_head = wb.add_format({'bold': True, 'font_size': 9, 'font_color': '#FFFFFF', 'bg_color': '#0F172A',
+                                'align': 'center', 'valign': 'vcenter', 'text_wrap': True, 'font_name': 'Segoe UI'})
+        f_int = wb.add_format({'num_format': '#,##0'})
+        f_cr = wb.add_format({'num_format': '#,##0.00'})
+        f_gt = wb.add_format({'bold': True, 'font_color': '#FFFFFF', 'bg_color': '#EA580C', 'font_name': 'Segoe UI'})
+        f_gt_int = wb.add_format({'bold': True, 'font_color': '#FFFFFF', 'bg_color': '#EA580C', 'num_format': '#,##0'})
+        f_gt_cr = wb.add_format({'bold': True, 'font_color': '#FFFFFF', 'bg_color': '#EA580C', 'num_format': '#,##0.00'})
+
+        total_val = float(df['stock_value'].sum()) if len(df) else 0.0
+        total_qty = float(df['stock'].sum()) if len(df) else 0.0
+        flt = meta['filters']
+        flt_txt = ', '.join(f"{k.upper()}: {v}" for k, v in flt.items() if v) or 'All RBM / BDM / District / Branch'
+
+        # Sheet 1 - summary by category / product
+        ws = wb.add_worksheet('Summary')
+        for c, w in enumerate((16, 34, 12, 14, 20, 16)):
+            ws.set_column(c, c, w)
+        ws.write(0, 0, f"{meta['label']} - stock detail", f_title)
+        ws.write(1, 0, f"Stock as of {meta['as_of_date']}  |  Valuation: {meta['price_label']}  |  {flt_txt}", f_sub)
+        ws.write(2, 0, f"Total: {total_qty:,.0f} units  |  \u20b9 {total_val / 1e7:,.2f} Cr  |  {len(df):,} stock lines", f_sub)
+        ws.write_row(4, 0, ['Category', 'Product', 'Stock Lines', 'Units', 'Stock Value (\u20b9)', 'Stock Value (Cr)'], f_head)
+        summ = (df.groupby(['category', 'product'], as_index=False)
+                  .agg(lines=('stock', 'size'), units=('stock', 'sum'), value=('stock_value', 'sum')))
+        cat_order = ['MOBILE', 'CE', 'LAPTOP', 'ACC', 'TABLET', 'RIG', 'DEMO', 'SPARE', 'OTHER']
+        summ['_o'] = summ['category'].map({c: i for i, c in enumerate(cat_order)}).fillna(99)
+        summ = summ.sort_values(['_o', 'value'], ascending=[True, False])
+        r = 5
+        for row in summ.itertuples(index=False):
+            ws.write(r, 0, row.category); ws.write(r, 1, row.product)
+            ws.write_number(r, 2, int(row.lines), f_int); ws.write_number(r, 3, float(row.units), f_int)
+            ws.write_number(r, 4, float(row.value), f_int); ws.write_number(r, 5, float(row.value) / 1e7, f_cr)
+            r += 1
+        ws.write(r, 0, 'GRAND TOTAL', f_gt); ws.write(r, 1, '', f_gt)
+        ws.write_number(r, 2, int(len(df)), f_gt_int); ws.write_number(r, 3, total_qty, f_gt_int)
+        ws.write_number(r, 4, total_val, f_gt_int); ws.write_number(r, 5, total_val / 1e7, f_gt_cr)
+
+        # Sheet 2 - by branch
+        wsb = wb.add_worksheet('By Branch')
+        for c, w in enumerate((30, 16, 16, 16, 14, 20, 16)):
+            wsb.set_column(c, c, w)
+        wsb.write_row(0, 0, ['Branch', 'RBM', 'BDM', 'District', 'Units', 'Stock Value (\u20b9)', 'Stock Value (Cr)'], f_head)
+        byb = (df.groupby(['branch', 'rbm', 'bdm', 'district'], as_index=False)
+                 .agg(units=('stock', 'sum'), value=('stock_value', 'sum')).sort_values('value', ascending=False))
+        r = 1
+        for row in byb.itertuples(index=False):
+            wsb.write_row(r, 0, [row.branch, row.rbm, row.bdm, row.district])
+            wsb.write_number(r, 4, float(row.units), f_int)
+            wsb.write_number(r, 5, float(row.value), f_int); wsb.write_number(r, 6, float(row.value) / 1e7, f_cr)
+            r += 1
+        wsb.freeze_panes(1, 0)
+
+        # Sheet 3 - every stock line
+        wsl = wb.add_worksheet('Stock Lines')
+        heads = ['Branch', 'RBM', 'BDM', 'District', 'Category', 'Product', 'Brand', 'Item Code', 'Item', 'Item Group',
+                 'Supplier', 'IMEI / Batch', 'Units', 'Total Age (days)', 'Branch Age (days)', 'Age Band',
+                 f"Unit Price ({meta['price_label']})", 'Stock Value (\u20b9)']
+        for c, w in enumerate((28, 14, 14, 14, 11, 16, 14, 13, 38, 26, 26, 20, 7, 11, 11, 10, 14, 15)):
+            wsl.set_column(c, c, w)
+        wsl.write_row(0, 0, heads, f_head)
+        cols = ['branch', 'rbm', 'bdm', 'district', 'category', 'product', 'brand', 'item_code', 'item', 'item_group',
+                'supplier_name', 'imei_batch', 'stock', 'total_age', 'branch_age', 'age_band', 'unit_price', 'stock_value']
+        sub = df[cols].copy()
+        for c in ('stock', 'total_age', 'branch_age', 'unit_price', 'stock_value'):
+            sub[c] = sub[c].astype('float64').fillna(0.0)
+        r = 1
+        for row in sub.itertuples(index=False, name=None):
+            wsl.write_row(r, 0, row)
+            r += 1
+        wsl.freeze_panes(1, 0)
+        wsl.autofilter(0, 0, max(len(sub), 1), len(cols) - 1)
+        wb.close()
+
+        out.seek(0)
+        date_label = str(meta['as_of_date']).replace(' ', '_')
+        fname = f"myG_Stock_{meta['bucket']}_{meta['price_label'].replace(' ', '_')}_{date_label}.xlsx"
+        response = HttpResponse(out.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename="{fname}"'
+        return response

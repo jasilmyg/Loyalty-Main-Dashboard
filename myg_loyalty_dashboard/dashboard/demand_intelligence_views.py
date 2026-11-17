@@ -40,6 +40,7 @@ class DemandIntelligencePageView(LoginRequiredMixin, TemplateView):
                 'macro_categories': [],
                 'products': [],
                 'brands': [],
+                'product_meta': {},
                 'districts': [],
                 'branches': [],
             }
