@@ -2470,19 +2470,20 @@ document.addEventListener('DOMContentLoaded', () => {
       window._dash_ts[id] = new TomSelect('#'+id, {...tsOpts, ...extraOpts});
   });
 
-  // Pre-seed per-product price segmentation config (refreshed dynamically from backend)
+  // Pre-seed unified price segmentation config (applies to ALL products; refreshed dynamically from backend)
   window._productCatMap = { 'MOBILE': 'MOBILE' };
   window._priceSlabConfig = {
-    'MOBILE': [
-      { slab_no: 1, segment: 'Entry-Level',              range: 'Below ₹10,000' },
-      { slab_no: 2, segment: 'Budget / Mass Market',     range: '₹10,000 – ₹19,999' },
-      { slab_no: 3, segment: 'Mid-Range',                range: '₹20,000 – ₹34,999' },
-      { slab_no: 4, segment: 'Upper Mid-Range',          range: '₹35,000 – ₹49,999' },
-      { slab_no: 5, segment: 'Premium',                  range: '₹50,000 – ₹59,999' },
-      { slab_no: 6, segment: 'Ultra-Premium',            range: '₹60,000 – ₹79,999' },
-      { slab_no: 7, segment: 'Super Premium',            range: '₹80,000 – ₹99,999' },
-      { slab_no: 8, segment: 'Luxury / Flagship',        range: '₹1,00,000 – ₹1,49,999' },
-      { slab_no: 9, segment: 'Ultra-Luxury / Foldables', range: '₹1,50,000 and Above' },
+    'ALL': [
+      { slab_no: 1,  segment: 'Basic / Essentials',    range: '₹0 – ₹2,999' },
+      { slab_no: 2,  segment: 'Entry-Level',           range: '₹3,000 – ₹9,999' },
+      { slab_no: 3,  segment: 'Budget / Mass Market',  range: '₹10,000 – ₹19,999' },
+      { slab_no: 4,  segment: 'Mid-Range',             range: '₹20,000 – ₹34,999' },
+      { slab_no: 5,  segment: 'Upper Mid-Range',       range: '₹35,000 – ₹49,999' },
+      { slab_no: 6,  segment: 'Premium',               range: '₹50,000 – ₹59,999' },
+      { slab_no: 7,  segment: 'Ultra-Premium',         range: '₹60,000 – ₹79,999' },
+      { slab_no: 8,  segment: 'Super Premium',         range: '₹80,000 – ₹99,999' },
+      { slab_no: 9,  segment: 'Luxury / Flagship',     range: '₹1,00,000 – ₹1,49,999' },
+      { slab_no: 10, segment: 'Ultra-Luxury',          range: '₹1,50,000 and Above' },
     ]
   };
 
@@ -2493,46 +2494,47 @@ document.addEventListener('DOMContentLoaded', () => {
     window._refreshingPriceSlabs = true;
     try {
       const cfg = window._priceSlabConfig || {};
-      const catMap = window._productCatMap || {};
-      const cfgProds = Object.keys(cfg);
-      const selProds = (window._dash_ts['dash-product'] ? window._dash_ts['dash-product'].getValue() : [])
-        .map(v => String(v).trim().toUpperCase()).filter(Boolean);
-      const selCats = (window._dash_ts['dash-cat'] ? window._dash_ts['dash-cat'].getValue() : [])
-        .map(v => String(v).trim().toUpperCase()).filter(Boolean);
+      const slabs = Array.isArray(cfg)
+        ? cfg
+        : (cfg.ALL || Object.values(cfg)[0] || []);
 
-      let matchedProds = cfgProds;
-      if (selProds.length > 0) {
-        matchedProds = cfgProds.filter(pr => selProds.includes(pr.toUpperCase()));
-      } else if (selCats.length > 0) {
-        matchedProds = cfgProds.filter(pr => selCats.includes(String(catMap[pr] || pr).toUpperCase()));
+      const nextSig = slabs.map(s => `${s.slab_no}|${s.segment}|${s.range}`).join(';;');
+      if (window._priceSlabOptionsSig === nextSig) {
+        return;
       }
+      window._priceSlabOptionsSig = nextSig;
 
       const prevVals = [...tsSlab.getValue()];
-      const showProdPrefix = matchedProds.length > 1 || (selProds.length === 0 && cfgProds.length > 1);
       const validSet = new Set();
       let orderIdx = 1;
 
       tsSlab.clear(true);
       tsSlab.clearOptions();
 
-      matchedProds.forEach(prod => {
-        (cfg[prod] || []).forEach(s => {
-          const val = `${prod}:${s.slab_no}`;
-          const baseLbl = `${s.slab_no}. ${s.segment} (${s.range})`;
-          const text = showProdPrefix ? `${prod} · ${baseLbl}` : baseLbl;
-          validSet.add(val);
-          tsSlab.addOption({ value: val, text: text, order: orderIdx++ });
-        });
+      slabs.forEach(s => {
+        const val = String(s.slab_no);
+        const text = `${s.slab_no}. ${s.segment} (${s.range})`;
+        validSet.add(val);
+        tsSlab.addOption({ value: val, text: text, order: orderIdx++ });
       });
 
-      const kept = prevVals.filter(v => validSet.has(v));
+      const kept = prevVals
+        .map(v => {
+          const raw = String(v).trim();
+          if (validSet.has(raw)) return raw;
+          if (raw.includes(':')) {
+            const suffix = raw.split(':', 2)[1].trim();
+            if (validSet.has(suffix)) return suffix;
+          }
+          return null;
+        })
+        .filter(Boolean);
+
       if (kept.length > 0) {
-        tsSlab.setValue(kept, true);
+        tsSlab.setValue([...new Set(kept)], true);
       }
       if (tsSlab.control_input) {
-        tsSlab.settings.placeholder = (matchedProds.length === 0 && (selProds.length > 0 || selCats.length > 0))
-          ? 'No slabs...'
-          : 'All...';
+        tsSlab.settings.placeholder = 'All...';
         tsSlab.inputState();
       }
       tsSlab.refreshOptions(false);
@@ -2541,11 +2543,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  window._dash_ts['dash-product'].on('change', () => window.refreshPriceSlabOptions());
-  window._dash_ts['dash-cat'].on('change', () => window.refreshPriceSlabOptions());
   window.refreshPriceSlabOptions();
   if (p.get('price_slab')) {
-    const initSlabs = p.get('price_slab').split(',').map(s => s.trim()).filter(Boolean);
+    const initSlabs = p.get('price_slab').split(',').map(s => {
+      const t = s.trim();
+      return t.includes(':') ? t.split(':', 2)[1].trim() : t;
+    }).filter(Boolean);
     window._dash_ts['dash-price-slab'].setValue(initSlabs, true);
   }
 
