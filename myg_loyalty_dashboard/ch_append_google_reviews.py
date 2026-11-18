@@ -34,7 +34,7 @@ import pandas as pd
 
 # importing the original loader gives us the exact same sheet reader and classifiers (main is guarded)
 from ch_load_google_reviews import get_google_sheet_data, analyze_sentiment_and_rca
-from analytics.clickhouse_service import get_ch_client
+from analytics.starrocks_service import get_ch_backup_client
 
 RENAME = {
     'Dots \u2192 Connectedto': 'store_name',
@@ -49,12 +49,49 @@ KEY_COLS = ['store_name', 'updated_at', 'reviewer_name', 'rating', 'comment']
 CHUNK = 5000
 
 
-def normalise(df):
-    """Same cleaning the original loader applies, so keys match what is already in ClickHouse."""
+def _fix_mojibake(text):
+    if not text or not any(ch in text for ch in ('Ã', 'â', 'ð', 'à')):
+        return text
+    for enc in ('cp1252', 'latin-1'):
+        try:
+            return text.encode(enc).decode('utf-8')
+        except Exception:
+            continue
+    return text
+
+
+def reconstruct_rows(df):
+    """Repair Google Sheet export quirks before normalising:
+    1) Fold continuation lines (col 0 text, cols 1..4 blank) back onto the previous review's comment.
+    2) Re-align left-shifted rows (missing store_name, col 1 is rating 1..5) with store_name='Unknown'.
+    """
     missing = [c for c in RENAME if c not in df.columns]
     if missing:
         raise SystemExit(f"Sheet is missing expected columns {missing}. Sheet columns: {df.columns.tolist()}")
     df = df.rename(columns=RENAME)
+    valid_r = {'1', '2', '3', '4', '5'}
+    rows = []
+    folded = shifted = skipped = 0
+    for c0, c1, c2, c3, c4 in df[['store_name', 'updated_at', 'rating', 'reviewer_name', 'comment']].fillna('').astype(str).itertuples(index=False, name=None):
+        s0, s1, s2, s3, s4 = c0.strip(), c1.strip(), c2.strip(), c3.strip(), c4.strip()
+        if not s1 and not s2 and not s3 and not s4:
+            if s0 and rows:
+                rows[-1][4] = (rows[-1][4] + '\n' + s0).strip()
+                folded += 1
+            else:
+                skipped += 1
+        elif s2 not in valid_r and s1 in valid_r:
+            rows.append(['Unknown', s0, s1, s2, _fix_mojibake(s3)])
+            shifted += 1
+        else:
+            rows.append([c0, c1, s2, c3, c4])
+    print(f"Reconstructed sheet rows: {len(rows):,} (folded {folded:,} continuation lines, realigned {shifted:,} shifted rows, skipped {skipped:,} blank rows)")
+    return pd.DataFrame(rows, columns=['store_name', 'updated_at', 'rating', 'reviewer_name', 'comment'])
+
+
+def normalise(df):
+    """Same cleaning the original loader applies, so keys match what is already in ClickHouse."""
+    df = reconstruct_rows(df)
     df['store_name'] = df['store_name'].fillna('').astype(str)
     df['updated_at'] = df['updated_at'].fillna('').astype(str)
     df['rating'] = pd.to_numeric(df['rating'], errors='coerce').fillna(0).astype(int)
@@ -64,7 +101,7 @@ def normalise(df):
 
 
 def main(apply):
-    ch = get_ch_client()
+    ch = get_ch_backup_client()
     if not ch:
         raise SystemExit("Cannot connect to ClickHouse")
 

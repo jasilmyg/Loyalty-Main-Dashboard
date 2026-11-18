@@ -1,17 +1,20 @@
 """Detailed analysis for each card (and every sub-category inside it) of the legacy
 Customer Review RCA dashboard (/rca-dashboard/).
 
-Card / sub-category membership comes from dashboard.rca_rules.CLS_SQL (the same rating-aware
-classifier used by dashboard.rca_logic.build_rca_data) so the numbers in the detail view always
-reconcile with the numbers shown on the cards.
+Reviews rated <= 3 come from dashboard.rca_labels (manually reviewed by meaning, falling back to
+dashboard.rca_rules.CLS_SQL for any unlabelled/blank rows); 4-5 star reviews come from CLS_SQL.
+Both this module and dashboard.rca_logic.build_rca_data share that source, so card and detail counts always match.
 """
-from collections import defaultdict
+from collections import Counter, defaultdict
+from datetime import date, timedelta
+import hashlib
 
 from django.core.cache import cache
 
 from analytics.clickhouse_service import get_ch_client
 from dashboard.rca_logic import get_store_mapping
-from dashboard.rca_rules import CLS_SQL
+from dashboard.rca_rules import CLS_SQL, REVIEWS_SRC
+from dashboard.rca_labels import _fix_text, get_low_rows, labels_version
 from dashboard.rca_v2_logic import DATE, _pct, _ins
 
 
@@ -24,14 +27,15 @@ CARDS = {
     'after_sales': {
         'title': 'After-Sales & Service Friction', 'category': 'After-Sales & Service Friction', 'complaint': True,
         'hf': ['Delayed Service & Long Waiting Time', 'Product Defect & Hardware Issue',
-               'Warranty & Replacement Denial', 'Pricing & High Cost'],
+               'Warranty & Replacement Denial'],
         'items': [
-            ('delays', 'Delays & Turnaround Lag', ['Severe Delays & Turnaround Lag'], ['Delayed Service & Long Waiting Time']),
+            ('delivery', 'Delivery, Installation & Stock Delays', [], []),
+            ('delays', 'Service & Repair Delays', ['Severe Delays & Turnaround Lag'], ['Delayed Service & Long Waiting Time']),
             ('warranty', 'Warranty & Replacements', ['Warranty & Replacement Disputes'], ['Warranty & Replacement Denial']),
             ('unresolved', 'Unresolved / Repeat Faults', ['Unresolved Faults / Defective Repair'], ['Product Defect & Hardware Issue']),
             ('updates', 'Missing Proactive Updates', ['Missing Updates & Proactive Follow-up'], []),
-            ('cost', 'Service Cost & Spares', ['Service Charges & Spare Cost Disputes'], ['Pricing & High Cost']),
-            ('general', 'General Service Dissatisfaction', ['General After-Sales Grievances'], []),
+            ('cost', 'Service Charges & Spares', ['Service Charges & Spare Cost Disputes'], []),
+            ('general', 'General After-Sales Complaints', ['General After-Sales Grievances'], []),
         ],
     },
     'staff': {
@@ -56,6 +60,16 @@ CARDS = {
             ('zero_contact', 'Zero Contact (Phone / WhatsApp)', ['General Zero-Response (Phone/WhatsApp)'], []),
         ],
     },
+    'sales': {
+        'title': 'Sales, Store & General Complaints', 'category': 'Sales, Store & General Complaints', 'complaint': True,
+        'hf': ['Pricing & High Cost'],
+        'items': [
+            ('offers', 'Offers, Pricing & Mis-selling', [], ['Pricing & High Cost']),
+            ('store', 'Store Facilities & Waiting', [], []),
+            ('general_service', 'General Customer-Service Complaint', [], []),
+            ('unspecified', 'Unspecified Complaint (no reason given)', [], []),
+        ],
+    },
     'other': {
         'title': 'Positive & General Feedback', 'category': 'Positive Experience & Satisfaction', 'complaint': False,
         'hf': ['Positive Feedback & Good Service', 'Store Ambiance & Cleanliness', 'Empty/No Comment', ''],
@@ -70,11 +84,12 @@ CARDS = {
 }
 
 
-def _card_base(card_key, where_store):
-    """Sub-select of this card's reviews with an ``item`` column (sub-category key)."""
+def _card_base(card_key, where_store, extra=''):
+    """SQL sub-select of the 4-5 star reviews of one card with an ``item`` column.
+    (Reviews rated 1-3 stars come from the manually reviewed labels, see dashboard.rca_labels.)"""
     cols = "rating, store_name, comment, dim_emotion, dim_suggested_action"
     return (f"(SELECT splitByChar('/', cls)[2] AS item, d, {cols} FROM "
-            f"(SELECT {CLS_SQL} AS cls, {DATE} AS d, {cols} FROM google_reviews WHERE 1 = 1{where_store}) "
+            f"(SELECT {CLS_SQL} AS cls, {DATE} AS d, {cols} FROM {REVIEWS_SRC} WHERE rating >= 4{where_store}{extra}) "
             f"WHERE startsWith(cls, '{card_key}/'))")
 
 
@@ -93,6 +108,17 @@ def _change(cur, prev):
     return round((cur - prev) / prev * 100) if prev else (None if not cur else 100)
 
 
+def _as_date(x):
+    if x is None:
+        return None
+    if isinstance(x, str):
+        try:
+            return date.fromisoformat(x[:10])
+        except ValueError:
+            return None
+    return x.date() if hasattr(x, 'date') and callable(x.date) else x
+
+
 def build_card_detail(request, card_key):
     d = CARDS.get(card_key)
     if not d:
@@ -102,77 +128,110 @@ def build_card_detail(request, card_key):
     scond, valid = _store_cond(request, mapping)
     where_store = f" AND {scond}" if scond else ""
     labels = {k: l for k, l, _s, _h in d['items']}
-    labels['other_items'] = 'Other sub-categories'
+    item_keys = [k for k, *_ in d['items']]
 
     all_total, maxd = ch.query(
-        f"SELECT count(), max({DATE}) FROM google_reviews WHERE 1 = 1{where_store}").result_rows[0]
+        f"SELECT count(), max({DATE}) FROM {REVIEWS_SRC} WHERE 1 = 1{where_store}").result_rows[0]
     if not all_total or not maxd:
         return {'status': 'empty'}
-    md = f"toDate('{maxd}')"
-    base = _card_base(card_key, where_store)
+    maxd = _as_date(maxd)
+    d30, d60 = maxd - timedelta(days=30), maxd - timedelta(days=60)
 
-    rows = ch.query(f"""
-        SELECT item, count(), avg(rating), countIf(rating <= 2), countIf(rating = 3), countIf(rating >= 4),
-               countIf(d > subtractDays({md}, 30)),
-               countIf(d <= subtractDays({md}, 30) AND d > subtractDays({md}, 60)),
-               uniqExact(store_name), topK(1)(dim_emotion)[1], topK(1)(dim_suggested_action)[1]
-        FROM {base} GROUP BY item""").result_rows
-    by_item = {r[0]: r for r in rows}
-    card_total = sum(r[1] for r in rows)
+    store_tot = dict(ch.query(f"SELECT store_name, count() FROM {REVIEWS_SRC} WHERE 1 = 1{where_store} GROUP BY store_name").result_rows)
 
-    store_tot = dict(ch.query(f"SELECT store_name, count() FROM google_reviews WHERE 1 = 1{where_store} GROUP BY store_name").result_rows)
+    # ---- aggregates per (item, store): n, sum rating, 1-2*, 3*, 4-5*, last 30d, previous 30d ---------
+    G = defaultdict(lambda: [0, 0, 0, 0, 0, 0, 0])
+    months_n = defaultdict(int)                 # (month, item) -> reviews
+    emo, act = defaultdict(Counter), defaultdict(Counter)
+    cand = defaultdict(list)                    # item -> [(sort key, sample)]
+    prefix = card_key + '/'
 
-    top_store_rows = ch.query(f"""
-        SELECT item, store_name, count() FROM {base} GROUP BY item, store_name
-        ORDER BY count() DESC LIMIT 5 BY item""").result_rows
-    top_stores = defaultdict(list)
-    for item, store, c in top_store_rows:
-        top_stores[item].append({'store': store, 'count': c, 'share': _pct(c, store_tot.get(store, 0))})
+    for r in get_low_rows(ch, where_store):     # reviews rated 1-3 stars, manually labelled
+        if not r['cls'].startswith(prefix):
+            continue
+        item = r['cls'][len(prefix):]
+        g = G[(item, r['store'])]
+        rt, dt = r['rating'], _as_date(r['d'])
+        g[0] += 1; g[1] += rt
+        g[2] += rt <= 2; g[3] += rt == 3; g[4] += rt >= 4
+        if dt:
+            g[5] += dt > d30
+            g[6] += (dt <= d30 and dt > d60)
+            months_n[(dt.replace(day=1), item)] += 1
+        if r['emo']: emo[item][r['emo']] += 1
+        if r['act']: act[item][r['act']] += 1
+        if r['comment'].strip():
+            key = (rt, -(dt.toordinal() if dt else 0)) if d['complaint'] else (-(dt.toordinal() if dt else 0),)
+            cand[item].append((key, {'store': r['store'], 'rating': rt, 'date': str(dt), 'comment': r['comment'][:280]}))
 
-    order = "rating ASC, d DESC" if d['complaint'] else "d DESC"
-    sample_rows = ch.query(f"""
-        SELECT item, store_name, rating, comment, d FROM {base} WHERE comment != ''
-        ORDER BY {order} LIMIT 3 BY item""").result_rows
-    samples = defaultdict(list)
-    for item, store, rating, comment, dt in sample_rows:
-        samples[item].append({'store': store, 'rating': rating, 'date': str(dt), 'comment': comment[:280]})
+    if card_key == 'other':                     # + the 4-5 star reviews (SQL rules)
+        base = _card_base(card_key, where_store)
+        md = f"toDate('{maxd}')"
+        for item, store, n, sr, neg, neu, pos, l30, p30 in ch.query(f"""
+                SELECT item, store_name, count(), sum(rating), countIf(rating <= 2), countIf(rating = 3), countIf(rating >= 4),
+                       countIf(d > subtractDays({md}, 30)),
+                       countIf(d <= subtractDays({md}, 30) AND d > subtractDays({md}, 60))
+                FROM {base} GROUP BY item, store_name""").result_rows:
+            g = G[(item, store)]
+            for i, v in enumerate((n, int(sr), neg, neu, pos, l30, p30)):
+                g[i] += v
+        for m, item, c in ch.query(f"SELECT toStartOfMonth(d) AS m, item, count() FROM {base} WHERE d IS NOT NULL GROUP BY m, item").result_rows:
+            months_n[(_as_date(m), item)] += c
+        for item, e, c in ch.query(f"SELECT item, dim_emotion, count() FROM {base} GROUP BY item, dim_emotion").result_rows:
+            if e: emo[item][e] += c
+        for item, a, c in ch.query(f"SELECT item, dim_suggested_action, count() FROM {base} GROUP BY item, dim_suggested_action").result_rows:
+            if a: act[item][a] += c
+        for item, store, rating, comment, dt in ch.query(f"""
+                SELECT item, store_name, rating, comment, d FROM {base} WHERE comment != ''
+                ORDER BY d DESC LIMIT 3 BY item""").result_rows:
+            dt = _as_date(dt)
+            cand[item].append(((-(dt.toordinal() if dt else 0),),
+                               {'store': store, 'rating': rating, 'date': str(dt), 'comment': _fix_text(comment)[:280]}))
 
-    month_rows = ch.query(f"""
-        SELECT toStartOfMonth(d) AS m, item, count() FROM {base} WHERE d IS NOT NULL
-        GROUP BY m, item ORDER BY m""").result_rows
-    months = sorted({r[0] for r in month_rows})[-12:]
-    series = {k: [0] * len(months) for k in labels}
-    for m, item, c in month_rows:
-        if m in months:
+    by_item = defaultdict(dict)
+    for (item, store), g in G.items():
+        by_item[item][store] = g
+    card_total = sum(g[0] for g in G.values())
+
+    months = sorted({m for m, _i in months_n})[-12:]
+    series = {k: [0] * len(months) for k in item_keys}
+    for (m, item), c in months_n.items():
+        if m in months and item in series:
             series[item][months.index(m)] = c
-
-    store_rows = ch.query(f"""
-        SELECT store_name, count(), countIf(rating <= 2) FROM {base} GROUP BY store_name""").result_rows
 
     # --- assemble items -------------------------------------------------------------
     items = []
-    keys = [k for k, *_ in d['items']] + (['other_items'] if 'other_items' in by_item else [])
-    for k in keys:
-        r = by_item.get(k)
-        cnt = r[1] if r else 0
+    for k in item_keys:
+        sg = by_item.get(k, {})
+        cnt = sum(g[0] for g in sg.values())
+        sumr = sum(g[1] for g in sg.values())
+        neg = sum(g[2] for g in sg.values()); neu = sum(g[3] for g in sg.values()); pos = sum(g[4] for g in sg.values())
+        l30 = sum(g[5] for g in sg.values()); p30 = sum(g[6] for g in sg.values())
+        tops = sorted(sg.items(), key=lambda kv: -kv[1][0])[:5]
+        samples = [x[1] for x in sorted(cand.get(k, []), key=lambda x: x[0])[:3]]
         items.append({
             'key': k, 'label': labels[k], 'count': cnt, 'share': _pct(cnt, card_total),
             'share_of_all': _pct(cnt, all_total, 2),
-            'avg_rating': round(float(r[2]), 2) if r else 0,
-            'negative': r[3] if r else 0, 'neg_rate': _pct(r[3], cnt) if r else 0,
-            'neutral': r[4] if r else 0, 'positive': r[5] if r else 0,
-            'pos_rate': _pct(r[5], cnt) if r else 0,
-            'last_30d': r[6] if r else 0, 'prev_30d': r[7] if r else 0,
-            'change_pct': _change(r[6], r[7]) if r else None,
-            'stores': r[8] if r else 0,
-            'top_emotion': r[9] if r else '—', 'top_action': r[10] if r else '—',
-            'top_stores': top_stores.get(k, []), 'samples': samples.get(k, []),
+            'avg_rating': round(sumr / cnt, 2) if cnt else 0,
+            'negative': neg, 'neg_rate': _pct(neg, cnt) if cnt else 0,
+            'neutral': neu, 'positive': pos,
+            'pos_rate': _pct(pos, cnt) if cnt else 0,
+            'last_30d': l30, 'prev_30d': p30,
+            'change_pct': _change(l30, p30) if cnt else None,
+            'stores': len(sg),
+            'top_emotion': emo[k].most_common(1)[0][0] if emo.get(k) else '—',
+            'top_action': act[k].most_common(1)[0][0] if act.get(k) else '—',
+            'top_stores': [{'store': st, 'count': g[0], 'share': _pct(g[0], store_tot.get(st, 0))} for st, g in tops],
+            'samples': samples,
         })
 
     # --- RBM / BDM / store breakdown (normalised by each unit's total reviews) ---------
+    per_store = defaultdict(lambda: [0, 0])
+    for (item, store), g in G.items():
+        per_store[store][0] += g[0]; per_store[store][1] += g[2]
     agg = {'rbm': defaultdict(lambda: [0, 0, 0, 0]), 'bdm': defaultdict(lambda: [0, 0, 0, 0])}
     stores = []
-    for store, c, neg in store_rows:
+    for store, (c, neg) in per_store.items():
         info = mapping.get(store, {'rbm': 'Unknown', 'bdm': 'Unknown'})
         tot = store_tot.get(store, 0)
         stores.append({'store': store, 'rbm': info['rbm'], 'bdm': info['bdm'], 'count': c, 'negative': neg,
@@ -201,10 +260,13 @@ def build_card_detail(request, card_key):
         'status': 'ok', 'card': card_key, 'title': d['title'], 'complaint': d['complaint'],
         'summary': summary, 'items': items,
         'monthly': {'months': [m.strftime('%b %y') for m in months],
-                    'series': [{'key': k, 'label': labels[k], 'data': series[k]} for k in keys]},
+                    'series': [{'key': k, 'label': labels[k], 'data': series[k]} for k in item_keys]},
         'rbms': groups('rbm'), 'bdms': groups('bdm'), 'stores': stores_ranked[:15],
         'insights': insights,
     }
+
+
+GENERIC_KEYS = {'general', 'unspecified', 'general_service'}
 
 
 def _insights(d, items, s, rbms, stores):
@@ -221,13 +283,13 @@ def _insights(d, items, s, rbms, stores):
         out.append(_ins(kind, 'Severity mix',
             f"All {s['reviews']:,} reviews here are genuine complaints: {s['negative']:,} ({s['neg_rate']}%) are 1–2★ and "
             f"{s['reviews'] - s['negative'] - s['positive']:,} are 3★ with an explicit complaint. Average rating {s['avg_rating']}★."))
-        sev = sorted([i for i in items if i['count'] >= 30 and i['key'] != 'general'], key=lambda i: i['avg_rating'])
+        sev = sorted([i for i in items if i['count'] >= 30 and i['key'] not in GENERIC_KEYS], key=lambda i: i['avg_rating'])
         if sev:
             i = sev[0]
             out.append(_ins('danger', 'Most severe sub-category',
                 f"“{i['label']}” — lowest average rating ({i['avg_rating']}★) across {i['count']:,} reviews, "
                 f"{i['neg_rate']}% of them 1–2★."))
-        gen = next((i for i in items if i['key'] == 'general'), None)
+        gen = next((i for i in sorted(items, key=lambda i: -i['count']) if i['key'] in GENERIC_KEYS), None)
         if gen and gen['count'] and gen['share'] >= 30:
             out.append(_ins('info', 'General bucket',
                 f"{gen['share']}% of this card ({gen['count']:,}) is a low-rating review with no specific cause in the text "
@@ -258,8 +320,8 @@ def _insights(d, items, s, rbms, stores):
 
 
 def get_card_detail(request, card_key):
-    key = "rca_legacy_detail:{}:{}:{}:{}".format(
-        card_key, request.GET.get('rbm', 'all'), request.GET.get('bdm', 'all'), request.GET.get('store', 'all'))
+    fh = hashlib.md5(f"{request.GET.get('rbm', 'all')}|{request.GET.get('bdm', 'all')}|{request.GET.get('store', 'all')}".encode('utf-8')).hexdigest()[:12]
+    key = "rca_legacy_detail_v4:{}:{}:{}".format(labels_version(), card_key, fh)
     cached = cache.get(key)
     if cached is not None:
         return cached

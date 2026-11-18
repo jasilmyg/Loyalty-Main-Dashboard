@@ -1,19 +1,72 @@
+import hashlib
 import pandas as pd
 import difflib
 from django.core.cache import cache
 from analytics.clickhouse_service import get_ch_client
 from dashboard.utils import RETAIL_BRANCH_FILTER
-from dashboard.rca_rules import CLS_SQL, CARD_ITEMS
+from dashboard.rca_rules import CLS_SQL, CARD_ITEMS, REVIEWS_SRC
+from dashboard.rca_labels import get_low_rows, labels_version
+
+STORE_ALIASES = {
+    'MYG FUTURE': None,
+    'MYG': None,
+    'MYG CARE': None,
+    'MYG OFFERS': None,
+    'UNKNOWN': None,
+    'MYG CAFE YMCA': None,
+    'MYG SEEMA': None,
+    'MYG CHAVAKKAD': 'CHAVAKKAD FUTURE',
+    'MYG EDAPPALLY': 'EDAPPALLY FUTURE',
+    'MYG FUTURE MANGALURU': 'FALNIR FUTURE',
+    'MYG KANNUR': 'KANNUR FUTURE',
+    'MYG KATAPPANA': 'KATTAPPANA FUTURE',
+    'MYG PATTAMBI': 'PATTAMBI FUTURE',
+    'MYG PENTA': 'MENAKA',
+    'MYG SABA CENTRE': 'SABA MAHARANI',
+    'MYG THAMARASSERY': 'THAMARASSERY FUTURE',
+    'MYG CHEMMAD': 'CHEMMAD FUTURE',
+    'MYG KOTHAMANGALAM': 'KOTHAMANGALAM FUTURE',
+    'MYG KANJIRAPPALLY': 'KANJIRAPPALLY FUTURE',
+    'MYG NILAMBUR': 'NILAMBUR FUTURE',
+    'MYG PERUMBAVOOR': 'PERUMBAVOOR FUTURE',
+    'MYG FUTURE MARINE DRIVE - THE EPIC SHOWROOM': 'MARINE DRIVE FUTURE',
+    'MYG FUTURE PANAVILA, TRIVANDRUM': 'PANAVILA FUTURE',
+    'MYG FUTURE VYPIN KOCHI': 'VYPIN FUTURE',
+    'MYG FUTURE WADAKANCHERY OTTUPARA': 'OTTUPARA FUTURE',
+    'MYG BYPASS PKD': 'BYPASS ROAD',
+    'MYG THANA KANNUR': 'THANA',
+    'MYG TB ROAD PALAKKAD': 'TB ROAD',
+    'MYG HILITE': 'HI LITE MALL',
+    'MYG MALAPURAM': 'MALAPPURAM',
+    'MYG RAMANATUKARA': 'RAMANATTUKARA',
+    'MYG KARUNAGAPALLY': 'KARUNAGAPPALLY',
+    'MYG CHALAKKUDY': 'CHALAKKUDI',
+    'MYG OTTAPPALAM': 'OTTAPALAM',
+    'MYG BALUSSERRY': 'BALUSSERY',
+    'MYG FUTURE MANNARKKAD': 'MANNARKAD FUTURE',
+    'MYG FUTURE VADAKKENCHERY': 'VADAKKENCHERRY FUTURE',
+    'MYG FUTURE, MUVATTUPUZHA': 'MUVATTUPUZHA FUTURE',
+    'MYG FUTURE KUTTIADY': 'KUTTIYADI FUTURE',
+}
+
+# City-wide Google profiles (mapped to region/manager, not a single bill branch code)
+CITY_HUB_OVERRIDES = {
+    'MYG FUTURE CALICUT': {'rbm': 'ALFAS', 'bdm': 'Unknown', 'matched_branch': None, 'code': None},
+    'MYG FUTURE THIRUVANANTHAPURAM': {'rbm': 'VAISAKH', 'bdm': 'AMAL', 'matched_branch': None, 'code': None},
+    'MYG FUTURE THRISSUR': {'rbm': 'RENJITH', 'bdm': 'PRASEED', 'matched_branch': None, 'code': None},
+}
+
 
 def get_store_mapping(ch):
-    """Returns a dict mapping google_reviews store_name to {rbm, bdm, matched_branch}"""
-    cached = cache.get("rca_store_mapping_v1")
+    """Returns a dict mapping google_reviews store_name to {rbm, bdm, matched_branch, code}."""
+    cached = cache.get("rca_store_mapping_v2")
     if cached:
         return cached
-    rows = ch.query(f"SELECT branch_name, rbm, bdm FROM branch_master WHERE {RETAIL_BRANCH_FILTER}").result_rows
-    ch_dict = {r[0].strip().upper(): {'rbm': r[1], 'bdm': r[2]} for r in rows if r[0]}
+    rows = ch.query(f"SELECT branch_name, rbm, bdm, code FROM branch_master WHERE {RETAIL_BRANCH_FILTER}").result_rows
+    ch_dict = {r[0].strip().upper(): {'rbm': r[1], 'bdm': r[2], 'code': (r[3] or '').strip().upper() or None}
+               for r in rows if r[0]}
     ch_names = list(ch_dict.keys())
-    
+
     def normalize_name(name):
         name = str(name).upper().strip()
         name = name.replace('MYG', '').strip()
@@ -23,20 +76,33 @@ def get_store_mapping(ch):
             name = name.replace('THIRUVANANTHAPURAM', 'TRIVANDRUM')
         return name
 
-    google_stores_res = ch.query("SELECT distinct store_name FROM google_reviews").result_rows
-    google_stores = [r[0] for r in google_stores_res]
-    
+    google_stores = [r[0] for r in ch.query("SELECT distinct store_name FROM google_reviews").result_rows]
+
     mapping = {}
     for store in google_stores:
-        norm = normalize_name(store)
-        matches = difflib.get_close_matches(norm, ch_names, n=1, cutoff=0.5)
-        matched_name = matches[0] if matches else None
-        rbm = ch_dict[matched_name]['rbm'] if matched_name else 'Unknown'
-        bdm = ch_dict[matched_name]['bdm'] if matched_name else 'Unknown'
-        mapping[store] = {'rbm': rbm, 'bdm': bdm, 'matched_branch': matched_name}
-        
+        key = str(store).upper().strip()
+        if key in CITY_HUB_OVERRIDES:
+            mapping[store] = dict(CITY_HUB_OVERRIDES[key])
+            continue
+        if key in STORE_ALIASES:
+            matched_name = STORE_ALIASES[key]
+        else:
+            norm = normalize_name(store)
+            if norm in ch_dict:
+                matched_name = norm
+            else:
+                matches = difflib.get_close_matches(norm, ch_names, n=1, cutoff=0.8)
+                matched_name = matches[0] if matches else None
+        info = ch_dict.get(matched_name) if matched_name else None
+        mapping[store] = {
+            'rbm': info['rbm'] if info else 'Unknown',
+            'bdm': info['bdm'] if info else 'Unknown',
+            'matched_branch': matched_name,
+            'code': info['code'] if info else None,
+        }
+
     if mapping:
-        cache.set("rca_store_mapping_v1", mapping, 300)
+        cache.set("rca_store_mapping_v2", mapping, 300)
     return mapping
 
 def build_rca_data(request):
@@ -44,7 +110,8 @@ def build_rca_data(request):
     bdm_filter = request.GET.get('bdm', 'all')
     store_filter = request.GET.get('store', 'all')
 
-    cache_key = f"rca_legacy_cards_v1:{rbm_filter}:{bdm_filter}:{store_filter}"
+    fh = hashlib.md5(f"{rbm_filter}|{bdm_filter}|{store_filter}".encode('utf-8')).hexdigest()[:12]
+    cache_key = f"rca_legacy_cards_v4:{labels_version()}:{fh}"
     cached = cache.get(cache_key)
     if cached and cached.get('status') == 'ok' and cached.get('total_reviews', 0) > 0:
         return cached
@@ -69,20 +136,23 @@ def build_rca_data(request):
     # We use ALL star reviews as requested by the user, but we only want to categorize
     # the ones that actually have comments. Empty comments are marked 'Other / Unclassified', 'Unclassified'.
     if rbm_filter == 'all' and bdm_filter == 'all' and store_filter == 'all':
-        where_clause = ""
+        where_store = ""
     else:
         stores_sql = ", ".join([f"'{s.replace(chr(39), chr(39)+chr(39))}'" for s in valid_stores])
-        where_clause = f"WHERE store_name IN ({stores_sql})"
-        
-    # Rating-aware classification (see dashboard.rca_rules): 1-2★ (or clearly negative 3★) reviews
-    # are issues and are sorted into the three issue cards; everything else is Positive & General.
+        where_store = f" AND store_name IN ({stores_sql})"
+
+    # 4-5 star reviews (no complaints in there): classified by the SQL rules (dashboard.rca_rules).
     res = ch.query(f"""
         SELECT {CLS_SQL} AS cls, count() AS cnt
-        FROM google_reviews
-        {where_clause}
+        FROM {REVIEWS_SRC}
+        WHERE rating >= 4{where_store}
         GROUP BY cls
     """).result_rows
     counts = {cls: cnt for cls, cnt in res}
+    # Reviews rated 1-3 stars: every one of them was READ and labelled by meaning
+    # (dashboard.rca_labels); reviews not yet reviewed fall back to the SQL rules.
+    for r in get_low_rows(ch, where_store):
+        counts[r['cls']] = counts.get(r['cls'], 0) + 1
     total_reviews = sum(counts.values())
 
     if total_reviews == 0:

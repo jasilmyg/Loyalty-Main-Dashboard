@@ -14,7 +14,7 @@ Usage (run from the myg_loyalty_dashboard folder):
     python load_stock_ageing.py <xlsx> --date 2026-10-18     # override the date parsed from the file name
     python load_stock_ageing.py <xlsx> --replace             # drop & reload that day's snapshot
 
-Connection settings come from analytics.clickhouse_service (CH_* environment
+Connection settings come from analytics.starrocks_service (CLICKHOUSE_* / .env
 variables), so no credentials live in this script.
 """
 import argparse
@@ -28,7 +28,7 @@ import pandas as pd
 import python_calamine
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from analytics.clickhouse_service import get_ch_client  # noqa: E402
+from analytics.starrocks_service import get_ch_backup_client  # noqa: E402
 
 TABLE = 'stock_ageing_report'
 
@@ -116,9 +116,12 @@ def parse_date_from_name(path):
 
 def connect(retries=5, wait=15):
     for attempt in range(1, retries + 1):
-        client = get_ch_client()
-        if client is not None:
-            return client
+        try:
+            client = get_ch_backup_client()
+            if client is not None:
+                return client
+        except Exception as e:
+            print(f'  ClickHouse error ({e})', flush=True)
         print(f'  ClickHouse not reachable (attempt {attempt}/{retries}); retrying in {wait}s...', flush=True)
         time.sleep(wait)
     sys.exit('ERROR: could not connect to ClickHouse.')

@@ -5691,6 +5691,30 @@ class RcaDashboardAPIView(LoginRequiredMixin, View):
                 return JsonResponse({'status': 'error', 'message': 'Unknown card'}, status=404)
             return JsonResponse(data)
         else:
+            if action == 'advanced':
+                from .rca_advanced import build_advanced_analytics
+                try:
+                    return JsonResponse(build_advanced_analytics(request))
+                except Exception as e:
+                    return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+            elif action == 'explorer':
+                from .rca_advanced import query_explorer
+                try:
+                    return JsonResponse(query_explorer(request))
+                except Exception as e:
+                    return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+            elif action == 'export':
+                from .rca_advanced import export_rca_excel
+                try:
+                    xlsx_bytes, fname = export_rca_excel(request)
+                except Exception as e:
+                    return HttpResponse(f"Export failed: {e}", status=500)
+                resp = HttpResponse(
+                    xlsx_bytes,
+                    content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                )
+                resp['Content-Disposition'] = f'attachment; filename="{fname}"'
+                return resp
             return JsonResponse(build_rca_data(request))
 
 

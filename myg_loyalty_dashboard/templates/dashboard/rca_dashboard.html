@@ -15,6 +15,8 @@
     --blue-light: #e0f2fe;
     --gray-main: #64748b;
     --gray-light: #f1f5f9;
+    --purple-main: #7c3aed;
+    --purple-light: #ede9fe;
 }
 
 /* Compact top bar when global filter form is hidden */
@@ -124,12 +126,18 @@
     transform: translateY(-1px);
 }
 
-/* ─── Cards Grid ─────────────────────────────────────────────── */
+/* ─── Cards Grid (4 Complaint Pillars on Row 1) ───────────────── */
 .cards-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 24px;
-    margin-bottom: 30px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 18px;
+    margin-bottom: 18px;
+}
+@media (max-width: 1320px) {
+    .cards-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 768px) {
+    .cards-grid { grid-template-columns: 1fr; }
 }
 
 .rca-card {
@@ -163,6 +171,7 @@
 .rca-card.orange::before { background-color: var(--orange-main); }
 .rca-card.blue::before { background-color: var(--blue-main); }
 .rca-card.gray::before { background-color: var(--gray-main); }
+.rca-card.purple::before { background-color: var(--purple-main); }
 
 .card-header {
     margin-bottom: 24px;
@@ -184,6 +193,7 @@
 .rca-card.orange .percentage { color: var(--orange-main); }
 .rca-card.blue .percentage { color: var(--blue-main); }
 .rca-card.gray .percentage { color: var(--gray-main); }
+.rca-card.purple .percentage { color: var(--purple-main); }
 
 .card-header .reviews-count {
     font-size: 0.9rem;
@@ -233,6 +243,7 @@
 .rca-card.orange .item-name::before { background-color: var(--orange-main); }
 .rca-card.blue .item-name::before { background-color: var(--blue-main); }
 .rca-card.gray .item-name::before { background-color: var(--gray-main); }
+.rca-card.purple .item-name::before { background-color: var(--purple-main); }
 /* clickable sub-category dot / label -> opens the "what does this mean" panel */
 .item-name.ld-click { cursor: pointer; transition: color .15s; }
 .item-name.ld-click::before { transition: transform .15s, box-shadow .15s; flex: 0 0 6px; }
@@ -271,6 +282,7 @@
 .rca-card.orange .item-percentage { background-color: var(--orange-light); color: var(--orange-main); }
 .rca-card.blue .item-percentage { background-color: var(--blue-light); color: var(--blue-main); }
 .rca-card.gray .item-percentage { background-color: var(--gray-light); color: var(--gray-main); }
+.rca-card.purple .item-percentage { background-color: var(--purple-light); color: var(--purple-main); }
 
 /* Key Takeaway */
 .key-takeaway {
@@ -335,8 +347,382 @@
 .ld-bar > div { height: 8px; border-radius: 4px; }
 .ld-quote { border-left: 3px solid #cbd5e1; padding-left: 10px; font-size: .8rem; color: #334155; margin-bottom: 8px; }
 .ld-quote small { color: #64748b; }
-.cards-grid { transition: opacity .25s ease, filter .25s ease; }
-.cards-grid.rca-pending { opacity: .3; filter: blur(4px); pointer-events: none; user-select: none; }
+.cards-grid, .rca-positive-wrap { transition: opacity .25s ease, filter .25s ease; }
+.cards-grid.rca-pending, .rca-positive-wrap.rca-pending { opacity: .3; filter: blur(4px); pointer-events: none; user-select: none; }
+
+/* ─── Positive & General Horizontal Summary Strip (4+1 Fix) ───── */
+.rca-positive-wrap { margin-bottom: 22px; }
+.rca-card.gray {
+    display: grid;
+    grid-template-columns: 270px 1fr;
+    align-items: stretch;
+    border-top: 3px solid #10b981;
+}
+.rca-card.gray .card-header {
+    border-bottom: none;
+    border-right: 1px solid #f1f5f9;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 16px 20px;
+}
+.rca-card.gray .percentage { color: #059669; font-size: 26px; }
+.rca-card.gray .card-body {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+    padding: 14px 18px;
+    align-items: stretch;
+}
+.rca-card.gray .list-item {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    transition: border-color .15s, background .15s;
+}
+.rca-card.gray .list-item:hover { background: #ecfdf5; border-color: #a7f3d0; }
+.rca-card.gray .item-name { font-size: 12px; line-height: 1.3; padding-right: 0; }
+.rca-card.gray .item-name::before { background: #10b981; margin-right: 7px; }
+.rca-card.gray .item-stats { width: 100%; justify-content: space-between; }
+.rca-card.gray .item-percentage { background: #d1fae5; color: #065f46; }
+@media (max-width: 1200px) {
+    .rca-card.gray { grid-template-columns: 1fr; }
+    .rca-card.gray .card-header { border-right: none; border-bottom: 1px solid #f1f5f9; }
+    .rca-card.gray .card-body { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 768px) {
+    .rca-card.gray .card-body { grid-template-columns: 1fr; }
+}
+
+/* ─── Executive KPI Strip ─────────────────────────────────────── */
+.rca-kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 24px;
+}
+@media (max-width: 1320px) { .rca-kpi-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 768px) { .rca-kpi-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.rca-kpi-box {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 14px 16px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, .03);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 4px;
+}
+.rca-kpi-label {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+}
+.rca-kpi-val { font-size: 22px; font-weight: 800; color: #0f172a; line-height: 1.15; letter-spacing: -.4px; }
+.rca-kpi-sub { font-size: 11.5px; color: #64748b; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rca-kpi-box.kpi-accent-red { border-left: 3px solid #e11d48; }
+.rca-kpi-box.kpi-accent-emerald { border-left: 3px solid #10b981; }
+.rca-kpi-box.kpi-accent-blue { border-left: 3px solid #0284c7; }
+.rca-kpi-box.kpi-accent-amber { border-left: 3px solid #f59e0b; }
+.rca-kpi-box.kpi-accent-purple { border-left: 3px solid #7c3aed; }
+.rca-kpi-box.kpi-accent-slate { border-left: 3px solid #475569; }
+
+/* ─── Advanced Analytics Containers ───────────────────────────── */
+.adv-dashboard { display: flex; flex-direction: column; gap: 24px; margin-bottom: 36px; }
+.adv-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+@media (max-width: 1240px) {
+    .adv-grid-2 { grid-template-columns: 1fr; }
+}
+.adv-panel {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    box-shadow: 0 2px 10px rgba(15, 23, 42, .04);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+.adv-panel-hdr {
+    padding: 15px 20px;
+    border-bottom: 1px solid #f1f5f9;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.adv-panel-title { font-size: 15px; font-weight: 700; color: #0f172a; margin: 0; display: flex; align-items: center; gap: 8px; }
+.adv-panel-sub { font-size: 12px; color: #64748b; margin-top: 3px; line-height: 1.35; }
+.adv-panel-body { padding: 16px 20px; flex: 1; }
+.adv-seg {
+    display: inline-flex;
+    background: #f1f5f9;
+    padding: 3px;
+    border-radius: 9px;
+    gap: 2px;
+    flex-wrap: wrap;
+}
+.adv-seg-btn {
+    border: none;
+    background: transparent;
+    color: #475569;
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 5px 11px;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all .15s;
+}
+.adv-seg-btn:hover { color: #0f172a; }
+.adv-seg-btn.active { background: #ffffff; color: #0f172a; box-shadow: 0 1px 3px rgba(15, 23, 42, .1); }
+.adv-chart-box { position: relative; height: 350px; width: 100%; }
+.adv-chart-note {
+    margin-top: 10px;
+    font-size: 11.5px;
+    color: #64748b;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.adv-empty { padding: 36px 16px; text-align: center; color: #94a3b8; font-size: 13px; }
+.adv-badge-phase {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    padding: 2px 7px;
+    border-radius: 6px;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+/* ─── Tables: Heatmap, Scorecard, Product/Brand Matrix ────────── */
+.adv-table-wrap { overflow-x: auto; max-height: 460px; }
+.adv-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; }
+.adv-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: #f8fafc;
+    color: #475569;
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .35px;
+    padding: 9px 10px;
+    border-bottom: 1px solid #e2e8f0;
+    white-space: nowrap;
+}
+.adv-table thead th.sortable { cursor: pointer; user-select: none; }
+.adv-table thead th.sortable:hover { color: #0f172a; background: #f1f5f9; }
+.adv-table tbody td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #f1f5f9;
+    color: #1e293b;
+    vertical-align: middle;
+}
+.adv-table tbody tr:hover td { background: #f8fafc; }
+.adv-table .sticky-col {
+    position: sticky;
+    left: 0;
+    background: #ffffff;
+    z-index: 2;
+    border-right: 1px solid #f1f5f9;
+    min-width: 170px;
+}
+.adv-table tbody tr:hover .sticky-col { background: #f8fafc; }
+.adv-table thead th.sticky-col { z-index: 4; background: #f8fafc; }
+
+.hm-cell {
+    text-align: center;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 5px 6px;
+    min-width: 56px;
+    cursor: pointer;
+    transition: transform .1s, box-shadow .1s;
+}
+.hm-cell:hover { transform: scale(1.04); box-shadow: 0 2px 6px rgba(15, 23, 42, .12); }
+.hm-0 { background: #f8fafc; color: #94a3b8; font-weight: 500; }
+.hm-1 { background: #fef9c3; color: #854d0e; }
+.hm-2 { background: #ffedd5; color: #9a3412; }
+.hm-3 { background: #ffe4e6; color: #9f1239; }
+.hm-4 { background: #be123c; color: #ffffff; }
+.hm-sub { display: block; font-size: 9.5px; font-weight: 600; opacity: .82; }
+
+.pill-stat {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.pill-up { background: #ffe4e6; color: #be123c; }
+.pill-down { background: #d1fae5; color: #047857; }
+.pill-flat { background: #f1f5f9; color: #475569; }
+.pill-driver {
+    display: inline-block;
+    max-width: 190px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    background: #f1f5f9;
+    color: #334155;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-weight: 600;
+}
+.clickable-row { cursor: pointer; }
+
+/* ─── Enlarged Full-Width Heatmap Controls ────────────────────── */
+.hm-wrap-large { max-height: 760px; }
+.hm-wrap-large.hm-expanded { max-height: none; overflow-y: visible; }
+.hm-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.hm-search {
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 5px 10px;
+    font-size: 12px;
+    color: #0f172a;
+    background: #ffffff;
+    min-width: 195px;
+    outline: none;
+}
+.hm-search:focus { border-color: #4f46e5; }
+.hm-count-pill {
+    font-size: 11px;
+    font-weight: 700;
+    color: #475569;
+    background: #f1f5f9;
+    padding: 4px 10px;
+    border-radius: 999px;
+}
+
+/* ─── Compliance & Mis-Selling Watchlist ──────────────────────── */
+.wl-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 1200px) { .wl-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 768px) { .wl-grid { grid-template-columns: 1fr; } }
+.wl-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 14px 16px;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: box-shadow .15s, border-color .15s;
+}
+.wl-card:hover { box-shadow: 0 6px 18px rgba(15, 23, 42, .06); border-color: #cbd5e1; }
+.wl-card.sev-critical, .wl-card.sev-danger { border-top: 3px solid #be123c; }
+.wl-card.sev-high, .wl-card.sev-warning { border-top: 3px solid #ea580c; }
+.wl-card.sev-medium, .wl-card.sev-info { border-top: 3px solid #0284c7; }
+.wl-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.wl-sev {
+    font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px;
+    padding: 2px 7px; border-radius: 5px; flex-shrink: 0;
+}
+.wl-sev.critical, .wl-sev.danger { background: #ffe4e6; color: #9f1239; }
+.wl-sev.high, .wl-sev.warning { background: #ffedd5; color: #9a3412; }
+.wl-sev.medium, .wl-sev.info { background: #e0f2fe; color: #0369a1; }
+.wl-title { font-size: 13.5px; font-weight: 700; color: #0f172a; }
+.wl-desc { font-size: 11.5px; color: #64748b; line-height: 1.4; }
+.wl-metrics {
+    display: flex; gap: 12px; font-size: 12px; padding: 8px 10px;
+    background: #f8fafc; border-radius: 8px; align-items: center; flex-wrap: wrap;
+}
+.wl-cnt { font-size: 20px; font-weight: 800; color: #0f172a; }
+.wl-stores { display: flex; flex-wrap: wrap; gap: 5px; }
+.wl-store-chip {
+    font-size: 10.5px; background: #f1f5f9; color: #334155; padding: 2px 7px;
+    border-radius: 6px; font-weight: 600;
+}
+.wl-quote {
+    font-size: 11.5px; color: #334155; background: #fff1f2; border-left: 3px solid #fb7185;
+    padding: 7px 10px; border-radius: 0 7px 7px 0; line-height: 1.4;
+}
+.wl-btn {
+    margin-top: auto;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #0f172a;
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 6px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: center;
+}
+.wl-btn:hover { background: #0f172a; color: #ffffff; border-color: #0f172a; }
+
+/* ─── Interactive Review Explorer & Excel Export ──────────────── */
+.exp-toolbar {
+    display: grid;
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    gap: 10px;
+    padding: 14px 20px;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    align-items: end;
+}
+@media (max-width: 1320px) { .exp-toolbar { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 768px) { .exp-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.exp-field label {
+    display: block; font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .4px; color: #64748b; margin-bottom: 4px;
+}
+.exp-field select, .exp-field input {
+    width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 9px;
+    font-size: 12px; background: #ffffff; color: #0f172a; outline: none;
+}
+.exp-field select:focus, .exp-field input:focus { border-color: #4f46e5; }
+.exp-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.exp-btn-export {
+    background: #059669; color: #ffffff; border: none; border-radius: 8px;
+    padding: 7px 13px; font-size: 12px; font-weight: 700; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+.exp-btn-export:hover { background: #047857; }
+.exp-btn-clear {
+    background: #ffffff; color: #475569; border: 1px solid #cbd5e1; border-radius: 8px;
+    padding: 6px 10px; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.exp-btn-clear:hover { background: #f1f5f9; color: #0f172a; }
+.exp-list { padding: 14px 20px; display: flex; flex-direction: column; gap: 10px; }
+.exp-row {
+    border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; background: #ffffff;
+}
+.exp-row-top {
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;
+    gap: 8px; margin-bottom: 6px;
+}
+.exp-badges { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.exp-tag {
+    font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+}
+.exp-tag-card { background: #eff6ff; color: #1d4ed8; }
+.exp-tag-label { background: #f1f5f9; color: #334155; }
+.exp-tag-prod { background: #fef3c7; color: #92400e; }
+.exp-tag-risk { background: #ffe4e6; color: #9f1239; }
+.exp-comment { font-size: 13px; color: #1e293b; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+.exp-pager {
+    padding: 12px 20px; border-top: 1px solid #f1f5f9; display: flex;
+    justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; color: #475569;
+}
 </style>
 {% endblock %}
 
@@ -382,132 +768,160 @@
 
 <!-- ── Cards Grid ──────────────────────────────────────────────── -->
 <div class="cards-grid rca-pending">
-    <!-- Card 1 -->
     <div class="rca-card red">
         <div class="card-header">
             <div class="card-header-top"><div class="percentage">
-                60.2% <span class="reviews-count">(3,487 Reviews)</span>
+                0.0% <span class="reviews-count">(0 Reviews)</span>
             </div><button type="button" class="btn-card-detail" onclick="openCardDetail('after_sales')"><i class="bi bi-bar-chart-line me-1"></i>Detailed Analysis</button></div>
-            <h3>After-Sales & Service Friction</h3>
+            <h3>After-Sales &amp; Service Friction</h3>
         </div>
         <div class="card-body">
             <div class="list-item">
-                <span class="item-name">Delays & Turnaround Lag</span>
-                <div class="item-stats"><span class="item-count">663</span><span class="item-percentage">19.0%</span></div>
+                <span class="item-name">Delivery, Installation &amp; Stock Delays</span>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
             </div>
             <div class="list-item">
-                <span class="item-name">Warranty & Replacements</span>
-                <div class="item-stats"><span class="item-count">435</span><span class="item-percentage">12.5%</span></div>
+                <span class="item-name">Service &amp; Repair Delays</span>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
+            </div>
+            <div class="list-item">
+                <span class="item-name">Warranty &amp; Replacements</span>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
             </div>
             <div class="list-item">
                 <span class="item-name">Unresolved / Repeat Faults</span>
-                <div class="item-stats"><span class="item-count">372</span><span class="item-percentage">10.7%</span></div>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
             </div>
             <div class="list-item">
                 <span class="item-name">Missing Proactive Updates</span>
-                <div class="item-stats"><span class="item-count">295</span><span class="item-percentage">8.5%</span></div>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
             </div>
             <div class="list-item">
-                <span class="item-name">Service Cost & Spares</span>
-                <div class="item-stats"><span class="item-count">160</span><span class="item-percentage">4.6%</span></div>
+                <span class="item-name">Service Charges &amp; Spares</span>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
             </div>
             <div class="list-item">
-                <span class="item-name">General Service Dissatisfaction</span>
-                <div class="item-stats"><span class="item-count">1,562</span><span class="item-percentage">44.8%</span></div>
+                <span class="item-name">General After-Sales Complaints</span>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
             </div>
         </div>
     </div>
 
-    <!-- Card 2 -->
     <div class="rca-card orange">
         <div class="card-header">
             <div class="card-header-top"><div class="percentage">
-                34.9% <span class="reviews-count">(2,020 Reviews)</span>
+                0.0% <span class="reviews-count">(0 Reviews)</span>
             </div><button type="button" class="btn-card-detail" onclick="openCardDetail('staff')"><i class="bi bi-bar-chart-line me-1"></i>Detailed Analysis</button></div>
-            <h3>Staff Interaction & Attitude</h3>
+            <h3>Staff Interaction &amp; Attitude</h3>
         </div>
         <div class="card-body">
             <div class="list-item">
                 <span class="item-name">Unprofessionalism / Knowledge Gap</span>
-                <div class="item-stats"><span class="item-count">395</span><span class="item-percentage">19.6%</span></div>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
             </div>
             <div class="list-item">
-                <span class="item-name">Rude Behavior & Talking Style</span>
-                <div class="item-stats"><span class="item-count">346</span><span class="item-percentage">17.1%</span></div>
+                <span class="item-name">Rude Behavior &amp; Talking Style</span>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
             </div>
             <div class="list-item">
-                <span class="item-name">Inattention & Walk-in Neglect</span>
-                <div class="item-stats"><span class="item-count">204</span><span class="item-percentage">10.1%</span></div>
+                <span class="item-name">Inattention &amp; Walk-in Neglect</span>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
             </div>
             <div class="list-item">
-                <span class="item-name">Poor Attitude & Budget Bias</span>
-                <div class="item-stats"><span class="item-count">202</span><span class="item-percentage">10.0%</span></div>
+                <span class="item-name">Poor Attitude &amp; Budget Bias</span>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
             </div>
             <div class="list-item">
                 <span class="item-name">General Staff Grievances</span>
-                <div class="item-stats"><span class="item-count">873</span><span class="item-percentage">43.2%</span></div>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
             </div>
         </div>
     </div>
 
-    <!-- Card 3 -->
     <div class="rca-card blue">
         <div class="card-header">
-            <div class="card-header-top">
-                <div class="percentage">
-                    33.1% <span class="reviews-count">(1,919 Reviews)</span>
-                </div>
-                <button type="button" class="btn-card-detail" onclick="openCardDetail('communication')"><i class="bi bi-bar-chart-line me-1"></i>Detailed Analysis</button>
-            </div>
+            <div class="card-header-top"><div class="percentage">
+                0.0% <span class="reviews-count">(0 Reviews)</span>
+            </div><button type="button" class="btn-card-detail" onclick="openCardDetail('communication')"><i class="bi bi-bar-chart-line me-1"></i>Detailed Analysis</button></div>
             <h3>Communication Breakdown</h3>
         </div>
         <div class="card-body">
             <div class="list-item">
                 <span class="item-name">Customer Chasing (Repeated Calls)</span>
-                <div class="item-stats"><span class="item-count">327</span><span class="item-percentage">17.0%</span></div>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
             </div>
             <div class="list-item">
-                <span class="item-name">Broken Promises & No Callbacks</span>
-                <div class="item-stats"><span class="item-count">184</span><span class="item-percentage">9.6%</span></div>
+                <span class="item-name">Broken Promises &amp; No Callbacks</span>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
             </div>
             <div class="list-item">
                 <span class="item-name">Rude Telephonic Response</span>
-                <div class="item-stats"><span class="item-count">174</span><span class="item-percentage">9.1%</span></div>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
             </div>
             <div class="list-item">
                 <span class="item-name">Unanswered / Disconnected Calls</span>
-                <div class="item-stats"><span class="item-count">156</span><span class="item-percentage">8.1%</span></div>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
             </div>
             <div class="list-item">
                 <span class="item-name">Zero Contact (Phone / WhatsApp)</span>
-                <div class="item-stats"><span class="item-count">1,096</span><span class="item-percentage">57.1%</span></div>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
             </div>
         </div>
     </div>
 
-    <!-- Card 4 -->
+    <div class="rca-card purple">
+        <div class="card-header">
+            <div class="card-header-top"><div class="percentage">
+                0.0% <span class="reviews-count">(0 Reviews)</span>
+            </div><button type="button" class="btn-card-detail" onclick="openCardDetail('sales')"><i class="bi bi-bar-chart-line me-1"></i>Detailed Analysis</button></div>
+            <h3>Sales, Store &amp; General Complaints</h3>
+        </div>
+        <div class="card-body">
+            <div class="list-item">
+                <span class="item-name">Offers, Pricing &amp; Mis-selling</span>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
+            </div>
+            <div class="list-item">
+                <span class="item-name">Store Facilities &amp; Waiting</span>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
+            </div>
+            <div class="list-item">
+                <span class="item-name">General Customer-Service Complaint</span>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
+            </div>
+            <div class="list-item">
+                <span class="item-name">Unspecified Complaint (no reason given)</span>
+                <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ─── Row 2: Positive & General Feedback Full-Width Summary Strip ─── -->
+<div class="rca-positive-wrap rca-pending">
     <div class="rca-card gray">
         <div class="card-header">
             <div class="card-header-top"><div class="percentage">
                 0.0% <span class="reviews-count">(0 Reviews)</span>
             </div><button type="button" class="btn-card-detail" onclick="openCardDetail('other')"><i class="bi bi-bar-chart-line me-1"></i>Detailed Analysis</button></div>
-            <h3>Positive & General Feedback</h3>
+            <h3>Positive &amp; General Feedback</h3>
         </div>
         <div class="card-body">
             <div class="list-item">
-                <span class="item-name">General Praise & Appreciation</span>
+                <span class="item-name">General Praise &amp; Appreciation</span>
                 <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
             </div>
             <div class="list-item">
-                <span class="item-name">Store Ambiance & Cleanliness</span>
+                <span class="item-name">Store Ambiance &amp; Cleanliness</span>
                 <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
             </div>
             <div class="list-item">
-                <span class="item-name">Excellent Service & Staff</span>
+                <span class="item-name">Excellent Service &amp; Staff</span>
                 <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
             </div>
             <div class="list-item">
-                <span class="item-name">Product Satisfaction & Variety</span>
+                <span class="item-name">Product Satisfaction &amp; Variety</span>
                 <div class="item-stats"><span class="item-count">0</span><span class="item-percentage">0.0%</span></div>
             </div>
             <div class="list-item">
@@ -516,6 +930,259 @@
             </div>
         </div>
     </div>
+</div>
+
+<!-- ─── Executive KPI Strip ─────────────────────────────────────────── -->
+<div class="rca-kpi-strip" id="advKpiStrip">
+    <div class="rca-kpi-box kpi-accent-slate">
+        <div class="rca-kpi-label"><span>Total Reviews</span><i class="bi bi-chat-square-text"></i></div>
+        <div class="rca-kpi-val" id="kpiTotalRev">—</div>
+        <div class="rca-kpi-sub" id="kpiDateSpan">Loading date range...</div>
+    </div>
+    <div class="rca-kpi-box kpi-accent-emerald">
+        <div class="rca-kpi-label"><span>Positive Rate</span><i class="bi bi-emoji-smile"></i></div>
+        <div class="rca-kpi-val" id="kpiPosRate">—</div>
+        <div class="rca-kpi-sub" id="kpiPosCnt">— reviews</div>
+    </div>
+    <div class="rca-kpi-box kpi-accent-red">
+        <div class="rca-kpi-label"><span>Complaints &amp; Severity</span><i class="bi bi-exclamation-octagon"></i></div>
+        <div class="rca-kpi-val" id="kpiCompCnt">—</div>
+        <div class="rca-kpi-sub" id="kpiCompSub">—% of total · Avg —★</div>
+    </div>
+    <div class="rca-kpi-box kpi-accent-blue">
+        <div class="rca-kpi-label"><span>Complaints / 10k Bills</span><i class="bi bi-receipt"></i></div>
+        <div class="rca-kpi-val" id="kpiPer10k">—</div>
+        <div class="rca-kpi-sub" id="kpiBillsSub">— retail invoices</div>
+    </div>
+    <div class="rca-kpi-box kpi-accent-amber">
+        <div class="rca-kpi-label"><span>30-Day Velocity</span><i class="bi bi-activity"></i></div>
+        <div class="rca-kpi-val" id="kpiVelPct">—</div>
+        <div class="rca-kpi-sub" id="kpiVelSub">Last 30d vs prev 30d</div>
+    </div>
+    <div class="rca-kpi-box kpi-accent-purple">
+        <div class="rca-kpi-label"><span>#1 Complaint Driver</span><i class="bi bi-bullseye"></i></div>
+        <div class="rca-kpi-val" id="kpiTopDriverCnt">—</div>
+        <div class="rca-kpi-sub" id="kpiTopDriver">—</div>
+    </div>
+</div>
+
+<!-- ─── Phase 1 & Phase 2 Advanced Intelligence Sections ────────────── -->
+<div class="adv-dashboard" id="advDashboard">
+
+    <!-- Phase 1A: Priority Quadrant & 12-Month Trend -->
+    <div class="adv-grid-2">
+        <div class="adv-panel">
+            <div class="adv-panel-hdr">
+                <div>
+                    <h4 class="adv-panel-title">Sub-Category Priority Quadrant <span class="adv-badge-phase">Phase 1</span></h4>
+                    <div class="adv-panel-sub">Volume vs 1★ Severity Rate (bubble size = 30-day activity). Click any bubble to drill into reviews below.</div>
+                </div>
+            </div>
+            <div class="adv-panel-body">
+                <div class="adv-chart-box"><canvas id="advQuadChart"></canvas></div>
+                <div class="adv-chart-note">
+                    <span id="advQuadMedians">Median lines: —</span>
+                    <span>Top-Right = <strong>High Volume + High 1★ Severity</strong></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="adv-panel">
+            <div class="adv-panel-hdr">
+                <div>
+                    <h4 class="adv-panel-title">12-Month Root-Cause Trajectory <span class="adv-badge-phase">Phase 1</span></h4>
+                    <div class="adv-panel-sub">Monthly complaint trends across all 4 operational pillars up to latest review date.</div>
+                </div>
+                <div class="adv-seg" id="advTrendMode">
+                    <button type="button" class="adv-seg-btn active" data-mode="counts">Count</button>
+                    <button type="button" class="adv-seg-btn" data-mode="rates">% of Reviews</button>
+                </div>
+            </div>
+            <div class="adv-panel-body">
+                <div class="adv-chart-box"><canvas id="advTrendChart"></canvas></div>
+                <div class="adv-chart-note">
+                    <span id="advTrendRange">Monthly complaint flow</span>
+                    <span>Toggle <strong>% of Reviews</strong> to normalize for review volume spikes</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Phase 1B: Enlarged Full-Width Store × Root-Cause Heatmap (All Stores) -->
+    <div class="adv-panel">
+        <div class="adv-panel-hdr">
+            <div>
+                <h4 class="adv-panel-title">Store &times; Root-Cause Excess Heatmap <span class="adv-badge-phase">Phase 1</span> <span class="hm-count-pill" id="advHmCount">All Stores</span></h4>
+                <div class="adv-panel-sub">All stores in active scope shaded by excess ratio vs network average. Click column headers to sort or click a store/cell to drill into Explorer.</div>
+            </div>
+            <div class="hm-controls">
+                <input type="text" class="hm-search" id="advHmSearch" placeholder="Filter store, RBM or BDM...">
+                <div class="adv-seg" id="advHmSort">
+                    <button type="button" class="adv-seg-btn active" data-sort="complaints">By Complaints</button>
+                    <button type="button" class="adv-seg-btn" data-sort="complaint_rate">By Rate %</button>
+                </div>
+                <button type="button" class="exp-btn-clear" id="advHmExpandBtn">Expand All</button>
+            </div>
+        </div>
+        <div class="adv-table-wrap hm-wrap-large" id="advHeatmapWrap">
+            <div class="adv-empty">Loading store heatmap...</div>
+        </div>
+    </div>
+
+    <!-- Phase 1C: RBM / BDM / Store Scorecard -->
+    <div class="adv-panel">
+        <div class="adv-panel-hdr">
+            <div>
+                <h4 class="adv-panel-title">Leadership Accountability Scorecard <span class="adv-badge-phase">Phase 1</span></h4>
+                <div class="adv-panel-sub">Normalized complaint exposure against retail invoice volume from <code>azure_invoice_report</code>.</div>
+            </div>
+            <div class="adv-seg" id="advScoreTabs">
+                <button type="button" class="adv-seg-btn active" data-tab="rbms">RBM Scorecard</button>
+                <button type="button" class="adv-seg-btn" data-tab="bdms">BDM Scorecard</button>
+                <button type="button" class="adv-seg-btn" data-tab="stores">Store Leaderboard (&ge;50 Reviews)</button>
+            </div>
+        </div>
+        <div class="adv-table-wrap" id="advScoreWrap">
+            <div class="adv-empty">Loading leadership scorecard...</div>
+        </div>
+    </div>
+
+    <!-- Phase 2A: Product Category & Brand Friction Matrix -->
+    <div class="adv-grid-2">
+        <div class="adv-panel">
+            <div class="adv-panel-hdr">
+                <div>
+                    <h4 class="adv-panel-title">Product Category Friction Matrix <span class="adv-badge-phase">Phase 2</span></h4>
+                    <div class="adv-panel-sub">Complaint distribution across 4 pillars by product category. Click any row to filter Explorer.</div>
+                </div>
+            </div>
+            <div class="adv-table-wrap" id="advProdWrap">
+                <div class="adv-empty">Loading product matrix...</div>
+            </div>
+        </div>
+
+        <div class="adv-panel">
+            <div class="adv-panel-hdr">
+                <div>
+                    <h4 class="adv-panel-title">Top Brand Friction Leaderboard <span class="adv-badge-phase">Phase 2</span></h4>
+                    <div class="adv-panel-sub">Top 20 brands mentioned in complaint reviews with dominant failure drivers. Click any row to filter Explorer.</div>
+                </div>
+            </div>
+            <div class="adv-table-wrap" id="advBrandWrap">
+                <div class="adv-empty">Loading brand leaderboard...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Phase 2B: Compliance & Mis-Selling Watchlist -->
+    <div class="adv-panel">
+        <div class="adv-panel-hdr">
+            <div>
+                <h4 class="adv-panel-title">Compliance, Mis-Selling &amp; Risk Watchlist <span class="adv-badge-phase">Phase 2</span></h4>
+                <div class="adv-panel-sub">High-severity signals: Bajaj/HDB finance disputes, legal/police/consumer court escalation, demo/old stock allegations, unrequested add-ons, fake-review claims &amp; cross-store issues.</div>
+            </div>
+        </div>
+        <div class="adv-panel-body">
+            <div class="wl-grid" id="advWatchlistGrid">
+                <div class="adv-empty">Scanning reviews for compliance signals...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Phase 2C: Interactive Meaning-Based Review Explorer & Excel Export -->
+    <div class="adv-panel" id="advExplorerPanel">
+        <div class="adv-panel-hdr">
+            <div>
+                <h4 class="adv-panel-title">Interactive Review Explorer &amp; Excel Pack <span class="adv-badge-phase">Phase 2</span></h4>
+                <div class="adv-panel-sub" id="expMetaText">Meaning-classified complaint explorer synchronized with active RBM / BDM / Store filters.</div>
+            </div>
+            <div class="exp-actions">
+                <button type="button" class="exp-btn-clear" id="expClearBtn"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset Explorer</button>
+                <button type="button" class="exp-btn-export" id="expExportBtn"><i class="bi bi-file-earmark-excel-fill"></i> Export Excel (.xlsx)</button>
+            </div>
+        </div>
+
+        <div class="exp-toolbar">
+            <div class="exp-field">
+                <label for="expCard">Root-Cause Pillar</label>
+                <select id="expCard">
+                    <option value="all">All Complaint Pillars</option>
+                    <option value="after_sales">After-Sales &amp; Service</option>
+                    <option value="staff">Staff &amp; Attitude</option>
+                    <option value="communication">Communication</option>
+                    <option value="sales">Sales, Pricing &amp; Store</option>
+                </select>
+            </div>
+            <div class="exp-field">
+                <label for="expItem">Sub-Category</label>
+                <select id="expItem"><option value="all">All Sub-Categories</option></select>
+            </div>
+            <div class="exp-field">
+                <label for="expRating">Star Rating</label>
+                <select id="expRating">
+                    <option value="all">All Complaints (1★–3★)</option>
+                    <option value="1">1★ Only</option>
+                    <option value="2">2★ Only</option>
+                    <option value="3">3★ Only</option>
+                </select>
+            </div>
+            <div class="exp-field">
+                <label for="expRisk">Risk / Compliance Flag</label>
+                <select id="expRisk">
+                    <option value="all">All Reviews</option>
+                    <option value="finance_emi">Finance / EMI / NBFC</option>
+                    <option value="legal_fraud">Legal / Fraud Escalation</option>
+                    <option value="demo_old">Old / Demo / Repacked</option>
+                    <option value="unreq_addon">Unrequested Add-ons</option>
+                    <option value="fake_review">Staff Self-Review</option>
+                    <option value="cross_store">Cross-Store Duplicate</option>
+                </select>
+            </div>
+            <div class="exp-field">
+                <label for="expProduct">Product Category</label>
+                <select id="expProduct">
+                    <option value="all">All Products</option>
+                    <option value="Phone / Mobile">Phone / Mobile</option>
+                    <option value="Air Conditioner">Air Conditioner</option>
+                    <option value="Television">Television</option>
+                    <option value="Washing Machine">Washing Machine</option>
+                    <option value="Refrigerator">Refrigerator</option>
+                    <option value="Laptop / PC">Laptop / PC</option>
+                    <option value="Kitchen &amp; Small Appl">Kitchen &amp; Small Appl</option>
+                    <option value="Audio &amp; Accessories">Audio &amp; Accessories</option>
+                </select>
+            </div>
+            <div class="exp-field">
+                <label for="expBrand">Brand</label>
+                <select id="expBrand"><option value="all">All Brands</option></select>
+            </div>
+            <div class="exp-field">
+                <label for="expSort">Sort Order</label>
+                <select id="expSort">
+                    <option value="newest">Newest First</option>
+                    <option value="lowest">Lowest Rating First</option>
+                    <option value="longest">Longest Detail First</option>
+                </select>
+            </div>
+            <div class="exp-field">
+                <label for="expSearch">Search (Keyword / Store)</label>
+                <input type="text" id="expSearch" placeholder="e.g. bajaj, Thrissur, refund...">
+            </div>
+        </div>
+
+        <div class="exp-list" id="expList">
+            <div class="adv-empty">Loading review explorer...</div>
+        </div>
+
+        <div class="exp-pager" id="expPager">
+            <span id="expPageInfo">—</span>
+            <div class="exp-actions">
+                <button type="button" class="exp-btn-clear" id="expPrevBtn" disabled>&larr; Prev</button>
+                <button type="button" class="exp-btn-clear" id="expNextBtn" disabled>Next &rarr;</button>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <!-- Sub-category explanation modal (opened by clicking a dot) -->
@@ -642,7 +1309,7 @@ function ldCharts_(d) {
 function openCardDetail(card) {
     ldDestroyCharts();
     const body = document.getElementById('ldModalBody');
-    const titles = {after_sales: 'After-Sales & Service Friction', staff: 'Staff Interaction & Attitude', communication: 'Communication Breakdown', other: 'Positive & General Feedback'};
+    const titles = {after_sales: 'After-Sales & Service Friction', staff: 'Staff Interaction & Attitude', communication: 'Communication Breakdown', sales: 'Sales, Store & General Complaints', other: 'Positive & General Feedback'};
     document.getElementById('ldModalTitle').innerText = titles[card] + ' — Detailed Analysis';
     body.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-muted">Analysing every sub-category…</div></div>';
     bootstrap.Modal.getOrCreateInstance(document.getElementById('ldModal')).show();
@@ -662,124 +1329,150 @@ function openCardDetail(card) {
 // ---------------------------------------------------------------------------------------------
 // Click a sub-category dot -> explanation + live stats for that sub-category
 // ---------------------------------------------------------------------------------------------
-const LD_CARD_KEYS = {red: 'after_sales', orange: 'staff', blue: 'communication', gray: 'other'};
+const LD_CARD_KEYS = {red: 'after_sales', orange: 'staff', blue: 'communication', purple: 'sales', gray: 'other'};
 const LD_CARD_ORDER = {
-    after_sales: ['delays', 'warranty', 'unresolved', 'updates', 'cost', 'general'],
+    after_sales: ['delivery', 'delays', 'warranty', 'unresolved', 'updates', 'cost', 'general'],
     staff: ['unprofessional', 'rude', 'neglect', 'bias', 'general'],
     communication: ['chasing', 'promises', 'rude_phone', 'unanswered', 'zero_contact'],
+    sales: ['offers', 'store', 'general_service', 'unspecified'],
     other: ['praise', 'ambiance', 'service', 'product', 'unclassified']
 };
-const LD_CARD_NAMES = {after_sales: 'After-Sales & Service Friction', staff: 'Staff Interaction & Attitude', communication: 'Communication Breakdown', other: 'Positive & General Feedback'};
-const LD_CARD_COLOR = {after_sales: '#e11d48', staff: '#d97706', communication: '#2563eb', other: '#64748b'};
+const LD_CARD_NAMES = {after_sales: 'After-Sales & Service Friction', staff: 'Staff Interaction & Attitude', communication: 'Communication Breakdown', sales: 'Sales, Store & General Complaints', other: 'Positive & General Feedback'};
+const LD_CARD_COLOR = {after_sales: '#e11d48', staff: '#d97706', communication: '#2563eb', sales: '#7c3aed', other: '#64748b'};
 
-const LD_ISSUE_RULE = 'A review counts as a complaint when it is rated 1–2★, or 3★ with a clear complaint in the text. ';
-const LD_ORDER_NOTE = 'Rules are checked in a fixed order and a review goes to the first one it matches, so a review that mentions several problems is filed under only one of them.';
+const LD_ISSUE_RULE = 'Classified by reading the meaning of each 1–3★ review (brand-new reviews not yet reviewed fall back to the ordered rule engine). ';
+const LD_ORDER_NOTE = 'Each review is placed in one primary sub-category based on the main root cause the customer emphasises.';
 
 const LD_DEFS = {
+    'after_sales/delivery': {
+        meaning: 'Ordered or paid for a product but delivery or installation is late, not done, wrong item delivered, missing accessories, or the item turned out to be out of stock after payment.',
+        examples: ['“Purchased TV. Delivery not done even after three days.”', '“Bought AC on 6th April, still no installation.”', '“Paid in full, then told the product is not in stock.”'],
+        picked: LD_ISSUE_RULE + 'Assigned when delivery, installation, dispatch or post-payment stock unavailability is the primary complaint (even if the customer also mentions chasing or no callback).'
+    },
     'after_sales/delays': {
-        meaning: 'Complaints about things taking too long: delivery or installation not done on time, a product left for repair for days or weeks, or long waits at the billing counter or for staff.',
-        examples: ['“Purchased TV. Delivery not done even after three days.”', '“Delay in cash counter.”', '“Bought AC on 6th April, still no installation.”'],
-        picked: LD_ISSUE_RULE + 'The text contains time words such as delay, late, waiting, took days / weeks, not delivered, pending, slow or long queue, and it did not match an earlier rule (call or contact problems, rude or neglectful staff, or warranty).'
+        meaning: 'The product is with service or repair and it is taking too long: repeated visits, waiting for a technician or for spare parts, no engineer turning up for a service complaint.',
+        examples: ['“It has been six weeks since I requested service and it is still not repaired.”', '“No one came to fix it even after 4 days.”'],
+        picked: LD_ISSUE_RULE + 'Assigned when service-centre or repair turnaround lag is the main complaint. Delivery delays and billing-counter queues are filed separately.'
     },
     'after_sales/warranty': {
         meaning: 'Problems getting a replacement, refund, exchange or warranty claim honoured: refused, disputed, delayed, or only partly given.',
         examples: ['“The first TV had a screen defect. After a long delay they delivered a replacement that was even worse.”', '“They refused to replace the product within the warranty period.”'],
-        picked: LD_ISSUE_RULE + 'The text mentions warranty, replace, refund, exchange, guarantee or money back. This rule is checked before Delays, so a late replacement lands here.'
+        picked: LD_ISSUE_RULE + 'Assigned when getting a warranty claim, return, exchange or refund honoured is the main issue.'
     },
     'after_sales/unresolved': {
-        meaning: 'The product is faulty or the repair did not fix it: the same fault returns, the item is damaged, or it stopped working soon after purchase.',
+        meaning: 'The product is faulty or damaged, stopped working soon after purchase, or the repair did not fix it and the issue keeps coming back.',
         examples: ['“Bought a phone, lost its display within 2 weeks.”', '“Laptop returned dead after service.”'],
-        picked: LD_ISSUE_RULE + 'The text mentions not working, defect, repair, fault, problem, damage, broken, hanging, overheating, fake / duplicate or poor quality, and it did not match an earlier rule.'
+        picked: LD_ISSUE_RULE + 'Assigned when a defective/damaged product, poor product quality or failed/unresolved repair is the main issue.'
     },
     'after_sales/updates': {
         meaning: 'The customer was not kept informed about the status of their order, delivery, installation or repair, and had to find out by asking.',
         examples: ['“No proper update from the customer service team.”', '“Still no updates from them about my order.”'],
-        picked: LD_ISSUE_RULE + 'The text mentions update, status, not informed / not told, no information, no message, or poor follow-up. This is a small group.'
+        picked: LD_ISSUE_RULE + 'Assigned when lack of proactive status updates on an order or service ticket is the primary complaint.'
     },
     'after_sales/cost': {
-        meaning: 'Disputes about money: high service or spare-part charges, extra charges, offers or advertised prices that were not honoured, scratch-card gifts not given, or surprises on the bill such as insurance or EMI.',
-        examples: ['“Charged Rs 5 for a carry bag.”', '“Phone insurance was added without asking us.”', '“No offers, only advertised.”'],
-        picked: LD_ISSUE_RULE + 'The text mentions price, cost, charges, expensive, spare, offer, bill, EMI, amount, discount, gift, fake or misleading advertising, and did not match an earlier rule.'
+        meaning: 'Disputes about service money: high repair or spare-part charges, or an installation / service fee the customer was not told about.',
+        examples: ['“Just to change one knob and a charging slot they charged 1200 rupees.”', '“A hidden fee of 3,000 for installation that was promised free.”'],
+        picked: LD_ISSUE_RULE + 'Assigned when service, repair, spare-part or installation charges are the main dispute (shop-floor pricing and offers go under Sales, Store & General Complaints).'
     },
     'after_sales/general': {
-        meaning: 'Low-rated reviews about after-sales service where the text gives no specific cause, such as “Very bad customer service” or a rating with little or no comment. This is the catch-all group for the card.',
-        examples: ['“Very bad customer service.”', '“Customer service not good enough.”', '“After sale service is bad.”'],
-        picked: LD_ISSUE_RULE + 'It is a complaint that matched none of the other sub-categories in any card, so it falls back to here. It is the largest group, so read it as “unhappy, reason not stated”.'
+        meaning: 'Low-rated reviews that clearly blame the after-sales / service side but give no specific cause, such as “Very bad after-sales service”.',
+        examples: ['“Worst after sale service ever.”', '“Very poor customer service especially after sale.”'],
+        picked: LD_ISSUE_RULE + 'Assigned when after-sales / service support is blamed overall without stating a specific sub-issue.'
     },
     'staff/unprofessional': {
-        meaning: 'Staff who lack product knowledge or training, give wrong information, or handle customers in an unprofessional way.',
+        meaning: 'Staff who lack product knowledge or training, give wrong information, misguide customers, or handle transactions incompetently.',
         examples: ['“Staff didn’t know about the product.”', '“The staff don’t know how to fit a screen guard and damaged my phone.”'],
-        picked: LD_ISSUE_RULE + 'The text mentions unprofessional, lack of knowledge or training, “don’t know”, wrong information, misguided, clueless or incompetent.'
+        picked: LD_ISSUE_RULE + 'Assigned when lack of knowledge, wrong guidance, staff shortage or unprofessional handling is the main issue.'
     },
     'staff/rude': {
-        meaning: 'Rude, arrogant or disrespectful behaviour by staff: shouting, insults, a bad talking style, or being treated badly.',
+        meaning: 'Rude, arrogant or disrespectful behaviour by staff: shouting, insults, a bad talking style, or being treated badly in person.',
         examples: ['“Bad behaviour.”', '“Very arrogant staff.”', '“Rude and unprofessional behaviour of staff.”'],
-        picked: LD_ISSUE_RULE + 'The text mentions rude, arrogant, disrespect, shout, insult, impolite, harsh, bad behaviour or similar. Rude behaviour over the phone goes to Communication instead.'
+        picked: LD_ISSUE_RULE + 'Assigned when explicit rudeness, arrogance, shouting or disrespect at the store is the main issue. Rudeness over the phone goes under Communication.'
     },
     'staff/neglect': {
         meaning: 'Customers who walked in and were ignored: nobody came to help, staff were busy chatting or on their phones, or showed no interest in attending.',
         examples: ['“No one to attend to us. All the sales staff were busy in loose talk.”', '“Least interested in attending to customers.”'],
-        picked: LD_ISSUE_RULE + 'The text mentions ignored, neglect, nobody attended, no assistance, waiting for staff, staff busy or chatting, or not interested in helping.'
+        picked: LD_ISSUE_RULE + 'Assigned when walk-in neglect, nobody attending or staff ignoring customers is the main issue.'
     },
     'staff/bias': {
-        meaning: 'Staff attitude problems and treating customers differently by budget: pushy selling, pressure to buy, looking down on low-budget customers, or being unhelpful and uncooperative.',
+        meaning: 'Staff attitude problems and treating customers differently by budget: pushy selling, pressure to buy, looking down on low-budget customers, or being unhelpful and careless.',
         examples: ['“They just don’t care about customers: buy it or leave.”', '“Negative attitude and no respect shown to the customer.”'],
-        picked: LD_ISSUE_RULE + 'The text mentions attitude, low budget, cheap customer, pushy, pressure to buy, unhelpful, uncooperative or careless.'
+        picked: LD_ISSUE_RULE + 'Assigned when poor attitude, budget bias, pushy selling or uncooperative/careless handling is the main issue.'
     },
     'staff/general': {
         meaning: 'Low-rated reviews that blame staff, sales people or the billing counter without saying what exactly they did.',
         examples: ['“Bad experience from staff.”', '“Staff behaviour and customer service were not satisfactory.”'],
-        picked: LD_ISSUE_RULE + 'The text mentions staff, salesman, executive, cashier or billing counter and matched none of the more specific staff rules.'
+        picked: LD_ISSUE_RULE + 'Assigned when staff are blamed in general with no specific behaviour stated.'
     },
     'communication/chasing': {
         meaning: 'Customers had to call, visit or follow up again and again to get something done. It also includes repeated unwanted marketing calls.',
         examples: ['“Even after requesting them 3 times, no service was arranged.”', '“Getting frequent marketing calls twice daily.”'],
-        picked: LD_ISSUE_RULE + 'The text mentions follow-up, chasing, again and again, many / several / multiple times, repeatedly or a number of visits or calls. It is checked late, so most reviews with a more specific cause are filed elsewhere.'
+        picked: LD_ISSUE_RULE + 'Assigned when follow-up fatigue (having to chase repeatedly) or unwanted repeated marketing calls is the primary complaint.'
     },
     'communication/promises': {
-        meaning: 'Something was promised (a callback, delivery date, installation time, offer) and not delivered, or nobody called back.',
-        examples: ['“Promised installation within 48 hours, still not done.”', '“They don’t even call back.”'],
-        picked: LD_ISSUE_RULE + 'The text mentions promise, assured, callback, “no one called / informed / got back” or “did not call”.'
+        meaning: 'Something was promised (a callback, a visit, a resolution date, an offer) and not delivered, or nobody called back. Plain late deliveries are filed under After-Sales instead.',
+        examples: ['“Said they would arrange the item the next day and call back, never called.”', '“They don’t even call back.”'],
+        picked: LD_ISSUE_RULE + 'Assigned when broken promises or missed callbacks are the main complaint.'
     },
     'communication/rude_phone': {
         meaning: 'Rudeness or a bad tone over the phone or from customer care.',
         examples: ['“The person on the phone was rude and shouted at me.”'],
-        picked: LD_ISSUE_RULE + 'A rude word (rude, arrogant, shout, impolite, disrespect, harsh, insult) appears within about 30 characters of a call word (call, phone, customer care, helpline). This is the strictest rule, so the group is very small.'
+        picked: LD_ISSUE_RULE + 'Assigned when rude behaviour or bad tone during a phone call or with customer care is the main complaint.'
     },
     'communication/unanswered': {
         meaning: 'Phone calls that are not picked up, always busy, switched off or disconnected, so the customer cannot reach the store or service team.',
         examples: ['“Nobody is picking the call. Tried for 2 hours.”', '“Always the line says busy.”'],
-        picked: LD_ISSUE_RULE + 'The text mentions not picking / answering, unreachable, busy tone, disconnected or being unable to reach or contact, together with a call, phone or number word.'
+        picked: LD_ISSUE_RULE + 'Assigned when unanswered, busy or disconnected phone calls are the main complaint.'
     },
     'communication/zero_contact': {
         meaning: 'No response at all by phone, WhatsApp or message: the customer contacted the store and heard nothing back.',
         examples: ['“I contacted their number and there is no response.”', '“No communication after purchase.”'],
-        picked: LD_ISSUE_RULE + 'The text mentions no response / reply / communication / contact, not responding or replying, unresponsive, or WhatsApp with “no / not / never”.'
+        picked: LD_ISSUE_RULE + 'Assigned when messages, WhatsApp inquiries or written complaints receive zero response.'
+    },
+    'sales/offers': {
+        meaning: 'Offers, advertised prices or gifts not honoured; scratch-card rewards not given; higher prices; add-ons such as insurance added without consent; EMI/bill disputes; or wrong/old/refurbished models sold.',
+        examples: ['“No offers, only advertised.”', '“Scratch & win gift promised but not given.”', '“Phone insurance was added without asking us.”'],
+        picked: LD_ISSUE_RULE + 'Assigned when pricing, offers, mis-selling, billing surprises, EMI issues or wrong/old-model sales are the main complaint.'
+    },
+    'sales/store': {
+        meaning: 'Problems with the store itself: parking, cooling or ventilation, cleanliness, smell, crowding, noise, store timings, or long waits at the billing / cash counter.',
+        examples: ['“The parking is a mess.”', '“Indoor cooling was very poor.”', '“Delay in cash counter.”'],
+        picked: LD_ISSUE_RULE + 'Assigned when physical store facilities, ambience issues, store hours or billing/packing counter delays are the main complaint.'
+    },
+    'sales/general_service': {
+        meaning: 'Low-rated reviews that complain about “customer service” or “support” in general, without saying what went wrong.',
+        examples: ['“Very bad customer service.”', '“Customer service not good enough.”'],
+        picked: LD_ISSUE_RULE + 'Assigned when general customer service is criticised without stating a specific store, staff, communication or after-sales cause.'
+    },
+    'sales/unspecified': {
+        meaning: 'A low rating with no usable reason in the text, such as “Worst experience ever” or a short generic remark. They are unhappy customers, but the cause is not stated.',
+        examples: ['“Worst experience ever.”', '“Very bad experience from my G.”'],
+        picked: LD_ISSUE_RULE + 'Assigned when the customer expresses dissatisfaction (or leaves a 1–2★ rating only) without stating a concrete reason.'
     },
     'other/praise': {
-        meaning: 'General praise and appreciation with no specific topic, for example “Good experience” or “Nice”.',
+        meaning: 'General praise and appreciation with no specific topic, for example “Good experience” or “Nice”, including misrated 1–3★ reviews whose text is positive.',
         examples: ['“Good experience.”', '“Extremely happy shopping.”'],
-        picked: 'Everything that is not a complaint (4–5★, or a neutral 3★ with no clear complaint). If the text does not mention the store look, staff or service, or products, it is filed here.'
+        picked: 'Includes 4–5★ reviews with no specific topic plus any 1–3★ review whose actual text is positive or neutral appreciation.'
     },
     'other/ambiance': {
         meaning: 'Praise for the store itself: cleanliness, atmosphere, layout, space and organisation.',
         examples: ['“Very neat and organised showroom.”', '“Great ambience.”'],
-        picked: 'A non-complaint review that mentions clean, ambience, neat, organised, atmosphere, spacious, interior, decor, parking and similar. Checked first among the positive groups.'
+        picked: 'Reviews praising cleanliness, ambience, layout, space or parking (4–5★ matched by rule; 1–3★ verified by reading).'
     },
     'other/service': {
         meaning: 'Praise for staff and service: helpful, friendly, polite, knowledgeable people and good support.',
         examples: ['“Good service by Keerthy.”', '“Very knowledgeable and patient with all my questions.”'],
-        picked: 'A non-complaint review that mentions staff, service, helpful, friendly, polite, support, executive, explain or similar, and was not already filed under store look.'
+        picked: 'Reviews praising staff or service quality (4–5★ matched by rule; 1–3★ whose text is actually positive verified by reading).'
     },
     'other/product': {
         meaning: 'Praise for the products: range and variety, prices and offers, quality and genuine goods.',
         examples: ['“Great collection and competitive prices.”', '“Best offers I had ever got.”'],
-        picked: 'A non-complaint review that mentions product, collection, variety, range, price, offers, discount, brand or quality, and was not filed under the groups above.'
+        picked: 'Reviews praising product range, stock, pricing or quality (4–5★ matched by rule; 1–3★ verified by reading).'
     },
     'other/unclassified': {
-        meaning: 'Reviews with no readable text: a rating with no comment, or only emoji or symbols.',
+        meaning: 'Reviews with no readable text (rating only, emoji or symbols), spam, unrelated remarks or gibberish.',
         examples: ['“👍”', '“✅”', '(rating only)'],
-        picked: 'A non-complaint review with an empty comment, or one that the earlier classifier found no usable words in. These cannot be analysed for sentiment beyond the star rating.'
+        picked: 'Neutral 3★ rating-only reviews, 4–5★ reviews with no usable words, and 1–3★ entries that are spam, unrelated or unreadable.'
     }
 };
 
@@ -803,7 +1496,7 @@ function openItemDetail(card, key, label) {
         <div class="ldi-sec"><h6>What it means</h6><p>${ldEsc(def.meaning)}</p></div>
         <div class="ldi-sec"><h6>Typical reviews</h6>${def.examples.map(e => `<div class="ldi-ex">${ldEsc(e)}</div>`).join('')}</div>
         <div class="ldi-sec"><h6>How the dashboard picks these reviews</h6><p>${ldEsc(def.picked)}</p>
-            ${card === 'other' ? '' : `<div class="ldi-note mt-2"><i class="bi bi-info-circle me-1"></i>${ldEsc(LD_ORDER_NOTE)} This is keyword matching, so a few reviews can be filed in the wrong group.</div>`}</div>
+            ${card === 'other' ? '' : `<div class="ldi-note mt-2"><i class="bi bi-info-circle me-1"></i>${ldEsc(LD_ORDER_NOTE)}</div>`}</div>
         <div class="ldi-sec" id="ldItemLive"><h6>Live numbers for this sub-category</h6>
             <div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm me-2"></div>Loading numbers and sample reviews…</div></div>
         <div class="text-end"><button type="button" class="btn btn-sm btn-outline-primary" onclick="ldItemToFull('${card}')"><i class="bi bi-bar-chart-line me-1"></i>Open full Detailed Analysis for this card</button></div>`;
@@ -838,7 +1531,7 @@ function ldItemToFull(card) {
 }
 
 document.querySelectorAll('.rca-card').forEach(cardEl => {
-    const cls = ['red', 'orange', 'blue', 'gray'].find(c => cardEl.classList.contains(c));
+    const cls = ['red', 'orange', 'blue', 'purple', 'gray'].find(c => cardEl.classList.contains(c));
     const card = LD_CARD_KEYS[cls];
     if (!card) return;
     cardEl.querySelectorAll('.list-item .item-name').forEach((nm, i) => {
@@ -880,12 +1573,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     const ISSUE_LABELS = {
-        after_sales: {delays: 'service turnaround delays', warranty: 'warranty & replacement disputes', unresolved: 'unresolved / repeat faults',
-                      updates: 'missing proactive updates', cost: 'service cost & spares disputes', general: 'general service dissatisfaction'},
+        after_sales: {delivery: 'delivery, installation & stock delays', delays: 'service & repair delays', warranty: 'warranty & replacement disputes', unresolved: 'unresolved / repeat faults',
+                      updates: 'missing proactive updates', cost: 'service charges & spares', general: 'general after-sales complaints'},
         staff: {unprofessional: 'unprofessionalism / knowledge gaps', rude: 'rude behaviour & talking style', neglect: 'walk-in neglect',
                 bias: 'poor attitude & budget bias', general: 'general staff grievances'},
         communication: {chasing: 'customer chasing (repeated calls)', promises: 'broken promises & no callbacks', rude_phone: 'rude telephonic response',
-                        unanswered: 'unanswered / disconnected calls', zero_contact: 'zero contact on phone / WhatsApp'}
+                        unanswered: 'unanswered / disconnected calls', zero_contact: 'zero contact on phone / WhatsApp'},
+        sales: {offers: 'offers, pricing & mis-selling', store: 'store facilities & waiting', general_service: 'general customer-service complaint', unspecified: 'unspecified complaint'}
     };
 
     function updateCard(cardClass, data, total_reviews) {
@@ -965,37 +1659,602 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // ─── Phase 1 & 2 Advanced Analytics + Explorer State ────────────────
+    const esc = typeof ldEsc === 'function' ? ldEsc : (s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
+    const fmt = n => n == null ? '—' : Number(n).toLocaleString();
+    const PILLAR_COLORS = { after_sales: '#e11d48', staff: '#f59e0b', communication: '#0284c7', sales: '#7c3aed' };
+    const HM_TO_FILTER = {
+        delivery: { card: 'after_sales', item: 'after_sales/delivery' },
+        faults_warranty: { card: 'after_sales', item: 'all' },
+        staff_rude: { card: 'staff', item: 'all' },
+        staff_neglect: { card: 'staff', item: 'staff/neglect' },
+        staff_skill: { card: 'staff', item: 'all' },
+        comm: { card: 'communication', item: 'all' },
+        offers: { card: 'sales', item: 'sales/offers' },
+        store_gen: { card: 'sales', item: 'all' },
+    };
+
+    let advData = null;
+    let advQuadChart = null;
+    let advTrendChart = null;
+    let trendMode = 'counts';
+    let hmSort = 'complaints';
+    let hmQuery = '';
+    let scoreTab = 'rbms';
+    let expPage = 1;
+    let expSearchTimer = null;
+
+    function getScopeQuery() {
+        return `rbm=${encodeURIComponent(rbmFilter.value)}&bdm=${encodeURIComponent(bdmFilter.value)}&store=${encodeURIComponent(storeFilter.value)}`;
+    }
+
+    function deltaPill(pct, inverseGood = true) {
+        if (pct === null || pct === undefined) return '<span class="pill-stat pill-flat">—</span>';
+        const up = pct > 0;
+        const cls = pct === 0 ? 'pill-flat' : (inverseGood ? (up ? 'pill-up' : 'pill-down') : (up ? 'pill-down' : 'pill-up'));
+        return `<span class="pill-stat ${cls}">${up ? '+' : ''}${pct}%</span>`;
+    }
+
+    function renderKPIs(k) {
+        document.getElementById('kpiTotalRev').textContent = fmt(k.total_reviews);
+        document.getElementById('kpiDateSpan').textContent = `${k.date_from || '—'} to ${k.as_of || '—'}`;
+        document.getElementById('kpiPosRate').textContent = `${k.positive_pct}%`;
+        document.getElementById('kpiPosCnt').textContent = `${fmt(k.positive_reviews)} positive (4–5★)`;
+        document.getElementById('kpiCompCnt').textContent = fmt(k.complaints);
+        document.getElementById('kpiCompSub').textContent = `${k.complaint_pct}% of reviews · Avg ${k.avg_complaint_rating}★`;
+        document.getElementById('kpiPer10k').textContent = k.complaints_per_10k_bills != null ? k.complaints_per_10k_bills.toFixed(2) : '—';
+        document.getElementById('kpiBillsSub').textContent = `${fmt(k.total_bills)} bills (₹${k.total_rev_cr} Cr)`;
+        const velEl = document.getElementById('kpiVelPct');
+        if (k.velocity_pct == null) {
+            velEl.textContent = '—';
+            velEl.style.color = '#0f172a';
+        } else {
+            velEl.textContent = `${k.velocity_pct > 0 ? '+' : ''}${k.velocity_pct}%`;
+            velEl.style.color = k.velocity_pct > 0 ? '#e11d48' : (k.velocity_pct < 0 ? '#059669' : '#0f172a');
+        }
+        document.getElementById('kpiVelSub').textContent = `${fmt(k.last_30d)} (last 30d) vs ${fmt(k.prev_30d)} (prev)`;
+        document.getElementById('kpiTopDriverCnt').textContent = fmt(k.top_driver_count);
+        document.getElementById('kpiTopDriver').textContent = k.top_driver || '—';
+        document.getElementById('kpiTopDriver').title = k.top_driver || '';
+    }
+
+    function renderQuadrant(quad, medians) {
+        const canvas = document.getElementById('advQuadChart');
+        if (!canvas || typeof Chart === 'undefined') return;
+        if (advQuadChart) { advQuadChart.destroy(); advQuadChart = null; }
+        document.getElementById('advQuadMedians').textContent =
+            `Median split: ${fmt(medians.volume)} complaints · ${medians.severity}% 1★ rate`;
+
+        const points = (quad || []).map(q => ({
+            x: q.count,
+            y: q.one_star_rate,
+            r: Math.max(5, Math.min(20, 4 + Math.sqrt(q.last_30d || 0) * 1.7)),
+            meta: q,
+        }));
+
+        const crosshairPlugin = {
+            id: 'quadCrosshair',
+            beforeDatasetsDraw(chart) {
+                const { ctx, chartArea, scales } = chart;
+                if (!chartArea || !scales.x || !scales.y) return;
+                const mx = scales.x.getPixelForValue(medians.volume || 0);
+                const my = scales.y.getPixelForValue(medians.severity || 0);
+                ctx.save();
+                ctx.strokeStyle = '#cbd5e1';
+                ctx.lineWidth = 1.25;
+                ctx.setLineDash([5, 4]);
+                if (mx >= chartArea.left && mx <= chartArea.right) {
+                    ctx.beginPath(); ctx.moveTo(mx, chartArea.top); ctx.lineTo(mx, chartArea.bottom); ctx.stroke();
+                }
+                if (my >= chartArea.top && my <= chartArea.bottom) {
+                    ctx.beginPath(); ctx.moveTo(chartArea.left, my); ctx.lineTo(chartArea.right, my); ctx.stroke();
+                }
+                ctx.restore();
+            }
+        };
+
+        advQuadChart = new Chart(canvas.getContext('2d'), {
+            type: 'bubble',
+            data: {
+                datasets: [{
+                    label: 'Sub-Categories',
+                    data: points,
+                    backgroundColor: points.map(p => (PILLAR_COLORS[p.meta.card] || '#64748b') + 'bb'),
+                    borderColor: points.map(p => PILLAR_COLORS[p.meta.card] || '#64748b'),
+                    borderWidth: 1.5,
+                    hoverBorderWidth: 2.5,
+                }]
+            },
+            plugins: [crosshairPlugin],
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                onClick(evt, els) {
+                    if (!els.length) return;
+                    const q = points[els[0].index].meta;
+                    jumpToExplorer({ card: q.card, item: q.cls });
+                },
+                scales: {
+                    x: { title: { display: true, text: 'Complaint Volume (Reviews)', font: { size: 11, weight: '600' } }, grid: { color: '#f1f5f9' } },
+                    y: { title: { display: true, text: '1★ Severity Rate (%)', font: { size: 11, weight: '600' } }, grid: { color: '#f1f5f9' }, min: 0, max: 100 }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label(ctx) {
+                                const m = ctx.raw.meta;
+                                return [
+                                    `${m.short} (${m.card_title})`,
+                                    `Complaints: ${fmt(m.count)} (${m.share}% share)`,
+                                    `1★ Rate: ${m.one_star_rate}% · Avg ${m.avg_rating}★ · 30d: ${fmt(m.last_30d)}`,
+                                    'Click bubble to open reviews in Explorer'
+                                ];
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function renderTrend(trend) {
+        const canvas = document.getElementById('advTrendChart');
+        if (!canvas || typeof Chart === 'undefined' || !trend) return;
+        if (advTrendChart) { advTrendChart.destroy(); advTrendChart = null; }
+        const months = trend.months || [];
+        const totalAll = (trend.all_reviews || []).reduce((a, b) => a + b, 0);
+        document.getElementById('advTrendRange').textContent =
+            months.length ? `${months[0]} → ${months[months.length - 1]} (${fmt(totalAll)} reviews)` : 'No monthly data';
+
+        const datasets = (trend.series || []).map(s => ({
+            label: s.label,
+            data: trendMode === 'rates' ? s.rates : s.counts,
+            borderColor: PILLAR_COLORS[s.card] || '#64748b',
+            backgroundColor: (PILLAR_COLORS[s.card] || '#64748b') + '18',
+            borderWidth: 2.3,
+            pointRadius: 3,
+            pointHoverRadius: 5,
+            tension: 0.25,
+            fill: false,
+        }));
+
+        advTrendChart = new Chart(canvas.getContext('2d'), {
+            type: 'line',
+            data: { labels: months, datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                scales: {
+                    x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: '#f1f5f9' },
+                        ticks: { callback: v => trendMode === 'rates' ? v + '%' : fmt(v), font: { size: 11 } }
+                    }
+                },
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => `${ctx.dataset.label}: ${trendMode === 'rates' ? ctx.parsed.y + '%' : fmt(ctx.parsed.y)}`
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function hmClass(excess, count) {
+        if (!count) return 'hm-0';
+        if (excess >= 2.2) return 'hm-4';
+        if (excess >= 1.5) return 'hm-3';
+        if (excess >= 1.05) return 'hm-2';
+        return 'hm-1';
+    }
+
+    function renderHeatmap(hm) {
+        const wrap = document.getElementById('advHeatmapWrap');
+        const countPill = document.getElementById('advHmCount');
+        if (!hm || !hm.stores || !hm.stores.length) {
+            wrap.innerHTML = '<div class="adv-empty">No stores in active scope.</div>';
+            if (countPill) countPill.textContent = '0 Stores';
+            return;
+        }
+        const cols = hm.columns || [];
+        const needle = hmQuery.trim().toLowerCase();
+        const filtered = needle
+            ? hm.stores.filter(s =>
+                s.store.toLowerCase().includes(needle) ||
+                (s.rbm || '').toLowerCase().includes(needle) ||
+                (s.bdm || '').toLowerCase().includes(needle))
+            : hm.stores;
+        const rows = filtered.slice().sort((a, b) => (b[hmSort] ?? -1) - (a[hmSort] ?? -1));
+        if (countPill) {
+            countPill.textContent = needle
+                ? `${rows.length} of ${hm.stores.length} Stores`
+                : `All ${hm.stores.length} Stores`;
+        }
+        if (!rows.length) {
+            wrap.innerHTML = '<div class="adv-empty">No stores match your heatmap search.</div>';
+            return;
+        }
+
+        let html = `<table class="adv-table"><thead><tr>
+            <th class="sticky-col">Store / Territory</th>
+            <th class="text-end sortable" data-hmsort="complaints">Comp.</th>
+            <th class="text-end sortable" data-hmsort="complaint_rate">Rate %</th>`;
+        cols.forEach(c => {
+            html += `<th class="text-center" title="Network avg: ${c.network_rate}%">${esc(c.label)}<div style="font-size:9px;font-weight:500;color:#94a3b8">${c.network_rate}% avg</div></th>`;
+        });
+        html += '</tr></thead><tbody>';
+
+        rows.forEach(st => {
+            html += `<tr>
+                <td class="sticky-col clickable-row js-exp-jump" data-q="${esc(st.store)}" title="Click to view reviews for ${esc(st.store)}">
+                    <div class="fw-bold text-dark">${esc(st.store)}</div>
+                    <div style="font-size:10.5px;color:#64748b">${esc(st.rbm)} · ${esc(st.bdm)} · ${fmt(st.total_reviews)} rev</div>
+                </td>
+                <td class="text-end fw-bold">${fmt(st.complaints)}</td>
+                <td class="text-end">${st.complaint_rate}%</td>`;
+            (st.cells || []).forEach(cell => {
+                const cls = hmClass(cell.excess, cell.count);
+                html += `<td style="padding:4px 5px">
+                    <div class="hm-cell ${cls} js-hm-cell" data-store="${esc(st.store)}" data-bucket="${esc(cell.key)}"
+                         title="${esc(st.store)} · ${cell.count} complaints (${cell.rate}% of reviews, ${cell.excess}x network avg)">
+                        ${cell.count ? fmt(cell.count) : '0'}
+                        ${cell.count ? `<span class="hm-sub">${cell.rate}%</span>` : ''}
+                    </div>
+                </td>`;
+            });
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        wrap.innerHTML = html;
+
+        wrap.querySelectorAll('th[data-hmsort]').forEach(th => {
+            th.addEventListener('click', () => {
+                hmSort = th.dataset.hmsort;
+                document.querySelectorAll('#advHmSort .adv-seg-btn').forEach(b => b.classList.toggle('active', b.dataset.sort === hmSort));
+                renderHeatmap(hm);
+            });
+        });
+        wrap.querySelectorAll('.js-hm-cell').forEach(el => {
+            el.addEventListener('click', () => {
+                const f = HM_TO_FILTER[el.dataset.bucket] || { card: 'all', item: 'all' };
+                jumpToExplorer({ card: f.card, item: f.item, q: el.dataset.store });
+            });
+        });
+    }
+
+    function renderScorecard(sc) {
+        const wrap = document.getElementById('advScoreWrap');
+        if (!sc) { wrap.innerHTML = '<div class="adv-empty">No scorecard data.</div>'; return; }
+        const isStore = scoreTab === 'stores';
+        const rows = sc[scoreTab] || [];
+        if (!rows.length) { wrap.innerHTML = '<div class="adv-empty">No rows in active scope.</div>'; return; }
+
+        let html = `<table class="adv-table"><thead><tr>
+            <th class="sticky-col">${isStore ? 'Store' : (scoreTab === 'rbms' ? 'RBM' : 'BDM')}</th>
+            <th>${isStore ? 'RBM / BDM' : 'Stores'}</th>
+            <th class="text-end">Bills</th>
+            <th class="text-end">Reviews</th>
+            <th class="text-end">Complaints</th>
+            <th class="text-end">Rate %</th>
+            <th class="text-end">Avg ★</th>
+            <th class="text-end">30d &Delta;</th>
+            <th>#1 Driver</th>
+            <th>#2 Driver</th>
+        </tr></thead><tbody>`;
+
+        rows.forEach(r => {
+            const unitName = isStore ? r.store : r.name;
+            html += `<tr class="clickable-row js-exp-jump" data-q="${esc(unitName)}" title="Click to explore reviews for ${esc(unitName)}">
+                <td class="sticky-col fw-bold">${esc(unitName)}</td>
+                <td>${isStore ? `<span style="font-size:11px;color:#475569">${esc(r.rbm)} · ${esc(r.bdm)}</span>` : fmt(r.stores)}</td>
+                <td class="text-end">${fmt(r.bills)}</td>
+                <td class="text-end">${fmt(r.total_reviews)}</td>
+                <td class="text-end fw-bold">${fmt(r.complaints)}</td>
+                <td class="text-end">${r.complaint_rate}%</td>
+                <td class="text-end">${r.avg_rating}★</td>
+                <td class="text-end">${deltaPill(r.delta_30d_pct, true)}</td>
+                <td><span class="pill-driver" title="${esc(r.top1)} (${r.top1_cnt})">${esc(r.top1)} (${r.top1_cnt})</span></td>
+                <td><span class="pill-driver" title="${esc(r.top2)} (${r.top2_cnt})">${esc(r.top2)} (${r.top2_cnt})</span></td>
+            </tr>`;
+        });
+        html += '</tbody></table>';
+        wrap.innerHTML = html;
+    }
+
+    function renderProdBrand(products, brands) {
+        const pw = document.getElementById('advProdWrap');
+        const bw = document.getElementById('advBrandWrap');
+
+        if (!products || !products.length) {
+            pw.innerHTML = '<div class="adv-empty">No product category mentions matched in complaints.</div>';
+        } else {
+            pw.innerHTML = `<table class="adv-table"><thead><tr>
+                <th>Product Category</th><th class="text-end">Mentions</th><th class="text-end">Share</th>
+                <th class="text-end">After-Sales</th><th class="text-end">Staff</th><th class="text-end">Comm</th><th class="text-end">Sales</th>
+                <th class="text-end">Avg ★</th><th>Top Issue</th>
+            </tr></thead><tbody>` + products.map(p => `
+                <tr class="clickable-row js-exp-jump" data-product="${esc(p.product)}" title="Click to explore ${esc(p.product)} complaints">
+                    <td class="fw-bold">${esc(p.product)}</td>
+                    <td class="text-end fw-bold">${fmt(p.total)}</td>
+                    <td class="text-end">${p.share_of_complaints}%</td>
+                    <td class="text-end">${fmt(p.after_sales)}</td>
+                    <td class="text-end">${fmt(p.staff)}</td>
+                    <td class="text-end">${fmt(p.communication)}</td>
+                    <td class="text-end">${fmt(p.sales)}</td>
+                    <td class="text-end">${p.avg_rating}★</td>
+                    <td><span class="pill-driver">${esc(p.top_issue)} (${p.top_issue_cnt})</span></td>
+                </tr>`).join('') + '</tbody></table>';
+        }
+
+        const brandSel = document.getElementById('expBrand');
+        const prevBrand = brandSel.value || 'all';
+        brandSel.innerHTML = '<option value="all">All Brands</option>' +
+            (brands || []).map(b => `<option value="${esc(b.brand)}">${esc(b.brand)} (${fmt(b.total)})</option>`).join('');
+        brandSel.value = (brands || []).some(b => b.brand === prevBrand) ? prevBrand : 'all';
+
+        if (!brands || !brands.length) {
+            bw.innerHTML = '<div class="adv-empty">No brand mentions matched in complaints.</div>';
+        } else {
+            bw.innerHTML = `<table class="adv-table"><thead><tr>
+                <th>Brand</th><th class="text-end">Complaints</th><th class="text-end">Avg ★</th>
+                <th>Top Product</th><th>#1 Driver</th><th>#2 Driver</th>
+            </tr></thead><tbody>` + brands.map(b => `
+                <tr class="clickable-row js-exp-jump" data-brand="${esc(b.brand)}" title="Click to explore ${esc(b.brand)} complaints">
+                    <td class="fw-bold">${esc(b.brand)}</td>
+                    <td class="text-end fw-bold">${fmt(b.total)}</td>
+                    <td class="text-end">${b.avg_rating}★</td>
+                    <td><span class="pill-driver">${esc(b.top_product)}</span></td>
+                    <td><span class="pill-driver">${esc(b.top1)} (${b.top1_cnt})</span></td>
+                    <td><span class="pill-driver">${esc(b.top2)} (${b.top2_cnt})</span></td>
+                </tr>`).join('') + '</tbody></table>';
+        }
+    }
+
+    function renderWatchlist(wl) {
+        const grid = document.getElementById('advWatchlistGrid');
+        if (!wl || !wl.length) {
+            grid.innerHTML = '<div class="adv-empty">No compliance risk patterns detected in this scope.</div>';
+            return;
+        }
+        grid.innerHTML = wl.map(w => {
+            const q = (w.samples && w.samples[0]) || null;
+            const storesHtml = (w.top_stores || []).map(s =>
+                `<span class="wl-store-chip clickable-row js-exp-jump" data-risk="${esc(w.key)}" data-q="${esc(s.store)}" title="Filter Explorer to ${esc(s.store)} + ${esc(w.label)}">${esc(s.store)} (${s.count})</span>`
+            ).join('');
+            return `<div class="wl-card sev-${esc(w.severity)}">
+                <div class="wl-top">
+                    <div>
+                        <div class="wl-title">${esc(w.label)}</div>
+                        <div class="wl-desc">${esc(w.description)}</div>
+                    </div>
+                    <span class="wl-sev ${esc(w.severity)}">${esc(w.severity)}</span>
+                </div>
+                <div class="wl-metrics">
+                    <div><span class="wl-cnt">${fmt(w.count)}</span> <small class="text-muted">flagged</small></div>
+                    <div><strong>${fmt(w.last_30d)}</strong> <small class="text-muted">last 30d</small></div>
+                    <div><strong>${w.avg_rating}★</strong> <small class="text-muted">avg</small></div>
+                </div>
+                ${storesHtml ? `<div class="wl-stores">${storesHtml}</div>` : ''}
+                ${q ? `<div class="wl-quote"><strong>${'★'.repeat(q.rating)}</strong> ${esc(q.comment.slice(0, 170))}${q.comment.length > 170 ? '…' : ''}<br><small class="text-muted">${esc(q.store)} · ${esc(q.date)}</small></div>` : ''}
+                <button type="button" class="wl-btn js-exp-jump" data-risk="${esc(w.key)}">Explore ${fmt(w.count)} Flagged Reviews &rarr;</button>
+            </div>`;
+        }).join('');
+    }
+
+    function syncExpItemsDropdown() {
+        const card = document.getElementById('expCard').value;
+        const sel = document.getElementById('expItem');
+        const cur = sel.value || 'all';
+        const quad = (advData && advData.quadrant) ? advData.quadrant : [];
+        const filtered = card === 'all' ? quad : quad.filter(q => q.card === card);
+        sel.innerHTML = '<option value="all">All Sub-Categories</option>' +
+            filtered.map(q => `<option value="${esc(q.cls)}">${esc(q.short || q.label)} (${fmt(q.count)})</option>`).join('');
+        sel.value = filtered.some(q => q.cls === cur) ? cur : 'all';
+    }
+
+    function buildExplorerQuery(pageOverride) {
+        const params = new URLSearchParams({
+            rbm: rbmFilter.value,
+            bdm: bdmFilter.value,
+            store: storeFilter.value,
+            card: document.getElementById('expCard').value || 'all',
+            item: document.getElementById('expItem').value || 'all',
+            rating: document.getElementById('expRating').value || 'all',
+            risk: document.getElementById('expRisk').value || 'all',
+            product: document.getElementById('expProduct').value || 'all',
+            brand: document.getElementById('expBrand').value || 'all',
+            sort: document.getElementById('expSort').value || 'newest',
+            q: document.getElementById('expSearch').value.trim(),
+            page: String(pageOverride || expPage || 1),
+            page_size: '20',
+        });
+        return params.toString();
+    }
+
+    async function loadExplorer(page = 1) {
+        expPage = page;
+        const list = document.getElementById('expList');
+        list.innerHTML = '<div class="adv-empty">Loading complaints...</div>';
+        try {
+            const res = await fetch(`/api/v1/rca-dashboard/?action=explorer&${buildExplorerQuery(page)}`);
+            const d = await res.json();
+            if (d.status !== 'ok' || !d.rows || !d.rows.length) {
+                list.innerHTML = '<div class="adv-empty">No complaint reviews match the active filters.</div>';
+                document.getElementById('expMetaText').textContent = '0 complaints match the current filter combination.';
+                document.getElementById('expPageInfo').textContent = '0 matching complaints';
+                document.getElementById('expPrevBtn').disabled = true;
+                document.getElementById('expNextBtn').disabled = true;
+                return;
+            }
+            document.getElementById('expMetaText').textContent =
+                `Showing ${fmt(d.rows.length)} of ${fmt(d.total)} matched complaints (Page ${d.page} of ${d.pages}).`;
+            document.getElementById('expPageInfo').textContent = `Page ${d.page} / ${d.pages} · ${fmt(d.total)} total complaints`;
+            document.getElementById('expPrevBtn').disabled = d.page <= 1;
+            document.getElementById('expNextBtn').disabled = d.page >= d.pages;
+
+            list.innerHTML = d.rows.map(r => `
+                <div class="exp-row">
+                    <div class="exp-row-top">
+                        <div>
+                            <strong style="color:#e11d48">${'★'.repeat(r.rating)}${'☆'.repeat(5 - r.rating)}</strong>
+                            <strong class="ms-1 text-dark">${esc(r.store)}</strong>
+                            <span class="text-muted small ms-1">(${esc(r.rbm)} · ${esc(r.bdm)}) · ${esc(r.date)}</span>
+                        </div>
+                        <div class="exp-badges">
+                            <span class="exp-tag exp-tag-card">${esc(r.card_title)}</span>
+                            <span class="exp-tag exp-tag-label">${esc(r.label)}</span>
+                            ${(r.products || []).map(p => `<span class="exp-tag exp-tag-prod">${esc(p)}</span>`).join('')}
+                            ${(r.brands || []).map(b => `<span class="exp-tag exp-tag-prod">${esc(b)}</span>`).join('')}
+                            ${(r.risks || []).map(rk => `<span class="exp-tag exp-tag-risk">${esc(rk.label)}</span>`).join('')}
+                        </div>
+                    </div>
+                    <div class="exp-comment">${esc(r.comment || '(No review text)')}</div>
+                </div>`).join('');
+        } catch (err) {
+            console.error('Explorer load error', err);
+            list.innerHTML = '<div class="adv-empty text-danger">Failed to load explorer reviews.</div>';
+        }
+    }
+
+    function jumpToExplorer(opts = {}, scroll = true) {
+        document.getElementById('expCard').value = opts.card || 'all';
+        syncExpItemsDropdown();
+        document.getElementById('expItem').value = opts.item || 'all';
+        document.getElementById('expRating').value = opts.rating || 'all';
+        document.getElementById('expRisk').value = opts.risk || 'all';
+        document.getElementById('expProduct').value = opts.product || 'all';
+        document.getElementById('expBrand').value = opts.brand || 'all';
+        document.getElementById('expSearch').value = opts.q || '';
+        loadExplorer(1);
+        if (scroll) {
+            const panel = document.getElementById('advExplorerPanel');
+            if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+
+    async function loadAdvanced() {
+        try {
+            const res = await fetch(`/api/v1/rca-dashboard/?action=advanced&${getScopeQuery()}`);
+            const d = await res.json();
+            if (d.status === 'empty') {
+                advData = null;
+                renderKPIs({total_reviews:0,positive_reviews:0,positive_pct:0,complaints:0,complaint_pct:0,avg_complaint_rating:0,total_bills:0,total_rev_cr:0,complaints_per_10k_bills:null,last_30d:0,prev_30d:0,velocity_pct:null,top_driver:'—',top_driver_count:0,date_from:'—',as_of:'—'});
+                if (advQuadChart) { advQuadChart.destroy(); advQuadChart = null; }
+                if (advTrendChart) { advTrendChart.destroy(); advTrendChart = null; }
+                renderHeatmap(null); renderScorecard(null);
+                renderProdBrand([], []); renderWatchlist([]);
+                return;
+            }
+            if (d.status !== 'ok') return;
+            advData = d;
+            renderKPIs(d.kpis);
+            renderQuadrant(d.quadrant, d.quad_medians);
+            renderTrend(d.trend);
+            renderHeatmap(d.heatmap);
+            renderScorecard(d.scorecard);
+            renderProdBrand(d.products, d.brands);
+            renderWatchlist(d.watchlist);
+            syncExpItemsDropdown();
+        } catch (err) {
+            console.error('Error loading advanced analytics', err);
+        }
+    }
+
+    // Event wiring for Phase 1 & 2 interactive tabs and Explorer controls
+    document.querySelectorAll('#advTrendMode .adv-seg-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            trendMode = btn.dataset.mode;
+            document.querySelectorAll('#advTrendMode .adv-seg-btn').forEach(b => b.classList.toggle('active', b === btn));
+            if (advData) renderTrend(advData.trend);
+        });
+    });
+    document.querySelectorAll('#advHmSort .adv-seg-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            hmSort = btn.dataset.sort;
+            document.querySelectorAll('#advHmSort .adv-seg-btn').forEach(b => b.classList.toggle('active', b === btn));
+            if (advData) renderHeatmap(advData.heatmap);
+        });
+    });
+    document.getElementById('advHmSearch').addEventListener('input', e => {
+        hmQuery = e.target.value || '';
+        if (advData) renderHeatmap(advData.heatmap);
+    });
+    document.getElementById('advHmExpandBtn').addEventListener('click', btnEv => {
+        const wrap = document.getElementById('advHeatmapWrap');
+        const expanded = wrap.classList.toggle('hm-expanded');
+        btnEv.currentTarget.textContent = expanded ? 'Collapse Height' : 'Expand All';
+    });
+    document.querySelectorAll('#advScoreTabs .adv-seg-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            scoreTab = btn.dataset.tab;
+            document.querySelectorAll('#advScoreTabs .adv-seg-btn').forEach(b => b.classList.toggle('active', b === btn));
+            if (advData) renderScorecard(advData.scorecard);
+        });
+    });
+
+    document.getElementById('advDashboard').addEventListener('click', e => {
+        const tgt = e.target.closest('.js-exp-jump');
+        if (!tgt) return;
+        jumpToExplorer({
+            card: tgt.dataset.card || 'all',
+            item: tgt.dataset.item || 'all',
+            risk: tgt.dataset.risk || 'all',
+            product: tgt.dataset.product || 'all',
+            brand: tgt.dataset.brand || 'all',
+            q: tgt.dataset.q || '',
+        });
+    });
+
+    document.getElementById('expCard').addEventListener('change', () => { syncExpItemsDropdown(); loadExplorer(1); });
+    ['expItem', 'expRating', 'expRisk', 'expProduct', 'expBrand', 'expSort'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => loadExplorer(1));
+    });
+    document.getElementById('expSearch').addEventListener('input', () => {
+        clearTimeout(expSearchTimer);
+        expSearchTimer = setTimeout(() => loadExplorer(1), 320);
+    });
+    document.getElementById('expClearBtn').addEventListener('click', () => jumpToExplorer({}, false));
+    document.getElementById('expPrevBtn').addEventListener('click', () => { if (expPage > 1) loadExplorer(expPage - 1); });
+    document.getElementById('expNextBtn').addEventListener('click', () => { if (expPage < 999999) loadExplorer(expPage + 1); });
+    document.getElementById('expExportBtn').addEventListener('click', () => {
+        window.location.href = `/api/v1/rca-dashboard/?action=export&${buildExplorerQuery(1)}`;
+    });
+
     async function loadData() {
-        const rbm = rbmFilter.value;
-        const bdm = bdmFilter.value;
-        const store = storeFilter.value;
-        
         btnRefresh.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Loading...';
         btnRefresh.disabled = true;
 
         try {
-            const res = await fetch(`/api/v1/rca-dashboard/?rbm=${encodeURIComponent(rbm)}&bdm=${encodeURIComponent(bdm)}&store=${encodeURIComponent(store)}`);
+            const res = await fetch(`/api/v1/rca-dashboard/?${getScopeQuery()}`);
             const data = await res.json();
-            
+
             if (data.status === 'ok') {
                 document.querySelector('.header-badge').innerHTML = `<span>⚠️</span> ${data.total_reviews.toLocaleString()} Total Reviews Analyzed`;
-                
                 updateCard('red', data.after_sales, data.total_reviews);
                 updateCard('orange', data.staff, data.total_reviews);
                 updateCard('blue', data.communication, data.total_reviews);
+                updateCard('purple', data.sales, data.total_reviews);
                 updateCard('gray', data.other, data.total_reviews);
-                document.querySelector('.cards-grid').classList.remove('rca-pending');
             } else if (data.status === 'empty') {
                 document.querySelector('.header-badge').innerHTML = `<span>⚠️</span> 0 Total Reviews Analyzed`;
-                const zeroData = {total: 0, delays: 0, warranty: 0, unresolved: 0, updates: 0, cost: 0, general: 0, unprofessional: 0, rude: 0, neglect: 0, bias: 0, chasing: 0, promises: 0, rude_phone: 0, unanswered: 0, zero_contact: 0};
-                updateCard('red', zeroData, 0);
-                updateCard('orange', zeroData, 0);
-                updateCard('blue', zeroData, 0);
-                updateCard('gray', {total: 0, praise: 0, ambiance: 0, service: 0, product: 0, unclassified: 0}, 0);
-                document.querySelector('.cards-grid').classList.remove('rca-pending');
+                const zero = keys => Object.assign({total: 0}, ...keys.map(k => ({[k]: 0})));
+                Object.entries({red: 'after_sales', orange: 'staff', blue: 'communication', purple: 'sales', gray: 'other'})
+                    .forEach(([color, card]) => updateCard(color, zero(LD_CARD_ORDER[card]), 0));
             } else if (data.status === 'error') {
                 throw new Error(data.message || 'Server error');
             }
+            document.querySelector('.cards-grid').classList.remove('rca-pending');
+            const posWrap = document.querySelector('.rca-positive-wrap');
+            if (posWrap) posWrap.classList.remove('rca-pending');
+
+            await loadAdvanced();
+            await loadExplorer(1);
         } catch(e) {
             console.error('Error loading data', e);
             document.querySelector('.header-badge').innerHTML = '<span>&#9888;&#65039;</span> Could not load reviews. Please refresh.';
