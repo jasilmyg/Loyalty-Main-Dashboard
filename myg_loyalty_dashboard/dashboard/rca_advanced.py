@@ -16,7 +16,7 @@ from django.core.cache import cache
 from analytics.clickhouse_service import CH_EXCLUDE_FILTER, get_ch_client
 from dashboard.rca_labels import get_low_rows, labels_version
 from dashboard.rca_legacy_detail import CARDS, _as_date, _change, _q
-from dashboard.rca_logic import get_store_mapping
+from dashboard.rca_logic import get_store_mapping, in_date_window, resolve_date_window
 from dashboard.rca_rules import CLS_SQL, REVIEWS_SRC
 from dashboard.rca_v2_logic import DATE, _pct
 from dashboard.utils import RETAIL_BRANCH_FILTER
@@ -177,7 +177,10 @@ def _assign_single_risk(cm, is_cross_store):
 
 
 def _filter_hash(request):
-    s = f"{request.GET.get('rbm', 'all')}|{request.GET.get('bdm', 'all')}|{request.GET.get('store', 'all')}"
+    s = "|".join(
+        request.GET.get(k, d)
+        for k, d in (('rbm', 'all'), ('bdm', 'all'), ('store', 'all'), ('period', 'all'), ('date_from', ''), ('date_to', ''))
+    )
     return hashlib.md5(s.encode('utf-8')).hexdigest()[:12]
 
 
@@ -220,16 +223,17 @@ def _get_invoice_stats(ch, min_d, max_d):
     return out
 
 
-def _get_store_monthly_stats(ch, where_store):
+def _get_store_monthly_stats(ch, where_store, date_sql=''):
     """Total reviews, monthly counts, and 30d/60d/90d review totals per store (SQL over REVIEWS_SRC)."""
-    fh = hashlib.md5(where_store.encode('utf-8')).hexdigest()[:10]
-    ck = f"rca_adv_store_stats_v1:{fh}"
+    where_full = f"{where_store}{date_sql}"
+    fh = hashlib.md5(where_full.encode('utf-8')).hexdigest()[:10]
+    ck = f"rca_adv_store_stats_v2:{fh}"
     cached = cache.get(ck)
     if cached is not None:
         return cached
 
     min_d, max_d, total_all = ch.query(
-        f"SELECT min({DATE}), max({DATE}), count() FROM {REVIEWS_SRC} WHERE 1 = 1{where_store}"
+        f"SELECT min({DATE}), max({DATE}), count() FROM {REVIEWS_SRC} WHERE 1 = 1{where_full}"
     ).result_rows[0]
     if not total_all or not max_d:
         return None
@@ -242,7 +246,7 @@ def _get_store_monthly_stats(ch, where_store):
                countIf(d > subtractDays({md}, 30)),
                countIf(d <= subtractDays({md}, 30) AND d > subtractDays({md}, 60)),
                countIf(d <= subtractDays({md}, 30) AND d > subtractDays({md}, 90))
-        FROM (SELECT store_name, {DATE} AS d FROM {REVIEWS_SRC} WHERE 1 = 1{where_store})
+        FROM (SELECT store_name, {DATE} AS d FROM {REVIEWS_SRC} WHERE 1 = 1{where_full})
         GROUP BY store_name
     """).result_rows
     by_store = {
@@ -253,7 +257,7 @@ def _get_store_monthly_stats(ch, where_store):
     # Monthly total reviews (all ratings) for the 12-month rate toggle
     m_rows = ch.query(f"""
         SELECT toStartOfMonth(d) AS m, count()
-        FROM (SELECT {DATE} AS d FROM {REVIEWS_SRC} WHERE 1 = 1{where_store})
+        FROM (SELECT {DATE} AS d FROM {REVIEWS_SRC} WHERE 1 = 1{where_full})
         WHERE d IS NOT NULL GROUP BY m ORDER BY m
     """).result_rows
     monthly_all = {_as_date(m): int(cnt) for m, cnt in m_rows if m is not None}
@@ -349,8 +353,9 @@ def build_advanced_analytics(request):
     ch = get_ch_client()
     mapping = get_store_mapping(ch)
     where_store, valid_stores, scope_filters = _resolve_scope(request, mapping)
+    dw = resolve_date_window(request, ch)
     fh = _filter_hash(request)
-    ck = f"rca_adv_payload_v5:{labels_version()}:{fh}"
+    ck = f"rca_adv_payload_v6:{labels_version()}:{fh}"
     cached = cache.get(ck)
     if cached is not None:
         return cached
@@ -358,17 +363,32 @@ def build_advanced_analytics(request):
     if valid_stores == []:
         return {'status': 'empty'}
 
-    st_stats = _get_store_monthly_stats(ch, where_store)
+    st_stats = _get_store_monthly_stats(ch, where_store, dw['date_sql'])
     if not st_stats:
         return {'status': 'empty'}
 
     min_d, max_d = st_stats['min_d'], st_stats['max_d']
+    inv_from = dw['date_from'] or min_d
+    inv_to = dw['date_to'] or max_d
     d30 = max_d - timedelta(days=30)
     d60 = max_d - timedelta(days=60)
     d90 = max_d - timedelta(days=90)
+    span_days = ((dw['date_to'] - dw['date_from']).days + 1) if (dw['date_from'] and dw['date_to']) else None
 
-    inv_stats = _get_invoice_stats(ch, min_d, max_d)
-    complaints = _get_enriched_complaints(ch, where_store, mapping)
+    inv_stats = _get_invoice_stats(ch, inv_from, inv_to)
+    all_complaints = _get_enriched_complaints(ch, where_store, mapping)
+    if dw['date_from'] or dw['date_to']:
+        complaints = [r for r in all_complaints if in_date_window(r['date'], dw['date_from'], dw['date_to'])]
+    else:
+        complaints = all_complaints
+
+    prev_window_rows = None
+    if span_days and dw['date_from'] and dw['min_d']:
+        p_from = dw['date_from'] - timedelta(days=span_days)
+        p_to = dw['date_from'] - timedelta(days=1)
+        if p_from >= dw['min_d']:
+            prev_window_rows = [r for r in all_complaints if in_date_window(r['date'], p_from, p_to)]
+
     total_reviews = st_stats['total_all']
     total_complaints = len(complaints)
     positive_reviews = total_reviews - total_complaints
@@ -403,6 +423,9 @@ def build_advanced_analytics(request):
                 c_p30 += 1
             month_card[dt.replace(day=1)][card_idx[r['card']]] += 1
 
+    prev_item_cnt = Counter(r['cls'] for r in prev_window_rows) if prev_window_rows is not None else None
+    short_span = span_days is not None and span_days < 55
+
     # Quadrant items (all 21 complaint sub-categories)
     quadrant = []
     for c in COMPLAINT_CARDS:
@@ -410,6 +433,13 @@ def build_advanced_analytics(request):
             cls = f'{c}/{k}'
             ia = item_agg[cls]
             n = ia['n']
+            if short_span:
+                l_val = n
+                p_val = prev_item_cnt[cls] if prev_item_cnt is not None else 0
+                chg_val = _change(l_val, p_val) if (prev_item_cnt is not None and (l_val or p_val)) else None
+            else:
+                l_val, p_val = ia['l30'], ia['p30']
+                chg_val = _change(l_val, p_val) if n else None
             quadrant.append({
                 'cls': cls, 'card': c, 'card_title': CARD_TITLES[c], 'key': k,
                 'label': lbl, 'short': ITEM_SHORT.get(cls, lbl),
@@ -418,8 +448,8 @@ def build_advanced_analytics(request):
                 'avg_rating': round(ia['sr'] / n, 2) if n else 0,
                 'neg_rate': _pct(ia['neg'], n),
                 'one_star_rate': _pct(ia['one'], n),
-                'last_30d': ia['l30'], 'prev_30d': ia['p30'],
-                'change_pct': _change(ia['l30'], ia['p30']) if n else None,
+                'last_30d': l_val, 'prev_30d': p_val,
+                'change_pct': chg_val,
                 'stores': len(ia['stores']),
             })
     active_q = [q for q in quadrant if q['count'] > 0]
@@ -429,6 +459,22 @@ def build_advanced_analytics(request):
         'volume': vols[len(vols) // 2] if vols else 0,
         'severity': sevs[len(sevs) // 2] if sevs else 0,
     }
+
+    if dw['period'] != 'all' and span_days and prev_window_rows is not None:
+        kpi_l30, kpi_p30 = total_complaints, len(prev_window_rows)
+        vel_pct = _change(kpi_l30, kpi_p30)
+        vel_title = f"{span_days}d Velocity"
+        vel_sub = f"{kpi_l30:,} vs {kpi_p30:,} (prior {span_days}d)"
+    elif short_span:
+        kpi_l30, kpi_p30 = total_complaints, 0
+        vel_pct = None
+        vel_title = f"{span_days}d Volume"
+        vel_sub = f"{total_complaints:,} complaints (no prior {span_days}d data)"
+    else:
+        kpi_l30, kpi_p30 = c_l30, c_p30
+        vel_pct = _change(c_l30, c_p30)
+        vel_title = '30-Day Velocity'
+        vel_sub = f"{c_l30:,} (last 30d) vs {c_p30:,} (prev)"
 
     top_item = max(quadrant, key=lambda x: x['count']) if quadrant else None
     kpis = {
@@ -441,13 +487,17 @@ def build_advanced_analytics(request):
         'total_bills': total_bills,
         'total_rev_cr': round(total_rev / 1e7, 1),
         'complaints_per_10k_bills': _per10k(total_complaints, total_bills),
-        'last_30d': c_l30,
-        'prev_30d': c_p30,
-        'velocity_pct': _change(c_l30, c_p30),
+        'last_30d': kpi_l30,
+        'prev_30d': kpi_p30,
+        'velocity_pct': vel_pct,
+        'vel_title': vel_title,
+        'vel_sub': vel_sub,
         'top_driver': top_item['label'] if top_item else '—',
         'top_driver_count': top_item['count'] if top_item else 0,
-        'date_from': str(min_d),
-        'as_of': str(max_d),
+        'period': dw['period'],
+        'date_from': str(inv_from),
+        'date_to': str(inv_to),
+        'as_of': str(dw['max_d'] or max_d),
     }
 
     # 12-month trend
@@ -500,6 +550,7 @@ def build_advanced_analytics(request):
         if s in st_stats['by_store'] and v.get('code')
     )
 
+    prev_store_cnt = Counter(r['store'] for r in prev_window_rows) if prev_window_rows is not None else None
     store_rows = []
     spikes = []
     for st, den in st_stats['by_store'].items():
@@ -511,8 +562,14 @@ def build_advanced_analytics(request):
         bills = inv_stats['by_code'].get(code, {}).get('bills', 0) if code else 0
         shared_flag = bool(code and code_shares.get(code, 0) > 1)
         top_it = sc['items'].most_common(2) if sc else []
-        c30 = sc['c30'] if sc else 0
-        p30 = sc['p30'] if sc else 0
+        if short_span:
+            c30 = n
+            p30 = prev_store_cnt[st] if prev_store_cnt is not None else 0
+            st_delta = _change(c30, p30) if (prev_store_cnt is not None and (c30 or p30)) else None
+        else:
+            c30 = sc['c30'] if sc else 0
+            p30 = sc['p30'] if sc else 0
+            st_delta = _change(c30, p30) if (c30 or p30) else None
         b60 = sc['b60'] if sc else 0
         r30 = den['r30']
         rb60 = den['r_base60']
@@ -538,7 +595,7 @@ def build_advanced_analytics(request):
             'per_10k_bills': _per10k(n, bills) if (bills and not shared_flag) else None,
             'avg_rating': round(sc['sr'] / n, 2) if n else 0,
             'last_30d': c30, 'prev_30d': p30,
-            'delta_30d_pct': _change(c30, p30) if (c30 or p30) else None,
+            'delta_30d_pct': st_delta,
             'top1': ITEM_SHORT.get(top_it[0][0], top_it[0][0]) if len(top_it) >= 1 else '—',
             'top1_cnt': top_it[0][1] if len(top_it) >= 1 else 0,
             'top2': ITEM_SHORT.get(top_it[1][0], top_it[1][0]) if len(top_it) >= 2 else '—',
@@ -592,9 +649,14 @@ def build_advanced_analytics(request):
             if sc:
                 m['complaints'] += sc['n']
                 m['sr'] += sc['sr']
-                m['c30'] += sc['c30']
-                m['p30'] += sc['p30']
+                if not short_span:
+                    m['c30'] += sc['c30']
+                    m['p30'] += sc['p30']
+                else:
+                    m['c30'] += sc['n']
                 m['items'].update(sc['items'])
+            if short_span and prev_store_cnt is not None:
+                m['p30'] += prev_store_cnt[st]
         # Attach unique retail branch codes for that manager (matching scope if store filter active)
         if scope_filters[2] != 'all':
             for st in (valid_stores or []):
@@ -613,6 +675,10 @@ def build_advanced_analytics(request):
             bills = sum(inv_stats['by_code'].get(c, {}).get('bills', 0) for c in m['codes'])
             n = m['complaints']
             top_it = m['items'].most_common(2)
+            if short_span and prev_store_cnt is None:
+                delta_val = None
+            else:
+                delta_val = _change(m['c30'], m['p30']) if (m['c30'] or m['p30']) else None
             out.append({
                 'name': name,
                 'stores': len(m['stores']),
@@ -623,7 +689,7 @@ def build_advanced_analytics(request):
                 'per_10k_bills': _per10k(n, bills),
                 'avg_rating': round(m['sr'] / n, 2) if n else 0,
                 'last_30d': m['c30'], 'prev_30d': m['p30'],
-                'delta_30d_pct': _change(m['c30'], m['p30']) if (m['c30'] or m['p30']) else None,
+                'delta_30d_pct': delta_val,
                 'top1': ITEM_SHORT.get(top_it[0][0], top_it[0][0]) if len(top_it) >= 1 else '—',
                 'top1_cnt': top_it[0][1] if len(top_it) >= 1 else 0,
                 'top2': ITEM_SHORT.get(top_it[1][0], top_it[1][0]) if len(top_it) >= 2 else '—',
@@ -631,11 +697,13 @@ def build_advanced_analytics(request):
             })
         return sorted(out, key=lambda x: (-x['complaint_rate'], -x['complaints']))
 
+    min_store_rev = 50 if (span_days is None or span_days >= 120) else (15 if span_days >= 45 else 5)
     scorecard = {
         'rbms': build_mgr_scorecard('rbm'),
         'bdms': build_mgr_scorecard('bdm'),
+        'min_store_rev': min_store_rev,
         'stores': sorted(
-            [s for s in store_rows if s['total_reviews'] >= 50],
+            [s for s in store_rows if s['total_reviews'] >= min_store_rev],
             key=lambda s: (-s['complaint_rate'], -s['complaints']),
         )[:40],
     }
@@ -800,6 +868,18 @@ def _filter_complaints(request, complaints):
     return out
 
 
+def _scoped_complaints(request, ch, mapping, where_store, valid_stores):
+    dw = resolve_date_window(request, ch)
+    if valid_stores == []:
+        return [], dw
+    all_rows = _get_enriched_complaints(ch, where_store, mapping)
+    if dw['date_from'] or dw['date_to']:
+        rows = [r for r in all_rows if in_date_window(r['date'], dw['date_from'], dw['date_to'])]
+    else:
+        rows = all_rows
+    return _filter_complaints(request, rows), dw
+
+
 def query_explorer(request):
     """Paginated verbatim complaint search/filter endpoint."""
     ch = get_ch_client()
@@ -807,8 +887,7 @@ def query_explorer(request):
     where_store, valid_stores, _ = _resolve_scope(request, mapping)
     if valid_stores == []:
         return {'status': 'empty', 'total': 0, 'rows': []}
-    complaints = _get_enriched_complaints(ch, where_store, mapping)
-    filtered = _filter_complaints(request, complaints)
+    filtered, _dw = _scoped_complaints(request, ch, mapping, where_store, valid_stores)
 
     page = max(1, int(request.GET.get('page', 1) or 1))
     page_size = min(100, max(10, int(request.GET.get('page_size', 25) or 25)))
@@ -845,7 +924,7 @@ def export_rca_excel(request):
     ch = get_ch_client()
     mapping = get_store_mapping(ch)
     where_store, valid_stores, scope = _resolve_scope(request, mapping)
-    complaints = _filter_complaints(request, _get_enriched_complaints(ch, where_store, mapping) if valid_stores != [] else [])
+    complaints, dw = _scoped_complaints(request, ch, mapping, where_store, valid_stores)
 
     wb = openpyxl.Workbook()
     hdr_font = Font(name='Segoe UI', size=10, bold=True, color='FFFFFF')
@@ -923,5 +1002,7 @@ def export_rca_excel(request):
     buf = io.BytesIO()
     wb.save(buf)
     tag = '_'.join(x for x in scope if x != 'all') or 'All_Stores'
+    if dw['period'] != 'all':
+        tag += f"_{dw['period']}"
     tag = re.sub(r'[^A-Za-z0-9_-]+', '_', tag)
     return buf.getvalue(), f"myG_Review_RCA_{tag}_{date.today().isoformat()}.xlsx"

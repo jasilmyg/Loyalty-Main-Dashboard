@@ -1,3 +1,4 @@
+from datetime import date, timedelta
 import hashlib
 import pandas as pd
 import difflib
@@ -6,6 +7,88 @@ from analytics.clickhouse_service import get_ch_client
 from dashboard.utils import RETAIL_BRANCH_FILTER
 from dashboard.rca_rules import CLS_SQL, CARD_ITEMS, REVIEWS_SRC
 from dashboard.rca_labels import get_low_rows, labels_version
+from dashboard.rca_v2_logic import DATE
+
+
+def _as_date(x):
+    if x is None:
+        return None
+    if isinstance(x, str):
+        try:
+            return date.fromisoformat(x[:10])
+        except ValueError:
+            return None
+    return x.date() if hasattr(x, 'date') and callable(x.date) else x
+
+
+def get_date_bounds(ch):
+    """Cached global (min_date, max_date) available in REVIEWS_SRC."""
+    cached = cache.get("rca_global_date_bounds_v1")
+    if cached:
+        return cached
+    row = ch.query(f"SELECT min({DATE}), max({DATE}) FROM {REVIEWS_SRC}").result_rows[0]
+    bounds = (_as_date(row[0]), _as_date(row[1]))
+    if bounds[0] and bounds[1]:
+        cache.set("rca_global_date_bounds_v1", bounds, 300)
+    return bounds
+
+
+def in_date_window(dt, d_from, d_to):
+    if d_from is None and d_to is None:
+        return True
+    if dt is None:
+        return False
+    if d_from and dt < d_from:
+        return False
+    if d_to and dt > d_to:
+        return False
+    return True
+
+
+def resolve_date_window(request, ch):
+    """Parse period/date_from/date_to relative to the latest synced review date."""
+    min_avail, max_avail = get_date_bounds(ch)
+    period = (request.GET.get('period') or 'all').strip().lower()
+    d_from = d_to = None
+
+    preset_days = {'30d': 30, '90d': 90, '180d': 180, '365d': 365}
+    if period in preset_days and max_avail:
+        d_to = max_avail
+        d_from = max_avail - timedelta(days=preset_days[period] - 1)
+    elif period == 'custom':
+        raw_from = (request.GET.get('date_from') or '').strip()
+        raw_to = (request.GET.get('date_to') or '').strip()
+        d_from = _as_date(raw_from) if raw_from else None
+        d_to = _as_date(raw_to) if raw_to else None
+        if not d_from and not d_to:
+            period = 'all'
+        else:
+            if not d_from:
+                d_from = min_avail
+            if not d_to:
+                d_to = max_avail
+            if d_from and d_to and d_from > d_to:
+                d_from, d_to = d_to, d_from
+    else:
+        period = 'all'
+
+    date_sql = ''
+    if d_from and d_to:
+        date_sql = f" AND ({DATE} BETWEEN toDate('{d_from}') AND toDate('{d_to}'))"
+    elif d_from:
+        date_sql = f" AND {DATE} >= toDate('{d_from}')"
+    elif d_to:
+        date_sql = f" AND {DATE} <= toDate('{d_to}')"
+
+    return {
+        'period': period,
+        'date_from': d_from,
+        'date_to': d_to,
+        'date_sql': date_sql,
+        'min_d': min_avail,
+        'max_d': max_avail,
+        'key': f"{period}|{d_from or ''}|{d_to or ''}",
+    }
 
 STORE_ALIASES = {
     'MYG FUTURE': None,
@@ -110,15 +193,16 @@ def build_rca_data(request):
     bdm_filter = request.GET.get('bdm', 'all')
     store_filter = request.GET.get('store', 'all')
 
-    fh = hashlib.md5(f"{rbm_filter}|{bdm_filter}|{store_filter}".encode('utf-8')).hexdigest()[:12]
-    cache_key = f"rca_legacy_cards_v4:{labels_version()}:{fh}"
+    ch = get_ch_client()
+    dw = resolve_date_window(request, ch)
+    fh = hashlib.md5(f"{rbm_filter}|{bdm_filter}|{store_filter}|{dw['key']}".encode('utf-8')).hexdigest()[:12]
+    cache_key = f"rca_legacy_cards_v5:{labels_version()}:{fh}"
     cached = cache.get(cache_key)
     if cached and cached.get('status') == 'ok' and cached.get('total_reviews', 0) > 0:
         return cached
 
-    ch = get_ch_client()
     mapping = get_store_mapping(ch)
-    
+
     # Find matching store_names for the query
     valid_stores = []
     for store, info in mapping.items():
@@ -129,12 +213,10 @@ def build_rca_data(request):
         if store_filter != 'all' and store != store_filter:
             continue
         valid_stores.append(store)
-        
+
     if not valid_stores:
         return {'status': 'empty'}
-        
-    # We use ALL star reviews as requested by the user, but we only want to categorize
-    # the ones that actually have comments. Empty comments are marked 'Other / Unclassified', 'Unclassified'.
+
     if rbm_filter == 'all' and bdm_filter == 'all' and store_filter == 'all':
         where_store = ""
     else:
@@ -145,20 +227,30 @@ def build_rca_data(request):
     res = ch.query(f"""
         SELECT {CLS_SQL} AS cls, count() AS cnt
         FROM {REVIEWS_SRC}
-        WHERE rating >= 4{where_store}
+        WHERE rating >= 4{where_store}{dw['date_sql']}
         GROUP BY cls
     """).result_rows
     counts = {cls: cnt for cls, cnt in res}
-    # Reviews rated 1-3 stars: every one of them was READ and labelled by meaning
-    # (dashboard.rca_labels); reviews not yet reviewed fall back to the SQL rules.
+    # Reviews rated 1-3 stars: classified by meaning in rca_labels; filtered in-memory by active date window.
+    d_from, d_to = dw['date_from'], dw['date_to']
     for r in get_low_rows(ch, where_store):
+        if d_from or d_to:
+            if not in_date_window(_as_date(r['d']), d_from, d_to):
+                continue
         counts[r['cls']] = counts.get(r['cls'], 0) + 1
     total_reviews = sum(counts.values())
 
     if total_reviews == 0:
         return {'status': 'empty'}
 
-    data = {'status': 'ok', 'total_reviews': total_reviews}
+    data = {
+        'status': 'ok',
+        'total_reviews': total_reviews,
+        'period': dw['period'],
+        'date_from': str(d_from or dw['min_d'] or ''),
+        'date_to': str(d_to or dw['max_d'] or ''),
+        'as_of': str(dw['max_d'] or ''),
+    }
     for card, items in CARD_ITEMS.items():
         # key order matters: the page JS maps rows by position
         block = {'total': sum(counts.get(f"{card}/{i}", 0) for i in items)}
@@ -171,12 +263,13 @@ def build_rca_data(request):
 def get_rca_filters():
     ch = get_ch_client()
     mapping = get_store_mapping(ch)
-    
+    min_d, max_d = get_date_bounds(ch)
+
     hierarchy = []
     rbms = set()
     bdms = set()
     stores = set()
-    
+
     for store, info in mapping.items():
         rbms.add(info['rbm'])
         bdms.add(info['bdm'])
@@ -186,10 +279,12 @@ def get_rca_filters():
             'bdm': info['bdm'],
             'store': store
         })
-        
+
     return {
         'rbms': sorted(list(r for r in rbms if r != 'Unknown')),
         'bdms': sorted(list(b for b in bdms if b != 'Unknown')),
         'stores': sorted(list(stores)),
-        'hierarchy': hierarchy
+        'hierarchy': hierarchy,
+        'date_min': str(min_d) if min_d else '',
+        'date_max': str(max_d) if max_d else '',
     }

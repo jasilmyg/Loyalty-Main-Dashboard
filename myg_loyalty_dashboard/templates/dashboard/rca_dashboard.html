@@ -761,6 +761,27 @@
             <option value="all">All Stores (137)</option>
         </select>
     </div>
+    <div>
+        <label for="periodFilter">Date Window</label>
+        <select id="periodFilter">
+            <option value="all">All Time</option>
+            <option value="30d">Last 30 Days</option>
+            <option value="90d">Last 90 Days</option>
+            <option value="180d">Last 6 Months</option>
+            <option value="365d">Last 12 Months</option>
+            <option value="custom">Custom Range</option>
+        </select>
+    </div>
+    <div id="customDateWrap" style="display:none; gap:10px; align-items:flex-end;">
+        <div>
+            <label for="dateFromFilter">From Date</label>
+            <input type="date" id="dateFromFilter">
+        </div>
+        <div>
+            <label for="dateToFilter">To Date</label>
+            <input type="date" id="dateToFilter">
+        </div>
+    </div>
     <button class="btn-refresh">
         <i class="bi bi-funnel-fill me-1"></i> Apply Filters
     </button>
@@ -955,7 +976,7 @@
         <div class="rca-kpi-sub" id="kpiBillsSub">— retail invoices</div>
     </div>
     <div class="rca-kpi-box kpi-accent-amber">
-        <div class="rca-kpi-label"><span>30-Day Velocity</span><i class="bi bi-activity"></i></div>
+        <div class="rca-kpi-label"><span id="kpiVelTitle">30-Day Velocity</span><i class="bi bi-activity"></i></div>
         <div class="rca-kpi-val" id="kpiVelPct">—</div>
         <div class="rca-kpi-sub" id="kpiVelSub">Last 30d vs prev 30d</div>
     </div>
@@ -1232,8 +1253,11 @@ const ldChange = (v, complaint) => {
 };
 
 function ldFilters() {
-    const g = id => (document.getElementById(id) || {value: 'all'}).value || 'all';
-    return `rbm=${encodeURIComponent(g('rbmFilter'))}&bdm=${encodeURIComponent(g('bdmFilter'))}&store=${encodeURIComponent(g('storeFilter'))}`;
+    const g = (id, d = '') => ((document.getElementById(id) || {}).value || d);
+    const period = g('periodFilter', 'all');
+    const df = period === 'custom' ? g('dateFromFilter', '') : '';
+    const dt = period === 'custom' ? g('dateToFilter', '') : '';
+    return `rbm=${encodeURIComponent(g('rbmFilter', 'all'))}&bdm=${encodeURIComponent(g('bdmFilter', 'all'))}&store=${encodeURIComponent(g('storeFilter', 'all'))}&period=${encodeURIComponent(period)}&date_from=${encodeURIComponent(df)}&date_to=${encodeURIComponent(dt)}`;
 }
 
 function ldDestroyCharts() { ldCharts.forEach(c => c.destroy()); ldCharts = []; }
@@ -1654,6 +1678,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 populateDropdown(bdmFilter, data.bdms, 'All Managers');
                 populateDropdown(storeFilter, data.stores, 'All Stores');
             }
+            if (data.date_min && data.date_max) {
+                const dfEl = document.getElementById('dateFromFilter');
+                const dtEl = document.getElementById('dateToFilter');
+                if (dfEl && dtEl) {
+                    dfEl.min = data.date_min; dfEl.max = data.date_max;
+                    dtEl.min = data.date_min; dtEl.max = data.date_max;
+                    if (!dtEl.value) dtEl.value = data.date_max;
+                    if (!dfEl.value) {
+                        const d = new Date(data.date_max + 'T00:00:00');
+                        d.setDate(d.getDate() - 29);
+                        const iso30 = d.toISOString().slice(0, 10);
+                        dfEl.value = iso30 < data.date_min ? data.date_min : iso30;
+                    }
+                }
+            }
         } catch(e) {
             console.error('Error loading filters', e);
         }
@@ -1685,7 +1724,9 @@ document.addEventListener('DOMContentLoaded', function() {
     let expSearchTimer = null;
 
     function getScopeQuery() {
-        return `rbm=${encodeURIComponent(rbmFilter.value)}&bdm=${encodeURIComponent(bdmFilter.value)}&store=${encodeURIComponent(storeFilter.value)}`;
+        return typeof ldFilters === 'function'
+            ? ldFilters()
+            : `rbm=${encodeURIComponent(rbmFilter.value)}&bdm=${encodeURIComponent(bdmFilter.value)}&store=${encodeURIComponent(storeFilter.value)}`;
     }
 
     function deltaPill(pct, inverseGood = true) {
@@ -1697,13 +1738,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function renderKPIs(k) {
         document.getElementById('kpiTotalRev').textContent = fmt(k.total_reviews);
-        document.getElementById('kpiDateSpan').textContent = `${k.date_from || '—'} to ${k.as_of || '—'}`;
+        document.getElementById('kpiDateSpan').textContent = `${k.date_from || '—'} to ${k.date_to || k.as_of || '—'}`;
         document.getElementById('kpiPosRate').textContent = `${k.positive_pct}%`;
         document.getElementById('kpiPosCnt').textContent = `${fmt(k.positive_reviews)} positive (4–5★)`;
         document.getElementById('kpiCompCnt').textContent = fmt(k.complaints);
         document.getElementById('kpiCompSub').textContent = `${k.complaint_pct}% of reviews · Avg ${k.avg_complaint_rating}★`;
         document.getElementById('kpiPer10k').textContent = k.complaints_per_10k_bills != null ? k.complaints_per_10k_bills.toFixed(2) : '—';
         document.getElementById('kpiBillsSub').textContent = `${fmt(k.total_bills)} bills (₹${k.total_rev_cr} Cr)`;
+        document.getElementById('kpiVelTitle').textContent = k.vel_title || '30-Day Velocity';
         const velEl = document.getElementById('kpiVelPct');
         if (k.velocity_pct == null) {
             velEl.textContent = '—';
@@ -1712,7 +1754,7 @@ document.addEventListener('DOMContentLoaded', function() {
             velEl.textContent = `${k.velocity_pct > 0 ? '+' : ''}${k.velocity_pct}%`;
             velEl.style.color = k.velocity_pct > 0 ? '#e11d48' : (k.velocity_pct < 0 ? '#059669' : '#0f172a');
         }
-        document.getElementById('kpiVelSub').textContent = `${fmt(k.last_30d)} (last 30d) vs ${fmt(k.prev_30d)} (prev)`;
+        document.getElementById('kpiVelSub').textContent = k.vel_sub || `${fmt(k.last_30d)} vs ${fmt(k.prev_30d)}`;
         document.getElementById('kpiTopDriverCnt').textContent = fmt(k.top_driver_count);
         document.getElementById('kpiTopDriver').textContent = k.top_driver || '—';
         document.getElementById('kpiTopDriver').title = k.top_driver || '';
@@ -1930,6 +1972,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function renderScorecard(sc) {
         const wrap = document.getElementById('advScoreWrap');
+        const storeBtn = document.querySelector('#advScoreTabs button[data-tab="stores"]');
+        if (storeBtn) storeBtn.textContent = `Store Leaderboard (≥${(sc && sc.min_store_rev) || 50} Reviews)`;
         if (!sc) { wrap.innerHTML = '<div class="adv-empty">No scorecard data.</div>'; return; }
         const isStore = scoreTab === 'stores';
         const rows = sc[scoreTab] || [];
@@ -2059,10 +2103,15 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function buildExplorerQuery(pageOverride) {
+        const periodEl = document.getElementById('periodFilter');
+        const period = periodEl ? periodEl.value : 'all';
         const params = new URLSearchParams({
             rbm: rbmFilter.value,
             bdm: bdmFilter.value,
             store: storeFilter.value,
+            period: period,
+            date_from: period === 'custom' ? (document.getElementById('dateFromFilter').value || '') : '',
+            date_to: period === 'custom' ? (document.getElementById('dateToFilter').value || '') : '',
             card: document.getElementById('expCard').value || 'all',
             item: document.getElementById('expItem').value || 'all',
             rating: document.getElementById('expRating').value || 'all',
@@ -2235,14 +2284,15 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await res.json();
 
             if (data.status === 'ok') {
-                document.querySelector('.header-badge').innerHTML = `<span>⚠️</span> ${data.total_reviews.toLocaleString()} Total Reviews Analyzed`;
+                const spanTag = (data.date_from && data.date_to) ? ` · ${data.date_from} → ${data.date_to}` : '';
+                document.querySelector('.header-badge').innerHTML = `<span>⚠️</span> ${data.total_reviews.toLocaleString()} Reviews Analyzed${spanTag}`;
                 updateCard('red', data.after_sales, data.total_reviews);
                 updateCard('orange', data.staff, data.total_reviews);
                 updateCard('blue', data.communication, data.total_reviews);
                 updateCard('purple', data.sales, data.total_reviews);
                 updateCard('gray', data.other, data.total_reviews);
             } else if (data.status === 'empty') {
-                document.querySelector('.header-badge').innerHTML = `<span>⚠️</span> 0 Total Reviews Analyzed`;
+                document.querySelector('.header-badge').innerHTML = `<span>⚠️</span> 0 Reviews Analyzed`;
                 const zero = keys => Object.assign({total: 0}, ...keys.map(k => ({[k]: 0})));
                 Object.entries({red: 'after_sales', orange: 'staff', blue: 'communication', purple: 'sales', gray: 'other'})
                     .forEach(([color, card]) => updateCard(color, zero(LD_CARD_ORDER[card]), 0));
@@ -2263,6 +2313,28 @@ document.addEventListener('DOMContentLoaded', function() {
             btnRefresh.disabled = false;
         }
     }
+
+    const periodFilter = document.getElementById('periodFilter');
+    const customDateWrap = document.getElementById('customDateWrap');
+    const dateFromFilter = document.getElementById('dateFromFilter');
+    const dateToFilter = document.getElementById('dateToFilter');
+
+    if (periodFilter) {
+        periodFilter.addEventListener('change', () => {
+            const isCustom = periodFilter.value === 'custom';
+            if (customDateWrap) customDateWrap.style.display = isCustom ? 'flex' : 'none';
+            if (!isCustom || (dateFromFilter && dateToFilter && dateFromFilter.value && dateToFilter.value)) {
+                loadData();
+            }
+        });
+    }
+    [dateFromFilter, dateToFilter].forEach(el => {
+        if (el) el.addEventListener('change', () => {
+            if (periodFilter && periodFilter.value === 'custom' && dateFromFilter.value && dateToFilter.value) {
+                loadData();
+            }
+        });
+    });
 
     btnRefresh.addEventListener('click', loadData);
 

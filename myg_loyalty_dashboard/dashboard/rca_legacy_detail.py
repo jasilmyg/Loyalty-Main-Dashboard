@@ -12,7 +12,7 @@ import hashlib
 from django.core.cache import cache
 
 from analytics.clickhouse_service import get_ch_client
-from dashboard.rca_logic import get_store_mapping
+from dashboard.rca_logic import _as_date, get_store_mapping, in_date_window, resolve_date_window
 from dashboard.rca_rules import CLS_SQL, REVIEWS_SRC
 from dashboard.rca_labels import _fix_text, get_low_rows, labels_version
 from dashboard.rca_v2_logic import DATE, _pct, _ins
@@ -108,17 +108,6 @@ def _change(cur, prev):
     return round((cur - prev) / prev * 100) if prev else (None if not cur else 100)
 
 
-def _as_date(x):
-    if x is None:
-        return None
-    if isinstance(x, str):
-        try:
-            return date.fromisoformat(x[:10])
-        except ValueError:
-            return None
-    return x.date() if hasattr(x, 'date') and callable(x.date) else x
-
-
 def build_card_detail(request, card_key):
     d = CARDS.get(card_key)
     if not d:
@@ -126,18 +115,24 @@ def build_card_detail(request, card_key):
     ch = get_ch_client()
     mapping = get_store_mapping(ch)
     scond, valid = _store_cond(request, mapping)
+    if scond == "0":
+        return {'status': 'empty'}
     where_store = f" AND {scond}" if scond else ""
+    dw = resolve_date_window(request, ch)
+    d_from, d_to, date_sql = dw['date_from'], dw['date_to'], dw['date_sql']
+    where_all = f"{where_store}{date_sql}"
+    span_days = ((d_to - d_from).days + 1) if (d_from and d_to) else None
     labels = {k: l for k, l, _s, _h in d['items']}
     item_keys = [k for k, *_ in d['items']]
 
     all_total, maxd = ch.query(
-        f"SELECT count(), max({DATE}) FROM {REVIEWS_SRC} WHERE 1 = 1{where_store}").result_rows[0]
+        f"SELECT count(), max({DATE}) FROM {REVIEWS_SRC} WHERE 1 = 1{where_all}").result_rows[0]
     if not all_total or not maxd:
         return {'status': 'empty'}
     maxd = _as_date(maxd)
     d30, d60 = maxd - timedelta(days=30), maxd - timedelta(days=60)
 
-    store_tot = dict(ch.query(f"SELECT store_name, count() FROM {REVIEWS_SRC} WHERE 1 = 1{where_store} GROUP BY store_name").result_rows)
+    store_tot = dict(ch.query(f"SELECT store_name, count() FROM {REVIEWS_SRC} WHERE 1 = 1{where_all} GROUP BY store_name").result_rows)
 
     # ---- aggregates per (item, store): n, sum rating, 1-2*, 3*, 4-5*, last 30d, previous 30d ---------
     G = defaultdict(lambda: [0, 0, 0, 0, 0, 0, 0])
@@ -149,9 +144,12 @@ def build_card_detail(request, card_key):
     for r in get_low_rows(ch, where_store):     # reviews rated 1-3 stars, manually labelled
         if not r['cls'].startswith(prefix):
             continue
+        dt = _as_date(r['d'])
+        if (d_from or d_to) and not in_date_window(dt, d_from, d_to):
+            continue
         item = r['cls'][len(prefix):]
         g = G[(item, r['store'])]
-        rt, dt = r['rating'], _as_date(r['d'])
+        rt = r['rating']
         g[0] += 1; g[1] += rt
         g[2] += rt <= 2; g[3] += rt == 3; g[4] += rt >= 4
         if dt:
@@ -165,7 +163,7 @@ def build_card_detail(request, card_key):
             cand[item].append((key, {'store': r['store'], 'rating': rt, 'date': str(dt), 'comment': r['comment'][:280]}))
 
     if card_key == 'other':                     # + the 4-5 star reviews (SQL rules)
-        base = _card_base(card_key, where_store)
+        base = _card_base(card_key, where_store, date_sql)
         md = f"toDate('{maxd}')"
         for item, store, n, sr, neg, neu, pos, l30, p30 in ch.query(f"""
                 SELECT item, store_name, count(), sum(rating), countIf(rating <= 2), countIf(rating = 3), countIf(rating >= 4),
@@ -217,7 +215,7 @@ def build_card_detail(request, card_key):
             'neutral': neu, 'positive': pos,
             'pos_rate': _pct(pos, cnt) if cnt else 0,
             'last_30d': l30, 'prev_30d': p30,
-            'change_pct': _change(l30, p30) if cnt else None,
+            'change_pct': (_change(l30, p30) if (cnt and (span_days is None or span_days >= 55)) else None),
             'stores': len(sg),
             'top_emotion': emo[k].most_common(1)[0][0] if emo.get(k) else '—',
             'top_action': act[k].most_common(1)[0][0] if act.get(k) else '—',
@@ -252,7 +250,9 @@ def build_card_detail(request, card_key):
         'reviews': card_total, 'share_of_all': _pct(card_total, all_total), 'all_reviews': all_total,
         'avg_rating': round(avg, 2), 'negative': neg, 'neg_rate': _pct(neg, card_total),
         'positive': pos, 'pos_rate': _pct(pos, card_total),
-        'last_30d': cur30, 'prev_30d': prev30, 'change_pct': _change(cur30, prev30), 'as_of': str(maxd),
+        'last_30d': cur30, 'prev_30d': prev30,
+        'change_pct': (_change(cur30, prev30) if (span_days is None or span_days >= 55) else None),
+        'as_of': str(maxd),
     }
 
     insights = _insights(d, items, summary, groups('rbm'), stores_ranked)
@@ -299,7 +299,7 @@ def _insights(d, items, s, rbms, stores):
         out.append(_ins('success', 'Satisfaction level', f"Average rating {s['avg_rating']}★ with {s['pos_rate']}% 4–5★ reviews."))
         if un and un['count']:
             out.append(_ins('info', 'Unclassified share', f"{un['share']}% of this card ({un['count']:,}) has no usable comment text."))
-    if s['prev_30d']:
+    if s['prev_30d'] and s['change_pct'] is not None:
         ch_ = s['change_pct']
         good = (ch_ < 0) if d['complaint'] else (ch_ > 0)
         out.append(_ins('success' if good else 'warning', 'Last 30 days vs previous 30',
@@ -320,8 +320,12 @@ def _insights(d, items, s, rbms, stores):
 
 
 def get_card_detail(request, card_key):
-    fh = hashlib.md5(f"{request.GET.get('rbm', 'all')}|{request.GET.get('bdm', 'all')}|{request.GET.get('store', 'all')}".encode('utf-8')).hexdigest()[:12]
-    key = "rca_legacy_detail_v4:{}:{}:{}".format(labels_version(), card_key, fh)
+    s = "|".join(
+        request.GET.get(k, d)
+        for k, d in (('rbm', 'all'), ('bdm', 'all'), ('store', 'all'), ('period', 'all'), ('date_from', ''), ('date_to', ''))
+    )
+    fh = hashlib.md5(s.encode('utf-8')).hexdigest()[:12]
+    key = "rca_legacy_detail_v5:{}:{}:{}".format(labels_version(), card_key, fh)
     cached = cache.get(key)
     if cached is not None:
         return cached
