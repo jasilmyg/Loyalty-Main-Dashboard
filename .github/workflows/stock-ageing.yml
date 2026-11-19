@@ -1,16 +1,21 @@
-name: Stock ageing auto-load
+name: Daily data auto-load
 
-# Reads the daily "Auto Mailer Stock Reports ALL PRODUCTS" email, downloads the zip, and loads the
-# "Detail" sheet into the ClickHouse `stock_ageing_report` table. Runs in the cloud, so no laptop is needed.
-# The job is idempotent: a day that is already loaded is skipped, so running it twice is harmless.
+# 1) Stock ageing: reads the daily "Auto Mailer Stock Reports ALL PRODUCTS" email, downloads the zip and loads
+#    the "Detail" sheet into ClickHouse `stock_ageing_report`.
+# 2) Sales: loads the daily invoice-wise / item-wise CSVs from the Azure blob container into ClickHouse
+#    `azure_invoice_report` and `azure_sales_report` (the blobs are published ~03:00 IST and named with the
+#    day AFTER the data, e.g. *_19-11-2026_* holds 18 Nov).
+# Both jobs are idempotent: a day that is already loaded is skipped, so running them twice is harmless.
+# Runs in the cloud, so no laptop is needed.
 on:
   schedule:
-    - cron: '30 20 * * *'   # 02:00 IST - the mail arrives ~23:36 IST
-    - cron: '30 2 * * *'    # 08:00 IST - safety net if the first run was delayed or the mail was late
+    - cron: '30 20 * * *'   # 02:00 IST - picks up last night's stock email
+    - cron: '30 2 * * *'    # 08:00 IST - picks up the 03:00 IST sales blobs (and any late stock email)
   workflow_dispatch:         # lets you run it by hand from the Actions tab
 
 jobs:
-  load:
+  stock-ageing:
+    name: Stock ageing (email -> ClickHouse)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -30,3 +35,24 @@ jobs:
           STOCK_MAIL_APP_PASSWORD: ${{ secrets.STOCK_MAIL_APP_PASSWORD }}
           CLICKHOUSE_PASSWORD: ${{ secrets.CLICKHOUSE_PASSWORD }}
         run: python auto_stock_ageing.py --days 5
+
+  azure-sales:
+    name: Sales (Azure blob -> ClickHouse)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install pandas clickhouse-connect azure-storage-blob python-dotenv pymysql
+
+      - name: Load missing daily sales files
+        working-directory: myg_loyalty_dashboard
+        env:
+          AZURE_BLOB_SAS: ${{ secrets.AZURE_BLOB_SAS }}
+          CLICKHOUSE_PASSWORD: ${{ secrets.CLICKHOUSE_PASSWORD }}
+        run: python auto_azure_sales.py --days 6
