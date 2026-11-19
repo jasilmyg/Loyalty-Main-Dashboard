@@ -18,68 +18,30 @@ print("  myG Loyalty Dashboard — Full Cache Clear")
 print(f"  {datetime.now().strftime('%d %b %Y %I:%M %p')}")
 print("=" * 60)
 
+try:
+    from analytics.portal_refresh import invalidate_all_caches
+    _inv = invalidate_all_caches(clear_ml_pickles=True)
+    print(f"\n[0] Portal epoch bumped: {_inv.get('epoch')}")
+except Exception as e:
+    print(f"\n[0] Epoch bump skipped: {e}")
+
 cleared = []
 skipped = []
 
-# ─── 1. ALL JSON caches in analytics/ ─────────────────────────────────────────
-json_caches = [
-    os.path.join(ANALYTICS, 'ai_forecast_cache.json'),
-    os.path.join(ANALYTICS, 'jas_cache.json'),
-    os.path.join(ANALYTICS, 'lstm_forecast_cache.json'),
-    os.path.join(ANALYTICS, 'neural_intelligence_cache.json'),
-    os.path.join(ANALYTICS, 'propensity_cache.json'),
-    os.path.join(ANALYTICS, 'model_cache', 'campaign_intelligence.json'),
-    os.path.join(BASE, 'june_2026_forecast.json'),
-    os.path.join(BASE, 'temp_cohort_data.json'),
-]
-
-print("\n[1] Clearing JSON caches...")
-for path in json_caches:
-    if os.path.exists(path):
-        os.remove(path)
-        print(f"    [DEL] {os.path.basename(path)}")
-        cleared.append(path)
-    else:
-        print(f"    [--]  {os.path.basename(path)} (not found)")
-        skipped.append(path)
-
-# ─── 2. Trained ML model pickle files ─────────────────────────────────────────
-print("\n[2] Clearing ML model pickles (force retrain on next visit)...")
-model_cache_dir = os.path.join(ANALYTICS, 'model_cache')
-for f in glob.glob(os.path.join(model_cache_dir, '*.pkl')):
-    os.remove(f)
-    print(f"    [DEL] {os.path.basename(f)}")
-    cleared.append(f)
-
-# ─── 3. Django in-memory cache ────────────────────────────────────────────────
-print("\n[3] Flushing Django cache backend...")
+print("\n[1] Invalidating shared portal cache epoch, Django cache & JSON/PKL artifacts...")
 try:
-    from django.core.cache import cache
-    cache.clear()
-    print("    [OK]  Django cache.clear() done")
+    from analytics.portal_refresh import invalidate_all_caches
+    _inv = invalidate_all_caches(clear_ml_pickles=True)
+    cleared.extend(_inv.get('removed_files', []))
+    print(f"    [OK]  Cache epoch bumped to {_inv.get('epoch')}")
+    print(f"    [OK]  Django cache cleared: {_inv.get('django_cache_cleared')}")
+    for fname in cleared:
+        print(f"    [DEL] {fname}")
 except Exception as e:
-    print(f"    [!!]  Django cache error: {e}")
+    print(f"    [!!]  portal_refresh error: {e}")
 
-# ─── 4. analytics.apps in-memory cache globals ────────────────────────────────
-print("\n[4] Resetting in-memory globals...")
-try:
-    import analytics.campaign_intelligence as ci_mod
-    ci_mod._cache = None
-    ci_mod._cache_time = None
-    print("    [OK]  campaign_intelligence._cache reset")
-except Exception as e:
-    print(f"    [!!]  campaign_intelligence: {e}")
-
-try:
-    import analytics.customer_propensity_engine as cp_mod
-    # Reset any module-level cache dicts
-    for attr in ['_cache', '_result_cache', '_data_cache']:
-        if hasattr(cp_mod, attr):
-            setattr(cp_mod, attr, None)
-            print(f"    [OK]  propensity_engine.{attr} reset")
-except Exception as e:
-    print(f"    [!!]  propensity_engine: {e}")
-
+# Wait — also check analytics.services in case this script was imported inside a process
+print("\n[2] Resetting services in-memory attrs (if any)...")
 try:
     import analytics.services as svc
     for attr in ['_cache', '_result_cache', '_data_cache', '_dashboard_cache']:

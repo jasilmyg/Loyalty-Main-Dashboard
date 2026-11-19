@@ -213,9 +213,17 @@ def run_readonly_query(sql: str) -> Dict[str, Any]:
 
 
 # ── Schema metadata cache ─────────────────────────────────────────────────────
-_schema_cache: Dict[str, Any] = {"ts": 0.0, "data": None}
+_schema_cache: Dict[str, Any] = {"ts": 0.0, "data": None, "epoch": ""}
 _schema_lock = threading.Lock()
 SCHEMA_TTL_SEC = 600  # 10 minutes
+
+
+def _cache_epoch() -> str:
+    try:
+        from analytics.portal_refresh import get_cache_epoch
+        return get_cache_epoch()
+    except Exception:
+        return "0"
 
 
 def _human(n: Optional[int]) -> str:
@@ -230,8 +238,14 @@ def _human(n: Optional[int]) -> str:
 
 def get_schema(force: bool = False) -> Dict[str, Any]:
     """Return catalog of all non-system tables, engines, rows, sizes and columns from ClickHouse."""
+    epoch = _cache_epoch()
     with _schema_lock:
-        if not force and _schema_cache["data"] and (time.time() - _schema_cache["ts"]) < SCHEMA_TTL_SEC:
+        if (
+            not force
+            and _schema_cache["data"]
+            and _schema_cache.get("epoch") == epoch
+            and (time.time() - _schema_cache["ts"]) < SCHEMA_TTL_SEC
+        ):
             return _schema_cache["data"]
 
     client = jazz_common.get_jazz_ch_client()
@@ -264,7 +278,7 @@ def get_schema(force: bool = False) -> Dict[str, Any]:
         })
     data = {"tables": tables, "loaded_at": datetime.utcnow().isoformat() + "Z"}
     with _schema_lock:
-        _schema_cache.update(ts=time.time(), data=data)
+        _schema_cache.update(ts=time.time(), data=data, epoch=epoch)
     return data
 
 

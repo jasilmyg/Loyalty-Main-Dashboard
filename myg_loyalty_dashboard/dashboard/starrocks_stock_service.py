@@ -28,7 +28,15 @@ SR_PRICE_EXPR = {
 }
 
 _sr_cached_results = {}
-_sr_snapshot_cache = {'date': None, 'ts': 0.0}
+_sr_snapshot_cache = {'date': None, 'ts': 0.0, 'epoch': ''}
+
+
+def _cache_epoch():
+    try:
+        from analytics.portal_refresh import get_cache_epoch
+        return get_cache_epoch()
+    except Exception:
+        return "0"
 
 def get_sr_connection():
     return pymysql.connect(
@@ -99,7 +107,8 @@ def _fetch_df(build_sql, params):
 
 def get_latest_sr_snapshot_date(force_refresh=False):
     global _sr_snapshot_cache
-    if not force_refresh and _sr_snapshot_cache['date'] is not None and (time.time() - _sr_snapshot_cache['ts'] < 300):
+    epoch = _cache_epoch()
+    if not force_refresh and _sr_snapshot_cache['date'] is not None and _sr_snapshot_cache.get('epoch') == epoch and (time.time() - _sr_snapshot_cache['ts'] < 300):
         return _sr_snapshot_cache['date']
 
     try:
@@ -110,6 +119,7 @@ def get_latest_sr_snapshot_date(force_refresh=False):
                 latest = latest.date()  # Timestamp / datetime -> date
             _sr_snapshot_cache['date'] = latest
             _sr_snapshot_cache['ts'] = time.time()
+            _sr_snapshot_cache['epoch'] = epoch
             return latest
     except Exception as e:
         print("Warning: could not read latest stock snapshot:", e)
@@ -160,6 +170,7 @@ def get_starrocks_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, bra
     sr_price_expr = SR_PRICE_EXPR[selected_price_type]
 
     cache_key = (
+        _cache_epoch(),
         force_refresh,
         str(rbm or '').strip(),
         str(bdm or '').strip(),

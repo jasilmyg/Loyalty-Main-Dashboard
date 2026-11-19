@@ -134,7 +134,10 @@ error2.html
 # Cache
 myg_loyalty_dashboard/analytics/ai_forecast_cache.json
 myg_loyalty_dashboard/analytics/lstm_forecast_cache.json
+myg_loyalty_dashboard/analytics/neural_intelligence_cache.json
 myg_loyalty_dashboard/analytics/propensity_cache.json
+.portal_cache_epoch
+.portal_refresh_active
 *.xlsx  
  
 clean_db.py

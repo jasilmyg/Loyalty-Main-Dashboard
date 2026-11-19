@@ -18,13 +18,22 @@ _cached_results = {}
 _bm_cache = {}
 
 
+def _cache_epoch():
+    try:
+        from analytics.portal_refresh import get_cache_epoch
+        return get_cache_epoch()
+    except Exception:
+        return "0"
+
+
 def get_branch_master_df(force_refresh=False):
     """Fetches branch_master dataframe from active DB engine (ClickHouse or StarRocks) and caches for 1 hour."""
     from analytics.clickhouse_service import get_ch_client, get_active_engine, get_bypass_cache
     engine = get_active_engine()
+    epoch = _cache_epoch()
     bypass = force_refresh or get_bypass_cache()
     cached_entry = _bm_cache.get(engine)
-    if not bypass and cached_entry is not None and (time.time() - cached_entry[1] < 3600):
+    if not bypass and cached_entry is not None and cached_entry[2] == epoch and (time.time() - cached_entry[1] < 3600):
         return cached_entry[0]
 
     try:
@@ -41,7 +50,7 @@ def get_branch_master_df(force_refresh=False):
     bm['store_type_clean'] = bm['store_type'].astype(str).str.strip().str.upper()
     bm['mapped_warehouse_clean'] = bm['mapped_warehouse'].fillna('').astype(str).str.strip().str.upper()
 
-    _bm_cache[engine] = (bm, time.time())
+    _bm_cache[engine] = (bm, time.time(), epoch)
     return bm
 
 
@@ -77,9 +86,10 @@ def get_latest_snapshot_date(ch=None, force_refresh=False):
     Returns None when ClickHouse/the table is unavailable or empty."""
     from analytics.clickhouse_service import get_active_engine, get_bypass_cache
     engine = get_active_engine()
+    epoch = _cache_epoch()
     bypass = force_refresh or get_bypass_cache()
     snap_entry = _snapshot_cache.get(engine)
-    if not bypass and snap_entry and snap_entry['date'] is not None and (time.time() - snap_entry['ts'] < 300):
+    if not bypass and snap_entry and snap_entry['date'] is not None and snap_entry.get('epoch') == epoch and (time.time() - snap_entry['ts'] < 300):
         return snap_entry['date']
     ch = ch or _get_ch()
     if ch is None:
@@ -91,7 +101,7 @@ def get_latest_snapshot_date(ch=None, force_refresh=False):
         return None
     if not n:
         return None
-    _snapshot_cache[engine] = {'date': latest, 'ts': time.time()}
+    _snapshot_cache[engine] = {'date': latest, 'ts': time.time(), 'epoch': epoch}
     return latest
 
 
@@ -288,8 +298,9 @@ def get_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, branch=None, 
     bypass = force_refresh or get_bypass_cache()
 
     cache_key = (
-        'godown_v1',
+        'godown_v2',
         active_engine,
+        _cache_epoch(),
         force_refresh,
         str(rbm or '').strip(),
         str(bdm or '').strip(),

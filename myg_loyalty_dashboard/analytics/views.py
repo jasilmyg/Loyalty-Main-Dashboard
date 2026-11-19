@@ -1,3 +1,4 @@
+import json
 import os
 import threading
 # psycopg2 is optional for local development (may not be installed)
@@ -5,6 +6,10 @@ try:
     import psycopg2
 except Exception:
     psycopg2 = None
+from django.http import JsonResponse
+from django.utils.decorators import method_decorator
+from django.views import View
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -751,3 +756,70 @@ class ExportAPIView(APIView):
 
     def get(self, request, module):
         return export_view(request, module)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class InternalPortalRefreshView(View):
+    """
+    Token-authenticated webhook triggered after automated data ingestion
+    (GitHub Actions or local loaders) so the live web portal drops stale
+    per-worker & disk caches immediately and starts a background warm-up.
+    """
+
+    @staticmethod
+    def _authorized(request):
+        from .portal_refresh import is_valid_refresh_token
+        token = (
+            request.headers.get('X-Portal-Refresh-Token')
+            or request.META.get('HTTP_X_PORTAL_REFRESH_TOKEN')
+            or ''
+        )
+        return is_valid_refresh_token(token)
+
+    def get(self, request):
+        if not self._authorized(request):
+            return JsonResponse({'ok': False, 'error': 'Forbidden'}, status=403)
+        from .clickhouse_service import get_ch_client
+        from .portal_refresh import get_cache_epoch
+
+        latest = {}
+        try:
+            ch = get_ch_client()
+            for label, sql in (
+                ('azure_invoice_report', 'SELECT max(toDate(date)) FROM azure_invoice_report'),
+                ('azure_sales_report', 'SELECT max(toDate(date)) FROM azure_sales_report'),
+                ('stock_ageing_report', 'SELECT max(report_date) FROM stock_ageing_report'),
+                ('demand_forecast_log', 'SELECT max(snapshot_date) FROM demand_forecast_log'),
+            ):
+                rows = ch.query(sql).result_rows
+                latest[label] = str(rows[0][0]) if rows and rows[0][0] else None
+        except Exception as exc:
+            latest['error'] = str(exc)[:200]
+
+        return JsonResponse({'ok': True, 'epoch': get_cache_epoch(), 'latest_dates': latest})
+
+    def post(self, request):
+        if not self._authorized(request):
+            return JsonResponse({'ok': False, 'error': 'Forbidden'}, status=403)
+        from .portal_refresh import invalidate_all_caches, start_background_refresh
+
+        try:
+            body = json.loads((request.body or b'{}').decode('utf-8') or '{}')
+        except Exception:
+            body = {}
+
+        inv = invalidate_all_caches(clear_ml_pickles=True)
+        warm_started = False
+        if body.get('prewarm', True):
+            warm_started = start_background_refresh(
+                stock_updated=bool(body.get('stock_updated', True)),
+                sales_updated=bool(body.get('sales_updated', True)),
+            )
+
+        return JsonResponse({
+            'ok': True,
+            'epoch': inv['epoch'],
+            'django_cache_cleared': inv['django_cache_cleared'],
+            'removed_files': inv['removed_files'],
+            'warm_started': warm_started,
+        })

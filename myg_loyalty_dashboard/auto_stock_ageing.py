@@ -50,6 +50,7 @@ import requests
 from dotenv import dotenv_values
 
 import load_stock_ageing as stock_loader
+from analytics.portal_refresh import invalidate_all_caches, trigger_remote_portal_refresh
 
 ENV = {**dotenv_values(HERE / ".env"), **os.environ}
 IMAP_HOST = ENV.get("STOCK_MAIL_IMAP_HOST", "imap.gmail.com")
@@ -170,7 +171,17 @@ def main():
     ap.add_argument("--date", help="snapshot date YYYY-MM-DD for --url (default: parsed from the link)")
     ap.add_argument("--replace", action="store_true", help="drop & reload a day that already exists")
     ap.add_argument("--dry-run", action="store_true", help="only show which days would be loaded")
+    ap.add_argument("--no-refresh", action="store_true", help="skip triggering portal cache refresh after load")
     args = ap.parse_args()
+
+    def _set_gh_output(updated: bool) -> None:
+        gh_out = os.environ.get("GITHUB_OUTPUT")
+        if gh_out:
+            try:
+                with open(gh_out, "a", encoding="utf-8") as fh:
+                    fh.write(f"updated={'true' if updated else 'false'}\n")
+            except Exception:
+                pass
 
     if args.url:
         d = date.fromisoformat(args.date) if args.date else date_from_url(args.url)
@@ -181,6 +192,7 @@ def main():
         todo = find_stock_links(args.days)
         if not todo:
             log("No stock-report email found in the window - nothing to do.")
+            _set_gh_output(False)
             return 0
 
     client = stock_loader.connect()
@@ -193,9 +205,11 @@ def main():
             f"{' -> will be replaced' if exists[d] and args.replace else ''}")
     if args.dry_run or not pending:
         log("Dry run - nothing loaded." if args.dry_run else "All days already loaded - nothing to do.")
+        _set_gh_output(False)
         return 0
 
     failures = 0
+    loaded_days = 0
     for d in sorted(pending):                       # oldest first so a missed run catches up in order
         with tempfile.TemporaryDirectory(prefix="stock_ageing_") as tmp:
             try:
@@ -206,7 +220,17 @@ def main():
                 failures += 1
                 continue
         log(f"{d}: {status.upper()}")
-        failures += status == "mismatch"
+        if status == "mismatch":
+            failures += 1
+        else:
+            loaded_days += 1
+
+    _set_gh_output(loaded_days > 0)
+    if loaded_days > 0 and not args.no_refresh and not IN_CI:
+        inv = invalidate_all_caches()
+        log(f"Local caches cleared (epoch={inv['epoch']})")
+        rem = trigger_remote_portal_refresh(stock_updated=True, sales_updated=False, source="auto_stock_ageing")
+        log(f"Live portal refresh: {'OK' if rem.get('ok') else rem.get('error') or rem.get('reason')}")
     return 1 if failures else 0
 
 

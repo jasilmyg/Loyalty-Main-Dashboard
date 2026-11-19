@@ -164,16 +164,22 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS("Daily sync completed!"))
 
-        # Auto-update dashboard by clearing caches if new files were ingested
+        # Auto-update dashboard by clearing caches + pinging live Render web portal
         if item_sales_files or invoice_sales_files:
-            self.stdout.write("Clearing caches to auto-update dashboard...")
+            self.stdout.write("Clearing caches and triggering portal refresh...")
             try:
-                import subprocess
-                clear_script = os.path.join(settings.BASE_DIR, 'clear_all_caches.py')
-                if os.path.exists(clear_script):
-                    subprocess.run(["python", clear_script], check=True)
-                    self.stdout.write(self.style.SUCCESS("Dashboard caches cleared successfully."))
+                from analytics.portal_refresh import invalidate_all_caches, trigger_remote_portal_refresh
+                inv = invalidate_all_caches(clear_ml_pickles=True)
+                self.stdout.write(f"Local caches invalidated (epoch={inv['epoch']}).")
+                rem = trigger_remote_portal_refresh(
+                    stock_updated=False,
+                    sales_updated=True,
+                    prewarm=True,
+                    source="sync_daily_azure_blob",
+                )
+                if rem.get("ok"):
+                    self.stdout.write(self.style.SUCCESS(f"Live portal refreshed: HTTP {rem.get('status')}"))
                 else:
-                    self.stdout.write(self.style.WARNING(f"Cache clearing script not found at {clear_script}"))
+                    self.stdout.write(self.style.WARNING(f"Live portal refresh skipped/failed: {rem}"))
             except Exception as e:
-                self.stderr.write(self.style.ERROR(f"Failed to clear dashboard caches: {e}"))
+                self.stderr.write(self.style.ERROR(f"Failed to refresh dashboard caches: {e}"))

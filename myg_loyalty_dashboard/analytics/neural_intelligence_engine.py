@@ -26,7 +26,16 @@ logger = logging.getLogger(__name__)
 _cache = None
 _cache_lock = threading.Lock()
 _cache_built_at = None
+_cache_epoch = None
 CACHE_TTL_HOURS = 6
+
+
+def _get_epoch():
+    try:
+        from analytics.portal_refresh import get_cache_epoch
+        return get_cache_epoch()
+    except Exception:
+        return "0"
 CACHE_PATH = os.path.join(os.path.dirname(__file__), 'neural_intelligence_cache.json')
 
 
@@ -327,10 +336,11 @@ def build_neural_intelligence(force_rebuild: bool = False) -> dict:
     Uses direct historical rate queries — no ML sampling, no scale factors.
     Cache TTL: 6 hours.
     """
-    global _cache, _cache_built_at
+    global _cache, _cache_built_at, _cache_epoch
+    epoch = _get_epoch()
 
     # Memory cache
-    if not force_rebuild and _cache is not None and _cache_built_at is not None:
+    if not force_rebuild and _cache is not None and _cache_built_at is not None and _cache_epoch == epoch:
         age_hours = (datetime.now() - _cache_built_at).total_seconds() / 3600
         if age_hours < CACHE_TTL_HOURS:
             return _cache
@@ -345,6 +355,7 @@ def build_neural_intelligence(force_rebuild: bool = False) -> dict:
                 with _cache_lock:
                     _cache = disk_cache
                     _cache_built_at = cache_time
+                    _cache_epoch = epoch
                 logger.info("[NeuralEngine] Loaded from disk cache.")
                 return disk_cache
         except Exception as e:
@@ -400,6 +411,7 @@ def build_neural_intelligence(force_rebuild: bool = False) -> dict:
 
             _cache = result
             _cache_built_at = datetime.now()
+            _cache_epoch = epoch
             logger.info(
                 f"[NeuralEngine] Done. Resurrection: {m['resurrection_prob']}%, "
                 f"Comeback: {m['predicted_comeback_vol']:,}, "

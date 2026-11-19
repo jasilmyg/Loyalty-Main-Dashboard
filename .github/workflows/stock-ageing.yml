@@ -18,6 +18,8 @@ jobs:
     name: Stock ageing (email -> ClickHouse)
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    outputs:
+      updated: ${{ steps.load.outputs.updated }}
     steps:
       - uses: actions/checkout@v4
 
@@ -29,6 +31,7 @@ jobs:
         run: pip install pandas python-calamine clickhouse-connect requests python-dotenv pymysql
 
       - name: Load latest stock ageing snapshot(s)
+        id: load
         working-directory: myg_loyalty_dashboard
         env:
           STOCK_MAIL_USER: ${{ secrets.STOCK_MAIL_USER }}
@@ -40,6 +43,8 @@ jobs:
     name: Sales (Azure blob -> ClickHouse)
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    outputs:
+      updated: ${{ steps.load.outputs.updated }}
     steps:
       - uses: actions/checkout@v4
 
@@ -51,8 +56,45 @@ jobs:
         run: pip install pandas clickhouse-connect azure-storage-blob python-dotenv pymysql
 
       - name: Load missing daily sales files
+        id: load
         working-directory: myg_loyalty_dashboard
         env:
           AZURE_BLOB_SAS: ${{ secrets.AZURE_BLOB_SAS }}
           CLICKHOUSE_PASSWORD: ${{ secrets.CLICKHOUSE_PASSWORD }}
         run: python auto_azure_sales.py --days 6
+
+  portal-refresh:
+    name: Refresh complete portal (snapshots + live cache)
+    needs: [stock-ageing, azure-sales]
+    if: always() && (needs.stock-ageing.outputs.updated == 'true' || needs.azure-sales.outputs.updated == 'true' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install Django djangorestframework pandas numpy scikit-learn lightgbm clickhouse-connect requests python-dotenv pymysql psycopg2-binary
+
+      - name: Update Demand Forecast snapshots in ClickHouse
+        continue-on-error: true
+        working-directory: myg_loyalty_dashboard
+        env:
+          SKIP_PREWARM: '1'
+          PGHOST: '127.0.0.1'
+          PGPASSWORD: 'unused'
+          CLICKHOUSE_PASSWORD: ${{ secrets.CLICKHOUSE_PASSWORD }}
+        run: python manage.py snapshot_demand_forecasts --top 1000 --skip-checks
+
+      - name: Trigger live Render portal cache refresh and warm-up
+        working-directory: myg_loyalty_dashboard
+        env:
+          CLICKHOUSE_PASSWORD: ${{ secrets.CLICKHOUSE_PASSWORD }}
+          PORTAL_REFRESH_TOKEN: ${{ secrets.PORTAL_REFRESH_TOKEN }}
+          PORTAL_URL: ${{ vars.PORTAL_URL || 'https://loyalty-main-dashboard.onrender.com' }}
+          STOCK_UPDATED: ${{ needs.stock-ageing.outputs.updated }}
+          SALES_UPDATED: ${{ needs.azure-sales.outputs.updated }}
+        run: python -m analytics.portal_refresh --remote --source github-actions

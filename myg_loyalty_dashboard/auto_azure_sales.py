@@ -46,6 +46,7 @@ from azure.storage.blob import ContainerClient
 from dotenv import dotenv_values
 
 from analytics import starrocks_service as sr
+from analytics.portal_refresh import invalidate_all_caches, trigger_remote_portal_refresh
 
 ENV = {**dotenv_values(HERE / ".env"), **os.environ}
 ACCOUNT_URL = ENV.get("AZURE_BLOB_ACCOUNT_URL", "https://stmygoalposreports.blob.core.windows.net").rstrip("/")
@@ -246,16 +247,28 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--days", type=int, default=6, help="look back this many days of blob files (default 6)")
     ap.add_argument("--dry-run", action="store_true", help="only show what would be loaded")
+    ap.add_argument("--no-refresh", action="store_true", help="skip triggering portal cache refresh after load")
     ap.add_argument("--table-suffix", default="", help=argparse.SUPPRESS)   # testing: load into <table><suffix>
     args = ap.parse_args()
+
+    def _set_gh_output(updated: bool) -> None:
+        gh_out = os.environ.get("GITHUB_OUTPUT")
+        if gh_out:
+            try:
+                with open(gh_out, "a", encoding="utf-8") as fh:
+                    fh.write(f"updated={'true' if updated else 'false'}\n")
+            except Exception:
+                pass
 
     cc = ContainerClient.from_container_url(f"{ACCOUNT_URL}/{CONTAINER}?{sas_query()}")
     plan = build_plan(cc, args.days)
     if not plan:
         log("No sales blobs found in the window - nothing to do.")
+        _set_gh_output(False)
         return 0
     box = [ch_client()]
     failures = 0
+    loaded_files = 0
     todo = []
 
     for d in sorted(plan):
@@ -271,6 +284,7 @@ def main():
 
     if args.dry_run or not todo:
         log("Dry run - nothing loaded." if args.dry_run else "Everything is already loaded - nothing to do.")
+        _set_gh_output(False)
         return 0
 
     for d, kind, name in todo:
@@ -293,6 +307,7 @@ def main():
             if not ok:
                 failures += 1
                 continue
+            loaded_files += 1
             if not args.table_suffix:
                 logged = {r[0] for r in ch_query(box, f"SELECT file_name FROM azure_ingestion_log WHERE file_name = '{name}'")}
                 if name not in logged:
@@ -302,6 +317,12 @@ def main():
             log(f"{d} {table}: FAILED - {type(e).__name__}: {scrub(e)[:300]}")
             failures += 1
 
+    _set_gh_output(loaded_files > 0)
+    if loaded_files > 0 and not args.no_refresh and not args.table_suffix and not IN_CI:
+        inv = invalidate_all_caches()
+        log(f"Local caches cleared (epoch={inv['epoch']})")
+        rem = trigger_remote_portal_refresh(stock_updated=False, sales_updated=True, source="auto_azure_sales")
+        log(f"Live portal refresh: {'OK' if rem.get('ok') else rem.get('error') or rem.get('reason')}")
     log("RESULT: " + ("ALL OK" if not failures else f"{failures} problem(s) - see above"))
     return 1 if failures else 0
 

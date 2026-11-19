@@ -74,6 +74,14 @@ def _ch_client():
     return get_ch_backup_client()
 
 
+def _cache_epoch() -> str:
+    try:
+        from analytics.portal_refresh import get_cache_epoch
+        return get_cache_epoch()
+    except Exception:
+        return "0"
+
+
 def save_model(model: PretrainedDemandModel, name: str = MODEL_NAME_SKU) -> Dict[str, Any]:
     """Persist to ClickHouse (authoritative) and to the local file cache."""
     payload = _encode(model)
@@ -98,15 +106,16 @@ def save_model(model: PretrainedDemandModel, name: str = MODEL_NAME_SKU) -> Dict
         logger.warning("ClickHouse model store write failed: %s", e)
         info["clickhouse_error"] = str(e)[:300]
     with _lock:
-        _mem[name] = {"ts": time.time(), "model": model}
+        _mem[name] = {"ts": time.time(), "model": model, "epoch": _cache_epoch()}
     return info
 
 
 def load_model(name: str = MODEL_NAME_SKU, force: bool = False) -> Optional[PretrainedDemandModel]:
     """Latest stored model (ClickHouse first, local file as fallback). Cached in memory for CACHE_TTL_SEC."""
+    epoch = _cache_epoch()
     with _lock:
         hit = _mem.get(name)
-        if hit and not force and (time.time() - hit["ts"]) < CACHE_TTL_SEC:
+        if hit and not force and hit.get("epoch") == epoch and (time.time() - hit["ts"]) < CACHE_TTL_SEC:
             return hit["model"]
 
     model: Optional[PretrainedDemandModel] = None
@@ -129,7 +138,7 @@ def load_model(name: str = MODEL_NAME_SKU, force: bool = False) -> Optional[Pret
             logger.warning("local model cache read failed: %s", e)
 
     with _lock:
-        _mem[name] = {"ts": time.time(), "model": model}
+        _mem[name] = {"ts": time.time(), "model": model, "epoch": epoch}
     return model
 
 

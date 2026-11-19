@@ -28,9 +28,18 @@ CACHE_DIR  = os.path.join(os.path.dirname(__file__), 'model_cache')
 CACHE_JSON = os.path.join(CACHE_DIR, 'campaign_intelligence.json')
 CACHE_TTL_HOURS = 6
 
-_cache      = None
-_cache_time = None
-_lock       = threading.Lock()
+_cache       = None
+_cache_time  = None
+_cache_epoch = None
+_lock        = threading.Lock()
+
+
+def _get_epoch():
+    try:
+        from analytics.portal_refresh import get_cache_epoch
+        return get_cache_epoch()
+    except Exception:
+        return "0"
 
 os.makedirs(CACHE_DIR, exist_ok=True)
 
@@ -603,10 +612,11 @@ def build_campaign_intelligence(force_rebuild: bool = False) -> dict:
     Main entry — builds or returns cached 4-model ML pipeline results.
     Cache TTL: 6 hours. Falls back gracefully if any model fails.
     """
-    global _cache, _cache_time
+    global _cache, _cache_time, _cache_epoch
+    epoch = _get_epoch()
 
     # Memory cache
-    if not force_rebuild and _cache and _cache_time:
+    if not force_rebuild and _cache and _cache_time and _cache_epoch == epoch:
         if (datetime.now() - _cache_time).total_seconds() / 3600 < CACHE_TTL_HOURS:
             return _cache
 
@@ -618,7 +628,7 @@ def build_campaign_intelligence(force_rebuild: bool = False) -> dict:
             cache_age = (datetime.now() - datetime.fromisoformat(d['built_at'])).total_seconds() / 3600
             if cache_age < CACHE_TTL_HOURS:
                 with _lock:
-                    _cache, _cache_time = d, datetime.fromisoformat(d['built_at'])
+                    _cache, _cache_time, _cache_epoch = d, datetime.fromisoformat(d['built_at']), epoch
                 logger.info("[CampaignIntelligence] Loaded from disk cache.")
                 return d
         except Exception as e:
@@ -729,6 +739,7 @@ def build_campaign_intelligence(force_rebuild: bool = False) -> dict:
 
             _cache = result
             _cache_time = datetime.now()
+            _cache_epoch = epoch
             logger.info(
                 f"[CampaignIntelligence] Pipeline complete. "
                 f"Resurrection={bgnbd['resurrection_prob']}%, "

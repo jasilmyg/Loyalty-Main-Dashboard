@@ -35,8 +35,9 @@ urlpatterns = [
     path('invalid-mobiles-list/', views.InvalidMobilesAPI.as_view(), name='api-invalid-mobiles'),
     path('db-manager/', views.DBManagerAPI.as_view(), name='api-db-manager'),
 
-    # ── Diagnostics ────────────────────────────────────────────────────────────
+    # ── Diagnostics & Auto-Refresh Webhook ───────────────────────────────────
     path('ch-health/', views.ClickHouseHealthAPI.as_view(), name='api-ch-health'),
+    path('internal/portal-refresh/', views.InternalPortalRefreshView.as_view(), name='api-internal-portal-refresh'),
 
     # Old DRF-wrapped route kept for backward compat
     path('export/<str:module>/', views.ExportAPIView.as_view(), name='api-export'),

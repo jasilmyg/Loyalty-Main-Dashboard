@@ -29,15 +29,20 @@ from analytics.clickhouse_service import (
 )
 
 
+from analytics.portal_refresh import get_cache_epoch
+
+
 class EngineAwareFileBasedCache(FileBasedCache):
     """
     Drop-in replacement for Django's FileBasedCache:
-      - Prefixes StarRocks cache keys with `sr:`.
+      - Prefixes cache keys with engine (`ch:` / `sr:`) and shared `portal_cache_epoch`
+        so a single portal refresh immediately invalidates keys across all Gunicorn workers.
       - Returns cache miss on `.get()` when `get_bypass_cache()` is True (`nocache=1` / `X-Bypass-Cache: 1`).
     """
 
     def make_key(self, key, version=None):
-        key = f"{'sr' if get_active_engine() == 'starrocks' else 'ch'}:{key}"
+        prefix = 'sr' if get_active_engine() == 'starrocks' else 'ch'
+        key = f"{prefix}:{get_cache_epoch()}:{key}"
         return super().make_key(key, version=version)
 
     def get(self, key, default=None, version=None):
