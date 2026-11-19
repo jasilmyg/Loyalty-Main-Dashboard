@@ -1,0 +1,32 @@
+name: Stock ageing auto-load
+
+# Reads the daily "Auto Mailer Stock Reports ALL PRODUCTS" email, downloads the zip, and loads the
+# "Detail" sheet into the ClickHouse `stock_ageing_report` table. Runs in the cloud, so no laptop is needed.
+# The job is idempotent: a day that is already loaded is skipped, so running it twice is harmless.
+on:
+  schedule:
+    - cron: '30 20 * * *'   # 02:00 IST - the mail arrives ~23:36 IST
+    - cron: '30 2 * * *'    # 08:00 IST - safety net if the first run was delayed or the mail was late
+  workflow_dispatch:         # lets you run it by hand from the Actions tab
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install pandas python-calamine clickhouse-connect requests python-dotenv pymysql
+
+      - name: Load latest stock ageing snapshot(s)
+        working-directory: myg_loyalty_dashboard
+        env:
+          STOCK_MAIL_USER: ${{ secrets.STOCK_MAIL_USER }}
+          STOCK_MAIL_APP_PASSWORD: ${{ secrets.STOCK_MAIL_APP_PASSWORD }}
+          CLICKHOUSE_PASSWORD: ${{ secrets.CLICKHOUSE_PASSWORD }}
+        run: python auto_stock_ageing.py --days 5

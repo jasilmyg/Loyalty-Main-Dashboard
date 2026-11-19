@@ -151,6 +151,50 @@ def clean(df, report_date):
     return out
 
 
+def load_file(client, xlsx, report_date, replace=False):
+    """Load the 'Detail' sheet of `xlsx` as the `report_date` snapshot.
+
+    Returns 'loaded' (verified), 'skipped' (snapshot already present and replace=False)
+    or 'mismatch' (inserted but verification failed).
+    """
+    client.command(DDL)
+    print(f'Table `{TABLE}` is ready.')
+
+    existing = client.query(f"SELECT count() FROM {TABLE} WHERE report_date = '{report_date}'").result_rows[0][0]
+    if existing and not replace:
+        print(f'SKIPPED: {TABLE} already has {existing:,} rows for {report_date}. Use --replace to reload.')
+        return 'skipped'
+
+    df = clean(read_detail_sheet(xlsx), report_date)
+    src_rows = len(df)
+    src_stock = float(df['stock'].astype('float64').sum())
+    src_mop_val = float((df['stock'].astype('float64') * df['mop'].where(df['mop'] != 0, df['cost_price'])).sum())
+
+    if existing:
+        print(f'Dropping existing snapshot ({existing:,} rows) for {report_date} ...')
+        client.command(f"ALTER TABLE {TABLE} DROP PARTITION '{report_date}'")
+
+    CHUNK = 100_000
+    for i in range(0, src_rows, CHUNK):
+        # insert_deduplicate=0: a day is often reloaded with identical data (--replace); with block
+        # de-duplication on, ClickHouse can silently skip an identical block it saw before.
+        client.insert_df(TABLE, df.iloc[i:i + CHUNK], settings={'insert_deduplicate': 0})
+        print(f'  inserted {min(i + CHUNK, src_rows):,} / {src_rows:,}', flush=True)
+
+    # Verify against the source file
+    n, stock, mop_val = client.query(
+        f"SELECT count(), sum(stock), sum(stock * if(mop != 0, mop, cost_price)) "
+        f"FROM {TABLE} WHERE report_date = '{report_date}'"
+    ).result_rows[0]
+    print('\n=== VERIFICATION ===')
+    print(f'  rows       : source {src_rows:,}  | clickhouse {n:,}')
+    print(f'  total stock: source {src_stock:,.0f}  | clickhouse {stock:,.0f}')
+    print(f'  MOP value  : source Rs.{src_mop_val / 1e7:,.2f} Cr | clickhouse Rs.{mop_val / 1e7:,.2f} Cr')
+    ok = n == src_rows and abs(stock - src_stock) < 1 and abs(mop_val - src_mop_val) / max(src_mop_val, 1) < 1e-6
+    print('  RESULT     :', 'OK - matches source' if ok else 'MISMATCH - investigate')
+    return 'loaded' if ok else 'mismatch'
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('xlsx')
@@ -166,40 +210,8 @@ def main():
         sys.exit('ERROR: could not read the date from the file name; pass --date YYYY-MM-DD')
     print(f'Snapshot date: {report_date}')
 
-    client = connect()
-    client.command(DDL)
-    print(f'Table `{TABLE}` is ready.')
-
-    existing = client.query(f"SELECT count() FROM {TABLE} WHERE report_date = '{report_date}'").result_rows[0][0]
-    if existing and not args.replace:
-        sys.exit(f'SKIPPED: {TABLE} already has {existing:,} rows for {report_date}. Use --replace to reload.')
-
-    df = clean(read_detail_sheet(xlsx), report_date)
-    src_rows = len(df)
-    src_stock = float(df['stock'].astype('float64').sum())
-    src_mop_val = float((df['stock'].astype('float64') * df['mop'].where(df['mop'] != 0, df['cost_price'])).sum())
-
-    if existing:
-        print(f'Dropping existing snapshot ({existing:,} rows) for {report_date} ...')
-        client.command(f"ALTER TABLE {TABLE} DROP PARTITION '{report_date}'")
-
-    CHUNK = 100_000
-    for i in range(0, src_rows, CHUNK):
-        client.insert_df(TABLE, df.iloc[i:i + CHUNK])
-        print(f'  inserted {min(i + CHUNK, src_rows):,} / {src_rows:,}', flush=True)
-
-    # Verify against the source file
-    n, stock, mop_val = client.query(
-        f"SELECT count(), sum(stock), sum(stock * if(mop != 0, mop, cost_price)) "
-        f"FROM {TABLE} WHERE report_date = '{report_date}'"
-    ).result_rows[0]
-    print('\n=== VERIFICATION ===')
-    print(f'  rows       : source {src_rows:,}  | clickhouse {n:,}')
-    print(f'  total stock: source {src_stock:,.0f}  | clickhouse {stock:,.0f}')
-    print(f'  MOP value  : source Rs.{src_mop_val / 1e7:,.2f} Cr | clickhouse Rs.{mop_val / 1e7:,.2f} Cr')
-    ok = n == src_rows and abs(stock - src_stock) < 1 and abs(mop_val - src_mop_val) / max(src_mop_val, 1) < 1e-6
-    print('  RESULT     :', 'OK - matches source' if ok else 'MISMATCH - investigate')
-    sys.exit(0 if ok else 1)
+    status = load_file(connect(), xlsx, report_date, replace=args.replace)
+    sys.exit({'loaded': 0, 'skipped': 1, 'mismatch': 1}[status])
 
 
 if __name__ == '__main__':
