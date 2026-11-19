@@ -188,9 +188,12 @@ def load_file(client, xlsx, report_date, replace=False):
     ).result_rows[0]
     print('\n=== VERIFICATION ===')
     print(f'  rows       : source {src_rows:,}  | clickhouse {n:,}')
-    print(f'  total stock: source {src_stock:,.0f}  | clickhouse {stock:,.0f}')
-    print(f'  MOP value  : source Rs.{src_mop_val / 1e7:,.2f} Cr | clickhouse Rs.{mop_val / 1e7:,.2f} Cr')
     ok = n == src_rows and abs(stock - src_stock) < 1 and abs(mop_val - src_mop_val) / max(src_mop_val, 1) < 1e-6
+    if os.environ.get('GITHUB_ACTIONS') == 'true':     # public CI log: do not print inventory figures
+        print(f'  stock / MOP value checks: {"match" if ok else "DO NOT match"} (figures hidden in CI log)')
+    else:
+        print(f'  total stock: source {src_stock:,.0f}  | clickhouse {stock:,.0f}')
+        print(f'  MOP value  : source Rs.{src_mop_val / 1e7:,.2f} Cr | clickhouse Rs.{mop_val / 1e7:,.2f} Cr')
     print('  RESULT     :', 'OK - matches source' if ok else 'MISMATCH - investigate')
     return 'loaded' if ok else 'mismatch'
 

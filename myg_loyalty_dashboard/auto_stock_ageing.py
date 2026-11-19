@@ -69,6 +69,15 @@ def log(msg):
     print(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] {msg}", flush=True)
 
 
+# On GitHub Actions the repo (and its run logs) may be public: never print the download links
+# (anyone with a link can fetch the report) or business figures there.
+IN_CI = os.environ.get("GITHUB_ACTIONS") == "true"
+
+
+def _shown(url):
+    return "<link hidden in CI log>" if IN_CI else url
+
+
 def _imap_date(d):
     return f"{d.day:02d}-{MONTHS[d.month - 1]}-{d.year}"
 
@@ -117,7 +126,7 @@ def find_stock_links(days):
                 continue
             d = date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
             found[d] = link.group(0)            # later mail for the same date wins
-            log(f"  found {d}: {link.group(0)}")
+            log(f"  found {d}: {_shown(link.group(0))}")
         return found
     finally:
         try:
@@ -131,7 +140,7 @@ def download_xlsx(url, workdir, retries=4):
     last = None
     for attempt in range(1, retries + 1):
         try:
-            log(f"Downloading {url} (attempt {attempt}/{retries})")
+            log(f"Downloading {_shown(url)} (attempt {attempt}/{retries})")
             r = requests.get(url, timeout=(30, 600))
             r.raise_for_status()
             zf = zipfile.ZipFile(io.BytesIO(r.content))
@@ -144,9 +153,9 @@ def download_xlsx(url, workdir, retries=4):
             return target
         except Exception as e:
             last = e
-            log(f"  download failed: {type(e).__name__}: {e}")
+            log(f"  download failed: {type(e).__name__}: {str(e).replace(url, _shown(url))}")
             time.sleep(15)
-    raise RuntimeError(f"could not download {url}: {last}")
+    raise RuntimeError(f"could not download {_shown(url)}: {str(last).replace(url, _shown(url))}")
 
 
 def date_from_url(url):
