@@ -155,16 +155,9 @@ def _fetch_branch_metrics(ch, comp_type, val, year, branch_filter='', brand_filt
 
 def _fetch_new_repeat_for_period(ch, period_cond, period_start_date, branch_filter='', brand_filter='', product_filter='', price_slab_filter=''):
     """
-    Correct loyalty definition for a single period:
-      - NEW    = Customer's FIRST EVER purchase date falls within this period
-                 (i.e., min(date) across ALL history >= period_start_date)
-      - REPEAT = Bought in this period AND had at least one purchase BEFORE period_start_date
-
-    Strategy:
-      1. Get all distinct (branch, mobile) pairs who bought in this period.
-      2. For each mobile, look up their first-ever purchase date globally.
-      3. If first_ever_date >= period_start → NEW
-         If first_ever_date <  period_start → REPEAT
+    Aggregates NEW vs REPEAT customers per branch inside ClickHouse for a single period:
+      - NEW    = Customer's first purchase in `azure_invoice_report` is >= period_start_date
+      - REPEAT = Bought in this period AND had a purchase strictly BEFORE period_start_date
     """
     branch_clause = _in_clause('s.branch', branch_filter)
     brand_clause  = _in_clause('m.brand',  brand_filter)
@@ -173,15 +166,9 @@ def _fetch_new_repeat_for_period(ch, period_cond, period_start_date, branch_filt
 
     extra_parts = [c for c in [branch_clause, brand_clause, prod_clause, ps_clause] if c]
     extra_sql   = (" AND " + " AND ".join(extra_parts)) if extra_parts else ""
-    s2_valid_filter = valid_mop_sale_filter_sql('s2')
 
     sql = f"""
-        SELECT
-            period_custs.branch        AS branch,
-            period_custs.mobile        AS mobile,
-            history.first_purchase_ever AS first_purchase_ever
-        FROM (
-            -- Step 1: Customers who bought in THIS period, per branch
+        WITH period_custs AS (
             SELECT
                 if(isNull(s.branch) OR s.branch = '', 'Unknown', s.branch) AS branch,
                 i.customer_mobile AS mobile
@@ -195,71 +182,98 @@ def _fetch_new_repeat_for_period(ch, period_cond, period_start_date, branch_filt
               AND i.customer_mobile IS NOT NULL
               {extra_sql}
             GROUP BY branch, mobile
-        ) AS period_custs
-        -- Step 2: Each customer's first-ever purchase date across ALL time
-        LEFT JOIN (
+        ),
+        history AS (
             SELECT
-                i2.customer_mobile        AS mobile,
-                min(toDate(s2.date))      AS first_purchase_ever
-            FROM azure_sales_report s2
-            LEFT JOIN azure_invoice_report i2 ON s2.invoice_no = i2.invoice_no
-            WHERE toDate(s2.date) != toDate('1970-01-01')
-              AND {s2_valid_filter}
-              AND i2.customer_mobile != ''
-              AND i2.customer_mobile IS NOT NULL
+                customer_mobile AS mobile,
+                min(toDate(date)) AS first_dt
+            FROM azure_invoice_report
+            WHERE toDate(date) != toDate('1970-01-01')
+              AND toDate(date) < toDate('{period_start_date}')
+              AND customer_mobile IN (SELECT DISTINCT mobile FROM period_custs)
             GROUP BY mobile
-        ) AS history ON period_custs.mobile = history.mobile
+        )
+        SELECT
+            pc.branch AS branch,
+            toInt64(countIf(h.first_dt IS NULL OR h.first_dt <= toDate('1970-01-01') OR h.first_dt >= toDate('{period_start_date}'))) AS new_customers,
+            toInt64(countIf(h.first_dt IS NOT NULL AND h.first_dt > toDate('1970-01-01') AND h.first_dt < toDate('{period_start_date}'))) AS repeat_customers
+        FROM period_custs pc
+        LEFT JOIN history h ON pc.mobile = h.mobile
+        GROUP BY pc.branch
     """
 
     rows = ch.query(sql).result_rows
-
-    result = {}
-    for branch, mobile, first_dt in rows:
-        if branch not in result:
-            result[branch] = {'new_customers': 0, 'repeat_customers': 0}
-        # NEW if first purchase ever is on or after the period start date
-        if first_dt is None or str(first_dt) >= period_start_date:
-            result[branch]['new_customers'] += 1
-        else:
-            result[branch]['repeat_customers'] += 1
-
-    return result
+    return {
+        branch: {'new_customers': int(nc or 0), 'repeat_customers': int(rc or 0)}
+        for branch, nc, rc in rows
+    }
 
 
 def _fetch_new_repeat(ch, comp_type, base_val, base_year, comp_val, comp_year,
                       branch_filter='', brand_filter='', product_filter='', price_slab_filter=''):
     """
-    Fetch new & repeat customers for both base and comp periods using
-    the correct loyalty definition (first-ever purchase date).
+    Fetch new & repeat customers for both base and comp periods in a single
+    ClickHouse-aggregated scan (returns ~160 branch rows instead of ~400K tuples).
     """
     comp_cond  = _date_filter_sql(comp_type, comp_val, comp_year)
     base_cond  = _date_filter_sql(comp_type, base_val, base_year)
     comp_start = _get_period_start(comp_type, comp_val, comp_year)
     base_start = _get_period_start(comp_type, base_val, base_year)
+    max_start  = max(comp_start, base_start)
 
-    comp_classified = _fetch_new_repeat_for_period(
-        ch, comp_cond, comp_start, branch_filter, brand_filter, product_filter, price_slab_filter)
-    base_classified = _fetch_new_repeat_for_period(
-        ch, base_cond, base_start, branch_filter, brand_filter, product_filter, price_slab_filter)
+    extra_parts = [c for c in [
+        _in_clause('s.branch', branch_filter),
+        _in_clause('m.brand',  brand_filter),
+        _in_clause('m.product', product_filter),
+        build_price_slab_filter_sql(price_slab_filter, product_filter),
+    ] if c]
+    extra_sql = (" AND " + " AND ".join(extra_parts)) if extra_parts else ""
 
-    all_branches = set(comp_classified.keys()) | set(base_classified.keys())
+    sql = f"""
+        WITH active AS (
+            SELECT
+                if(isNull(s.branch) OR s.branch = '', 'Unknown', s.branch) AS branch,
+                i.customer_mobile AS mobile,
+                max(if({base_cond}, 1, 0)) AS in_base,
+                max(if({comp_cond}, 1, 0)) AS in_comp
+            FROM azure_sales_report s
+            LEFT JOIN item_master m ON s.item_code = m.item_code
+            LEFT JOIN azure_invoice_report i ON s.invoice_no = i.invoice_no
+            WHERE toDate(s.date) != toDate('1970-01-01')
+              AND (({base_cond}) OR ({comp_cond}))
+              AND {VALID_MOP_SALE_FILTER_SQL}
+              AND i.customer_mobile != ''
+              AND i.customer_mobile IS NOT NULL
+              {extra_sql}
+            GROUP BY branch, mobile
+        ),
+        history AS (
+            SELECT
+                customer_mobile AS mobile,
+                min(toDate(date)) AS first_dt
+            FROM azure_invoice_report
+            WHERE toDate(date) != toDate('1970-01-01')
+              AND toDate(date) < toDate('{max_start}')
+              AND customer_mobile IN (SELECT DISTINCT mobile FROM active)
+            GROUP BY mobile
+        )
+        SELECT
+            a.branch AS branch,
+            toInt64(countIf(a.in_comp = 1 AND (h.first_dt IS NULL OR h.first_dt <= toDate('1970-01-01') OR h.first_dt >= toDate('{comp_start}')))) AS new_customers,
+            toInt64(countIf(a.in_comp = 1 AND h.first_dt IS NOT NULL AND h.first_dt > toDate('1970-01-01') AND h.first_dt < toDate('{comp_start}'))) AS repeat_customers,
+            toInt64(countIf(a.in_base = 1 AND (h.first_dt IS NULL OR h.first_dt <= toDate('1970-01-01') OR h.first_dt >= toDate('{base_start}')))) AS b_new_customers,
+            toInt64(countIf(a.in_base = 1 AND h.first_dt IS NOT NULL AND h.first_dt > toDate('1970-01-01') AND h.first_dt < toDate('{base_start}'))) AS b_repeat_customers
+        FROM active a
+        LEFT JOIN history h ON a.mobile = h.mobile
+        GROUP BY a.branch
+    """
 
-    records = []
-    for branch in all_branches:
-        c = comp_classified.get(branch, {'new_customers': 0, 'repeat_customers': 0})
-        b = base_classified.get(branch, {'new_customers': 0, 'repeat_customers': 0})
-        records.append({
-            'branch':             branch,
-            'new_customers':      c['new_customers'],
-            'repeat_customers':   c['repeat_customers'],
-            'b_new_customers':    b['new_customers'],
-            'b_repeat_customers': b['repeat_customers'],
-        })
-
-    if not records:
+    rows = ch.query(sql).result_rows
+    if not rows:
         return pd.DataFrame(columns=['branch', 'new_customers', 'repeat_customers',
                                      'b_new_customers', 'b_repeat_customers'])
-    return pd.DataFrame(records)
+    return pd.DataFrame(rows, columns=['branch', 'new_customers', 'repeat_customers',
+                                       'b_new_customers', 'b_repeat_customers'])
 
 
 def build_growth_degrowth_response(request):

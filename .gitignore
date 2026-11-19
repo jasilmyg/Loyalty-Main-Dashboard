@@ -138,6 +138,7 @@ myg_loyalty_dashboard/analytics/neural_intelligence_cache.json
 myg_loyalty_dashboard/analytics/propensity_cache.json
 .portal_cache_epoch
 .portal_refresh_active
+.startup_prewarm_stamp
 *.xlsx  
  
 clean_db.py

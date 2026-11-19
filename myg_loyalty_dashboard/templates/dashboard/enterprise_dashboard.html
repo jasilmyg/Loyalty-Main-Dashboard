@@ -2272,7 +2272,40 @@ function renderGrowthDegrowth(data) {
   renderNRTable();
 }
 
+let _gdAbortController = null;
+
+async function _fetchGdWithRetry(url, signal) {
+  let lastErr = null;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const res = await fetch(url, { credentials: 'same-origin', signal });
+      if (!res.ok) {
+        const retryable = [502, 503, 504].includes(res.status);
+        if (retryable && attempt < 2) {
+          await new Promise(r => setTimeout(r, 1200));
+          continue;
+        }
+        throw new Error(`HTTP ${res.status}`);
+      }
+      return await res.json();
+    } catch (err) {
+      if (err && err.name === 'AbortError') throw err;
+      lastErr = err;
+      if (attempt < 2) {
+        await new Promise(r => setTimeout(r, 1200));
+      }
+    }
+  }
+  throw lastErr || new Error('Network error');
+}
+
 async function loadGrowthDegrowthData() {
+  if (_gdAbortController) {
+    try { _gdAbortController.abort(); } catch (_) {}
+  }
+  _gdAbortController = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  const signal = _gdAbortController ? _gdAbortController.signal : undefined;
+
   const badge = document.getElementById('gd-loading-badge');
   if (badge) badge.style.display = 'inline-block';
 
@@ -2313,18 +2346,20 @@ async function loadGrowthDegrowthData() {
     const state     = window._dash_ts?.['dash-state']?.getValue().join(',')      || '';
 
     const url = `/api/v1/enterprise-dashboard/growth-degrowth/?type=${apiType}&base=${encodeURIComponent(base)}&comp=${encodeURIComponent(comp)}&base_year=${by}&comp_year=${cy}&category=${encodeURIComponent(cat)}&branch=${encodeURIComponent(branch)}&rbm=${encodeURIComponent(rbm)}&bdm=${encodeURIComponent(bdm)}&brand=${encodeURIComponent(brand)}&product=${encodeURIComponent(product)}&price_slab=${encodeURIComponent(priceSlab)}&district=${encodeURIComponent(district)}&state=${encodeURIComponent(state)}`;
-    const res  = await fetch(url);
-    const json = await res.json();
-    if (json.status !== 'success') { console.error('GD API Error:', json.message); return; }
+    const json = await _fetchGdWithRetry(url, signal);
+    if (json.status !== 'success') {
+      throw new Error(json.message || 'Server returned an error');
+    }
 
     _gdData = json.data;
     renderGrowthDegrowth(_gdData);
 
   } catch(e) {
+    if (e && e.name === 'AbortError') return;
     console.error('Growth & Degrowth load error:', e);
     ['gd-sale-tbody','gd-qty-tbody','gd-unique-tbody','gd-newrepeat-tbody'].forEach(id => {
       const el = document.getElementById(id);
-      if (el) el.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-danger">Failed to load data: ${e.message}</td></tr>`;
+      if (el) el.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-danger">Failed to load data: ${e.message} <button type="button" class="btn btn-sm btn-outline-primary ms-2" onclick="loadGrowthDegrowthData()">Retry</button></td></tr>`;
     });
   } finally {
     if (badge) badge.style.display = 'none';
@@ -2582,7 +2617,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Store last data date and recalculate date pickers so they cap to real data
       if (j.data.max_data_date) {
         window._maxDataDate = j.data.max_data_date;
-        const cType = document.getElementById('comparison-type-select')?.value || 'mtd';
+        const cType = document.getElementById('comp-type')?.value || 'mtd';
         calculateQuickDates(cType);
       }
     })

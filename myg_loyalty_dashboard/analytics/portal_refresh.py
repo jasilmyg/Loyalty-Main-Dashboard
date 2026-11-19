@@ -161,18 +161,18 @@ def invalidate_all_caches(clear_ml_pickles: bool = True) -> Dict[str, Any]:
     }
 
 
-def _try_acquire_warm_window(cooldown_sec: int = 120) -> bool:
+def _try_acquire_warm_window(cooldown_sec: int = 120, stamp_file: Path = REFRESH_STAMP_FILE) -> bool:
     """Best-effort cross-worker coalesce guard so burst pings run one warm-up."""
     now = time.time()
     try:
-        if REFRESH_STAMP_FILE.exists():
-            age = now - REFRESH_STAMP_FILE.stat().st_mtime
+        if stamp_file.exists():
+            age = now - stamp_file.stat().st_mtime
             if 0 <= age < cooldown_sec:
                 return False
         fd, tmp = tempfile.mkstemp(prefix=".refresh_", dir=str(BASE_DIR))
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(f"{now}\n")
-        os.replace(tmp, REFRESH_STAMP_FILE)
+        os.replace(tmp, stamp_file)
         return True
     except Exception:
         return True
