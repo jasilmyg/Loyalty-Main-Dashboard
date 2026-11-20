@@ -198,6 +198,11 @@ class DemandIntelligenceExportAPIView(LoginRequiredMixin, View):
                 ("Category", 'macro_category', 14),
                 ("Product Line", 'product_line', 20),
                 ("Brand", 'brand', 16),
+                ("Item Category", 'item_category', 20),
+                ("Model / Spec Bucket", 'spec_bucket_label', 34),
+                ("Price Band", 'price_band_label', 20),
+                ("Lifecycle Stage", 'lifecycle_stage', 20),
+                ("Seasonal / Lifecycle Adj %", '_arch_adj_pct', 20),
                 ("AI Model Tier", 'model_tier_label', 21),
                 ("Daily Velocity", 'daily_velocity', 14),
                 ("Weekly Velocity", 'weekly_velocity', 15),
@@ -223,18 +228,37 @@ class DemandIntelligenceExportAPIView(LoginRequiredMixin, View):
                 cell = ws1.cell(row=4, column=c_idx, value=title)
                 cell.fill = header_fill
                 cell.font = header_font
-                cell.alignment = Alignment(horizontal='center' if c_idx > 5 else 'left', vertical='center')
+                cell.alignment = Alignment(horizontal='center' if c_idx > 9 else 'left', vertical='center')
                 cell.border = thin_border
                 ws1.column_dimensions[openpyxl.utils.get_column_letter(c_idx)].width = width
 
             for r_offset, item in enumerate(payload.get('products', []), 5):
                 for c_idx, (_title, key, _w) in enumerate(cols, 1):
-                    val = item.get(key, '')
-                    if key == 'stock_coverage_days' and val == 999:
-                        val = 'Non-Moving'
+                    if key == '_arch_adj_pct':
+                        if item.get('archetype1_active'):
+                            val = item.get('archetype1_seasonal_adj_pct', 0.0)
+                        elif item.get('archetype2_active'):
+                            val = item.get('archetype2_adj_pct', 0.0)
+                        elif item.get('archetype3_active'):
+                            val = item.get('archetype3_adj_pct', 0.0)
+                        elif item.get('archetype4_active'):
+                            val = item.get('archetype4_adj_pct', 0.0)
+                        elif item.get('archetype5_active'):
+                            val = item.get('archetype5_adj_pct', 0.0)
+                        elif item.get('archetype6_active'):
+                            val = item.get('archetype6_tag', '')
+                        else:
+                            val = ''
+                    else:
+                        val = item.get(key, '')
+                    if key == 'stock_coverage_days':
+                        if item.get('is_virtual_vas'):
+                            val = 'Digital / VAS'
+                        elif val == 999:
+                            val = 'Non-Moving'
                     c = ws1.cell(row=r_offset, column=c_idx, value=val)
                     c.border = thin_border
-                    if c_idx > 5 and isinstance(val, (int, float)):
+                    if c_idx > 9 and isinstance(val, (int, float)):
                         c.alignment = Alignment(horizontal='right', vertical='center')
 
             # Sheet 2: Seasonal & Festival Drivers

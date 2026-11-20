@@ -47,7 +47,9 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 import requests
-from dotenv import dotenv_values
+from dotenv import dotenv_values, load_dotenv
+
+load_dotenv(HERE / ".env", override=False)
 
 import load_stock_ageing as stock_loader
 from analytics.portal_refresh import invalidate_all_caches, trigger_remote_portal_refresh

@@ -52,15 +52,17 @@ def _ndjson(obj) -> str:
 class ClickHouseAssistantChatAPI(_AssistantAccessMixin, View):
     """
     POST either:
-      1. multipart/form-data: { question: str, file: UploadedFile (optional), history: JSON str, session_id: str, clear_file: bool, stream: bool }
-      2. application/json: { question: str, history: list, session_id: str, clear_file: bool, stream: bool }
-    → { answer, followups, results, steps, model, elapsed_ms, file_info, log_id }
-    With stream=true the response is newline-delimited JSON events: {type:"status",text} ... {type:"final",data:{...}}.
+      1. multipart/form-data: { question: str, file: UploadedFile (optional), audio: UploadedFile (optional), voice_lang: str, history: JSON str, session_id: str, clear_file: bool, stream: bool }
+      2. application/json: { question: str, voice_lang: str, history: list, session_id: str, clear_file: bool, stream: bool }
+    → { answer, followups, results, steps, model, elapsed_ms, file_info, log_id, transcript, detected_language }
+    With stream=true the response is newline-delimited JSON events: {type:"status",text} ... optional {type:"transcript",...} ... {type:"final",data:{...}}.
     """
 
     def post(self, request, *args, **kwargs):
         uploaded_file = None
+        audio_file = None
         question = ""
+        voice_lang = "auto"
         history = []
         clear_file = False
         stream = False
@@ -74,7 +76,9 @@ class ClickHouseAssistantChatAPI(_AssistantAccessMixin, View):
 
         if request.content_type and "multipart/form-data" in request.content_type:
             uploaded_file = request.FILES.get("file")
+            audio_file = request.FILES.get("audio")
             question = str(request.POST.get("question", "")).strip()
+            voice_lang = str(request.POST.get("voice_lang", "auto")).strip() or "auto"
             history_raw = request.POST.get("history", "[]")
             client_sid = request.POST.get("session_id")
             if client_sid:
@@ -90,6 +94,7 @@ class ClickHouseAssistantChatAPI(_AssistantAccessMixin, View):
             if payload is None:
                 return JsonResponse({"error": "Invalid JSON body."}, status=400)
             question = str(payload.get("question", "")).strip()
+            voice_lang = str(payload.get("voice_lang", "auto")).strip() or "auto"
             history = payload.get("history") or []
             client_sid = payload.get("session_id")
             if client_sid:
@@ -103,11 +108,17 @@ class ClickHouseAssistantChatAPI(_AssistantAccessMixin, View):
         if clear_file and session_id:
             from .services import file_analyzer
             file_analyzer.clear_cached_file_context(session_id)
-            if not question and not uploaded_file:
+            if not question and not uploaded_file and not audio_file:
                 return JsonResponse({"status": "cleared"})
 
-        if not question and not uploaded_file:
-            return JsonResponse({"error": "Please provide a question or upload a file."}, status=400)
+        if not question and not uploaded_file and not audio_file:
+            return JsonResponse({"error": "Please provide a question, record a voice message, or upload a file."}, status=400)
+
+        if audio_file is not None:
+            try:
+                ch_assistant.validate_audio_upload(audio_file)
+            except ch_assistant.AudioValidationError as e:
+                return JsonResponse({"error": str(e)}, status=400)
 
         limit_msg = jazz_store.check_rate_limit(request.user.id)
         if limit_msg:
@@ -117,40 +128,101 @@ class ClickHouseAssistantChatAPI(_AssistantAccessMixin, View):
         had_file = uploaded_file is not None
 
         if stream:
-            return self._stream(user, session_id, question, history, uploaded_file, had_file)
+            return self._stream(user, session_id, question, history, uploaded_file, had_file, audio_file, voice_lang)
 
         try:
-            result = ch_assistant.ask(question=question, history=history, uploaded_file=uploaded_file, session_id=session_id)
-            result["log_id"] = jazz_store.log_turn(user, session_id, question, result, had_file)
+            result = ch_assistant.ask(
+                question=question,
+                history=history,
+                uploaded_file=uploaded_file,
+                session_id=session_id,
+                audio_file=audio_file,
+                voice_lang=voice_lang,
+            )
+            logged_q = question
+            if result.get("transcript"):
+                logged_q = f"{question} — [Voice] {result['transcript']}" if question else result["transcript"]
+            result["log_id"] = jazz_store.log_turn(user, session_id, logged_q or "(Voice message)", result, had_file)
             return JsonResponse(result)
+        except ch_assistant.AudioValidationError as e:
+            return JsonResponse({"error": str(e)}, status=400)
         except ch_assistant.LLMError as e:
-            jazz_store.log_turn(user, session_id, question, {}, had_file, error=str(e))
+            jazz_store.log_turn(user, session_id, question or "(Voice message)", {}, had_file, error=str(e))
             return JsonResponse({"error": str(e)}, status=503)
         except Exception as e:  # noqa: BLE001
             logger.exception("ClickHouse assistant failed")
-            jazz_store.log_turn(user, session_id, question, {}, had_file, error=f"{type(e).__name__}: {e}")
+            jazz_store.log_turn(user, session_id, question or "(Voice message)", {}, had_file, error=f"{type(e).__name__}: {e}")
             return JsonResponse({"error": "Something went wrong while answering. Please try again."}, status=500)
 
     @staticmethod
-    def _stream(user, session_id, question, history, uploaded_file, had_file):
+    def _stream(user, session_id, question, history, uploaded_file, had_file, audio_file=None, voice_lang="auto"):
         def gen():
+            logged_q = question
             try:
-                for ev in ch_assistant.ask_iter(question=question, history=history, uploaded_file=uploaded_file, session_id=session_id):
-                    if ev.get("type") == "final":
-                        ev["data"]["log_id"] = jazz_store.log_turn(user, session_id, question, ev["data"], had_file)
+                for ev in ch_assistant.ask_iter(
+                    question=question,
+                    history=history,
+                    uploaded_file=uploaded_file,
+                    session_id=session_id,
+                    audio_file=audio_file,
+                    voice_lang=voice_lang,
+                ):
+                    if ev.get("type") == "transcript" and ev.get("transcript"):
+                        logged_q = f"{question} — [Voice] {ev['transcript']}" if question else ev["transcript"]
+                    elif ev.get("type") == "final":
+                        final_q = logged_q or ev["data"].get("transcript") or "(Voice message)"
+                        ev["data"]["log_id"] = jazz_store.log_turn(user, session_id, final_q, ev["data"], had_file)
                     yield _ndjson(ev)
+            except ch_assistant.AudioValidationError as e:
+                yield _ndjson({"type": "error", "error": str(e), "status": 400})
             except ch_assistant.LLMError as e:
-                jazz_store.log_turn(user, session_id, question, {}, had_file, error=str(e))
+                jazz_store.log_turn(user, session_id, logged_q or "(Voice message)", {}, had_file, error=str(e))
                 yield _ndjson({"type": "error", "error": str(e), "status": 503})
             except Exception as e:  # noqa: BLE001
                 logger.exception("ClickHouse assistant failed (stream)")
-                jazz_store.log_turn(user, session_id, question, {}, had_file, error=f"{type(e).__name__}: {e}")
+                jazz_store.log_turn(user, session_id, logged_q or "(Voice message)", {}, had_file, error=f"{type(e).__name__}: {e}")
                 yield _ndjson({"type": "error", "error": "Something went wrong while answering. Please try again.", "status": 500})
 
         resp = StreamingHttpResponse(gen(), content_type="application/x-ndjson")
         resp["Cache-Control"] = "no-cache"
         resp["X-Accel-Buffering"] = "no"   # disable nginx buffering so progress shows live
         return resp
+
+
+class ClickHouseAssistantTranscribeAPI(_AssistantAccessMixin, View):
+    """POST multipart/form-data { audio: UploadedFile, voice_lang?: 'auto'|'en-IN'|'ml-IN' } → { transcript, language, english_intent, model, elapsed_ms }."""
+
+    def post(self, request, *args, **kwargs):
+        audio_file = request.FILES.get("audio")
+        if audio_file is None:
+            return JsonResponse({"error": "Please attach or record a voice message."}, status=400)
+
+        try:
+            ch_assistant.validate_audio_upload(audio_file)
+        except ch_assistant.AudioValidationError as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+        limit_msg = jazz_store.check_rate_limit(request.user.id)
+        if limit_msg:
+            return JsonResponse({"error": limit_msg}, status=429)
+
+        voice_lang = str(request.POST.get("voice_lang", "auto")).strip() or "auto"
+        try:
+            res = ch_assistant.transcribe_voice_audio(audio_file, voice_lang=voice_lang)
+            return JsonResponse({
+                "transcript": res.get("transcript", ""),
+                "language": res.get("language", "en"),
+                "english_intent": res.get("english_intent", ""),
+                "model": res.get("model"),
+                "elapsed_ms": res.get("elapsed_ms", 0),
+            })
+        except ch_assistant.AudioValidationError as e:
+            return JsonResponse({"error": str(e)}, status=400)
+        except ch_assistant.LLMError as e:
+            return JsonResponse({"error": str(e)}, status=503)
+        except Exception as e:  # noqa: BLE001
+            logger.exception("Voice transcription failed")
+            return JsonResponse({"error": "Could not transcribe voice message. Please try again."}, status=500)
 
 
 class ClickHouseAssistantFeedbackAPI(_AssistantAccessMixin, View):

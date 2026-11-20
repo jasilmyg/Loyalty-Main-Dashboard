@@ -23,7 +23,7 @@ services:
       - key: PYTHON_VERSION
         value: "3.11"
       - key: CH_HOST
-        value: ytoyqewr56.ap-south-1.aws.clickhouse.cloud
+        value: o4zolc81oe.ap-south-1.aws.clickhouse.cloud
       - key: CH_PORT
         value: "8443"
       - key: CH_USER
@@ -37,7 +37,7 @@ services:
       - key: ANALYTICS_PRIMARY_ENGINE
         value: clickhouse
       - key: CLICKHOUSE_HOST
-        value: pdhsuv47ec.ap-south-1.aws.clickhouse.cloud
+        value: o4zolc81oe.ap-south-1.aws.clickhouse.cloud
       - key: CLICKHOUSE_PORT
         value: "8443"
       - key: CLICKHOUSE_USER
@@ -75,7 +75,7 @@ services:
       - key: PYTHON_VERSION
         value: "3.11"
       - key: CH_HOST
-        value: ytoyqewr56.ap-south-1.aws.clickhouse.cloud
+        value: o4zolc81oe.ap-south-1.aws.clickhouse.cloud
       - key: CH_PORT
         value: "8443"
       - key: CH_USER
@@ -84,6 +84,20 @@ services:
         sync: false
       - key: CH_DATABASE
         value: default
+      - key: ANALYTICS_PRIMARY_ENGINE
+        value: clickhouse
+      - key: CLICKHOUSE_HOST
+        value: o4zolc81oe.ap-south-1.aws.clickhouse.cloud
+      - key: CLICKHOUSE_PORT
+        value: "8443"
+      - key: CLICKHOUSE_USER
+        value: default
+      - key: CLICKHOUSE_PASSWORD
+        sync: false
+      - key: CLICKHOUSE_DATABASE
+        value: default
+      - key: CLICKHOUSE_SECURE
+        value: "1"
       - key: AZURE_BLOB_SAS_URL
         sync: false   # Set Azure SAS token in Render Dashboard
 
@@ -102,7 +116,7 @@ services:
       - key: PYTHON_VERSION
         value: "3.11"
       - key: CH_HOST
-        value: ytoyqewr56.ap-south-1.aws.clickhouse.cloud
+        value: o4zolc81oe.ap-south-1.aws.clickhouse.cloud
       - key: CH_PORT
         value: "8443"
       - key: CH_USER
@@ -111,5 +125,19 @@ services:
         sync: false
       - key: CH_DATABASE
         value: default
+      - key: ANALYTICS_PRIMARY_ENGINE
+        value: clickhouse
+      - key: CLICKHOUSE_HOST
+        value: o4zolc81oe.ap-south-1.aws.clickhouse.cloud
+      - key: CLICKHOUSE_PORT
+        value: "8443"
+      - key: CLICKHOUSE_USER
+        value: default
+      - key: CLICKHOUSE_PASSWORD
+        sync: false
+      - key: CLICKHOUSE_DATABASE
+        value: default
+      - key: CLICKHOUSE_SECURE
+        value: "1"
       - key: AZURE_BLOB_SAS_URL
         sync: false

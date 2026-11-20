@@ -36,6 +36,7 @@ jobs:
         env:
           STOCK_MAIL_USER: ${{ secrets.STOCK_MAIL_USER }}
           STOCK_MAIL_APP_PASSWORD: ${{ secrets.STOCK_MAIL_APP_PASSWORD }}
+          CLICKHOUSE_HOST: o4zolc81oe.ap-south-1.aws.clickhouse.cloud
           CLICKHOUSE_PASSWORD: ${{ secrets.CLICKHOUSE_PASSWORD }}
         run: python auto_stock_ageing.py --days 5
 
@@ -60,6 +61,7 @@ jobs:
         working-directory: myg_loyalty_dashboard
         env:
           AZURE_BLOB_SAS: ${{ secrets.AZURE_BLOB_SAS }}
+          CLICKHOUSE_HOST: o4zolc81oe.ap-south-1.aws.clickhouse.cloud
           CLICKHOUSE_PASSWORD: ${{ secrets.CLICKHOUSE_PASSWORD }}
         run: python auto_azure_sales.py --days 6
 
@@ -86,12 +88,14 @@ jobs:
           SKIP_PREWARM: '1'
           PGHOST: '127.0.0.1'
           PGPASSWORD: 'unused'
+          CLICKHOUSE_HOST: o4zolc81oe.ap-south-1.aws.clickhouse.cloud
           CLICKHOUSE_PASSWORD: ${{ secrets.CLICKHOUSE_PASSWORD }}
         run: python manage.py snapshot_demand_forecasts --top 1000 --skip-checks
 
       - name: Trigger live Render portal cache refresh and warm-up
         working-directory: myg_loyalty_dashboard
         env:
+          CLICKHOUSE_HOST: o4zolc81oe.ap-south-1.aws.clickhouse.cloud
           CLICKHOUSE_PASSWORD: ${{ secrets.CLICKHOUSE_PASSWORD }}
           PORTAL_REFRESH_TOKEN: ${{ secrets.PORTAL_REFRESH_TOKEN }}
           PORTAL_URL: ${{ vars.PORTAL_URL || 'https://loyalty-main-dashboard.onrender.com' }}

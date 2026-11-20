@@ -33,11 +33,68 @@ from analytics.clickhouse_service import (
 )
 from .dashboard_api_logic import PRODUCT_CAT_MAPPING
 from .demand_ml_engine import run_hybrid_ml_forecasting
+from .demand_archetype1 import (
+    ARCHETYPE_1_SET,
+    _SALES_COMP_PRICE_EXPR,
+    _STOCK_COMP_PRICE_EXPR,
+    apply_archetype1_forecast_enhancements,
+    build_spec_bucket_member_skus,
+    ch_clean_item_cat_expr,
+    ch_clean_planning_group_expr,
+    ch_clean_spec_group_expr,
+    ch_spec_bucket_where_clauses,
+    compute_entity_daily_seasonal_curve,
+    get_archetype1_seasonal_profiles,
+)
+from .demand_archetype2 import (
+    ARCHETYPE_2_SET,
+    apply_archetype2_forecast_enhancements,
+    ch_archetype2_hygiene_clause,
+    compute_archetype2_daily_curve,
+    get_archetype2_launch_dates,
+    get_archetype2_seasonal_profiles,
+)
+from .demand_archetype3 import (
+    ARCHETYPE_3_SET,
+    apply_archetype3_forecast_enhancements,
+    ch_archetype3_hygiene_clause,
+    ch_computing_price_band_expr,
+    ch_computing_price_band_label_expr,
+    ch_computing_spec_tier_expr,
+    compute_archetype3_daily_curve,
+    get_archetype3_launch_dates,
+    get_archetype3_seasonal_profiles,
+)
+from .demand_archetype4 import (
+    ARCHETYPE_4_SET,
+    _SALES_ARCH4_PRICE_EXPR,
+    _STOCK_ARCH4_PRICE_EXPR,
+    apply_archetype4_forecast_enhancements,
+    ch_arch4_price_band_expr,
+    ch_arch4_price_band_label_expr,
+    ch_archetype4_hygiene_clause,
+    compute_archetype4_daily_curve,
+    get_archetype4_seasonal_profiles,
+)
+from .demand_archetype5 import (
+    ARCHETYPE_5_SET,
+    apply_archetype5_forecast_enhancements,
+    ch_archetype5_hygiene_clause,
+    compute_archetype5_daily_curve,
+    get_archetype5_profiles,
+)
+from .demand_archetype6 import (
+    ARCHETYPE_6_DERIVED_SET,
+    ARCHETYPE_6_EXTRA_NON_RETAIL,
+    ARCHETYPE_6_EXTRA_VIRTUAL_VAS,
+    apply_archetype6_derived_intelligence,
+    get_archetype6_attach_context,
+)
 from .demand_daily_features import fetch_daily_rows, window_features
 from .demand_model_store import get_pretrained_model
 from .inter_store_transfer_engine import compute_inter_store_transfer_intelligence
 
-# ── Non-merchandise / internal / consumable products excluded in Core Retail mode ──
+# ── Non-merchandise / internal / consumable / promo-bundle products excluded in Core Retail mode ──
 NON_RETAIL_PRODUCTS = (
     'SPARE', 'D SPARE', 'C SPARE', 'GDP-SPARE',
     'DEMO', 'DEMO LAPTOP', 'DEMO ACCESSORIES', 'DEMO HA', 'DIY',
@@ -46,7 +103,7 @@ NON_RETAIL_PRODUCTS = (
     'TOTAL LOSS', 'SCHEME', 'RECHARGE', 'RECHARGE INVENTORY',
     'SIM', 'SIM INVENTORY', 'CONTRACT WORK', 'AC OUTDOOR',
     'STANDBY', 'INFRA', 'PROJECT',
-)
+) + ARCHETYPE_6_EXTRA_NON_RETAIL
 
 # ── Intangible warranty / digital voucher products (0 physical warehouse stock)
 # Excluded from Core Physical Retail mode by default; included when user selects
@@ -56,7 +113,7 @@ VIRTUAL_VAS_PRODUCTS = (
     'PROTECTION', 'GDOT', 'GDEW', 'EXTENDED WARRANTY',
     'STELLR VOUCHERS', 'MYG VERSE', 'CEGI',
     'MOBILE ANTIVIRUS', 'TOTAL SECURITY', 'KASPERSKY', 'QUICKHEAL',
-)
+) + ARCHETYPE_6_EXTRA_VIRTUAL_VAS
 
 
 def _safe_cache_key(prefix: str, *parts: Any) -> str:
@@ -445,6 +502,7 @@ def _append_catalog_where_clauses(
     prod_col: str,
     brand_col: str,
     name_col: str,
+    cat_col: str = '',
 ) -> None:
     """Append shared retail, macro-category, product-line, and brand filters."""
     mc = (macro_category or '').strip().upper()
@@ -458,6 +516,11 @@ def _append_catalog_where_clauses(
         non_ret = "', '".join(_sql_escape(p) for p in excl_prods)
         clauses.append(f"trim({prod_col}) != ''")
         clauses.append(f"upper(trim({prod_col})) NOT IN ('{non_ret}')")
+        if cat_col:
+            clauses.append(ch_archetype2_hygiene_clause(prod_col, cat_col))
+            clauses.append(ch_archetype3_hygiene_clause(prod_col, cat_col))
+            clauses.append(ch_archetype4_hygiene_clause(prod_col, cat_col))
+            clauses.append(ch_archetype5_hygiene_clause(prod_col, cat_col))
 
     if mc == 'OTHER':
         excl_other = _non_other_mapped_products()
@@ -505,6 +568,7 @@ def _build_sales_where_clauses(
         prod_col=f"{item_alias}.product",
         brand_col=f"{item_alias}.brand",
         name_col=f"{item_alias}.item_name",
+        cat_col=f"{item_alias}.item_category",
     )
     if sales_branch_codes is not None:
         bc_sql = "', '".join(_sql_escape(c) for c in sales_branch_codes)
@@ -552,6 +616,7 @@ def _build_stock_where_clauses(
         prod_col="product",
         brand_col="brand",
         name_col="item",
+        cat_col="item_category",
     )
     if stock_branch_names is not None:
         bn_sql = "', '".join(_sql_escape(b) for b in stock_branch_names)
@@ -565,7 +630,7 @@ def _build_stock_where_clauses(
 # ═════════════════════════════════════════════════════════════════════════════
 
 def get_demand_filter_options() -> Dict[str, Any]:
-    cache_key = f"dii:filter_opts:v3:{get_active_engine()}"
+    cache_key = f"dii:filter_opts:v4:{get_active_engine()}"
     if not get_bypass_cache():
         cached = cache.get(cache_key)
         if cached is not None and cached.get('products') and cached.get('product_meta') is not None:
@@ -1676,9 +1741,16 @@ def _build_entity_daily_forecast_and_decomp(
     seasonal_profile: Dict[str, Any],
     conformal_ci: Optional[Dict[str, float]] = None,
     engine_tag: str = '',
+    stock_dt: Optional[date] = None,
+    stock_where: Optional[List[str]] = None,
+    arch1_profiles: Optional[Dict[str, Any]] = None,
+    arch2_profiles: Optional[Dict[str, Any]] = None,
+    arch3_profiles: Optional[Dict[str, Any]] = None,
+    arch4_profiles: Optional[Dict[str, Any]] = None,
+    arch5_profiles: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
-    Fetch daily ClickHouse sales for the selected SKU / Brand×Product / Product-Line
+    Fetch daily ClickHouse sales for the selected SKU / Planning Bucket / Brand×Product / Product-Line
     (last 365 days for decomposition + last 60 days for Actual vs 30-Day Forecast chart)
     with 80% & 95% confidence bands and festival callout markers!
     """
@@ -1688,6 +1760,15 @@ def _build_entity_daily_forecast_and_decomp(
     if granularity == 'sku' and sel_id and sel_id != '__ALL__':
         extra_clause.append(f"s.item_code = '{_sql_escape(sel_id)}'")
         use_item_join = False
+    elif granularity == 'spec_bucket' and sel_id and '||' in sel_id:
+        extra_clause.extend(
+            ch_spec_bucket_where_clauses(
+                sel_id, 'm.product', 'm.brand', 'm.item_category', 'm.item_group',
+                name_col='m.item_name',
+                price_expr=_SALES_COMP_PRICE_EXPR,
+                arch4_price_expr=_SALES_ARCH4_PRICE_EXPR,
+            )
+        )
     elif granularity == 'brand_product' and sel_id and '||' in sel_id:
         p_part, b_part = sel_id.split('||', 1)
         extra_clause.append(f"upper(m.product) = '{_sql_escape(p_part)}'")
@@ -1768,7 +1849,71 @@ def _build_entity_daily_forecast_and_decomp(
     g_pct = float(selected_row.get('growth_pct', 0.0))
     slope_total = float(np.clip(g_pct / 400.0, -0.15, 0.20))
     ramp = np.linspace(1.0 - slope_total * 0.5, 1.0 + slope_total * 0.5, 30)
-    raw_daily_fc = base_rate * mults_30 * ramp
+
+    # Shape daily trajectory with Archetype 1 (Appliances) or Archetype 2 (Mobiles/Tablets) curve
+    arch_curve = None
+    if (engine_tag in ('hybrid', 'ml', '')) and bool(selected_row.get('archetype1_active', False)):
+        _a1_prof = arch1_profiles
+        if _a1_prof is None:
+            _a1_prof = get_archetype1_seasonal_profiles(ch, ref_dt, _FESTIVAL_DATE_MAP)
+        arch_curve = compute_entity_daily_seasonal_curve(
+            ref_dt,
+            _a1_prof,
+            selected_row.get('product_line', ''),
+            selected_row.get('item_category', ''),
+            selected_row.get('item_group', ''),
+        )
+    elif (engine_tag in ('hybrid', 'ml', '')) and bool(selected_row.get('archetype2_active', False)):
+        _a2_prof = arch2_profiles
+        if _a2_prof is None:
+            _a2_prof = get_archetype2_seasonal_profiles(ch, ref_dt, _FESTIVAL_DATE_MAP)
+        arch_curve = compute_archetype2_daily_curve(
+            ref_dt,
+            _a2_prof,
+            selected_row.get('product_line', ''),
+            selected_row.get('brand', ''),
+            selected_row.get('item_category', ''),
+            selected_row.get('price_band', ''),
+            selected_row.get('lifecycle_stage', ''),
+        )
+    elif (engine_tag in ('hybrid', 'ml', '')) and bool(selected_row.get('archetype3_active', False)):
+        _a3_prof = arch3_profiles
+        if _a3_prof is None:
+            _a3_prof = get_archetype3_seasonal_profiles(ch, ref_dt, _FESTIVAL_DATE_MAP)
+        arch_curve = compute_archetype3_daily_curve(
+            ref_dt,
+            _a3_prof,
+            selected_row.get('product_line', ''),
+            selected_row.get('brand', ''),
+            selected_row.get('spec_tier', ''),
+            selected_row.get('price_band', ''),
+            selected_row.get('lifecycle_stage', ''),
+        )
+    elif (engine_tag in ('hybrid', 'ml', '')) and bool(selected_row.get('archetype4_active', False)):
+        _a4_prof = arch4_profiles
+        if _a4_prof is None:
+            _a4_prof = get_archetype4_seasonal_profiles(ch, ref_dt, _FESTIVAL_DATE_MAP)
+        arch_curve = compute_archetype4_daily_curve(
+            ref_dt,
+            _a4_prof,
+            selected_row.get('product_line', ''),
+            selected_row.get('brand', ''),
+            selected_row.get('item_category', ''),
+            selected_row.get('price_band', ''),
+        )
+    elif (engine_tag in ('hybrid', 'ml', '')) and bool(selected_row.get('archetype5_active', False)):
+        _a5_prof = arch5_profiles
+        if _a5_prof is None:
+            _a5_prof = get_archetype5_profiles(ch, ref_dt, _FESTIVAL_DATE_MAP)
+        arch_curve = compute_archetype5_daily_curve(
+            ref_dt,
+            _a5_prof,
+            selected_row.get('product_line', ''),
+            selected_row.get('brand', ''),
+            selected_row.get('item_category', ''),
+        )
+
+    raw_daily_fc = base_rate * mults_30 * ramp * (arch_curve if arch_curve is not None else 1.0)
     if np.sum(raw_daily_fc) > 0:
         raw_daily_fc = raw_daily_fc * (f30_target / np.sum(raw_daily_fc))
 
@@ -1843,7 +1988,17 @@ def _build_entity_daily_forecast_and_decomp(
     pname = selected_row.get('name', 'Selected Product')
     mv_class = selected_row.get('movement_class', 'Fast-Moving')
 
-    if mv_class == 'Non-Moving' and cur_stock > 0:
+    is_virt_vas = bool(selected_row.get('is_virtual_vas', False))
+    arch6_tag = str(selected_row.get('archetype6_tag', '') or '')
+
+    if is_virt_vas:
+        insight_severity = 'neutral'
+        tag_part = f" ({arch6_tag})" if arch6_tag else ""
+        insight_text = (
+            f"Insight: {pname} is a digital / virtual VAS plan{tag_part} with {fc_30:,} projected "
+            f"attachments over the next 30 days — no physical warehouse replenishment required."
+        )
+    elif mv_class == 'Non-Moving' and cur_stock > 0:
         insight_severity = 'dead_stock'
         insight_text = (
             f"Insight: {pname} is Non-Moving with {cur_stock:,} units in stock and 0 sales in 60 days — "
@@ -1875,6 +2030,21 @@ def _build_entity_daily_forecast_and_decomp(
         insight_severity = 'neutral'
         insight_text = f"Insight: {pname} currently has 0 active stock and minimal recent demand."
 
+    member_skus = None
+    if granularity == 'spec_bucket' and sel_id and sel_id != '__ALL__' and '||' in sel_id:
+        member_skus = build_spec_bucket_member_skus(
+            ch=ch,
+            ref_dt=ref_dt,
+            stock_dt=stock_dt,
+            spec_bucket_id=sel_id,
+            sales_where=base_where_clauses,
+            stock_where=stock_where or [],
+            stock_table=_stock_table_name(),
+            bucket_fc7=fc_7,
+            bucket_fc15=fc_15,
+            bucket_fc30=fc_30,
+        )
+
     return {
         'selected_product': {
             'id': selected_row.get('id'),
@@ -1883,6 +2053,30 @@ def _build_entity_daily_forecast_and_decomp(
             'product_line': selected_row.get('product_line'),
             'macro_category': selected_row.get('macro_category'),
             'brand': selected_row.get('brand'),
+            'item_category': selected_row.get('item_category', ''),
+            'item_group': selected_row.get('item_group', ''),
+            'spec_bucket_id': selected_row.get('spec_bucket_id', ''),
+            'spec_bucket_label': selected_row.get('spec_bucket_label', ''),
+            'archetype1_active': bool(selected_row.get('archetype1_active', False)),
+            'archetype1_seasonal_adj_pct': round(float(selected_row.get('archetype1_seasonal_adj_pct', 0.0)), 1),
+            'price_band': selected_row.get('price_band', ''),
+            'price_band_label': selected_row.get('price_band_label', ''),
+            'lifecycle_stage': selected_row.get('lifecycle_stage', ''),
+            'launch_age_days': int(selected_row.get('launch_age_days', -1) if selected_row.get('launch_age_days') is not None else -1),
+            'archetype2_active': bool(selected_row.get('archetype2_active', False)),
+            'archetype2_adj_pct': round(float(selected_row.get('archetype2_adj_pct', 0.0)), 1),
+            'spec_tier': selected_row.get('spec_tier', ''),
+            'archetype3_active': bool(selected_row.get('archetype3_active', False)),
+            'archetype3_adj_pct': round(float(selected_row.get('archetype3_adj_pct', 0.0)), 1),
+            'archetype4_active': bool(selected_row.get('archetype4_active', False)),
+            'archetype4_adj_pct': round(float(selected_row.get('archetype4_adj_pct', 0.0)), 1),
+            'archetype5_active': bool(selected_row.get('archetype5_active', False)),
+            'archetype5_adj_pct': round(float(selected_row.get('archetype5_adj_pct', 0.0)), 1),
+            'archetype5_note': str(selected_row.get('archetype5_note', '') or ''),
+            'archetype6_active': bool(selected_row.get('archetype6_active', False)),
+            'archetype6_tag': arch6_tag,
+            'is_virtual_vas': is_virt_vas,
+            'sku_count': int(selected_row.get('sku_count', 1) or 1),
             'movement_class': mv_class,
             'trend_status': selected_row.get('trend_status'),
             'growth_pct': selected_row.get('growth_pct'),
@@ -1903,8 +2097,8 @@ def _build_entity_daily_forecast_and_decomp(
             'stockout_decensored': bool(selected_row.get('stockout_decensored', False)),
             'discount_pct': round(float(selected_row.get('discount_pct', 0.0)), 1),
             'tsb_prob_pct': round(float(selected_row.get('tsb_prob_pct', 0.0)), 1),
-            'stock_coverage_days': int(round(cov_days)) if cov_days < 999 else 999,
-            'stock_coverage_label': f"{int(round(cov_days))} days" if cov_days < 999 else "Non-Moving (∞)",
+            'stock_coverage_days': 0 if is_virt_vas else (int(round(cov_days)) if cov_days < 999 else 999),
+            'stock_coverage_label': "Digital / VAS" if is_virt_vas else (f"{int(round(cov_days))} days" if cov_days < 999 else "Non-Moving (∞)"),
             'replenish_qty_30d': replenish_30,
             'insight_text': insight_text,
             'insight_severity': insight_severity,
@@ -1927,6 +2121,7 @@ def _build_entity_daily_forecast_and_decomp(
             'compare_summary': fva['summary'],
         },
         'decomposition': decomp,
+        'member_skus': member_skus,
     }
 
 
@@ -2412,7 +2607,7 @@ def get_demand_intelligence_data(
     Main entry point returning full Demand & Inventory Intelligence dashboard payload
     computed 100% from ClickHouse with 3-Tier Hybrid ML (LightGBM + Croston-TSB + Statistical).
     """
-    gran = granularity if granularity in ('sku', 'brand_product', 'product_line') else 'sku'
+    gran = granularity if granularity in ('sku', 'spec_bucket', 'brand_product', 'product_line') else 'sku'
     fc_engine = (forecast_engine or 'hybrid').strip().lower()
     if fc_engine not in ('hybrid', 'ml', 'statistical'):
         fc_engine = 'hybrid'
@@ -2422,7 +2617,7 @@ def get_demand_intelligence_data(
     model_tag = pretrained_model.trained_at if pretrained_model is not None else 'request-scoped'
 
     cache_sig = _safe_cache_key(
-        "dii_main_v18",
+        "dii_main_v23",
         get_active_engine(), gran, fc_engine, macro_category, product_filter,
         brand_filter, district_filter, branch_filter, movement_filter,
         trend_filter, model_tier_filter, search_query, selected_id, sort_by, limit, model_tag,
@@ -2484,17 +2679,66 @@ def get_demand_intelligence_data(
     net_q = "if(s.sold_price < 0, -abs(toFloat64(s.qty)), abs(toFloat64(s.qty)))"
     age_expr = f"dateDiff('day', toDate(s.date), toDate('{d_ref_str}'))"
 
+    sales_with_sql = ""
     if gran == 'sku':
         grp_select = """
             s.item_code AS entity_id,
             s.item_code AS code,
             any(if(m.item_name != '', m.item_name, s.item_code)) AS entity_name,
-            upper(any(m.product)) AS prod_line,
-            upper(any(if(m.brand != '', m.brand, 'GENERAL'))) AS brand_name,
+            upper(trim(any(ifNull(m.product, '')))) AS prod_line,
+            upper(trim(any(if(trim(ifNull(m.brand, '')) != '', m.brand, 'GENERAL')))) AS brand_name,
+            upper(trim(any(ifNull(m.item_category, '')))) AS spec_icat,
+            upper(trim(any(ifNull(m.item_group, '')))) AS spec_igrp,
+            toUInt32(1) AS sku_count,
             any(toFloat64(m.mop)) AS unit_mop,
             any(toFloat64(m.mrp)) AS unit_mrp
         """
         grp_by = "s.item_code"
+    elif gran == 'spec_bucket':
+        ic_expr = ch_clean_item_cat_expr('m.item_category')
+        ig_expr = ch_clean_planning_group_expr('m.item_group', 'm.product')
+        comp_st_expr = ch_computing_spec_tier_expr('m.product', 'm.brand', 'm.item_category', 'm.item_name')
+        comp_pb_expr = ch_computing_price_band_expr('m.product', _SALES_COMP_PRICE_EXPR)
+        pb_lbl_sql = ch_computing_price_band_label_expr('_sb_igrp')
+        arch4_pb_expr = ch_arch4_price_band_expr('m.product', _SALES_ARCH4_PRICE_EXPR)
+        arch4_pb_lbl_sql = ch_arch4_price_band_label_expr('_sb_igrp')
+        sales_with_sql = f"""
+        WITH
+            upper(trim(ifNull(m.product, ''))) AS _sb_prod,
+            if(trim(ifNull(m.brand, '')) != '', upper(trim(m.brand)), 'GENERAL') AS _sb_brand,
+            if(_sb_prod IN ('LAPTOP', 'DESKTOP', 'PRINTER'), {comp_st_expr}, {ic_expr}) AS _sb_icat,
+            multiIf(
+                _sb_prod IN ('LAPTOP', 'DESKTOP', 'PRINTER'), {comp_pb_expr},
+                _sb_prod IN ('SMART WATCH', 'HOME THEATRE'), {arch4_pb_expr},
+                {ig_expr}
+            ) AS _sb_igrp
+        """
+        grp_select = f"""
+            concat(_sb_prod, '||', _sb_brand, '||', _sb_icat, '||', _sb_igrp) AS entity_id,
+            multiIf(
+                _sb_prod IN ('LAPTOP', 'DESKTOP', 'PRINTER'), _sb_icat,
+                _sb_prod IN ('SMART WATCH', 'HOME THEATRE'), {arch4_pb_lbl_sql},
+                _sb_igrp != '', _sb_igrp,
+                _sb_icat != '', _sb_icat,
+                _sb_brand
+            ) AS code,
+            multiIf(
+                _sb_prod IN ('LAPTOP', 'DESKTOP', 'PRINTER'), concat(_sb_brand, ' — ', _sb_icat, ' (', {pb_lbl_sql}, ')'),
+                _sb_prod IN ('SMART WATCH', 'HOME THEATRE'), concat(_sb_brand, ' — ', if(_sb_icat != '', _sb_icat, _sb_prod), ' (', {arch4_pb_lbl_sql}, ')'),
+                _sb_igrp != '' AND _sb_icat != '', concat(_sb_brand, ' — ', _sb_igrp, ' (', _sb_icat, ')'),
+                _sb_igrp != '', concat(_sb_brand, ' — ', _sb_igrp, ' (', _sb_prod, ')'),
+                _sb_icat != '', concat(_sb_brand, ' — ', _sb_icat),
+                concat(_sb_brand, ' — ', _sb_prod)
+            ) AS entity_name,
+            _sb_prod AS prod_line,
+            _sb_brand AS brand_name,
+            _sb_icat AS spec_icat,
+            _sb_igrp AS spec_igrp,
+            toUInt32(uniqExact(s.item_code)) AS sku_count,
+            avg(toFloat64(m.mop)) AS unit_mop,
+            avg(toFloat64(m.mrp)) AS unit_mrp
+        """
+        grp_by = "_sb_prod, _sb_brand, _sb_icat, _sb_igrp"
     elif gran == 'brand_product':
         grp_select = """
             concat(upper(m.product), '||', upper(if(m.brand != '', m.brand, 'GENERAL'))) AS entity_id,
@@ -2502,6 +2746,9 @@ def get_demand_intelligence_data(
             concat(upper(if(m.brand != '', m.brand, 'GENERAL')), ' — ', upper(m.product)) AS entity_name,
             upper(m.product) AS prod_line,
             upper(if(m.brand != '', m.brand, 'GENERAL')) AS brand_name,
+            '' AS spec_icat,
+            '' AS spec_igrp,
+            toUInt32(uniqExact(s.item_code)) AS sku_count,
             avg(toFloat64(m.mop)) AS unit_mop,
             avg(toFloat64(m.mrp)) AS unit_mrp
         """
@@ -2513,6 +2760,9 @@ def get_demand_intelligence_data(
             upper(m.product) AS entity_name,
             upper(m.product) AS prod_line,
             'ALL BRANDS' AS brand_name,
+            '' AS spec_icat,
+            '' AS spec_igrp,
+            toUInt32(uniqExact(s.item_code)) AS sku_count,
             avg(toFloat64(m.mop)) AS unit_mop,
             avg(toFloat64(m.mrp)) AS unit_mrp
         """
@@ -2527,6 +2777,7 @@ def get_demand_intelligence_data(
     bucket_sql = ",\n            ".join(bucket_exprs)
 
     sales_agg_sql = f"""
+        {sales_with_sql}
         SELECT
             {grp_select},
             greatest(0.0, sumIf({net_q}, {age_expr} >= 0 AND {age_expr} <= 6)) AS d7,
@@ -2546,7 +2797,7 @@ def get_demand_intelligence_data(
     for k in range(9):
         bucket_cols.extend([f'u_b{k}', f'r_b{k}', f'a_b{k}'])
     sales_cols = [
-        'id', 'code', 'name', 'product_line', 'brand', 'unit_mop', 'unit_mrp',
+        'id', 'code', 'name', 'product_line', 'brand', 'item_category', 'item_group', 'sku_count', 'unit_mop', 'unit_mrp',
         'd7', *bucket_cols, 'branch_breadth_90', 'branch_breadth_prior', 'last_sale_dt',
     ]
     df_sales = pd.DataFrame(sales_rows, columns=sales_cols) if sales_rows else pd.DataFrame(columns=sales_cols)
@@ -2554,7 +2805,7 @@ def get_demand_intelligence_data(
     # ── C. Live Current Inventory Snapshot from ClickHouse `stock_ageing_report` ──
     st_tbl = _stock_table_name()
     stock_df_cols = [
-        'id', 'st_code', 'st_name', 'st_prod', 'st_brand',
+        'id', 'st_code', 'st_name', 'st_prod', 'st_brand', 'st_icat', 'st_igrp', 'st_sku_count',
         'current_stock', 'transit_qty', 'stock_val', 'avg_age',
         'saleable_stock', 'saleable_val', 'saleable_age',
         'non_saleable_stock', 'non_saleable_val', 'non_saleable_age',
@@ -2563,22 +2814,72 @@ def get_demand_intelligence_data(
     df_stock = pd.DataFrame(columns=stock_df_cols)
     if stock_dt is not None:
         st_where_sql = " AND ".join(stock_where)
+        st_with_sql = ""
         if gran == 'sku':
             st_grp_sel = """
                 item_code AS id,
                 item_code AS st_code,
                 any(if(item != '', item, item_code)) AS st_name,
-                upper(any(product)) AS st_prod,
-                upper(any(if(brand != '', brand, 'GENERAL'))) AS st_brand
+                upper(trim(any(ifNull(product, '')))) AS st_prod,
+                upper(trim(any(if(trim(ifNull(brand, '')) != '', brand, 'GENERAL')))) AS st_brand,
+                upper(trim(any(ifNull(item_category, '')))) AS st_icat,
+                upper(trim(any(ifNull(item_group, '')))) AS st_igrp,
+                toUInt32(1) AS st_sku_count
             """
             st_grp_by = "item_code"
+        elif gran == 'spec_bucket':
+            st_ic_expr = ch_clean_item_cat_expr('item_category')
+            st_ig_expr = ch_clean_planning_group_expr('item_group', 'product')
+            st_comp_st_expr = ch_computing_spec_tier_expr('product', 'brand', 'item_category', 'item')
+            st_comp_pb_expr = ch_computing_price_band_expr('product', _STOCK_COMP_PRICE_EXPR)
+            st_pb_lbl_sql = ch_computing_price_band_label_expr('_sb_igrp')
+            st_arch4_pb_expr = ch_arch4_price_band_expr('product', _STOCK_ARCH4_PRICE_EXPR)
+            st_arch4_pb_lbl_sql = ch_arch4_price_band_label_expr('_sb_igrp')
+            st_with_sql = f"""
+            WITH
+                upper(trim(ifNull(product, ''))) AS _sb_prod,
+                if(trim(ifNull(brand, '')) != '', upper(trim(brand)), 'GENERAL') AS _sb_brand,
+                if(_sb_prod IN ('LAPTOP', 'DESKTOP', 'PRINTER'), {st_comp_st_expr}, {st_ic_expr}) AS _sb_icat,
+                multiIf(
+                    _sb_prod IN ('LAPTOP', 'DESKTOP', 'PRINTER'), {st_comp_pb_expr},
+                    _sb_prod IN ('SMART WATCH', 'HOME THEATRE'), {st_arch4_pb_expr},
+                    {st_ig_expr}
+                ) AS _sb_igrp
+            """
+            st_grp_sel = f"""
+                concat(_sb_prod, '||', _sb_brand, '||', _sb_icat, '||', _sb_igrp) AS id,
+                multiIf(
+                    _sb_prod IN ('LAPTOP', 'DESKTOP', 'PRINTER'), _sb_icat,
+                    _sb_prod IN ('SMART WATCH', 'HOME THEATRE'), {st_arch4_pb_lbl_sql},
+                    _sb_igrp != '', _sb_igrp,
+                    _sb_icat != '', _sb_icat,
+                    _sb_brand
+                ) AS st_code,
+                multiIf(
+                    _sb_prod IN ('LAPTOP', 'DESKTOP', 'PRINTER'), concat(_sb_brand, ' — ', _sb_icat, ' (', {st_pb_lbl_sql}, ')'),
+                    _sb_prod IN ('SMART WATCH', 'HOME THEATRE'), concat(_sb_brand, ' — ', if(_sb_icat != '', _sb_icat, _sb_prod), ' (', {st_arch4_pb_lbl_sql}, ')'),
+                    _sb_igrp != '' AND _sb_icat != '', concat(_sb_brand, ' — ', _sb_igrp, ' (', _sb_icat, ')'),
+                    _sb_igrp != '', concat(_sb_brand, ' — ', _sb_igrp, ' (', _sb_prod, ')'),
+                    _sb_icat != '', concat(_sb_brand, ' — ', _sb_icat),
+                    concat(_sb_brand, ' — ', _sb_prod)
+                ) AS st_name,
+                _sb_prod AS st_prod,
+                _sb_brand AS st_brand,
+                _sb_icat AS st_icat,
+                _sb_igrp AS st_igrp,
+                toUInt32(uniqExact(item_code)) AS st_sku_count
+            """
+            st_grp_by = "_sb_prod, _sb_brand, _sb_icat, _sb_igrp"
         elif gran == 'brand_product':
             st_grp_sel = """
                 concat(upper(product), '||', upper(if(brand != '', brand, 'GENERAL'))) AS id,
                 upper(if(brand != '', brand, 'GENERAL')) AS st_code,
                 concat(upper(if(brand != '', brand, 'GENERAL')), ' — ', upper(product)) AS st_name,
                 upper(product) AS st_prod,
-                upper(if(brand != '', brand, 'GENERAL')) AS st_brand
+                upper(if(brand != '', brand, 'GENERAL')) AS st_brand,
+                '' AS st_icat,
+                '' AS st_igrp,
+                toUInt32(uniqExact(item_code)) AS st_sku_count
             """
             st_grp_by = "upper(product), upper(if(brand != '', brand, 'GENERAL'))"
         else:
@@ -2587,7 +2888,10 @@ def get_demand_intelligence_data(
                 upper(product) AS st_code,
                 upper(product) AS st_name,
                 upper(product) AS st_prod,
-                'ALL BRANDS' AS st_brand
+                'ALL BRANDS' AS st_brand,
+                '' AS st_icat,
+                '' AS st_igrp,
+                toUInt32(uniqExact(item_code)) AS st_sku_count
             """
             st_grp_by = "upper(product)"
 
@@ -2596,6 +2900,7 @@ def get_demand_intelligence_data(
         ns_qty_expr = "greatest(0.0, toFloat64(non_saleable_total))"
         try:
             st_rows = ch.query(f"""
+                {st_with_sql}
                 SELECT
                     {st_grp_sel},
                     sum(greatest(0.0, toFloat64(stock))) AS current_stock,
@@ -2618,8 +2923,8 @@ def get_demand_intelligence_data(
             """).result_rows
             if st_rows:
                 df_stock = pd.DataFrame(st_rows, columns=stock_df_cols)
-        except Exception:
-            pass
+        except Exception as e:
+            print('[demand-intelligence] stock snapshot query skipped:', e)
 
     # ── D. Outer Merge Sales + Stock (captures active sellers AND 0-sale Non-Moving stock!) ──
     df = pd.merge(df_sales, df_stock, on='id', how='outer')
@@ -2644,6 +2949,13 @@ def get_demand_intelligence_data(
     df['name'] = df['name'].fillna(df['st_name']).fillna(df['code']).astype(str)
     df['product_line'] = df['product_line'].fillna(df['st_prod']).fillna('OTHER').astype(str)
     df['brand'] = df['brand'].fillna(df['st_brand']).fillna('GENERAL').astype(str)
+    df['item_category'] = df['item_category'].fillna(df['st_icat']).fillna('').astype(str)
+    df['item_group'] = df['item_group'].fillna(df['st_igrp']).fillna('').astype(str)
+    df['sku_count'] = np.maximum(
+        pd.to_numeric(df['sku_count'], errors='coerce').fillna(0),
+        pd.to_numeric(df['st_sku_count'], errors='coerce').fillna(0),
+    ).astype(int)
+    df['sku_count'] = np.where(df['sku_count'] < 1, 1, df['sku_count'])
     df['macro_category'] = df['product_line'].map(PRODUCT_CAT_MAPPING).fillna('OTHER')
 
     num_fill_cols = [
@@ -2750,6 +3062,93 @@ def get_demand_intelligence_data(
         pretrained=pretrained_model,
     )
 
+    # ── E3. Archetype 1 — Spec-Bucket Calendar Seasonality for Major Appliances ──
+    arch1_profiles: Optional[Dict[str, Any]] = None
+    if not df.empty and bool(df['product_line'].isin(ARCHETYPE_1_SET).any()):
+        arch1_profiles = get_archetype1_seasonal_profiles(ch, ref_dt, _FESTIVAL_DATE_MAP)
+    df, arch1_diag = apply_archetype1_forecast_enhancements(
+        df=df,
+        ref_dt=ref_dt,
+        profiles=arch1_profiles,
+        gran=gran,
+        fc_engine=fc_engine,
+    )
+    ml_diagnostics['archetype1'] = arch1_diag
+
+    # ── E4. Archetype 2 — Model-Family, Price-Band Seasonality & Lifecycle for Mobiles & Tablets ──
+    arch2_profiles: Optional[Dict[str, Any]] = None
+    arch2_launches: Optional[Dict[str, Dict[str, date]]] = None
+    if not df.empty and bool(df['product_line'].isin(ARCHETYPE_2_SET).any()):
+        arch2_profiles = get_archetype2_seasonal_profiles(ch, ref_dt, _FESTIVAL_DATE_MAP)
+        arch2_launches = get_archetype2_launch_dates(ch, ref_dt)
+    df, arch2_diag = apply_archetype2_forecast_enhancements(
+        df=df,
+        ref_dt=ref_dt,
+        profiles=arch2_profiles,
+        launch_dates=arch2_launches,
+        gran=gran,
+        fc_engine=fc_engine,
+        bucket_mult_sums=bucket_mult_sums,
+        S7=S7,
+        S15=S15,
+        S30=S30,
+    )
+    ml_diagnostics['archetype2'] = arch2_diag
+
+    # ── E5. Archetype 3 — Spec-Tier × Price-Band Computing (Laptops, Desktops & Printers) ──
+    arch3_profiles: Optional[Dict[str, Any]] = None
+    arch3_launches: Optional[Dict[str, date]] = None
+    if not df.empty and bool(df['product_line'].isin(ARCHETYPE_3_SET).any()):
+        arch3_profiles = get_archetype3_seasonal_profiles(ch, ref_dt, _FESTIVAL_DATE_MAP)
+        arch3_launches = get_archetype3_launch_dates(ch, ref_dt)
+    df, arch3_diag = apply_archetype3_forecast_enhancements(
+        df=df,
+        ref_dt=ref_dt,
+        profiles=arch3_profiles,
+        launch_dates=arch3_launches,
+        gran=gran,
+        fc_engine=fc_engine,
+        bucket_mult_sums=bucket_mult_sums,
+        S7=S7,
+        S15=S15,
+        S30=S30,
+    )
+    ml_diagnostics['archetype3'] = arch3_diag
+
+    # ── E6. Archetype 4 — Sub-Category Appliances, Cookware & Tech Accessories (16 Product Lines) ──
+    arch4_profiles: Optional[Dict[str, Any]] = None
+    if not df.empty and bool(df['product_line'].isin(ARCHETYPE_4_SET).any()):
+        arch4_profiles = get_archetype4_seasonal_profiles(ch, ref_dt, _FESTIVAL_DATE_MAP)
+    df, arch4_diag = apply_archetype4_forecast_enhancements(
+        df=df,
+        ref_dt=ref_dt,
+        profiles=arch4_profiles,
+        gran=gran,
+        fc_engine=fc_engine,
+        bucket_mult_sums=bucket_mult_sums,
+        S7=S7,
+        S15=S15,
+        S30=S30,
+    )
+    ml_diagnostics['archetype4'] = arch4_diag
+
+    # ── E7. Archetype 5 — Attach-Driven (Glamshield) & Pack-Size High-Velocity (Fragrance) ──
+    arch5_profiles: Optional[Dict[str, Any]] = None
+    if not df.empty and bool((df['product_line'] == 'GLAMSHIELD').any()):
+        arch5_profiles = get_archetype5_profiles(ch, ref_dt, _FESTIVAL_DATE_MAP)
+    df, arch5_diag = apply_archetype5_forecast_enhancements(
+        df=df,
+        ref_dt=ref_dt,
+        profiles=arch5_profiles,
+        gran=gran,
+        fc_engine=fc_engine,
+        bucket_mult_sums=bucket_mult_sums,
+        S7=S7,
+        S15=S15,
+        S30=S30,
+    )
+    ml_diagnostics['archetype5'] = arch5_diag
+
     # Stock Coverage & Replenishment Recommendations
     eff_cov_rate = np.maximum(df['daily_velocity'], df['forecast_15d'] / 15.0)
     df['stock_coverage_days'] = np.where(
@@ -2762,6 +3161,13 @@ def get_demand_intelligence_data(
         0.0,
         np.ceil(df['forecast_30d'] * 1.15 - (df['current_stock'] + df['transit_qty'])),
     )
+
+    # ── E8. Archetype 6 — Catalog Hygiene, Virtual VAS Attach-Rate & Zero-Stock Guard ──
+    arch6_ctx: Optional[Dict[str, Any]] = None
+    if not df.empty and bool(df['product_line'].isin(ARCHETYPE_6_DERIVED_SET).any()):
+        arch6_ctx = get_archetype6_attach_context(ch, ref_dt)
+    df, arch6_diag = apply_archetype6_derived_intelligence(df=df, attach_ctx=arch6_ctx)
+    ml_diagnostics['archetype6'] = arch6_diag
 
     # ── F. Portfolio-Wide Executive KPIs (before movement/trend/search table filters) ──
     fast_cnt = int((df['movement_class'] == 'Fast-Moving').sum())
@@ -2793,9 +3199,13 @@ def get_demand_intelligence_data(
     non_moving_units = int(round(float(df.loc[df['movement_class'] == 'Non-Moving', 'current_stock'].sum())))
     stockout_cnt = int(df['projected_stockout_15d'].sum())
 
-    # Demand-weighted 15-day fill rate (Service Level %)
-    covered_15d = np.minimum(df['forecast_15d'], df['current_stock'] + df['transit_qty'])
-    fill_rate_pct = round((float(covered_15d.sum()) / max(float(df['forecast_15d'].sum()), 1.0)) * 100.0, 1)
+    # Demand-weighted 15-day fill rate (Service Level %; virtual digital VAS needs no physical stock)
+    covered_15d = np.where(
+        df['is_virtual_vas'].values if 'is_virtual_vas' in df.columns else False,
+        df['forecast_15d'],
+        np.minimum(df['forecast_15d'], df['current_stock'] + df['transit_qty']),
+    )
+    fill_rate_pct = round((float(np.sum(covered_15d)) / max(float(df['forecast_15d'].sum()), 1.0)) * 100.0, 1)
 
     # Top Growing & Top Declining Leaders (minimum volume filter so leaders are meaningful)
     vol_floor = 10.0 if gran == 'sku' else 30.0
@@ -2821,6 +3231,30 @@ def get_demand_intelligence_data(
                 'product_line': str(r['product_line']),
                 'macro_category': str(r['macro_category']),
                 'brand': str(r['brand']),
+                'item_category': str(r.get('item_category', '') or ''),
+                'item_group': str(r.get('item_group', '') or ''),
+                'spec_bucket_id': str(r.get('spec_bucket_id', '') or ''),
+                'spec_bucket_label': str(r.get('spec_bucket_label', '') or ''),
+                'archetype1_active': bool(r.get('archetype1_active', False)),
+                'archetype1_seasonal_adj_pct': round(float(r.get('archetype1_seasonal_adj_pct', 0.0)), 1),
+                'price_band': str(r.get('price_band', '') or ''),
+                'price_band_label': str(r.get('price_band_label', '') or ''),
+                'lifecycle_stage': str(r.get('lifecycle_stage', '') or ''),
+                'launch_age_days': int(r.get('launch_age_days', -1) if pd.notna(r.get('launch_age_days', -1)) else -1),
+                'archetype2_active': bool(r.get('archetype2_active', False)),
+                'archetype2_adj_pct': round(float(r.get('archetype2_adj_pct', 0.0)), 1),
+                'spec_tier': str(r.get('spec_tier', '') or ''),
+                'archetype3_active': bool(r.get('archetype3_active', False)),
+                'archetype3_adj_pct': round(float(r.get('archetype3_adj_pct', 0.0)), 1),
+                'archetype4_active': bool(r.get('archetype4_active', False)),
+                'archetype4_adj_pct': round(float(r.get('archetype4_adj_pct', 0.0)), 1),
+                'archetype5_active': bool(r.get('archetype5_active', False)),
+                'archetype5_adj_pct': round(float(r.get('archetype5_adj_pct', 0.0)), 1),
+                'archetype5_note': str(r.get('archetype5_note', '') or ''),
+                'archetype6_active': bool(r.get('archetype6_active', False)),
+                'archetype6_tag': str(r.get('archetype6_tag', '') or ''),
+                'is_virtual_vas': bool(r.get('is_virtual_vas', False)),
+                'sku_count': int(r.get('sku_count', 1) or 1),
                 'daily_velocity': round(float(r['daily_velocity']), 2),
                 'weekly_velocity': round(float(r['weekly_velocity']), 1),
                 'monthly_velocity': int(round(float(r['monthly_velocity']))),
@@ -2872,6 +3306,12 @@ def get_demand_intelligence_data(
             | df_filtered['code'].str.upper().str.contains(q_up, regex=False, na=False)
             | df_filtered['brand'].str.upper().str.contains(q_up, regex=False, na=False)
             | df_filtered['product_line'].str.upper().str.contains(q_up, regex=False, na=False)
+            | df_filtered['item_category'].str.upper().str.contains(q_up, regex=False, na=False)
+            | df_filtered['item_group'].str.upper().str.contains(q_up, regex=False, na=False)
+            | df_filtered['spec_bucket_label'].str.upper().str.contains(q_up, regex=False, na=False)
+            | df_filtered['spec_tier'].str.upper().str.contains(q_up, regex=False, na=False)
+            | df_filtered['price_band_label'].str.upper().str.contains(q_up, regex=False, na=False)
+            | df_filtered['lifecycle_stage'].str.upper().str.contains(q_up, regex=False, na=False)
         )
         df_filtered = df_filtered[mask]
 
@@ -2939,6 +3379,13 @@ def get_demand_intelligence_data(
         seasonal_profile=seasonal_profile,
         conformal_ci=ml_diagnostics.get('conformal_ci'),
         engine_tag=fc_engine,
+        stock_dt=stock_dt,
+        stock_where=stock_where,
+        arch1_profiles=arch1_profiles,
+        arch2_profiles=arch2_profiles,
+        arch3_profiles=arch3_profiles,
+        arch4_profiles=arch4_profiles,
+        arch5_profiles=arch5_profiles,
     )
 
     # Nightly job hook: save today's 30-day forecast for the top-N SKUs so "Forecast vs Actual"
@@ -3123,7 +3570,7 @@ _STOCK_RISK_COLS = (
 def _stock_risk_cache_key(gran, fc_engine, macro_category, product_filter, brand_filter,
                           district_filter, branch_filter) -> str:
     return _safe_cache_key(
-        "dii_stock_risk_full_v1", get_active_engine(), gran, fc_engine, macro_category,
+        "dii_stock_risk_full_v6", get_active_engine(), gran, fc_engine, macro_category,
         product_filter, brand_filter, district_filter, branch_filter,
     )
 
@@ -3155,7 +3602,7 @@ def get_stock_risk_export_rows(
     mode = mode if mode in ('all', 'saleable', 'non_saleable') else 'all'
     valid_tiers = [k for k, _l, _d in STOCK_RISK_TIERS]
     tier = tier if tier in valid_tiers else 'dead'
-    gran = granularity if granularity in ('sku', 'brand_product', 'product_line') else 'sku'
+    gran = granularity if granularity in ('sku', 'spec_bucket', 'brand_product', 'product_line') else 'sku'
     fc_engine = (forecast_engine or 'hybrid').strip().lower()
     if fc_engine not in ('hybrid', 'ml', 'statistical'):
         fc_engine = 'hybrid'
@@ -3196,18 +3643,18 @@ def get_single_product_deep_dive(
     row_meta: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
-    Ultra-fast ClickHouse deep-dive for a single clicked SKU / Brand×Product / Product-Line.
+    Ultra-fast ClickHouse deep-dive for a single clicked SKU / Spec Bucket / Brand×Product / Product-Line.
     Updates the SKU Forecast chart (with 80% & 95% CI + Festival Pins), Product Coverage Card,
     and 52-week Additive Seasonality Decomposition instantaneously.
     """
-    gran = granularity if granularity in ('sku', 'brand_product', 'product_line') else 'sku'
+    gran = granularity if granularity in ('sku', 'spec_bucket', 'brand_product', 'product_line') else 'sku'
     ch = get_ch_client()
     if ch is None:
         raise ConnectionError("ClickHouse analytics engine is unavailable.")
 
-    ref_dt, _ = _get_reference_dates(ch)
+    ref_dt, stock_dt = _get_reference_dates(ch)
     bm_df = _get_branch_directory(ch)
-    sales_branch_codes, _ = _resolve_location_filters(bm_df, district_filter, branch_filter)
+    sales_branch_codes, stock_branch_names = _resolve_location_filters(bm_df, district_filter, branch_filter)
     sales_where = _build_sales_where_clauses(
         macro_category=macro_category,
         product_filter=product_filter,
@@ -3220,6 +3667,13 @@ def get_single_product_deep_dive(
         brand_filter=brand_filter,
         sales_branch_codes=sales_branch_codes,
     )
+    stock_where = _build_stock_where_clauses(
+        stock_dt=stock_dt or ref_dt,
+        macro_category=macro_category,
+        product_filter=product_filter,
+        brand_filter=brand_filter,
+        stock_branch_names=stock_branch_names,
+    ) if stock_dt is not None else []
 
     # Reuse cached seasonal profile if available
     prof_cache_key = _safe_cache_key(
@@ -3253,6 +3707,8 @@ def get_single_product_deep_dive(
         base_where_clauses=sales_where,
         seasonal_profile=seasonal_profile,
         engine_tag=(forecast_engine or 'hybrid').strip().lower(),
+        stock_dt=stock_dt,
+        stock_where=stock_where,
     )
 
 

@@ -26,8 +26,11 @@ from datetime import date, datetime
 
 import pandas as pd
 import python_calamine
+from dotenv import load_dotenv
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(_BASE_DIR, '.env'), override=False)
+sys.path.insert(0, _BASE_DIR)
 from analytics.starrocks_service import get_ch_backup_client  # noqa: E402
 
 TABLE = 'stock_ageing_report'

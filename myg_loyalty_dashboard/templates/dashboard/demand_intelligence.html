@@ -937,6 +937,7 @@
                 <label class="dii-filter-lbl"><i class="bi bi-grid me-1"></i>Granularity</label>
                 <select id="flt-granularity" class="dii-select" onchange="reloadDemandDashboard(true)">
                     <option value="sku" selected>SKU / Product Model</option>
+                    <option value="spec_bucket">Planning Bucket (All Archetypes · Spec / Family / Sub-Cat)</option>
                     <option value="brand_product">Brand × Product Line</option>
                     <option value="product_line">Product Line Rollup</option>
                 </select>
@@ -1194,6 +1195,8 @@
                                 <span id="sel-sku-trend-badge" class="trend-grow">Growing</span>
                                 <span id="sel-sku-tier-badge" class="badge-tier tier-lgbm"><i class="bi bi-cpu"></i> Tier 1 · LightGBM ML</span>
                                 <span id="sel-sku-decens-badge" class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle d-none" style="font-size:0.65rem;" title="0-stock shelf gap detected & de-censored">Stockout De-Censored</span>
+                                <span id="sel-sku-arch1-badge" class="badge bg-info-subtle text-info-emphasis border border-info-subtle d-none" style="font-size:0.65rem;"></span>
+                                <span id="sel-sku-lifecycle-badge" class="badge bg-secondary-subtle text-secondary border d-none" style="font-size:0.65rem;"></span>
                             </div>
                             <div class="text-muted mt-1" style="font-size:0.76rem;" id="sel-sku-meta">
                                 SKU: — &nbsp;|&nbsp; Product Line: — &nbsp;|&nbsp; Brand: —
@@ -1232,6 +1235,7 @@
                     <canvas id="skuForecastChart"></canvas>
                 </div>
                 <div id="sku-fva-box" class="mt-3"></div>
+                <div id="spec-bucket-skus-box" class="mt-3 d-none"></div>
             </div>
         </div>
 
@@ -2369,17 +2373,51 @@
         document.getElementById('chip-cnt-non').textContent = fmtNum(kpis.non_moving_count);
     }
 
+    let lastSpecBucketContext = null;
+
     // ── Render Selected SKU Forecast Chart + Exact Image 2 Coverage Insight Card + Decomposition ──
     function renderDeepDive(dd) {
         if (!dd || !dd.selected_product) return;
         currentDeepDive = dd;
         const sp = dd.selected_product;
         selectedProductId = sp.id || '';
+        const activeGran = document.getElementById('flt-granularity')?.value || 'sku';
+        const isViewingSpecBucket = Boolean(dd.member_skus && dd.member_skus.spec_bucket_id);
+        if (isViewingSpecBucket) {
+            lastSpecBucketContext = { id: sp.id, name: sp.name };
+        } else if (activeGran !== 'spec_bucket') {
+            lastSpecBucketContext = null;
+        }
 
         // Header details
         document.getElementById('sel-sku-name').textContent = sp.name || 'Selected Product';
-        document.getElementById('sel-sku-meta').innerHTML =
-            `Code: <strong>${escHtml(sp.code)}</strong> &nbsp;|&nbsp; Product Line: <strong>${escHtml(sp.product_line)}</strong> &nbsp;|&nbsp; Brand: <strong>${escHtml(sp.brand)}</strong>`;
+        let metaHtml = `Code: <strong>${escHtml(sp.code)}</strong> &nbsp;|&nbsp; Product Line: <strong>${escHtml(sp.product_line)}</strong> &nbsp;|&nbsp; Brand: <strong>${escHtml(sp.brand)}</strong>`;
+        const isArch2Line = (sp.product_line === 'MOBILE' || sp.product_line === 'TABLET');
+        const isArch3Line = (sp.product_line === 'LAPTOP' || sp.product_line === 'DESKTOP' || sp.product_line === 'PRINTER');
+        const ARCH4_LINE_SET = new Set([
+            'SMALL APPLIANCES', 'HOME APPLIANCES', 'MICROWAVE OVEN', 'CROCKERY',
+            'EAR WEARABLES', 'AUDIO', 'ACCESSORIES', 'HOME THEATRE',
+            'SMART WATCH', 'PERSONAL CARE', 'STORAGE DEVICES', 'IT ACCESSORIES',
+            'GAMING', 'CAMERA', 'RIG', 'HOUSE HOLD'
+        ]);
+        const isArch4Line = ARCH4_LINE_SET.has(sp.product_line);
+        const isGlamLine = (sp.product_line === 'GLAMSHIELD');
+        const isFragLine = (sp.product_line === 'FRAGRANCE');
+        if (sp.spec_bucket_label && !isViewingSpecBucket) {
+            const grpTitle = isArch2Line ? 'Model Family' : (isArch3Line ? 'Spec & Price Tier' : (isArch4Line ? 'Sub-Category Bucket' : (isFragLine ? 'Pack-Size Bucket' : (isGlamLine ? 'Mobile-Attach Bucket' : 'Spec Bucket'))));
+            metaHtml += ` &nbsp;|&nbsp; ${grpTitle}: <strong>${escHtml(sp.spec_bucket_label)}</strong>`;
+        } else if (isViewingSpecBucket && sp.sku_count > 0) {
+            const unitTxt = isArch2Line ? 'Color / Variant SKU' : (isArch3Line ? 'OEM Model' : 'SKU');
+            metaHtml += ` &nbsp;|&nbsp; Models: <strong>${fmtNum(sp.sku_count)} ${unitTxt}${sp.sku_count === 1 ? '' : 's'}</strong>`;
+        }
+        if (sp.price_band_label) {
+            metaHtml += ` &nbsp;|&nbsp; Price Band: <strong>${escHtml(sp.price_band_label)}</strong>`;
+        }
+        if (!isViewingSpecBucket && activeGran === 'spec_bucket' && lastSpecBucketContext && lastSpecBucketContext.id) {
+            const backTxt = isArch2Line ? 'Back to Model Family' : (isArch3Line ? 'Back to Spec Tier' : (isArch4Line ? 'Back to Sub-Category Bucket' : (isFragLine ? 'Back to Pack-Size Bucket' : (isGlamLine ? 'Back to Mobile-Attach Bucket' : 'Back to Spec Bucket'))));
+            metaHtml += ` &nbsp;<button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 ms-1" style="font-size:0.68rem;" onclick="returnToLastSpecBucket()"><i class="bi bi-arrow-left me-1"></i>${backTxt}</button>`;
+        }
+        document.getElementById('sel-sku-meta').innerHTML = metaHtml;
 
         const fsnEl = document.getElementById('sel-sku-fsn-badge');
         if (sp.movement_class === 'Fast-Moving') {
@@ -2424,6 +2462,79 @@
         if (decEl) {
             decEl.classList.toggle('d-none', !sp.stockout_decensored);
         }
+        const arch1El = document.getElementById('sel-sku-arch1-badge');
+        if (arch1El) {
+            if (sp.archetype1_active) {
+                const adj = Number(sp.archetype1_seasonal_adj_pct || 0);
+                const sign = adj >= 0 ? '+' : '';
+                arch1El.textContent = `Appliance Seasonality (${sign}${adj.toFixed(1)}%)`;
+                arch1El.title = `Archetype 1 · 3-year de-festivalized Spec-Bucket Kerala weather seasonality applied (${sp.spec_bucket_label || sp.product_line})`;
+                arch1El.className = `badge border ${adj >= 0 ? 'bg-success-subtle text-success border-success-subtle' : 'bg-info-subtle text-info-emphasis border-info-subtle'}`;
+                arch1El.style.fontSize = '0.65rem';
+            } else if (sp.archetype2_active) {
+                const adj = Number(sp.archetype2_adj_pct || 0);
+                const sign = adj >= 0 ? '+' : '';
+                arch1El.textContent = `Price-Band & Lifecycle (${sign}${adj.toFixed(1)}%)`;
+                arch1El.title = `Archetype 2 · 3-year ${sp.price_band_label || 'Price-Band'} seasonality + commercial lifecycle curve (${sp.lifecycle_stage || 'Active'})`;
+                arch1El.className = `badge border ${adj >= 0 ? 'bg-success-subtle text-success border-success-subtle' : 'bg-info-subtle text-info-emphasis border-info-subtle'}`;
+                arch1El.style.fontSize = '0.65rem';
+            } else if (sp.archetype3_active) {
+                const adj = Number(sp.archetype3_adj_pct || 0);
+                const sign = adj >= 0 ? '+' : '';
+                arch1El.textContent = `Spec-Tier & Seasonality (${sign}${adj.toFixed(1)}%)`;
+                arch1El.title = `Archetype 3 · 3-year Computing Spec-Tier (${sp.spec_tier || sp.product_line} · ${sp.price_band_label || ''}) Back-to-School seasonality & OEM rollout curve`;
+                arch1El.className = `badge border ${adj >= 0 ? 'bg-success-subtle text-success border-success-subtle' : 'bg-info-subtle text-info-emphasis border-info-subtle'}`;
+                arch1El.style.fontSize = '0.65rem';
+            } else if (sp.archetype4_active && Math.abs(Number(sp.archetype4_adj_pct || 0)) >= 0.5) {
+                const adj = Number(sp.archetype4_adj_pct || 0);
+                const sign = adj >= 0 ? '+' : '';
+                arch1El.textContent = `Sub-Cat Seasonality (${sign}${adj.toFixed(1)}%)`;
+                arch1El.title = `Archetype 4 · 3-year de-festivalized Sub-Category seasonality (${sp.spec_bucket_label || sp.item_category || sp.product_line})`;
+                arch1El.className = `badge border ${adj >= 0 ? 'bg-success-subtle text-success border-success-subtle' : 'bg-info-subtle text-info-emphasis border-info-subtle'}`;
+                arch1El.style.fontSize = '0.65rem';
+            } else if (sp.archetype5_active) {
+                const adj = Number(sp.archetype5_adj_pct || 0);
+                const sign = adj >= 0 ? '+' : '';
+                const a5Note = sp.archetype5_note || (isFragLine ? 'Pack-Size Pace' : 'Mobile Attach');
+                arch1El.textContent = Math.abs(adj) >= 0.5 ? `${a5Note} (${sign}${adj.toFixed(1)}%)` : a5Note;
+                arch1El.title = isFragLine
+                    ? `Archetype 5 · High-velocity Fragrance Pack-Size & Recent-Pace calibration (${sp.spec_bucket_label || sp.item_group || ''})`
+                    : `Archetype 5 · Brand-Matched Mobile Attach seasonality (${sp.spec_bucket_label || sp.item_category || ''})`;
+                arch1El.className = `badge border ${adj >= 0 ? 'bg-success-subtle text-success border-success-subtle' : 'bg-info-subtle text-info-emphasis border-info-subtle'}`;
+                arch1El.style.fontSize = '0.65rem';
+            } else if (sp.archetype6_active && sp.archetype6_tag) {
+                arch1El.textContent = sp.archetype6_tag;
+                arch1El.title = 'Archetype 6 · Virtual VAS Attach-Rate / Paired Hardware Intelligence';
+                arch1El.className = 'badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle';
+                arch1El.style.fontSize = '0.65rem';
+            } else if (isViewingSpecBucket) {
+                const bLbl = isArch2Line ? 'Model Family' : (isArch3Line ? 'Spec & Price Tier' : (isArch4Line ? 'Sub-Category Bucket' : (isFragLine ? 'Pack-Size Bucket' : (isGlamLine ? 'Mobile-Attach Bucket' : 'Spec Bucket'))));
+                arch1El.textContent = `${bLbl} · ${fmtNum(sp.sku_count || 1)} SKUs`;
+                arch1El.title = 'Combined demand across all active & historical SKUs in this planning bucket';
+                arch1El.className = 'badge bg-primary-subtle text-primary border border-primary-subtle';
+                arch1El.style.fontSize = '0.65rem';
+            } else {
+                arch1El.classList.add('d-none');
+            }
+        }
+        const lcEl = document.getElementById('sel-sku-lifecycle-badge');
+        if (lcEl) {
+            if (sp.lifecycle_stage) {
+                const st = sp.lifecycle_stage;
+                let lcCls = 'bg-secondary-subtle text-secondary border-secondary-subtle';
+                if (st.startsWith('Launch') || st.startsWith('New Rollout') || st.startsWith('Store Ramp')) lcCls = 'bg-success-subtle text-success border-success-subtle';
+                else if (st.startsWith('Post-Launch')) lcCls = 'bg-warning-subtle text-warning-emphasis border-warning-subtle';
+                else if (st.startsWith('Prime')) lcCls = 'bg-primary-subtle text-primary border-primary-subtle';
+                else if (st.startsWith('Declining')) lcCls = 'bg-danger-subtle text-danger border-danger-subtle';
+                lcEl.className = `badge border ${lcCls}`;
+                lcEl.style.fontSize = '0.65rem';
+                lcEl.textContent = st;
+                const ageTxt = (sp.launch_age_days != null && Number(sp.launch_age_days) >= 0) ? ` (${sp.launch_age_days}d since first sale)` : '';
+                lcEl.title = `Commercial Lifecycle Stage${ageTxt}`;
+            } else {
+                lcEl.classList.add('d-none');
+            }
+        }
 
         document.getElementById('sel-fc-7d').textContent = fmtNum(sp.forecast_7d);
         document.getElementById('sel-fc-15d').textContent = fmtNum(sp.forecast_15d);
@@ -2456,8 +2567,181 @@
         });
 
         drawSkuForecastChart(dd.forecast_chart);
+        renderSpecBucketMemberSkus(dd.member_skus, sp);
         loadProductLineForecast(sp);
     }
+
+    function renderSpecBucketMemberSkus(ms, sp) {
+        const box = document.getElementById('spec-bucket-skus-box');
+        if (!box) return;
+        if (!ms || !Array.isArray(ms.items) || !ms.items.length) {
+            box.classList.add('d-none');
+            box.innerHTML = '';
+            return;
+        }
+        window._specBucketMemberMap = {};
+        ms.items.forEach(item => { window._specBucketMemberMap[item.code] = item; });
+
+        const rowsHtml = ms.items.map(it => {
+            let lcCls = 'bg-secondary-subtle text-secondary';
+            if (it.lifecycle === 'Active') lcCls = 'bg-success-subtle text-success';
+            else if (it.lifecycle === 'Phase-Out') lcCls = 'bg-warning-subtle text-warning-emphasis';
+            else if (it.lifecycle === 'New / Unsold') lcCls = 'bg-info-subtle text-info-emphasis';
+            else if (it.lifecycle === 'Aged Stock') lcCls = 'bg-danger-subtle text-danger';
+            const trnTxt = it.transit_qty > 0 ? ` <span class="text-muted">(+${fmtNum(it.transit_qty)})</span>` : '';
+            return `
+                <tr style="cursor:pointer;" data-sku="${escHtml(it.code)}" onclick="inspectMemberSku(this.dataset.sku)" title="Click to inspect this physical SKU's individual forecast">
+                    <td style="max-width:240px;">
+                        <div class="fw-semibold text-dark text-truncate" title="${escHtml(it.name)}">${escHtml(it.name)}</div>
+                        <div class="text-muted" style="font-size:0.66rem;"><code>${escHtml(it.code)}</code></div>
+                    </td>
+                    <td class="text-center"><span class="badge ${lcCls}" style="font-size:0.63rem;">${escHtml(it.lifecycle)}</span></td>
+                    <td class="text-end fw-semibold">${fmtNum(it.d30)}</td>
+                    <td class="text-end text-muted">${fmtNum(it.share_pct, 1)}%</td>
+                    <td class="text-end" style="color:#4f46e5;">${fmtNum(it.alloc_fc7)}</td>
+                    <td class="text-end" style="color:#6d28d9;">${fmtNum(it.alloc_fc15)}</td>
+                    <td class="text-end fw-bold" style="color:#047857;">${fmtNum(it.alloc_fc30)}</td>
+                    <td class="text-end">${fmtNum(it.current_stock)}${trnTxt}</td>
+                    <td class="text-end ${it.replenish_30d > 0 ? 'text-danger fw-bold' : 'text-muted'}">${fmtNum(it.replenish_30d)}</td>
+                </tr>
+            `;
+        }).join('');
+
+        const isMobFam = ms.bucket_kind === 'model_family';
+        const isCompTier = ms.bucket_kind === 'computing_spec_tier';
+        const isSubCatBkt = ms.bucket_kind === 'subcat_bucket';
+        const isPackBkt = ms.bucket_kind === 'pack_size_bucket';
+        const isAttachBkt = ms.bucket_kind === 'attach_bucket';
+        const boxTitle = isMobFam
+            ? 'Color / Variant SKUs in this Model Family'
+            : (isCompTier
+                ? 'Active OEM Models in this Spec & Price Tier'
+                : (isSubCatBkt
+                    ? 'SKUs in this Sub-Category Bucket'
+                    : (isPackBkt
+                        ? 'SKUs in this Fragrance Pack-Size Bucket'
+                        : (isAttachBkt ? 'SKUs in this Mobile-Attach Bucket' : 'SKUs in this Spec Bucket'))));
+        const boxSub = isMobFam
+            ? 'Model-family forecast split across color/edition SKUs by recency-weighted share · Click any SKU to inspect'
+            : (isCompTier
+                ? 'Spec-tier forecast allocated across active OEM SKUs by recency-weighted velocity · Click any SKU to inspect'
+                : (isSubCatBkt
+                    ? 'Sub-category bucket forecast allocated across active SKUs by recency-weighted velocity · Click any SKU to inspect'
+                    : (isPackBkt
+                        ? 'Pack-size bucket allocated across Fragrance SKUs by live recent velocity · Click any SKU to inspect'
+                        : (isAttachBkt
+                            ? 'Mobile-attach bucket allocated across active Glamshield SKUs · Click any SKU to inspect'
+                            : 'Bucket forecast allocated by recency-weighted share · Click any SKU to inspect'))));
+
+        box.innerHTML = `
+            <div class="rounded-3 p-2 border" style="background:#f8fafc;border-color:#e2e8f0!important;">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2 px-1">
+                    <div>
+                        <span class="fw-bold text-dark" style="font-size:0.8rem;">
+                            <i class="bi bi-diagram-3-fill me-1" style="color:#4f46e5;"></i>
+                            ${boxTitle}
+                        </span>
+                        <span class="badge bg-white text-dark border ms-1" style="font-size:0.66rem;">
+                            ${fmtNum(ms.total_skus)} SKUs · ${fmtNum(ms.active_skus_30d)} active (30d) · ${fmtNum(ms.stocked_skus)} stocked
+                        </span>
+                    </div>
+                    <div class="text-muted" style="font-size:0.68rem;">
+                        ${boxSub}
+                    </div>
+                </div>
+                <div class="table-responsive" style="max-height:220px;overflow-y:auto;">
+                    <table class="table table-sm table-hover align-middle mb-0" style="font-size:0.74rem;background:#ffffff;">
+                        <thead class="table-light" style="position:sticky;top:0;z-index:1;font-size:0.67rem;text-transform:uppercase;color:#64748b;">
+                            <tr>
+                                <th>SKU / Model</th>
+                                <th class="text-center">Status</th>
+                                <th class="text-end">30d Sales</th>
+                                <th class="text-end">Share</th>
+                                <th class="text-end">Alloc 7d</th>
+                                <th class="text-end">Alloc 15d</th>
+                                <th class="text-end">Alloc 30d</th>
+                                <th class="text-end">Stock</th>
+                                <th class="text-end">30d Replenish</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rowsHtml}</tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+        box.classList.remove('d-none');
+    }
+
+    window.inspectMemberSku = function(code) {
+        const it = (window._specBucketMemberMap || {})[code];
+        if (!it) return;
+        const d30 = Number(it.d30 || 0);
+        const d90 = Number(it.d90 || 0);
+        const stk = Number(it.current_stock || 0);
+        const trn = Number(it.transit_qty || 0);
+        const dVel = d30 > 0 ? (d30 / 30.0) : (d90 / 90.0);
+        const cov = dVel > 0 ? Math.min(999, Math.round(stk / dVel)) : 999;
+        const sp = (currentDeepDive && currentDeepDive.selected_product) || {};
+        productRowMap[code] = {
+            id: code,
+            code: code,
+            name: it.name,
+            brand: it.brand || sp.brand || 'GENERAL',
+            product_line: it.product_line || sp.product_line || '',
+            macro_category: sp.macro_category || 'CE',
+            item_category: sp.item_category || '',
+            item_group: sp.item_group || '',
+            spec_bucket_id: sp.spec_bucket_id || sp.id || '',
+            spec_bucket_label: sp.spec_bucket_label || sp.name || '',
+            archetype1_active: Boolean(sp.archetype1_active),
+            archetype1_seasonal_adj_pct: Number(sp.archetype1_seasonal_adj_pct || 0),
+            price_band: sp.price_band || '',
+            price_band_label: sp.price_band_label || '',
+            lifecycle_stage: sp.lifecycle_stage || '',
+            launch_age_days: sp.launch_age_days != null ? sp.launch_age_days : -1,
+            archetype2_active: Boolean(sp.archetype2_active),
+            archetype2_adj_pct: Number(sp.archetype2_adj_pct || 0),
+            spec_tier: sp.spec_tier || '',
+            archetype3_active: Boolean(sp.archetype3_active),
+            archetype3_adj_pct: Number(sp.archetype3_adj_pct || 0),
+            archetype4_active: Boolean(sp.archetype4_active),
+            archetype4_adj_pct: Number(sp.archetype4_adj_pct || 0),
+            archetype5_active: Boolean(sp.archetype5_active),
+            archetype5_adj_pct: Number(sp.archetype5_adj_pct || 0),
+            archetype5_note: sp.archetype5_note || '',
+            archetype6_active: Boolean(sp.archetype6_active),
+            archetype6_tag: sp.archetype6_tag || '',
+            is_virtual_vas: Boolean(sp.is_virtual_vas),
+            sku_count: 1,
+            movement_class: d30 >= 8 ? 'Fast-Moving' : (d90 > 0 ? 'Slow-Moving' : 'Non-Moving'),
+            trend_status: 'Stable',
+            growth_pct: 0.0,
+            current_stock: stk,
+            transit_qty: trn,
+            d30: d30,
+            d90: d90,
+            daily_velocity: Number(dVel.toFixed(2)),
+            weekly_velocity: Number((dVel * 7.0).toFixed(1)),
+            monthly_velocity: d30,
+            forecast_7d: Number(it.alloc_fc7 || 0),
+            forecast_15d: Number(it.alloc_fc15 || 0),
+            forecast_30d: Number(it.alloc_fc30 || 0),
+            stat_forecast_15d: Number(it.alloc_fc15 || 0),
+            ml_forecast_15d: Number(it.alloc_fc15 || 0),
+            hybrid_forecast_15d: Number(it.alloc_fc15 || 0),
+            model_tier: d90 > 0 ? 'LightGBM' : 'Cold-Start',
+            model_tier_label: 'Spec-Bucket Allocated SKU',
+            stock_coverage_days: cov,
+            replenish_qty_30d: Number(it.replenish_30d || 0),
+        };
+        inspectProductRow(code, true, 'sku');
+    };
+
+    window.returnToLastSpecBucket = function() {
+        if (lastSpecBucketContext && lastSpecBucketContext.id) {
+            inspectProductRow(lastSpecBucketContext.id, false, 'spec_bucket');
+        }
+    };
 
     function drawSkuForecastChart(fc) {
         if (!fc) return;
@@ -2678,12 +2962,14 @@
         if (brandSel && insTxt.startsWith(`Insight: ${pl} `)) insTxt = `Insight: ${scopeLbl} ` + insTxt.slice(`Insight: ${pl} `.length);
         ins.textContent = insTxt;
 
-        // How big is the selected SKU inside the whole product line?
+        // How big is the selected SKU / Spec Bucket inside the whole product line?
         const shareEl = document.getElementById('pl-sku-share');
         const tot30 = Number(p.forecast_30d || 0);
         if (sp && sp.id !== '__ALL__' && Number(sp.forecast_30d || 0) > 0 && tot30 > 0) {
             const pct = Number(sp.forecast_30d) / tot30 * 100;
-            shareEl.innerHTML = `<i class="bi bi-pie-chart-fill me-1" style="color:#6366f1;"></i>Selected SKU <strong>${escHtml(sp.name || sp.code)}</strong> is about <strong>${pct.toFixed(1)}%</strong> of the ${escHtml(scopeLbl)} 30-day forecast (${fmtNum(sp.forecast_30d)} of ${fmtNum(tot30)} units).`;
+            const activeGran = document.getElementById('flt-granularity')?.value || 'sku';
+            const entLabel = (activeGran === 'spec_bucket' && sp.id && sp.id.includes('||')) ? 'Selected Spec Bucket' : 'Selected SKU';
+            shareEl.innerHTML = `<i class="bi bi-pie-chart-fill me-1" style="color:#6366f1;"></i>${entLabel} <strong>${escHtml(sp.name || sp.code)}</strong> is about <strong>${pct.toFixed(1)}%</strong> of the ${escHtml(scopeLbl)} 30-day forecast (${fmtNum(sp.forecast_30d)} of ${fmtNum(tot30)} units).`;
         } else {
             shareEl.textContent = '';
         }
@@ -2926,7 +3212,7 @@
 
         selectedProductId = o.code;
         setQsLoading(true, `Loading ${o.code}…`);
-        inspectProductRow(o.code, true).finally(() => {
+        inspectProductRow(o.code, true, 'sku').finally(() => {
             setQsLoading(false);
         });
     }
@@ -3435,11 +3721,67 @@
             if (p.stockout_decensored) {
                 tierBadgeHtml += '<div class="mt-1"><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" style="font-size:0.58rem;">De-Censored</span></div>';
             }
+            if (p.archetype1_active && Math.abs(Number(p.archetype1_seasonal_adj_pct || 0)) >= 1.0) {
+                const sAdj = Number(p.archetype1_seasonal_adj_pct || 0);
+                const sCls = sAdj >= 0 ? 'bg-success-subtle text-success border-success-subtle' : 'bg-info-subtle text-info-emphasis border-info-subtle';
+                tierBadgeHtml += `<div class="mt-1"><span class="badge ${sCls} border" style="font-size:0.58rem;" title="Archetype 1 · 3-yr Spec-Bucket seasonality (${escHtml(p.spec_bucket_label || p.product_line)})">Season ${sAdj >= 0 ? '+' : ''}${sAdj.toFixed(1)}%</span></div>`;
+            } else if (p.archetype2_active) {
+                const a2Adj = Number(p.archetype2_adj_pct || 0);
+                const st = p.lifecycle_stage || '';
+                let chipTxt = '';
+                let chipCls = a2Adj >= 0 ? 'bg-success-subtle text-success border-success-subtle' : 'bg-info-subtle text-info-emphasis border-info-subtle';
+                if (st.startsWith('Launch')) {
+                    chipTxt = `Launch ${a2Adj >= 0 ? '+' : ''}${a2Adj.toFixed(0)}%`;
+                    chipCls = 'bg-success-subtle text-success border-success-subtle';
+                } else if (st.startsWith('Post-Launch')) {
+                    chipTxt = `Post-Lnch ${a2Adj >= 0 ? '+' : ''}${a2Adj.toFixed(0)}%`;
+                    chipCls = 'bg-warning-subtle text-warning-emphasis border-warning-subtle';
+                } else if (st.startsWith('Declining')) {
+                    chipTxt = `EOL ${a2Adj >= 0 ? '+' : ''}${a2Adj.toFixed(0)}%`;
+                    chipCls = 'bg-danger-subtle text-danger border-danger-subtle';
+                } else if (Math.abs(a2Adj) >= 2.0) {
+                    chipTxt = `PB ${a2Adj >= 0 ? '+' : ''}${a2Adj.toFixed(0)}%`;
+                }
+                if (chipTxt) {
+                    tierBadgeHtml += `<div class="mt-1"><span class="badge ${chipCls} border" style="font-size:0.58rem;" title="Archetype 2 · ${escHtml(st || 'Active')} · ${escHtml(p.price_band_label || '')}">${escHtml(chipTxt)}</span></div>`;
+                }
+            } else if (p.archetype3_active) {
+                const a3Adj = Number(p.archetype3_adj_pct || 0);
+                const st = p.lifecycle_stage || '';
+                let chipTxt = '';
+                let chipCls = a3Adj >= 0 ? 'bg-success-subtle text-success border-success-subtle' : 'bg-info-subtle text-info-emphasis border-info-subtle';
+                if (st.startsWith('New Rollout') || st.startsWith('Store Ramp')) {
+                    chipTxt = `Ramp ${a3Adj >= 0 ? '+' : ''}${a3Adj.toFixed(0)}%`;
+                    chipCls = 'bg-success-subtle text-success border-success-subtle';
+                } else if (st.startsWith('Declining')) {
+                    chipTxt = `EOL ${a3Adj >= 0 ? '+' : ''}${a3Adj.toFixed(0)}%`;
+                    chipCls = 'bg-danger-subtle text-danger border-danger-subtle';
+                } else if (Math.abs(a3Adj) >= 2.0) {
+                    chipTxt = `Spec ${a3Adj >= 0 ? '+' : ''}${a3Adj.toFixed(0)}%`;
+                }
+                if (chipTxt) {
+                    tierBadgeHtml += `<div class="mt-1"><span class="badge ${chipCls} border" style="font-size:0.58rem;" title="Archetype 3 · ${escHtml(p.spec_tier || p.product_line)} (${escHtml(p.price_band_label || '')}) · ${escHtml(st || 'Active')}">${escHtml(chipTxt)}</span></div>`;
+                }
+            } else if (p.archetype4_active && Math.abs(Number(p.archetype4_adj_pct || 0)) >= 2.0) {
+                const a4Adj = Number(p.archetype4_adj_pct || 0);
+                const a4Cls = a4Adj >= 0 ? 'bg-success-subtle text-success border-success-subtle' : 'bg-info-subtle text-info-emphasis border-info-subtle';
+                tierBadgeHtml += `<div class="mt-1"><span class="badge ${a4Cls} border" style="font-size:0.58rem;" title="Archetype 4 · Sub-Category seasonality (${escHtml(p.spec_bucket_label || p.item_category || p.product_line)})">SubCat ${a4Adj >= 0 ? '+' : ''}${a4Adj.toFixed(0)}%</span></div>`;
+            } else if (p.archetype5_active && Math.abs(Number(p.archetype5_adj_pct || 0)) >= 1.5) {
+                const a5Adj = Number(p.archetype5_adj_pct || 0);
+                const a5Cls = a5Adj >= 0 ? 'bg-success-subtle text-success border-success-subtle' : 'bg-info-subtle text-info-emphasis border-info-subtle';
+                const a5Lbl = p.product_line === 'FRAGRANCE' ? 'Pace' : 'Attach';
+                tierBadgeHtml += `<div class="mt-1"><span class="badge ${a5Cls} border" style="font-size:0.58rem;" title="Archetype 5 · ${escHtml(p.archetype5_note || p.spec_bucket_label || p.product_line)}">${a5Lbl} ${a5Adj >= 0 ? '+' : ''}${a5Adj.toFixed(0)}%</span></div>`;
+            } else if (p.archetype6_active && p.archetype6_tag) {
+                const a6Short = p.is_virtual_vas ? 'Virtual VAS' : (p.product_line === 'AC OUTDOOR' ? '1:1 AC Pair' : 'Bundle');
+                tierBadgeHtml += `<div class="mt-1"><span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle" style="font-size:0.58rem;" title="Archetype 6 · ${escHtml(p.archetype6_tag)}">${a6Short}</span></div>`;
+            }
 
             const cmp15Title = `15d Forecast Comparison — Hybrid: ${fmtNum(p.hybrid_forecast_15d)} | LightGBM/TSB: ${fmtNum(p.ml_forecast_15d)} | Statistical: ${fmtNum(p.stat_forecast_15d)}`;
 
             let covHtml = '';
-            if (p.stock_coverage_days >= 999) {
+            if (p.is_virtual_vas) {
+                covHtml = '<span class="badge bg-info-subtle text-info-emphasis">Digital / VAS</span>';
+            } else if (p.stock_coverage_days >= 999) {
                 covHtml = '<span class="badge bg-secondary-subtle text-secondary">Non-Mov</span>';
             } else if (p.stock_coverage_days < 15 && p.d30 > 0) {
                 covHtml = `<span class="badge bg-danger-subtle text-danger fw-bold">${p.stock_coverage_days}d</span>`;
@@ -3452,13 +3794,24 @@
             const discTag = (Number(p.discount_pct || 0) >= 3.0)
                 ? ` · <span class="text-success fw-bold" title="Realized selling price discount below MOP">-${Number(p.discount_pct).toFixed(0)}% MOP</span>`
                 : '';
+            const cleanGrp = (p.product_line === 'FRAGRANCE')
+                ? ((p.item_group && !/^(DEFAULT\d*|MSI|GENERAL|NA|N\/A|NONE|NIL|OTHERS?)$/i.test(String(p.item_group).trim())) ? p.item_group : '')
+                : ((p.item_group && !/^(DEFAULT\d*|MSI(\s.*)?|GENERAL|NA|N\/A|NONE|NIL|OTHERS?)$/i.test(String(p.item_group).trim())) ? p.item_group : '');
+            const skuBucketChip = p.spec_tier
+                ? p.spec_tier
+                : (p.price_band_label && (p.product_line === 'SMART WATCH' || p.product_line === 'HOME THEATRE')
+                    ? `${p.item_category || p.product_line} · ${p.price_band_label}`
+                    : (cleanGrp || p.item_category || ''));
+            const specTag = (meta && meta.granularity === 'spec_bucket')
+                ? ` · <span class="badge bg-primary-subtle text-primary" style="font-size:0.60rem;">${fmtNum(p.sku_count || 1)} SKU${(p.sku_count || 1) === 1 ? '' : 's'}</span>`
+                : (p.spec_bucket_label && skuBucketChip ? ` · <span class="text-primary" title="${escHtml(p.spec_bucket_label)}">${escHtml(skuBucketChip)}</span>` : '');
 
             return `
-                <tr data-pid="${escHtml(p.id)}" class="${isSel ? 'selected-sku-row' : ''}" onclick="inspectProductRow('${escHtml(p.id)}', false)">
+                <tr data-pid="${escHtml(p.id)}" class="${isSel ? 'selected-sku-row' : ''}" onclick="inspectProductRow(this.dataset.pid, false)">
                     <td style="max-width:250px;">
                         <div class="fw-bold text-dark text-truncate" title="${escHtml(p.name)}">${escHtml(p.name)}</div>
                         <div class="text-muted" style="font-size:0.68rem;">
-                            <code>${escHtml(p.code)}</code> · ${escHtml(p.brand)} · ${escHtml(p.product_line)}${discTag}
+                            <code>${escHtml(p.code)}</code> · ${escHtml(p.brand)} · ${escHtml(p.product_line)}${specTag}${discTag}
                         </div>
                     </td>
                     <td class="text-end fw-bold text-dark">${fmtNum(p.daily_velocity, 2)}</td>
@@ -3907,7 +4260,7 @@
     };
 
     // ── Ultra-Fast (~60ms) Single SKU Row Click Deep-Dive ──
-    window.inspectProductRow = async function(pid, scrollToTop) {
+    window.inspectProductRow = async function(pid, scrollToTop, granOverride = '') {
         selectedProductId = pid;
         document.querySelectorAll('#master-products-tbody tr').forEach(tr => {
             tr.classList.toggle('selected-sku-row', tr.dataset.pid === pid);
@@ -3927,7 +4280,7 @@
             const body = {
                 selected_id: pid,
                 engine: document.getElementById('flt-engine')?.value || 'hybrid',
-                granularity: document.getElementById('flt-granularity')?.value || 'sku',
+                granularity: granOverride || document.getElementById('flt-granularity')?.value || 'sku',
                 macro_category: document.getElementById('flt-macro-cat')?.value || '',
                 product: document.getElementById('flt-product')?.value || '',
                 brand: document.getElementById('flt-brand')?.value || '',

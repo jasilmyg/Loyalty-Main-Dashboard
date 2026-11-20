@@ -43,7 +43,9 @@ warnings.filterwarnings("ignore")
 import clickhouse_connect
 import pandas as pd
 from azure.storage.blob import ContainerClient
-from dotenv import dotenv_values
+from dotenv import dotenv_values, load_dotenv
+
+load_dotenv(HERE / ".env", override=False)
 
 from analytics import starrocks_service as sr
 from analytics.portal_refresh import invalidate_all_caches, trigger_remote_portal_refresh

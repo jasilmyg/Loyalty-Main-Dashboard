@@ -1090,10 +1090,10 @@ def _ch_port(default: int = 8443) -> int:
     return int(raw) if raw.isdigit() else default
 
 
-CH_BACKUP_HOST     = _ch_env("CLICKHOUSE_HOST", "pdhsuv47ec.ap-south-1.aws.clickhouse.cloud")
+CH_BACKUP_HOST     = _ch_env("CLICKHOUSE_HOST", "o4zolc81oe.ap-south-1.aws.clickhouse.cloud")
 CH_BACKUP_PORT     = _ch_port()
 CH_BACKUP_USER     = _ch_env("CLICKHOUSE_USER", "default")
-_CH_DEFAULT_PASSWORD = "ZFlujj9SA_Iei"
+_CH_DEFAULT_PASSWORD = "jNq~6j8EOO8La"
 CH_BACKUP_PASSWORD = _ch_env("CLICKHOUSE_PASSWORD", _CH_DEFAULT_PASSWORD)
 CH_BACKUP_DATABASE = _ch_env("CLICKHOUSE_DATABASE", "default")
 CH_BACKUP_SECURE   = os.environ.get("CLICKHOUSE_SECURE", "1") not in ("0", "false", "False")
