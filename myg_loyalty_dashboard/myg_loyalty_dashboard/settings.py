@@ -213,3 +213,8 @@ PUBLIC_TRACKING_BASE_URL = os.environ.get(
     'https://loyalty-main-dashboard.onrender.com'
 ).rstrip('/')
 
+# Allow large bulk campaign saves & multi-poster batches (while ZIPs stream via temp files)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 25 * 1024 * 1024
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 5000
+
+

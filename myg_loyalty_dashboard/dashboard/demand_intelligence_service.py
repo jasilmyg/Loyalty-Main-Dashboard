@@ -31,6 +31,7 @@ from analytics.clickhouse_service import (
     get_ch_client,
     set_bypass_cache,
 )
+from analytics.portal_refresh import get_cache_epoch
 from .dashboard_api_logic import PRODUCT_CAT_MAPPING
 from .demand_ml_engine import run_hybrid_ml_forecasting
 from .demand_archetype1 import (
@@ -92,6 +93,7 @@ from .demand_archetype6 import (
 )
 from .demand_daily_features import fetch_daily_rows, window_features
 from .demand_model_store import get_pretrained_model
+from .demand_promo_calendar import build_promo_date_effects, list_campaigns
 from .inter_store_transfer_engine import compute_inter_store_transfer_intelligence
 
 # ── Non-merchandise / internal / consumable / promo-bundle products excluded in Core Retail mode ──
@@ -146,8 +148,10 @@ FESTIVAL_DEFINITIONS = [
         'icon': 'bi-flower1',
         'color': '#f97316',
         'pre_days': 20,
-        'post_days': 24,
-        'prior_weight': 2.05,
+        'post_days': 18,
+        'peak_offset': -1,     # Uthradam (Day -1) is the #1 sales day every year (2020-2026)
+        'prior_weight': 2.35,
+        'priority': 100,
         'dates': {
             2020: date(2020, 8, 31),
             2021: date(2021, 8, 21),
@@ -160,13 +164,39 @@ FESTIVAL_DEFINITIONS = [
         },
     },
     {
+        'key': 'myG_Anniversary',
+        'label': 'myG Anniversary Sale',
+        'icon': 'bi-trophy-fill',
+        'color': '#0d9488',
+        'pre_days': 1,
+        'post_days': 4,
+        'peak_offset': 1,      # Nov 1-2 (Nov 2 = #1 fixed calendar date across 2020-2026)
+        'prior_weight': 1.85,
+        'priority': 95,        # Higher than Deepavali so Nov 1-2 is never overwritten
+        'dates': {yr: date(yr, 11, 1) for yr in range(2020, 2028)},
+    },
+    {
+        'key': 'Christmas',
+        'label': 'Christmas & Year-End',
+        'icon': 'bi-gift-fill',
+        'color': '#ef4444',
+        'pre_days': 5,
+        'post_days': 14,       # Covers Dec 31 Year-End (+6) AND Jan 2-8 post-holiday dip (+8..+14)
+        'peak_offset': -1,     # Dec 24 Christmas Eve peaks 3.4x on TV / 1.7x total store
+        'prior_weight': 1.60,
+        'priority': 90,
+        'dates': {yr: date(yr, 12, 25) for yr in range(2020, 2028)},
+    },
+    {
         'key': 'Vishu',
         'label': 'Vishu & Summer Peak',
         'icon': 'bi-sun-fill',
         'color': '#eab308',
-        'pre_days': 8,
-        'post_days': 3,
-        'prior_weight': 1.28,
+        'pre_days': 6,
+        'post_days': 10,       # Learns Vishu Day 0 (-18%) dip + post-Vishu +4..+7 cooldown
+        'peak_offset': -1,     # Apr 13 Vishu Eve peaks 1.8x-2.4x across all categories
+        'prior_weight': 1.50,
+        'priority': 85,
         'dates': {yr: date(yr, 4, 14 if yr not in (2022, 2023, 2026) else 15) for yr in range(2020, 2028)},
     },
     {
@@ -174,9 +204,11 @@ FESTIVAL_DEFINITIONS = [
         'label': 'Deepavali / Diwali Sale',
         'icon': 'bi-stars',
         'color': '#8b5cf6',
-        'pre_days': 7,
-        'post_days': 2,
-        'prior_weight': 1.24,
+        'pre_days': 5,
+        'post_days': 14,       # Covers post-Diwali Wk 1 (+1..+7) AND Wk 2 hangover (+8..+14)
+        'peak_offset': -1,
+        'prior_weight': 1.45,
+        'priority': 80,
         'dates': {
             2020: date(2020, 11, 14),
             2021: date(2021, 11, 4),
@@ -189,32 +221,48 @@ FESTIVAL_DEFINITIONS = [
         },
     },
     {
-        'key': 'Christmas',
-        'label': 'Christmas & Year-End',
-        'icon': 'bi-gift-fill',
-        'color': '#ef4444',
-        'pre_days': 7,
-        'post_days': 7,
-        'prior_weight': 1.25,
-        'dates': {yr: date(yr, 12, 25) for yr in range(2020, 2028)},
+        'key': 'Independence_Sale',
+        'label': 'Independence Day Sale',
+        'icon': 'bi-flag-fill',
+        'color': '#0284c7',
+        'pre_days': 3,
+        'post_days': 3,
+        'peak_offset': 0,
+        'prior_weight': 1.45,
+        'priority': 75,
+        'dates': {yr: date(yr, 8, 15) for yr in range(2020, 2028)},
     },
     {
-        'key': 'Ramadan_Eid',
-        'label': 'Ramadan & Eid Fest',
-        'icon': 'bi-moon-stars-fill',
-        'color': '#10b981',
-        'pre_days': 8,
-        'post_days': 3,
-        'prior_weight': 1.20,
+        'key': 'Republic_Sale',
+        'label': 'Republic Day Sale',
+        'icon': 'bi-award-fill',
+        'color': '#2563eb',
+        'pre_days': 3,
+        'post_days': 10,       # Learns post-Republic Wk 2 dip (+8..+10)
+        'peak_offset': 0,
+        'prior_weight': 1.35,
+        'priority': 75,
+        'dates': {yr: date(yr, 1, 26) for yr in range(2020, 2028)},
+    },
+    {
+        'key': 'Easter',
+        'label': 'Easter Weekend',
+        'icon': 'bi-brightness-high-fill',
+        'color': '#06b6d4',
+        'pre_days': 2,
+        'post_days': 2,
+        'peak_offset': -1,     # Holy Sat +31%, Easter Sun -25% across all categories
+        'prior_weight': 1.22,
+        'priority': 65,
         'dates': {
-            2020: date(2020, 5, 24),
-            2021: date(2021, 5, 13),
-            2022: date(2022, 5, 2),
-            2023: date(2023, 4, 21),
-            2024: date(2024, 4, 10),
-            2025: date(2025, 3, 30),
-            2026: date(2026, 3, 20),
-            2027: date(2027, 3, 10),
+            2020: date(2020, 4, 12),
+            2021: date(2021, 4, 4),
+            2022: date(2022, 4, 17),
+            2023: date(2023, 4, 9),
+            2024: date(2024, 3, 31),
+            2025: date(2025, 4, 20),
+            2026: date(2026, 4, 5),
+            2027: date(2027, 3, 28),
         },
     },
     {
@@ -222,9 +270,11 @@ FESTIVAL_DEFINITIONS = [
         'label': 'Bakrid (Eid al-Adha)',
         'icon': 'bi-calendar2-heart-fill',
         'color': '#059669',
-        'pre_days': 5,
-        'post_days': 2,
-        'prior_weight': 1.15,
+        'pre_days': 4,
+        'post_days': 3,        # Learns Day +1 (-17%) post-Eid dip
+        'peak_offset': -2,
+        'prior_weight': 1.18,
+        'priority': 60,
         'dates': {
             2020: date(2020, 7, 31),
             2021: date(2021, 7, 20),
@@ -237,44 +287,71 @@ FESTIVAL_DEFINITIONS = [
         },
     },
     {
-        'key': 'Independence_Sale',
-        'label': 'Independence Day Sale',
-        'icon': 'bi-flag-fill',
-        'color': '#0284c7',
-        'pre_days': 4,
-        'post_days': 2,
-        'prior_weight': 1.22,
-        'dates': {yr: date(yr, 8, 15) for yr in range(2020, 2028)},
-    },
-    {
-        'key': 'Republic_Sale',
-        'label': 'Republic Day Sale',
-        'icon': 'bi-award-fill',
-        'color': '#2563eb',
-        'pre_days': 3,
-        'post_days': 2,
-        'prior_weight': 1.18,
-        'dates': {yr: date(yr, 1, 26) for yr in range(2020, 2028)},
-    },
-    {
-        'key': 'Kerala_Piravi',
-        'label': 'Kerala Piravi Special',
-        'icon': 'bi-geo-alt-fill',
-        'color': '#0d9488',
-        'pre_days': 1,
-        'post_days': 1,
+        'key': 'Ramadan_Eid',
+        'label': 'Ramadan & Eid Fest',
+        'icon': 'bi-moon-stars-fill',
+        'color': '#10b981',
+        'pre_days': 5,
+        'post_days': 4,        # Learns Day +1 (-14%) post-Eid dip
+        'peak_offset': -1,
         'prior_weight': 1.12,
-        'dates': {yr: date(yr, 11, 1) for yr in range(2020, 2028)},
+        'priority': 55,
+        'dates': {
+            2020: date(2020, 5, 24),
+            2021: date(2021, 5, 13),
+            2022: date(2022, 5, 2),
+            2023: date(2023, 4, 21),
+            2024: date(2024, 4, 10),
+            2025: date(2025, 3, 30),
+            2026: date(2026, 3, 20),
+            2027: date(2027, 3, 10),
+        },
+    },
+    {
+        'key': 'Akshaya_Tritiya',
+        'label': 'Akshaya Tritiya',
+        'icon': 'bi-gem',
+        'color': '#f59e0b',
+        'pre_days': 2,
+        'post_days': 1,
+        'peak_offset': -1,     # Strong summer AC / Appliance peak
+        'prior_weight': 1.15,
+        'priority': 50,
+        'dates': {
+            2020: date(2020, 4, 26),
+            2021: date(2021, 5, 14),
+            2022: date(2022, 5, 3),
+            2023: date(2023, 4, 22),
+            2024: date(2024, 5, 10),
+            2025: date(2025, 4, 30),
+            2026: date(2026, 4, 19),
+            2027: date(2027, 5, 9),
+        },
+    },
+    {
+        'key': 'School_Reopen',
+        'label': 'Back-to-School Wave',
+        'icon': 'bi-mortarboard-fill',
+        'color': '#3b82f6',
+        'pre_days': 1,
+        'post_days': 9,        # Jun 6-9 post-reopen shopping bump (1.25-1.37x)
+        'peak_offset': 7,
+        'prior_weight': 1.12,
+        'priority': 40,
+        'dates': {yr: date(yr, 6, 1) for yr in range(2020, 2028)},
     },
     {
         'key': 'Black_Friday',
-        'label': 'Black Friday Tech Sale',
+        'label': 'Late-Nov / Black Friday',
         'icon': 'bi-lightning-charge-fill',
         'color': '#4f46e5',
         'pre_days': 2,
-        'post_days': 2,
-        'prior_weight': 1.16,
+        'post_days': 4,
+        'peak_offset': 1,
+        'prior_weight': 0.94,  # Empirically a trough on TV/appliances (0.67-0.92x); Laptops learn lift from data
+        'priority': 30,
         'dates': {
+            2020: date(2020, 11, 27),
             2021: date(2021, 11, 26),
             2022: date(2022, 11, 25),
             2023: date(2023, 11, 24),
@@ -290,8 +367,11 @@ FESTIVAL_DEFINITIONS = [
 def build_festival_date_map() -> Tuple[Dict[date, Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Build:
-      1) date -> {'key', 'label', 'intensity' (0..1), 'prior_weight', 'is_peak_day', 'color'}
+      1) date -> {'key', 'label', 'offset', 'intensity', 'prior_weight', 'is_peak_day', 'is_core_surge', 'priority', 'color'}
       2) core_events list of {'date', 'key', 'label', 'color'} for timeline pin markers.
+    Uses explicit event priority (e.g. myG Anniversary > Deepavali on Nov 1-2) and exact
+    peak_offset (-1 for Onam/Christmas/Vishu/Easter, +1 for myG Anniversary) so empirical
+    2020-2026 per-offset curves align to real Kerala retail demand.
     """
     date_map: Dict[date, Dict[str, Any]] = {}
     core_events: List[Dict[str, Any]] = []
@@ -301,49 +381,64 @@ def build_festival_date_map() -> Tuple[Dict[date, Dict[str, Any]], List[Dict[str
         flabel = fest['label']
         pre_d = fest['pre_days']
         post_d = fest['post_days']
-        pw = fest['prior_weight']
+        pk_off = int(fest.get('peak_offset', 0))
+        pw = float(fest['prior_weight'])
+        prio = int(fest.get('priority', 50))
         col = fest['color']
 
         for _yr, core_dt in fest['dates'].items():
-            core_events.append({
-                'date': core_dt,
-                'date_str': core_dt.strftime('%Y-%m-%d'),
-                'display_date': core_dt.strftime('%b %d, %Y'),
-                'key': fkey,
-                'label': flabel,
-                'color': col,
-            })
+            # Pin major customer-facing events on the timeline (skip quiet/background markers)
+            if fkey not in ('Akshaya_Tritiya', 'School_Reopen'):
+                core_events.append({
+                    'date': core_dt,
+                    'date_str': core_dt.strftime('%Y-%m-%d'),
+                    'display_date': core_dt.strftime('%b %d, %Y'),
+                    'key': fkey,
+                    'label': flabel,
+                    'color': col,
+                })
             for offset in range(-pre_d, post_d + 1):
                 cur_dt = core_dt + timedelta(days=offset)
-                if offset < 0:
+                # Core surge window vs extended post-event cooldown tail
+                is_cooldown_tail = (
+                    (fkey in ('Deepavali', 'Christmas', 'Vishu', 'Republic_Sale') and offset >= 8)
+                    or (fkey == 'Onam' and offset >= 12)
+                )
+                if is_cooldown_tail:
+                    intensity = 0.15
+                    eff_w = 0.94
+                    eff_prio = max(10, prio - 45)  # never overwrite an active surge event's core days
+                else:
+                    dist = abs(offset - pk_off)
+                    span = max(pre_d if offset < pk_off else post_d, 1)
                     if fkey == 'Onam' and offset < -11:
                         intensity = 0.28 + 0.32 * (1.0 - (abs(offset) - 12) / max(pre_d - 11, 1))
+                    elif fkey == 'Onam' and offset == 0:
+                        # Thiruvonam Day 0 is ~1.0x (showrooms quiet during Sadya)
+                        intensity = 0.10
+                    elif fkey in ('Vishu', 'Easter') and offset == 0:
+                        intensity = 0.10
                     else:
-                        eff_pre = min(pre_d, 11) if fkey == 'Onam' else pre_d
-                        intensity = 1.0 - (abs(offset) / (eff_pre + 1.5)) * 0.45
-                elif offset == 0:
-                    intensity = 1.0
-                else:
-                    if fkey == 'Onam':
-                        if offset <= 4:
-                            intensity = 0.65 - 0.04 * offset
-                        elif offset <= 12:
-                            intensity = 0.50 - 0.015 * (offset - 4)
-                        elif offset <= 20:
-                            intensity = 0.36 - 0.022 * (offset - 12)
-                        else:
-                            intensity = max(0.06, 0.16 - 0.025 * (offset - 20))
-                    else:
-                        intensity = 1.0 - (offset / (post_d + 1.2)) * 0.65
-                eff_w = 1.0 + (pw - 1.0) * intensity
+                        intensity = max(0.15, 1.0 - (dist / (span + 1.5)) * 0.65)
+                    eff_w = 1.0 + (pw - 1.0) * intensity
+                    if fkey == 'Vishu' and offset == 0:
+                        eff_w = 0.88
+                    elif fkey == 'Easter' and offset == 0:
+                        eff_w = 0.80
+                    eff_prio = prio
+
+                is_core_surge = (not is_cooldown_tail) and (eff_w >= 1.12)
                 existing = date_map.get(cur_dt)
-                if existing is None or eff_w > existing['prior_weight']:
+                if existing is None or (eff_prio, eff_w) > (existing['priority'], existing['prior_weight']):
                     date_map[cur_dt] = {
                         'key': fkey,
                         'label': flabel,
-                        'intensity': round(intensity, 4),
-                        'prior_weight': round(eff_w, 4),
-                        'is_peak_day': (offset == 0),
+                        'offset': int(offset),
+                        'intensity': round(float(intensity), 4),
+                        'prior_weight': round(float(eff_w), 4),
+                        'is_peak_day': (offset == pk_off),
+                        'is_core_surge': bool(is_core_surge),
+                        'priority': int(eff_prio),
                         'color': col,
                     }
 
@@ -793,25 +888,74 @@ def get_demand_filter_options() -> Dict[str, Any]:
 # 4. EMPIRICAL SEASONALITY, FESTIVAL LIFT & WALK-FORWARD ACCURACY ENGINE
 # ═════════════════════════════════════════════════════════════════════════════
 
+def _is_month_end_date(d: date) -> bool:
+    return (d + timedelta(days=1)).month != d.month
+
+
+def _is_quarter_end_date(d: date) -> bool:
+    return d.month in (3, 6, 9, 12) and _is_month_end_date(d)
+
+
+def _week_of_month(d: date) -> int:
+    return (d.day - 1) // 7 + 1
+
+
+def _resolve_branch_scope(
+    bm_df: pd.DataFrame,
+    district_filter: str = '',
+    branch_filter: str = '',
+) -> Tuple[str, str, str]:
+    """Return `(effective_district, resolved_branch_name, resolved_branch_code)` for promo calendar matching."""
+    eff_dist = (district_filter or '').strip().upper()
+    br_clean = (branch_filter or '').strip().upper()
+    if not br_clean:
+        return eff_dist, '', ''
+    if bm_df is not None and not bm_df.empty:
+        hit = bm_df[(bm_df['code'].str.upper() == br_clean) | (bm_df['branch_name'] == br_clean)]
+        if not hit.empty:
+            bn = str(hit.iloc[0]['branch_name'] or br_clean)
+            bc = str(hit.iloc[0]['code'] or br_clean).strip().upper()
+            if not eff_dist:
+                eff_dist = str(hit.iloc[0]['district'] or '').strip().upper()
+            return eff_dist, bn, bc
+    return eff_dist, br_clean, br_clean
+
+
 def _compute_seasonal_and_festival_profile(
     ch,
     ref_dt: date,
     where_clauses: List[str],
+    promo_campaigns: Optional[List[Dict[str, Any]]] = None,
+    product_filter: str = '',
+    brand_filter: str = '',
+    district_filter: str = '',
+    branch_name: str = '',
+    branch_code: str = '',
 ) -> Dict[str, Any]:
     """
-    Queries up to 3 years of daily sales from ClickHouse for the active filter slice
-    and derives:
-      1) Day-of-week multipliers (Mon..Sun, mean=1.0)
-      2) Monthly seasonality indices (Jan..Dec, mean=1.0)
-      3) Payday multiplier (days 1..5 of month vs 6..31)
-      4) Empirical Festival Lift (%) for each major Kerala/India retail festival
-      5) Upcoming 30-day daily seasonal-festival multiplier vector M[0..29]
-      6) 12-week walk-forward backtest WAPE, Forecast Accuracy (100 - WAPE), and MAPE sparklines
+    Queries full 2020–present daily sales from ClickHouse for the active filter slice
+    (baseline-normalized so multi-year branch expansion cancels out cleanly) and derives:
+      1) Day-of-week multipliers (Mon..Sun, mean=1.0) + Kerala 2nd-Saturday / Week-of-Month shape
+      2) Quarter-End, Month-End, and Start-of-Month (Days 1-3) empirical multipliers
+      3) Monthly seasonality indices (Jan..Dec, mean=1.0)
+      4) Empirical per-offset Festival & myG Anniversary Lift + Post-Event Cooldown curves (-20..+18)
+      5) Active & Upcoming WhatsApp Campaign Offer multipliers (`demand_promo_calendar`)
+      6) Upcoming 30-day daily seasonal-festival-promo multiplier vector M[0..29]
+      7) 12-week walk-forward backtest WAPE, Forecast Accuracy (100 - WAPE), and MAPE sparklines
     """
-    start_3y = ref_dt - timedelta(days=1095)
-    start_dt_str = start_3y.strftime('%Y-%m-%d 00:00:00')
+    start_hist = min(date(2020, 7, 1), ref_dt - timedelta(days=1095))
+    start_dt_str = start_hist.strftime('%Y-%m-%d 00:00:00')
     end_dt_str = (ref_dt + timedelta(days=1)).strftime('%Y-%m-%d 00:00:00')
     where_sql = " AND ".join(where_clauses)
+
+    promo_mult_map, promo_mask_dates, promo_pins = build_promo_date_effects(
+        promo_campaigns or [],
+        product_line=product_filter,
+        brand=brand_filter,
+        district=district_filter,
+        branch_name=branch_name,
+        branch_code=branch_code,
+    )
 
     sql = f"""
         SELECT
@@ -832,6 +976,7 @@ def _compute_seasonal_and_festival_profile(
         ones_30 = np.ones(30, dtype=float)
         return {
             'dow_multipliers': [1.0] * 7,
+            'sat_wom_rel': {1: 1.0, 2: 1.0, 3: 1.0, 4: 1.0, 5: 1.0},
             'monthly_seasonality': [{'month': m, 'name': date(2026, m, 1).strftime('%b'), 'index': 100.0, 'avg_daily_units': 0.0} for m in range(1, 13)],
             'payday_multiplier': 1.0,
             'weekend_lift_pct': 0.0,
@@ -840,9 +985,11 @@ def _compute_seasonal_and_festival_profile(
             'future_30d_multipliers': ones_30.tolist(),
             'future_30d_base_mults': ones_30.tolist(),
             'future_30d_fest_mults': ones_30.tolist(),
+            'future_30d_sat_wom_rel': ones_30.tolist(),
             'future_30d_dates': [(ref_dt + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(1, 31)],
             'hist_mult_sums': {'H15': 15.0, 'H30': 30.0, 'H90': 90.0},
             'bucket_mult_sums': [15.0] * 9,
+            'promo_pins': promo_pins,
             'backtest': {
                 'accuracy_pct': 92.5,
                 'wape_pct': 7.5,
@@ -860,48 +1007,128 @@ def _compute_seasonal_and_festival_profile(
     ts_df['revenue'] = pd.to_numeric(ts_df['revenue'], errors='coerce').fillna(0.0)
 
     # Reindex continuous daily calendar from first active date to ref_dt
-    min_d = max(start_3y, ts_df['d'].min())
+    min_d = max(start_hist, ts_df['d'].min())
     full_idx = pd.date_range(min_d, ref_dt, freq='D').date
     ts_df = ts_df.set_index('d').reindex(full_idx, fill_value=0.0).reset_index().rename(columns={'index': 'd'})
 
-    # Rolling 75-day festival-masked local baseline (masks out festival campaigns so mega-events like Onam don't inflate the baseline median!)
+    # Rolling 61-day festival & promo-masked local median baseline (tracks 2020->2026 store expansion
+    # while preventing Onam / myG Anniversary / WhatsApp promos from inflating the baseline)
     s_units = pd.Series(ts_df['units'].values, dtype=float)
-    is_fest_mask = np.array([_FESTIVAL_DATE_MAP.get(d, {}).get('intensity', 0.0) >= 0.20 for d in ts_df['d']], dtype=bool)
-    s_clean = s_units.where(~is_fest_mask, np.nan)
-    rolling_base = s_clean.rolling(75, center=True, min_periods=10).median()
+    is_event_surge = np.array(
+        [
+            bool(_FESTIVAL_DATE_MAP.get(d, {}).get('is_core_surge', False)) or (d in promo_mask_dates)
+            for d in ts_df['d']
+        ],
+        dtype=bool,
+    )
+    s_clean = s_units.where((s_units > 0) & (~is_event_surge), np.nan)
+    rolling_base = s_clean.rolling(61, center=True, min_periods=10).median()
     rolling_base = rolling_base.interpolate(method='linear').bfill().ffill()
     global_med = float(s_units[s_units > 0].median()) if (s_units > 0).any() else 1.0
     rolling_base = rolling_base.replace(0.0, np.nan).bfill().ffill().fillna(max(global_med, 1.0))
-    ts_df['norm_ratio'] = np.clip(s_units / rolling_base, 0.15, 4.5)
+    ts_df['norm_ratio'] = np.clip(s_units / rolling_base, 0.15, 5.5)
 
     ts_df['dow'] = [d.weekday() for d in ts_df['d']]
     ts_df['month'] = [d.month for d in ts_df['d']]
     ts_df['day'] = [d.day for d in ts_df['d']]
+    ts_df['wom'] = [_week_of_month(d) for d in ts_df['d']]
+    ts_df['is_eom'] = [_is_month_end_date(d) for d in ts_df['d']]
+    ts_df['is_qend'] = [_is_quarter_end_date(d) for d in ts_df['d']]
     ts_df['fest_key'] = [_FESTIVAL_DATE_MAP.get(d, {}).get('key', '') for d in ts_df['d']]
+    ts_df['fest_off'] = [_FESTIVAL_DATE_MAP.get(d, {}).get('offset', 999) for d in ts_df['d']]
     ts_df['fest_int'] = [_FESTIVAL_DATE_MAP.get(d, {}).get('intensity', 0.0) for d in ts_df['d']]
+    ts_df['in_promo'] = [d in promo_mask_dates for d in ts_df['d']]
 
-    # 1. Day-of-week profile (excluding peak festival days so DOW isn't distorted)
-    non_fest = ts_df[ts_df['fest_key'] == '']
-    if len(non_fest) < 28:
-        non_fest = ts_df
-    dow_means = non_fest.groupby('dow')['norm_ratio'].mean().reindex(range(7), fill_value=1.0)
-    dow_mult = (dow_means / max(dow_means.mean(), 1e-6)).clip(0.72, 1.42).values
+    # Active non-festival, non-promo days (use recent 3y for modern DOW/2nd-Sat habits, full history for Q-End/events)
+    pos_df = ts_df[ts_df['units'] > 0].copy()
+    if pos_df.empty:
+        pos_df = ts_df
+    non_fest_all = pos_df[(pos_df['fest_key'] == '') & (~pos_df['in_promo'])]
+    if len(non_fest_all) < 28:
+        non_fest_all = pos_df
+    recent_3y_cut = ref_dt - timedelta(days=1095)
+    non_fest = non_fest_all[non_fest_all['d'] >= recent_3y_cut]
+    if len(non_fest) < 60:
+        non_fest = non_fest_all
 
-    weekend_avg = float(non_fest[non_fest['dow'].isin([5, 6])]['norm_ratio'].mean() or 1.0)
-    weekday_avg = float(non_fest[~non_fest['dow'].isin([5, 6])]['norm_ratio'].mean() or 1.0)
+    # 1. Day-of-week profile (median-anchored so stray single-day promos don't skew one weekday)
+    dow_med = non_fest.groupby('dow')['norm_ratio'].median().reindex(range(7), fill_value=1.0)
+    dow_mean = non_fest.groupby('dow')['norm_ratio'].mean().reindex(range(7), fill_value=1.0)
+    dow_blend = 0.55 * dow_med + 0.45 * dow_mean
+    dow_mult = (dow_blend / max(float(dow_blend.mean()), 1e-6)).clip(0.68, 1.42).values
+
+    weekend_avg = float(non_fest[non_fest['dow'].isin([5, 6])]['norm_ratio'].median() or 1.0)
+    weekday_avg = float(non_fest[~non_fest['dow'].isin([5, 6])]['norm_ratio'].median() or 1.0)
     weekend_lift_pct = round(((weekend_avg - weekday_avg) / max(weekday_avg, 1e-6)) * 100.0, 1)
 
-    # 2. Payday / Salary Window (1st–5th of month)
-    payday_avg = float(non_fest[non_fest['day'] <= 5]['norm_ratio'].mean() or 1.0)
-    non_payday_avg = float(non_fest[non_fest['day'] > 5]['norm_ratio'].mean() or 1.0)
-    raw_payday_mult = payday_avg / max(non_payday_avg, 1e-6)
-    payday_mult = float(np.clip(1.0 + 0.65 * (raw_payday_mult - 1.0), 0.95, 1.22))
-    payday_lift_pct = round(((payday_avg - non_payday_avg) / max(non_payday_avg, 1e-6)) * 100.0, 1)
+    # 1b. Kerala 2nd-Saturday / Saturday Week-of-Month relative shape (1st..5th Saturday vs average Saturday)
+    sats_nf = non_fest[non_fest['dow'] == 5]
+    sat_overall = float(sats_nf['norm_ratio'].median() or 1.0) if not sats_nf.empty else 1.0
+    sat_wom_rel: Dict[int, float] = {}
+    for w_i in range(1, 6):
+        sw = sats_nf[sats_nf['wom'] == w_i]['norm_ratio'].values
+        k = len(sw)
+        if k >= 4 and sat_overall > 0.1:
+            emp_rel = float((0.60 * np.median(sw) + 0.40 * np.mean(sw)) / sat_overall)
+            emp_rel = float(np.clip(emp_rel, 0.78, 1.32))
+            shrink = min(0.80, k / (k + 6.0))
+            sat_wom_rel[w_i] = round(1.0 + shrink * (emp_rel - 1.0), 4)
+        else:
+            sat_wom_rel[w_i] = 1.0
+    # Normalize Weeks 1..4 mean to 1.0 so total monthly Saturday volume is conserved
+    sat14_mean = float(np.mean([sat_wom_rel[w] for w in (1, 2, 3, 4)])) or 1.0
+    for w_i in range(1, 6):
+        sat_wom_rel[w_i] = round(float(np.clip(sat_wom_rel[w_i] / sat14_mean, 0.80, 1.28)), 4)
 
-    # 3. Monthly seasonality index (computed on non-festival baseline days so movable festivals like Onam don't distort Gregorian month!)
-    m_grp_clean = non_fest.groupby('month').agg(norm_idx=('norm_ratio', 'mean')).reindex(range(1, 13), fill_value=1.0)
-    m_grp_raw = ts_df.groupby('month').agg(avg_units=('units', 'mean')).reindex(range(1, 13), fill_value=0.0)
-    m_norm = (m_grp_clean['norm_idx'] / max(m_grp_clean['norm_idx'].mean(), 1e-6)) * 100.0
+    # 1c. Week-of-Month (non-Saturday days, gently damped so Week-2 post-salary lift & Week-3 trough show cleanly)
+    non_sat_nf = non_fest[non_fest['dow'] != 5]
+    ns_overall = float(non_sat_nf['norm_ratio'].median() or 1.0) if not non_sat_nf.empty else 1.0
+    wom_mult: Dict[int, float] = {}
+    for w_i in range(1, 6):
+        wv = non_sat_nf[non_sat_nf['wom'] == w_i]['norm_ratio'].values
+        k = len(wv)
+        if k >= 12 and ns_overall > 0.1:
+            emp_w = float((0.60 * np.median(wv) + 0.40 * np.mean(wv)) / ns_overall)
+            emp_w = float(np.clip(emp_w, 0.88, 1.15))
+            shrink = min(0.65, k / (k + 25.0))
+            wom_mult[w_i] = round(1.0 + shrink * (emp_w - 1.0), 4)
+        else:
+            wom_mult[w_i] = 1.0
+    w14_mean = float(np.mean([wom_mult[w] for w in (1, 2, 3, 4)])) or 1.0
+    for w_i in range(1, 6):
+        wom_mult[w_i] = round(float(np.clip(wom_mult[w_i] / w14_mean, 0.90, 1.12)), 4)
+
+    # 2. Start-of-Month (Days 1-3), Month-End (EOM), and Quarter-End (Mar 31, Jun 30, Sep 30, Dec 31)
+    mid_base = float(non_fest_all[(non_fest_all['day'] >= 6) & (non_fest_all['day'] <= 25)]['norm_ratio'].median() or 1.0)
+    d13_vals = non_fest_all[non_fest_all['day'] <= 3]['norm_ratio'].values
+    if len(d13_vals) >= 12 and mid_base > 0.1:
+        raw_d13 = float(np.median(d13_vals) / mid_base)
+        day1_3_mult = float(np.clip(1.0 + 0.60 * (raw_d13 - 1.0), 0.86, 1.12))
+    else:
+        day1_3_mult = 1.0
+    payday_mult = day1_3_mult
+    payday_lift_pct = round((day1_3_mult - 1.0) * 100.0, 1)
+
+    eom_vals = non_fest_all[(non_fest_all['is_eom']) & (~non_fest_all['is_qend'])]['norm_ratio'].values
+    if len(eom_vals) >= 8 and mid_base > 0.1:
+        raw_eom = float(np.median(eom_vals) / mid_base)
+        eom_mult = float(np.clip(1.0 + 0.55 * (raw_eom - 1.0), 0.92, 1.25))
+    else:
+        eom_mult = 1.0
+
+    # Quarter-End uses all active non-movable days (e.g. Sep 30, Mar 31, Jun 30, Dec 31)
+    qend_vals = pos_df[(pos_df['is_qend']) & (pos_df['fest_key'] != 'Onam')]['norm_ratio'].values
+    if len(qend_vals) >= 4 and mid_base > 0.1:
+        raw_qend = float((0.60 * np.median(qend_vals) + 0.40 * np.mean(qend_vals)) / mid_base)
+        q_shrink = min(0.75, len(qend_vals) / (len(qend_vals) + 4.0))
+        qend_mult = float(np.clip(1.0 + q_shrink * (raw_qend - 1.0), 0.95, 1.65))
+    else:
+        qend_mult = eom_mult
+
+    # 3. Monthly seasonality index (computed on non-festival baseline days)
+    m_grp_clean = non_fest_all.groupby('month').agg(norm_idx=('norm_ratio', 'median')).reindex(range(1, 13), fill_value=1.0)
+    m_grp_raw = pos_df.groupby('month').agg(avg_units=('units', 'mean')).reindex(range(1, 13), fill_value=0.0)
+    m_norm = (m_grp_clean['norm_idx'] / max(float(m_grp_clean['norm_idx'].mean()), 1e-6)) * 100.0
     monthly_seasonality = [
         {
             'month': int(m),
@@ -913,31 +1140,82 @@ def _compute_seasonal_and_festival_profile(
         for m in range(1, 13)
     ]
 
-    # 4. Empirical Festival Demand Lift (%) from ClickHouse historical transactions
-    baseline_ratio = float(non_fest['norm_ratio'].mean() or 1.0)
+    # 4. Empirical 2020-Present Per-Offset Festival & Post-Festival Cooldown Curves
+    baseline_ratio = float(non_fest_all['norm_ratio'].median() or 1.0)
     emp_fest_mult_by_key: Dict[str, float] = {}
+    emp_offset_mult: Dict[Tuple[str, int], float] = {}
     festival_drivers: List[Dict[str, Any]] = []
+
+    # Pre-index positive historical norm_ratios by (fest_key, fest_off)
+    ev_pos = pos_df[pos_df['fest_key'] != '']
+    off_groups: Dict[Tuple[str, int], np.ndarray] = {}
+    if not ev_pos.empty:
+        for (fk, fo), grp in ev_pos.groupby(['fest_key', 'fest_off']):
+            off_groups[(str(fk), int(fo))] = grp['norm_ratio'].values.astype(float)
 
     for fest in FESTIVAL_DEFINITIONS:
         fkey = fest['key']
-        f_sub = ts_df[(ts_df['fest_key'] == fkey) & (ts_df['fest_int'] >= 0.55)]
-        if len(f_sub) >= 3:
-            # Top-half / weighted festival core window average captures true shopping surge
-            f_mean = float(f_sub['norm_ratio'].quantile(0.65) * 0.55 + f_sub['norm_ratio'].mean() * 0.45)
-            emp_mult = float(np.clip(f_mean / max(baseline_ratio, 1e-6), 0.90, 2.75))
-            # Blend empirical ClickHouse observation (75%) with domain prior (25%) for small-sample stability
-            blended_mult = 0.75 * emp_mult + 0.25 * fest['prior_weight']
-            sample_days = int(len(f_sub))
-            avg_fest_units = round(float(f_sub['units'].mean()), 1)
-        else:
-            blended_mult = fest['prior_weight']
-            sample_days = int(len(f_sub))
-            avg_fest_units = 0.0
+        pre_d = int(fest['pre_days'])
+        post_d = int(fest['post_days'])
+        pk_off = int(fest.get('peak_offset', 0))
+        pw = float(fest['prior_weight'])
 
-        emp_fest_mult_by_key[fkey] = blended_mult
+        # Learn exact multiplier for each offset (-pre_d .. +post_d) across all 2020..present occurrences
+        peak_window_mults: List[float] = []
+        for off in range(-pre_d, post_d + 1):
+            # Reconstruct the offset's prior weight matching build_festival_date_map
+            is_cd_tail = (
+                (fkey in ('Deepavali', 'Christmas', 'Vishu', 'Republic_Sale') and off >= 8)
+                or (fkey == 'Onam' and off >= 12)
+            )
+            if is_cd_tail:
+                prior_o = 0.94
+            elif fkey == 'Vishu' and off == 0:
+                prior_o = 0.88
+            elif fkey == 'Easter' and off == 0:
+                prior_o = 0.80
+            elif fkey == 'Onam' and off == 0:
+                prior_o = 1.05
+            else:
+                dist = abs(off - pk_off)
+                span = max(pre_d if off < pk_off else post_d, 1)
+                inten = max(0.15, 1.0 - (dist / (span + 1.5)) * 0.65)
+                prior_o = 1.0 + (pw - 1.0) * inten
+
+            vals = off_groups.get((fkey, off))
+            if vals is not None and len(vals) >= 2:
+                # 65% median + 35% mean resists single-year lockdown/outlier noise while keeping true lift
+                emp_r = float((0.65 * np.median(vals) + 0.35 * np.mean(vals)) / max(baseline_ratio, 1e-6))
+                lo_cap = 0.62 if (is_cd_tail or fkey in ('Black_Friday', 'Easter', 'Vishu', 'Bakrid', 'Ramadan_Eid')) else 0.72
+                emp_r = float(np.clip(emp_r, lo_cap, 4.25))
+                n_obs = len(vals)
+                w_emp = min(0.82, n_obs / (n_obs + 1.8))
+                mult_o = w_emp * emp_r + (1.0 - w_emp) * prior_o
+            else:
+                mult_o = prior_o
+
+            # Smooth cooldown tails slightly with neighbors so a single noisy post-event day doesn't zigzag
+            emp_offset_mult[(fkey, off)] = round(float(np.clip(mult_o, 0.62, 4.25)), 4)
+            if abs(off - pk_off) <= 1 and not is_cd_tail:
+                peak_window_mults.append(emp_offset_mult[(fkey, off)])
+
+        # Light 3-day smoothing ONLY on post-festival cooldown tails (+8..+14) for stability
+        if fkey in ('Deepavali', 'Christmas', 'Vishu', 'Republic_Sale', 'Onam'):
+            tail_start = 12 if fkey == 'Onam' else 8
+            tail_offs = [o for o in range(tail_start, post_d + 1) if (fkey, o) in emp_offset_mult]
+            if len(tail_offs) >= 3:
+                raw_tail = {o: emp_offset_mult[(fkey, o)] for o in tail_offs}
+                for idx_t, o in enumerate(tail_offs):
+                    nbrs = [raw_tail[tail_offs[j]] for j in range(max(0, idx_t - 1), min(len(tail_offs), idx_t + 2))]
+                    emp_offset_mult[(fkey, o)] = round(float(np.mean(nbrs)), 4)
+
+        f_sub = pos_df[(pos_df['fest_key'] == fkey) & (pos_df['fest_off'].between(pk_off - 2, pk_off + 1))]
+        blended_mult = float(np.mean(peak_window_mults)) if peak_window_mults else pw
+        emp_fest_mult_by_key[fkey] = round(blended_mult, 4)
         lift_pct = round((blended_mult - 1.0) * 100.0, 1)
+        sample_days = int(len(f_sub))
+        avg_fest_units = round(float(f_sub['units'].mean()), 1) if sample_days > 0 else 0.0
 
-        # Check next upcoming occurrence relative to ref_dt
         upcoming_dates = [dt for dt in fest['dates'].values() if dt >= ref_dt - timedelta(days=2)]
         next_dt = min(upcoming_dates) if upcoming_dates else None
         days_away = (next_dt - ref_dt).days if next_dt else None
@@ -956,68 +1234,101 @@ def _compute_seasonal_and_festival_profile(
             'in_30d_horizon': bool(days_away is not None and -2 <= days_away <= 32),
         })
 
-    # Add Weekend & Salary-Week drivers to Top Drivers list (like Bilytica's Top Drivers panel!)
+    # Add Kerala 2nd-Saturday & Quarter-End drivers to Top Drivers list
+    sat2_mult = round(float(dow_mult[5] * sat_wom_rel.get(2, 1.0)), 3)
     all_drivers = list(festival_drivers) + [
         {
-            'key': 'Weekend_Footfall',
-            'label': 'Weekend Showroom Surge (Sat–Sun)',
-            'icon': 'bi-people-fill',
+            'key': 'Second_Saturday',
+            'label': 'Kerala 2nd Saturday Holiday Surge',
+            'icon': 'bi-calendar2-week-fill',
             'color': '#0ea5e9',
-            'lift_pct': weekend_lift_pct,
-            'multiplier': round(1.0 + weekend_lift_pct / 100.0, 3),
-            'sample_days': int((ts_df['dow'].isin([5, 6])).sum()),
-            'avg_daily_units': round(float(ts_df[ts_df['dow'].isin([5, 6])]['units'].mean() or 0.0), 1),
-            'next_date': 'Every Sat–Sun',
+            'lift_pct': round((sat2_mult - 1.0) * 100.0, 1),
+            'multiplier': sat2_mult,
+            'sample_days': int(((pos_df['dow'] == 5) & (pos_df['wom'] == 2)).sum()),
+            'avg_daily_units': round(float(pos_df[(pos_df['dow'] == 5) & (pos_df['wom'] == 2)]['units'].mean() or 0.0), 1),
+            'next_date': '2nd Sat Monthly',
             'days_away': 1,
             'in_30d_horizon': True,
         },
         {
-            'key': 'Salary_Week',
-            'label': 'Salary & Payday Window (1st–5th)',
-            'icon': 'bi-wallet2',
+            'key': 'Quarter_End',
+            'label': 'Quarter-End Billing Surge (Mar/Jun/Sep/Dec 31)',
+            'icon': 'bi-graph-up-arrow',
             'color': '#14b8a6',
-            'lift_pct': payday_lift_pct,
-            'multiplier': round(payday_mult, 3),
-            'sample_days': int((ts_df['day'] <= 5).sum()),
-            'avg_daily_units': round(float(ts_df[ts_df['day'] <= 5]['units'].mean() or 0.0), 1),
-            'next_date': '1st–5th Monthly',
-            'days_away': max(0, (date(ref_dt.year + (1 if ref_dt.month == 12 else 0), 1 if ref_dt.month == 12 else ref_dt.month + 1, 1) - ref_dt).days) if ref_dt.day > 5 else 0,
+            'lift_pct': round((qend_mult - 1.0) * 100.0, 1),
+            'multiplier': round(qend_mult, 3),
+            'sample_days': int(pos_df['is_qend'].sum()),
+            'avg_daily_units': round(float(pos_df[pos_df['is_qend']]['units'].mean() or 0.0), 1),
+            'next_date': 'Quarter-End Day',
+            'days_away': 1,
             'in_30d_horizon': True,
         },
     ]
     all_drivers.sort(key=lambda x: x['lift_pct'], reverse=True)
 
-    # 5. Helper for daily calendar + seasonal multiplier (DOW × Payday × Monthly × Festival)
+    # 5. Helper for daily calendar + seasonal + empirical offset + WhatsApp promo multiplier
     month_mult_map = {int(m['month']): max(0.70, min(1.45, float(m['index']) / 100.0)) for m in monthly_seasonality}
 
     def _day_calendar_parts(dt_obj: date) -> tuple:
         # Subtle monthly seasonal modulation (35% weight so recent local level carries 65%)
         m_mod = 1.0 + 0.35 * (month_mult_map.get(dt_obj.month, 1.0) - 1.0)
-        base_v = m_mod * (payday_mult if dt_obj.day <= 5 else 1.0)
+        w_idx = _week_of_month(dt_obj)
+        wd = dt_obj.weekday()
+
+        # Calendar micro-effects: Q-End / Month-End / Days 1-3 + non-Saturday Week-of-Month
+        if _is_quarter_end_date(dt_obj):
+            dom_mod = qend_mult
+        elif _is_month_end_date(dt_obj):
+            dom_mod = eom_mult
+        elif dt_obj.day <= 3:
+            dom_mod = day1_3_mult
+        else:
+            dom_mod = 1.0
+
+        wom_mod = 1.0 if wd == 5 else wom_mult.get(w_idx, 1.0)
+        sat_rel = sat_wom_rel.get(w_idx, 1.0) if wd == 5 else 1.0
+        base_v = m_mod * dom_mod * wom_mod
+
+        # Exact 2020-present empirical per-offset event multiplier
         fi = _FESTIVAL_DATE_MAP.get(dt_obj)
         fest_v = 1.0
         if fi:
-            ep = emp_fest_mult_by_key.get(fi['key'], fi['prior_weight'])
-            fest_v = 1.0 + (ep - 1.0) * fi['intensity']
-        return float(base_v), float(fest_v)
+            fest_v = float(emp_offset_mult.get((fi['key'], int(fi.get('offset', 0))), fi['prior_weight']))
+
+        # Apply saved WhatsApp / manual promo calendar multipliers on top
+        p_v = float(promo_mult_map.get(dt_obj, 1.0))
+        if p_v != 1.0:
+            if fest_v > 1.0 and p_v > 1.0:
+                # Partial stacking when a WhatsApp offer overlaps a festival
+                big = max(fest_v, p_v) - 1.0
+                small = min(fest_v, p_v) - 1.0
+                fest_v = 1.0 + big + 0.40 * small
+            else:
+                fest_v = fest_v * p_v
+
+        return float(base_v), float(fest_v), float(sat_rel)
 
     def _day_calendar_mult(dt_obj: date) -> float:
-        base_v, fest_v = _day_calendar_parts(dt_obj)
-        return _combine_calendar_multipliers(float(dow_mult[dt_obj.weekday()]), base_v, fest_v)
+        base_v, fest_v, sat_rel = _day_calendar_parts(dt_obj)
+        eff_dow = float(dow_mult[dt_obj.weekday()]) * sat_rel
+        return _combine_calendar_multipliers(eff_dow, base_v, fest_v)
 
     future_dates: List[str] = []
     future_mults: List[float] = []
     future_base_mults: List[float] = []
     future_fest_mults: List[float] = []
+    future_sat_rel: List[float] = []
     for step in range(1, 31):
         f_dt = ref_dt + timedelta(days=step)
-        base_v, fest_v = _day_calendar_parts(f_dt)
+        base_v, fest_v, sat_rel = _day_calendar_parts(f_dt)
+        eff_dow = float(dow_mult[f_dt.weekday()]) * sat_rel
         future_dates.append(f_dt.strftime('%Y-%m-%d'))
         future_base_mults.append(round(base_v, 4))
         future_fest_mults.append(round(fest_v, 4))
-        future_mults.append(round(_combine_calendar_multipliers(float(dow_mult[f_dt.weekday()]), base_v, fest_v), 4))
+        future_sat_rel.append(round(sat_rel, 4))
+        future_mults.append(round(_combine_calendar_multipliers(eff_dow, base_v, fest_v), 4))
 
-    # Historical calendar multiplier sums for trailing 15d, 30d, 90d (strips Onam/festival inflation from base velocity!)
+    # Historical calendar multiplier sums for trailing 15d, 30d, 90d (strips Onam/Anniversary inflation from base velocity!)
     units_arr = ts_df['units'].values.astype(float)
     dates_arr = ts_df['d'].tolist()
     n_days = len(units_arr)
@@ -1034,7 +1345,7 @@ def _compute_seasonal_and_festival_profile(
         b_vals = [date_to_b.get(d, 0.0) for d in b_dates if d in date_to_b]
         if len(u_vals) == 15 and sum(b_vals) > 0:
             emp_s = 15.0 * (sum(u_vals) / sum(b_vals))
-            b_mult = float(np.clip(0.85 * emp_s + 0.15 * cal_s, 10.5, 45.0))
+            b_mult = float(np.clip(0.85 * emp_s + 0.15 * cal_s, 10.5, 48.0))
         else:
             b_mult = cal_s
         bucket_mult_sums.append(round(b_mult, 4))
@@ -1056,7 +1367,6 @@ def _compute_seasonal_and_festival_profile(
             if start_i < 60:
                 continue
             act_wk = float(np.sum(units_arr[start_i:end_i]))
-            # Use de-seasonalized trailing velocity so prior festival peaks don't over-inflate post-festival weeks!
             v7_ds = float(np.median(deseas_arr[start_i - 7:start_i]) * 0.5 + np.mean(deseas_arr[start_i - 7:start_i]) * 0.5)
             v15_ds = float(np.mean(deseas_arr[start_i - 15:start_i]))
             v30_ds = float(np.mean(deseas_arr[start_i - 30:start_i]))
@@ -1087,6 +1397,11 @@ def _compute_seasonal_and_festival_profile(
 
     return {
         'dow_multipliers': [round(float(x), 4) for x in dow_mult],
+        'sat_wom_rel': sat_wom_rel,
+        'wom_mult': wom_mult,
+        'qend_multiplier': round(qend_mult, 4),
+        'eom_multiplier': round(eom_mult, 4),
+        'day1_3_multiplier': round(day1_3_mult, 4),
         'monthly_seasonality': monthly_seasonality,
         'payday_multiplier': round(payday_mult, 4),
         'weekend_lift_pct': weekend_lift_pct,
@@ -1096,10 +1411,12 @@ def _compute_seasonal_and_festival_profile(
         'future_30d_multipliers': future_mults,
         'future_30d_base_mults': future_base_mults,
         'future_30d_fest_mults': future_fest_mults,
+        'future_30d_sat_wom_rel': future_sat_rel,
         'future_30d_dates': future_dates,
         'hist_mult_sums': {'H15': round(H15, 3), 'H30': round(H30, 3), 'H90': round(H90, 3)},
         'bucket_mult_sums': bucket_mult_sums,
         'daily_history_df': ts_df[['d', 'units', 'revenue']],
+        'promo_pins': promo_pins,
         'backtest': {
             'accuracy_pct': accuracy_pct,
             'wape_pct': wape_pct,
@@ -1748,6 +2065,10 @@ def _build_entity_daily_forecast_and_decomp(
     arch3_profiles: Optional[Dict[str, Any]] = None,
     arch4_profiles: Optional[Dict[str, Any]] = None,
     arch5_profiles: Optional[Dict[str, Any]] = None,
+    promo_campaigns: Optional[List[Dict[str, Any]]] = None,
+    district_filter: str = '',
+    branch_name: str = '',
+    branch_code: str = '',
 ) -> Dict[str, Any]:
     """
     Fetch daily ClickHouse sales for the selected SKU / Planning Bucket / Brand×Product / Product-Line
@@ -1819,14 +2140,54 @@ def _build_entity_daily_forecast_and_decomp(
     actual_labels = [d.strftime('%b %d') for d in hist_60['d']]
     actual_units = [round(float(u), 1) for u in hist_60['units']]
 
-    # Daily forecast trajectory for Next 30 Days using entity-blended weekday shape & dampened calendar mults
+    # Daily forecast trajectory for Next 30 Days using entity-blended weekday shape,
+    # Kerala 2nd-Saturday relative curve, empirical 2020-present event offsets & WhatsApp promos
     global_dow = seasonal_profile.get('dow_multipliers', [1.0] * 7)
     entity_dow = _compute_entity_blended_dow_mult(edf_full, global_dow, ref_dt)
     base_mults_30 = seasonal_profile.get('future_30d_base_mults')
     fest_mults_30 = seasonal_profile.get('future_30d_fest_mults')
+    sat_wom_rel_30 = seasonal_profile.get('future_30d_sat_wom_rel')
     f_dates_30 = seasonal_profile.get('future_30d_dates', [])
+
+    # Entity-specific WhatsApp campaign overrides (e.g. a TV-only offer viewed when browsing All Products)
+    ent_prod = str(selected_row.get('product_line', '') or '').strip().upper()
+    ent_brand = str(selected_row.get('brand', '') or '').strip().upper()
+    ent_cat = str(selected_row.get('item_category', '') or '').strip().upper()
+    ent_grp = str(selected_row.get('item_group', '') or '').strip().upper()
+    if ent_brand in ('ALL BRANDS', 'ALL', 'GENERAL'):
+        ent_brand = ''
+    is_all_row = selected_row.get('id') == '__ALL__'
+    ent_promo_mults, _ent_promo_mask, ent_promo_pins = build_promo_date_effects(
+        promo_campaigns or [],
+        product_line='' if is_all_row else ent_prod,
+        brand='' if is_all_row else ent_brand,
+        district=district_filter,
+        branch_name=branch_name,
+        branch_code=branch_code,
+        item_category='' if is_all_row else ent_cat,
+        item_group='' if is_all_row else ent_grp,
+    )
+    # Only apply incremental promo lift that was NOT already baked into the slice-level seasonal_profile
+    slice_promo_pins = seasonal_profile.get('promo_pins') or []
+    slice_promo_keys = {p.get('key') for p in slice_promo_pins}
+    extra_promo_campaigns = [
+        c for c in (promo_campaigns or [])
+        if f"promo_{c.get('campaign_id', '')}" not in slice_promo_keys
+    ]
+    extra_promo_mults, _ep_mask, _ep_pins = build_promo_date_effects(
+        extra_promo_campaigns,
+        product_line='' if is_all_row else ent_prod,
+        brand='' if is_all_row else ent_brand,
+        district=district_filter,
+        branch_name=branch_name,
+        branch_code=branch_code,
+        item_category='' if is_all_row else ent_cat,
+        item_group='' if is_all_row else ent_grp,
+    )
+
     if base_mults_30 and fest_mults_30 and len(base_mults_30) == 30 and len(fest_mults_30) == 30:
         entity_mults = []
+        extra_promo_30 = []
         for idx in range(30):
             f_dt = ref_dt + timedelta(days=idx + 1)
             if idx < len(f_dates_30):
@@ -1834,14 +2195,30 @@ def _build_entity_daily_forecast_and_decomp(
                     f_dt = date.fromisoformat(str(f_dates_30[idx])[:10])
                 except Exception:
                     pass
-            e_dow_v = float(entity_dow[f_dt.weekday()])
+            s_rel = float(sat_wom_rel_30[idx]) if (sat_wom_rel_30 and idx < len(sat_wom_rel_30)) else 1.0
+            e_dow_v = float(entity_dow[f_dt.weekday()]) * s_rel
+            f_v = float(fest_mults_30[idx])
+            ep_v = float(extra_promo_mults.get(f_dt, 1.0))
+            extra_promo_30.append(ep_v)
+            if ep_v != 1.0:
+                if f_v > 1.0 and ep_v > 1.0:
+                    big, small = max(f_v, ep_v) - 1.0, min(f_v, ep_v) - 1.0
+                    f_v = 1.0 + big + 0.40 * small
+                else:
+                    f_v = f_v * ep_v
             entity_mults.append(
-                _combine_calendar_multipliers(e_dow_v, float(base_mults_30[idx]), float(fest_mults_30[idx]))
+                _combine_calendar_multipliers(e_dow_v, float(base_mults_30[idx]), f_v)
             )
         mults_30 = np.array(entity_mults, dtype=float)
+        extra_promo_arr = np.array(extra_promo_30, dtype=float)
     else:
         mults_30 = np.array(seasonal_profile['future_30d_multipliers'], dtype=float)
+        extra_promo_arr = np.ones(30, dtype=float)
+
     f30_target = float(selected_row.get('forecast_30d', 0.0))
+    # If an entity-specific WhatsApp campaign adds incremental lift not already in slice S30, reflect it in total volume too
+    if float(np.mean(extra_promo_arr)) != 1.0 and f30_target > 0:
+        f30_target = f30_target * float(np.clip(np.mean(extra_promo_arr), 0.85, 2.20))
     mult_sum_30 = max(float(np.sum(mults_30)), 1e-6)
     base_rate = f30_target / mult_sum_30
 
@@ -1955,10 +2332,13 @@ def _build_entity_daily_forecast_and_decomp(
     date_to_idx = {ds: idx for idx, ds in enumerate(all_chart_dates)}
 
     festival_pins = []
+    seen_pin_keys = set()
     for ev in _FESTIVAL_CORE_EVENTS:
         if chart_start <= ev['date'] <= chart_end:
             ds = ev['date_str']
             if ds in date_to_idx:
+                pk = (ev['key'], ds)
+                seen_pin_keys.add(pk)
                 festival_pins.append({
                     'index': date_to_idx[ds],
                     'date_str': ds,
@@ -1966,7 +2346,26 @@ def _build_entity_daily_forecast_and_decomp(
                     'label': ev['label'],
                     'color': ev['color'],
                     'is_future': ev['date'] > ref_dt,
+                    'is_promo': False,
                 })
+    # Also pin matching WhatsApp / Campaign Offers on the chart timeline
+    for pev in (ent_promo_pins or slice_promo_pins):
+        p_dt = pev.get('date')
+        if p_dt and chart_start <= p_dt <= chart_end:
+            ds = pev['date_str']
+            pk = (pev['key'], ds)
+            if ds in date_to_idx and pk not in seen_pin_keys:
+                seen_pin_keys.add(pk)
+                festival_pins.append({
+                    'index': date_to_idx[ds],
+                    'date_str': ds,
+                    'display_date': pev.get('display_date', ds),
+                    'label': pev['label'],
+                    'color': pev.get('color', '#e11d48'),
+                    'is_future': p_dt > ref_dt,
+                    'is_promo': True,
+                })
+    festival_pins.sort(key=lambda x: x['index'])
 
     # Save today's forecast, then fetch what was forecast earlier for the days that have now arrived
     _ent_id = str(selected_row.get('id', '') or '')
@@ -2559,17 +2958,21 @@ def _build_stock_risk(df: pd.DataFrame, top_n: int = 150) -> Dict[str, Any]:
 
 def _fc_snapshot_top_entities(ch, ref_dt: date, records: List[Dict[str, Any]], sales_where: List[str],
                               seasonal_profile: Dict[str, Any], conformal_ci: Optional[Dict[str, float]],
-                              engine_tag: str, workers: int = 6) -> Dict[str, int]:
-    """Build (and thereby save) the 30-day forecast snapshot of many SKUs in parallel.
-    `_build_entity_daily_forecast_and_decomp` logs the snapshot as a side effect (once per day / SKU / scope)."""
+                              engine_tag: str, granularity: str = 'sku', workers: int = 6,
+                              promo_campaigns: Optional[List[Dict[str, Any]]] = None,
+                              district_filter: str = '', branch_name: str = '', branch_code: str = '') -> Dict[str, int]:
+    """Build (and thereby save) the 30-day forecast snapshot of many SKUs or product lines in parallel.
+    `_build_entity_daily_forecast_and_decomp` logs the snapshot as a side effect (once per day / entity / scope)."""
     from concurrent.futures import ThreadPoolExecutor, as_completed
     stats = {'ok': 0, 'failed': 0}
 
     def _one(rec):
         _build_entity_daily_forecast_and_decomp(
-            ch=ch, ref_dt=ref_dt, selected_row=rec, granularity='sku',
+            ch=ch, ref_dt=ref_dt, selected_row=rec, granularity=granularity,
             base_where_clauses=sales_where, seasonal_profile=seasonal_profile,
             conformal_ci=conformal_ci, engine_tag=engine_tag,
+            promo_campaigns=promo_campaigns, district_filter=district_filter,
+            branch_name=branch_name, branch_code=branch_code,
         )
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -2582,7 +2985,7 @@ def _fc_snapshot_top_entities(ch, ref_dt: date, records: List[Dict[str, Any]], s
                 stats['failed'] += 1
                 if stats['failed'] <= 5:
                     print(f"[forecast-snapshot] {futs[f].get('id')} failed: {e}")
-    print(f"[forecast-snapshot] {ref_dt}: {stats['ok']} SKUs processed, {stats['failed']} failed")
+    print(f"[forecast-snapshot] {ref_dt} ({granularity}): {stats['ok']} entities processed, {stats['failed']} failed")
     return stats
 
 
@@ -2617,8 +3020,8 @@ def get_demand_intelligence_data(
     model_tag = pretrained_model.trained_at if pretrained_model is not None else 'request-scoped'
 
     cache_sig = _safe_cache_key(
-        "dii_main_v23",
-        get_active_engine(), gran, fc_engine, macro_category, product_filter,
+        "dii_main_v25",
+        get_active_engine(), get_cache_epoch(), gran, fc_engine, macro_category, product_filter,
         brand_filter, district_filter, branch_filter, movement_filter,
         trend_filter, model_tier_filter, search_query, selected_id, sort_by, limit, model_tag,
     )
@@ -2633,8 +3036,10 @@ def get_demand_intelligence_data(
 
     t_start = time.perf_counter()
     ref_dt, stock_dt = _get_reference_dates(ch)
+    promo_campaigns = list_campaigns(ch=ch, include_realized_lift=False, ref_dt=ref_dt)
     bm_df = _get_branch_directory(ch)
     sales_branch_codes, stock_branch_names = _resolve_location_filters(bm_df, district_filter, branch_filter)
+    promo_dist_scope, promo_branch_name, promo_branch_code = _resolve_branch_scope(bm_df, district_filter, branch_filter)
 
     sales_where = _build_sales_where_clauses(
         macro_category=macro_category,
@@ -2656,14 +3061,23 @@ def get_demand_intelligence_data(
         stock_branch_names=stock_branch_names,
     )
 
-    # ── A. Compute Empirical Seasonality, Festival Lift & Backtest Accuracy ──
+    # ── A. Compute Empirical 2020-Present Seasonality, Festival/Anniversary Lift, Promo Calendar & Backtest ──
     prof_cache_key = _safe_cache_key(
-        "dii_prof_v5",
-        get_active_engine(), macro_category, product_filter, brand_filter, district_filter, branch_filter,
+        "dii_prof_v8",
+        get_active_engine(), get_cache_epoch(), macro_category, product_filter, brand_filter, district_filter, branch_filter,
+        len(promo_campaigns),
     )
     seasonal_profile = None if get_bypass_cache() else cache.get(prof_cache_key)
     if seasonal_profile is None:
-        seasonal_profile = _compute_seasonal_and_festival_profile(ch, ref_dt, fast_sales_where)
+        seasonal_profile = _compute_seasonal_and_festival_profile(
+            ch, ref_dt, fast_sales_where,
+            promo_campaigns=promo_campaigns,
+            product_filter=product_filter,
+            brand_filter=brand_filter,
+            district_filter=promo_dist_scope,
+            branch_name=promo_branch_name,
+            branch_code=promo_branch_code,
+        )
         cache.set(prof_cache_key, seasonal_profile, 900)
     future_mults = seasonal_profile['future_30d_multipliers']
     S7 = float(sum(future_mults[:7]))
@@ -3038,10 +3452,10 @@ def get_demand_intelligence_data(
 
     # ── E2. 3-Tier Hybrid ML Forecasting (LightGBM Tweedie + Croston-TSB + Statistical) ──
     # Daily-resolution window stats (14d sum / peak day / peak share) used by the spike-robust level correction
-    # (SKU-level only; a single festival/bulk-order day must not be extrapolated as a run-rate).
-    if gran == 'sku' and not df.empty:
+    # across SKU, Product-Line, and Brand×Product levels so a single Anniversary/festival/bulk day never inflates the run-rate.
+    if gran in ('sku', 'product_line', 'brand_product') and not df.empty:
         try:
-            _drows = fetch_daily_rows(ch, ref_dt, sales_where)
+            _drows = fetch_daily_rows(ch, ref_dt, sales_where, gran=gran)
             _dw = window_features(_drows, df['id'].astype(str).values, k=0)
             df['dl_w3'], df['dl_w7'], df['dl_med14'] = _dw['w3'], _dw['w7'], _dw['med14']
             df['dl_maxsh14'], df['dl_nz14'] = _dw['maxsh14'], _dw['nz14']
@@ -3386,15 +3800,22 @@ def get_demand_intelligence_data(
         arch3_profiles=arch3_profiles,
         arch4_profiles=arch4_profiles,
         arch5_profiles=arch5_profiles,
+        promo_campaigns=promo_campaigns,
+        district_filter=promo_dist_scope,
+        branch_name=promo_branch_name,
+        branch_code=promo_branch_code,
     )
 
-    # Nightly job hook: save today's 30-day forecast for the top-N SKUs so "Forecast vs Actual"
+    # Nightly job hook: save today's 30-day forecast for the top-N SKUs or product lines so "Forecast vs Actual"
     # always compares against a fresh 1-day-ahead forecast instead of one saved a week or two ago.
-    if snapshot_top_n and gran == 'sku' and not df_sorted.empty:
+    if snapshot_top_n and gran in ('sku', 'product_line', 'brand_product') and not df_sorted.empty:
         _fc_snapshot_top_entities(
             ch=ch, ref_dt=ref_dt, records=_serialize_records(df_sorted.head(int(snapshot_top_n))),
             sales_where=sales_where, seasonal_profile=seasonal_profile,
             conformal_ci=ml_diagnostics.get('conformal_ci'), engine_tag=fc_engine,
+            granularity=gran, promo_campaigns=promo_campaigns,
+            district_filter=promo_dist_scope, branch_name=promo_branch_name,
+            branch_code=promo_branch_code,
         )
 
     # ── I. Location Risk, Branch Forecast Heatmap & Supplier Pipeline ──
@@ -3489,6 +3910,7 @@ def get_demand_intelligence_data(
             'total_matched': total_matched,
             'compute_ms': elapsed_ms,
             'engine': get_active_engine(),
+            'active_campaigns_count': sum(1 for c in promo_campaigns if c.get('status') in ('live', 'upcoming')),
         },
         'kpis': {
             'forecast_accuracy_pct': adj_acc,
@@ -3653,8 +4075,10 @@ def get_single_product_deep_dive(
         raise ConnectionError("ClickHouse analytics engine is unavailable.")
 
     ref_dt, stock_dt = _get_reference_dates(ch)
+    promo_campaigns = list_campaigns(ch=ch, include_realized_lift=False, ref_dt=ref_dt)
     bm_df = _get_branch_directory(ch)
     sales_branch_codes, stock_branch_names = _resolve_location_filters(bm_df, district_filter, branch_filter)
+    promo_dist_scope, promo_branch_name, promo_branch_code = _resolve_branch_scope(bm_df, district_filter, branch_filter)
     sales_where = _build_sales_where_clauses(
         macro_category=macro_category,
         product_filter=product_filter,
@@ -3677,12 +4101,21 @@ def get_single_product_deep_dive(
 
     # Reuse cached seasonal profile if available
     prof_cache_key = _safe_cache_key(
-        "dii_prof_v5",
-        get_active_engine(), macro_category, product_filter, brand_filter, district_filter, branch_filter,
+        "dii_prof_v8",
+        get_active_engine(), get_cache_epoch(), macro_category, product_filter, brand_filter, district_filter, branch_filter,
+        len(promo_campaigns),
     )
     seasonal_profile = None if get_bypass_cache() else cache.get(prof_cache_key)
     if seasonal_profile is None:
-        seasonal_profile = _compute_seasonal_and_festival_profile(ch, ref_dt, fast_sales_where)
+        seasonal_profile = _compute_seasonal_and_festival_profile(
+            ch, ref_dt, fast_sales_where,
+            promo_campaigns=promo_campaigns,
+            product_filter=product_filter,
+            brand_filter=brand_filter,
+            district_filter=promo_dist_scope,
+            branch_name=promo_branch_name,
+            branch_code=promo_branch_code,
+        )
         cache.set(prof_cache_key, seasonal_profile, 900)
 
     if not row_meta:
@@ -3709,6 +4142,10 @@ def get_single_product_deep_dive(
         engine_tag=(forecast_engine or 'hybrid').strip().lower(),
         stock_dt=stock_dt,
         stock_where=stock_where,
+        promo_campaigns=promo_campaigns,
+        district_filter=promo_dist_scope,
+        branch_name=promo_branch_name,
+        branch_code=promo_branch_code,
     )
 
 

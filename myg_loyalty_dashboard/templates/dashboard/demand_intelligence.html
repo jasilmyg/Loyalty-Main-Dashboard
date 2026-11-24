@@ -914,6 +914,10 @@
                     <i class="bi bi-magic" style="color:#7c3aed;"></i>
                     Horizon: <strong id="meta-fc-range">Next 7 / 15 / 30 Days</strong>
                 </span>
+                <a href="{% url 'campaign_offers' %}" class="btn-dii-outline" style="border-color:#10b981;color:#047857;background:#ecfdf5;text-decoration:none;" title="Open Campaign &amp; WhatsApp Offer Calendar wired into this forecast">
+                    <i class="bi bi-whatsapp me-1"></i> Campaign Offers
+                    <span id="camp-active-badge" class="badge rounded-pill ms-1" style="background:#059669;color:#fff;font-size:0.65rem;">0</span>
+                </a>
                 <button type="button" class="btn-dii-outline" onclick="selectPortfolioAggregate()" title="View aggregate forecast across all filtered products">
                     <i class="bi bi-layers me-1"></i> Portfolio Forecast
                 </button>
@@ -2319,6 +2323,10 @@
     function renderKPIs(meta, kpis) {
         document.getElementById('meta-ref-date').textContent = meta.ref_date_display || meta.ref_date || '—';
         document.getElementById('meta-fc-range').textContent = meta.forecast_range_display || 'Next 30 Days';
+        const campBdg = document.getElementById('camp-active-badge');
+        if (campBdg && meta.active_campaigns_count != null) {
+            campBdg.textContent = String(meta.active_campaigns_count);
+        }
 
         document.getElementById('kpi-accuracy').textContent = `${fmtNum(kpis.forecast_accuracy_pct, 1)}%`;
         const accDelta = Number(kpis.accuracy_delta_pp || 0);
@@ -4445,8 +4453,40 @@
         window.location.href = '/api/v1/demand-intelligence/export/?' + params.toString();
     };
 
+
+    function _applyInitialUrlFilters() {
+        const qp = new URLSearchParams(window.location.search || '');
+        const p = (qp.get('product') || '').trim().toUpperCase();
+        const b = (qp.get('brand') || '').trim().toUpperCase();
+        const d = (qp.get('district') || '').trim().toUpperCase();
+        const br = (qp.get('branch') || '').trim().toUpperCase();
+        if (p) {
+            const pEl = document.getElementById('flt-product');
+            if (pEl) pEl.value = p;
+        }
+        if (b) {
+            const bEl = document.getElementById('flt-brand');
+            if (bEl) bEl.value = b;
+        }
+        if (d) {
+            const dEl = document.getElementById('flt-district');
+            if (dEl) dEl.value = d;
+        }
+        if (br) {
+            const brEl = document.getElementById('flt-branch');
+            if (brEl) {
+                const matchOpt = Array.from(brEl.options).find(o =>
+                    String(o.value || '').trim().toUpperCase() === br ||
+                    String(o.textContent || '').trim().toUpperCase().includes(br)
+                );
+                if (matchOpt) brEl.value = matchOpt.value;
+            }
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
         initCatalogTomSelects();
+        _applyInitialUrlFilters();
         refreshCatalogFilters('init');
         reloadDemandDashboard(true);
     });

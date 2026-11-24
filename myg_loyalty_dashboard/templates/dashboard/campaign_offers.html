@@ -1,0 +1,2589 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Campaign &amp; Offer Calendar | myG Demand Intelligence{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css">
+<style>
+    .camp-page-wrap {
+        margin-top: -1rem;
+    }
+    .camp-hero {
+        background: linear-gradient(135deg, #064e3b 0%, #047857 55%, #0d9488 100%);
+        color: #ffffff;
+        border-radius: 18px;
+        padding: 1.35rem 1.6rem;
+        margin-bottom: 1.25rem;
+        box-shadow: 0 10px 28px rgba(4, 120, 87, 0.16);
+    }
+    .camp-kpi-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 1rem 1.2rem;
+        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.03);
+        height: 100%;
+    }
+    .camp-kpi-lbl {
+        font-size: 0.68rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #64748b;
+    }
+    .camp-kpi-val {
+        font-size: 1.65rem;
+        font-weight: 800;
+        color: #0f172a;
+        line-height: 1.2;
+        margin-top: 0.25rem;
+    }
+    .camp-section-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        padding: 1.25rem 1.4rem;
+        margin-bottom: 1.25rem;
+        box-shadow: 0 4px 18px rgba(15, 23, 42, 0.03);
+    }
+    .dii-filter-lbl {
+        display: block;
+        font-size: 0.67rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #475569;
+        margin-bottom: 0.25rem;
+    }
+    .dii-select {
+        width: 100%;
+        background-color: #f8fafc;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        padding: 0.44rem 0.72rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #1e293b;
+        outline: none;
+        transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .dii-select:focus {
+        background-color: #ffffff;
+        border-color: #059669;
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.14);
+    }
+    .btn-dii-outline {
+        border: 1px solid #cbd5e1;
+        background: #ffffff;
+        color: #334155;
+        font-weight: 700;
+        font-size: 0.78rem;
+        padding: 0.45rem 0.9rem;
+        border-radius: 10px;
+        transition: all 0.15s;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+    }
+    .btn-dii-outline:hover {
+        background: #f8fafc;
+        border-color: #94a3b8;
+        color: #0f172a;
+    }
+    .btn-dii-purple {
+        border: none;
+        background: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%);
+        color: #ffffff;
+        font-weight: 700;
+        font-size: 0.8rem;
+        padding: 0.52rem 1rem;
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.24);
+        transition: transform 0.12s, box-shadow 0.15s;
+    }
+    .btn-dii-purple:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(99, 102, 241, 0.34);
+        color: #ffffff;
+    }
+    .camp-status-pill {
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        color: #475569;
+        border-radius: 99px;
+        padding: 0.24rem 0.72rem;
+        font-size: 0.72rem;
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .camp-status-pill.active {
+        background: #059669;
+        border-color: #059669;
+        color: #ffffff;
+    }
+    /* Multi-select Target Specific Stores TomSelect */
+    .camp-page-wrap .ts-wrapper.multi .ts-control {
+        background-color: #f8fafc !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 10px !important;
+        padding: 0.32rem 0.55rem !important;
+        min-height: 38px !important;
+        max-height: 112px !important;
+        overflow-y: auto !important;
+        font-size: 0.78rem !important;
+        box-shadow: none !important;
+        gap: 4px;
+    }
+    .camp-page-wrap .ts-wrapper.multi.focus .ts-control {
+        background-color: #ffffff !important;
+        border-color: #6366f1 !important;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.14) !important;
+    }
+    .camp-page-wrap .ts-wrapper.multi .ts-control > .item {
+        background: #ede9fe !important;
+        color: #5b21b6 !important;
+        border: 1px solid #c4b5fd !important;
+        border-radius: 6px !important;
+        font-size: 0.71rem !important;
+        font-weight: 700 !important;
+        padding: 1px 6px !important;
+    }
+    .ts-dropdown.camp-stores-dd {
+        z-index: 2060 !important;
+        border-radius: 12px !important;
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: 0 16px 36px rgba(15, 23, 42, 0.22) !important;
+        font-size: 0.78rem !important;
+    }
+    .ts-dropdown.camp-stores-dd .ts-dropdown-content {
+        max-height: 260px;
+    }
+    .ts-dropdown.camp-stores-dd .option {
+        padding: 0.38rem 0.7rem;
+    }
+    .ts-dropdown.camp-stores-dd .option.active {
+        background: #eef2ff !important;
+        color: #3730a3 !important;
+    }
+</style>
+
+<div class="camp-page-wrap">
+    <!-- Hero Header -->
+    <div class="camp-hero d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <span class="badge" style="background:rgba(255,255,255,0.2);color:#ecfdf5;font-size:0.68rem;">
+                    <i class="bi bi-link-45deg me-1"></i>Wired Live to Demand Intelligence &amp; AI Forecast
+                </span>
+                <span class="badge" style="background:rgba(255,255,255,0.16);color:#d1fae5;font-size:0.68rem;">
+                    Sales Anchor: {{ filter_options.ref_date_display|default:"Latest" }}
+                </span>
+            </div>
+            <h4 class="fw-bolder mb-1 d-flex align-items-center gap-2">
+                <i class="bi bi-whatsapp"></i>
+                <span>Campaign &amp; WhatsApp Offer Calendar</span>
+            </h4>
+            <div style="font-size:0.8rem;color:#d1fae5;">
+                Paste WhatsApp Channel offers, drop poster images, or stream up to 2 GB store-wise <code>.ZIP</code> packs — AI extracts dates, categories, store formats, districts &amp; exact stores straight into your 7/15/30-day demand forecast.
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <button type="button" class="btn btn-sm fw-bold px-3 py-2" style="background:rgba(255,255,255,0.16);color:#ffffff;border:1px solid rgba(255,255,255,0.35);border-radius:11px;font-size:0.78rem;" onclick="document.getElementById('camp-colleague-guide')?.classList.toggle('d-none')">
+                <i class="bi bi-book-half me-1"></i> Colleague Guide
+            </button>
+            <a href="/api/v1/demand-intelligence/campaigns/template/" class="btn btn-sm fw-bold px-3 py-2" style="background:rgba(255,255,255,0.18);color:#ffffff;border:1px solid rgba(255,255,255,0.35);border-radius:11px;font-size:0.78rem;">
+                <i class="bi bi-file-earmark-excel-fill me-1"></i> Excel Template
+            </a>
+            <a href="{% url 'demand_intelligence' %}" class="btn btn-light fw-bold px-3 py-2" style="border-radius:11px;color:#065f46;font-size:0.8rem;">
+                <i class="bi bi-graph-up-arrow me-1"></i> Open Demand Forecast
+                <i class="bi bi-arrow-right ms-1"></i>
+            </a>
+        </div>
+    </div>
+
+    <!-- Collapsible Colleague Quick-Start & Setup Guide -->
+    <div id="camp-colleague-guide" class="camp-section-card d-none" style="border-color:#93c5fd;background:#f8fafc;">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="fw-bolder text-dark" style="font-size:0.88rem;">
+                <i class="bi bi-mortarboard-fill me-1 text-primary"></i>
+                Colleague Quick-Start Guide — Adding Previous &amp; Live Campaign Offers
+            </div>
+            <button type="button" class="btn-close" style="font-size:0.72rem;" onclick="document.getElementById('camp-colleague-guide').classList.add('d-none')"></button>
+        </div>
+        <div class="row g-2" style="font-size:0.76rem;color:#334155;">
+            <div class="col-md-4">
+                <div class="p-2 rounded-3 bg-white border h-100">
+                    <div class="fw-bold text-success mb-1">1. Add Past Offers (Bulk Excel or Posters/ZIP)</div>
+                    <div>Click <strong>Excel Template</strong> above to download the 4-sheet template (includes live branch names, products &amp; item categories). Fill previous or upcoming offers, leave <code>expected_lift_pct</code> blank for auto-ClickHouse estimation, and upload below.</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="p-2 rounded-3 bg-white border h-100">
+                    <div class="fw-bold text-primary mb-1">2. Narrow by Product → Item Category → Item Group</div>
+                    <div>In Step 2 (or Excel), specify exact <code>item_categories</code> (e.g. <code>WASHING MACHINE-FL</code>, <code>MIXER GRINDER</code>) and <code>item_groups</code> (e.g. <code>APPLE IPHONE 17 256GB</code>, <code>1.5 TON 3 STAR</code>, <code>8KG</code>) when an offer targets specific models or sub-categories.</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="p-2 rounded-3 bg-white border h-100">
+                    <div class="fw-bold mb-1" style="color:#7c3aed;">3. Compare Predicted vs. Actual &amp; Self-Learn</div>
+                    <div>Every completed offer trains the closed-loop learner automatically. Scroll to <strong>Step 4: Predicted vs. Actual Backtest</strong> to verify accuracy, export Excel reports, or click <strong>Breakdown</strong> on any offer to drill down into Product / Item Category / Item Group actuals.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live KPI Strip -->
+    <div class="row g-3 mb-3">
+        <div class="col-6 col-lg-3">
+            <div class="camp-kpi-card" style="border-left:4px solid #10b981;">
+                <div class="camp-kpi-lbl"><i class="bi bi-broadcast me-1 text-success"></i>Live Now</div>
+                <div class="camp-kpi-val text-success" id="kpi-camp-live">—</div>
+                <div class="text-muted" style="font-size:0.71rem;">Actively lifting current forecast</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="camp-kpi-card" style="border-left:4px solid #6366f1;">
+                <div class="camp-kpi-lbl"><i class="bi bi-calendar-event me-1 text-primary"></i>Upcoming Offers</div>
+                <div class="camp-kpi-val" style="color:#4338ca;" id="kpi-camp-upcoming">—</div>
+                <div class="text-muted" style="font-size:0.71rem;">Scheduled pins in 30d horizon</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="camp-kpi-card" style="border-left:4px solid #8b5cf6;">
+                <div class="camp-kpi-lbl"><i class="bi bi-shop me-1" style="color:#7c3aed;"></i>Total Saved Offers</div>
+                <div class="camp-kpi-val" style="color:#6d28d9;" id="kpi-camp-total">—</div>
+                <div class="text-muted" style="font-size:0.71rem;">Live + Upcoming + Completed</div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="camp-kpi-card" style="border-left:4px solid #0ea5e9;">
+                <div class="camp-kpi-lbl"><i class="bi bi-bar-chart-line-fill me-1 text-info"></i>Avg Realized Lift</div>
+                <div class="camp-kpi-val" id="kpi-camp-realized">—</div>
+                <div class="text-muted" style="font-size:0.71rem;">Sale value % vs baseline (ClickHouse)</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 1: AI Quick Import (Paste Text / Drop Posters / Stream up to 2 GB .ZIP) -->
+    <div class="camp-section-card" style="border-color:#a7f3d0;">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+            <div class="fw-bolder text-dark" style="font-size:0.92rem;">
+                <span class="badge me-1" style="background:#d1fae5;color:#065f46;">Step 1</span>
+                Paste WhatsApp Channel Offer Text, Drop Posters, or Upload Store-Wise .ZIP Pack
+            </div>
+            <span id="camp-parse-status" class="small text-muted" style="font-size:0.76rem;"></span>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-lg-6">
+                <textarea id="camp-wa-text" class="form-control" rows="4" style="font-size:0.82rem;border-radius:11px;border-color:#cbd5e1;" placeholder="Paste WhatsApp Channel post here (English / Malayalam / emojis supported)...&#10;Example: 🔥 myG Weekend TV &amp; Appliance Dhamaka! 28–30 Nov — Up to 35% off on LG &amp; Samsung Smart TVs + ₹5,000 SBI Cashback + Zero Down Payment EMI"></textarea>
+            </div>
+            <div class="col-lg-6">
+                <div id="camp-drop-zone" class="rounded-3 d-flex flex-column align-items-center justify-content-center text-center p-3 position-relative"
+                     style="border:2px dashed #6ee7b7;background:#f0fdf4;min-height:118px;cursor:pointer;"
+                     onclick="document.getElementById('camp-poster-file').click()">
+                    <input type="file" id="camp-poster-file" accept="image/png,image/jpeg,image/webp,.zip,application/zip,application/x-zip-compressed" multiple class="d-none" onchange="onCampaignPosterFiles(this.files)">
+                    <input type="file" id="camp-zip-file" accept=".zip,application/zip,application/x-zip-compressed" multiple class="d-none" onchange="onCampaignPosterFiles(this.files)">
+                    <div id="camp-poster-empty">
+                        <i class="bi bi-file-earmark-zip fs-3" style="color:#059669;"></i>
+                        <div class="fw-bold" style="font-size:0.8rem;color:#065f46;">Drop Offer Posters or .ZIP Archive, Click, or Press Ctrl+V</div>
+                        <div class="text-muted" style="font-size:0.7rem;">Images (PNG / JPG / WEBP) or large store-wise .ZIP packs (up to 2 GB / 500 posters — grouped by store &amp; streamed directly from disk)</div>
+                    </div>
+                    <div id="camp-poster-preview-wrap" class="d-none w-100 text-start">
+                        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-1">
+                            <span id="camp-poster-count-lbl" class="badge" style="background:#059669;color:#fff;font-size:0.7rem;">0 files</span>
+                            <div class="d-flex gap-1">
+                                <button type="button" class="btn btn-sm btn-outline-success py-0 px-2" style="font-size:0.68rem;" onclick="event.stopPropagation(); document.getElementById('camp-poster-file').click();">+ Add</button>
+                                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" style="font-size:0.68rem;" onclick="event.stopPropagation(); clearCampaignPoster();">Clear All</button>
+                            </div>
+                        </div>
+                        <div id="camp-poster-grid" class="d-flex flex-wrap gap-2" style="max-height:135px;overflow-y:auto;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+            <div class="d-flex align-items-center flex-wrap gap-2">
+                <button type="button" class="btn btn-sm btn-outline-success fw-semibold py-1 px-3" style="font-size:0.76rem;border-radius:10px;" onclick="document.getElementById('camp-zip-file').click()">
+                    <i class="bi bi-file-earmark-zip-fill me-1"></i> Upload Offers .ZIP
+                </button>
+                <div class="d-flex align-items-center gap-1">
+                    <label for="camp-zip-mode" class="text-muted fw-semibold mb-0" style="font-size:0.72rem;">ZIP Scan Mode:</label>
+                    <select id="camp-zip-mode" class="form-select form-select-sm py-1 px-2" style="font-size:0.72rem;width:auto;border-radius:8px;" title="Group posters by store folder/filename so no store splits across batches">
+                        <option value="full" selected>Full Per-Store Scan (all slides)</option>
+                        <option value="fast">Fast Store-Wise (up to 2 slides / store)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <button type="button" class="btn-dii-outline py-1 px-3" style="font-size:0.76rem;" onclick="resetCampaignForm()">
+                    <i class="bi bi-eraser me-1"></i> Clear
+                </button>
+                <button type="button" id="camp-extract-btn" class="btn btn-sm fw-bold px-3 py-2" style="background:linear-gradient(135deg,#059669,#0d9488);color:#fff;border-radius:10px;font-size:0.8rem;" onclick="extractWhatsappOfferWithAI()">
+                    <i class="bi bi-stars me-1"></i> Extract Offer(s) with AI
+                </button>
+            </div>
+        </div>
+
+        <!-- Live Chunked ZIP Progress Bar -->
+        <div id="camp-progress-wrap" class="d-none mt-3 p-2 px-3 rounded-3" style="background:#f0fdf4;border:1px solid #a7f3d0;">
+            <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
+                <span id="camp-progress-text" class="small fw-semibold" style="color:#065f46;font-size:0.75rem;">Preparing posters…</span>
+                <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" style="font-size:0.68rem;" onclick="abortCampaignExtraction()">Stop</button>
+            </div>
+            <div class="progress" style="height:7px;border-radius:99px;background:#d1fae5;">
+                <div id="camp-progress-bar" class="progress-bar" role="progressbar" style="width:0%;background:linear-gradient(90deg,#059669,#0d9488);transition:width 0.25s ease;"></div>
+            </div>
+        </div>
+
+        <!-- ZIP Store Coverage Audit & Retry Failed Batches Bar -->
+        <div id="camp-zip-audit" class="d-none mt-3 p-2 px-3 rounded-3" style="background:#fffbeb;border:1px solid #fde68a;font-size:0.76rem;">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div id="camp-zip-audit-summary" class="fw-semibold text-dark"></div>
+                <button type="button" id="camp-retry-failed-btn" class="btn btn-sm btn-warning fw-bold d-none py-1 px-3" style="font-size:0.73rem;border-radius:8px;" onclick="retryFailedZipBatches()">
+                    <i class="bi bi-arrow-repeat me-1"></i> Retry Failed Batches
+                </button>
+            </div>
+            <div id="camp-zip-audit-missing" class="text-muted mt-1" style="font-size:0.7rem;"></div>
+        </div>
+
+        <!-- Multi-Offer Review Tray -->
+        <div id="camp-multi-tray" class="d-none mt-3 pt-3" style="border-top:1px dashed #6ee7b7;">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                <div class="fw-bolder" style="font-size:0.84rem;color:#065f46;">
+                    <i class="bi bi-collection-fill me-1"></i>
+                    AI Detected <span id="camp-multi-count">0</span> Distinct Offers Across Your Posters
+                </div>
+                <div class="d-flex align-items-center flex-wrap gap-2">
+                    <input type="text" id="camp-multi-search" class="form-control form-control-sm" style="width:200px;font-size:0.73rem;border-radius:8px;" placeholder="Filter extracted store / offer…" oninput="filterMultiExtractedTray()">
+                    <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2" style="font-size:0.71rem;border-radius:8px;" onclick="toggleAllExtractedOffers(true)">Select All</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2" style="font-size:0.71rem;border-radius:8px;" onclick="toggleAllExtractedOffers(false)">None</button>
+                    <button type="button" id="camp-bulk-save-btn" class="btn btn-sm fw-bold px-3 py-1" style="background:linear-gradient(135deg,#6366f1,#7c3aed);color:#fff;border-radius:9px;font-size:0.76rem;" onclick="saveAllExtractedCampaigns()">
+                        <i class="bi bi-check2-all me-1"></i> Save Selected Offers &amp; Update Forecast
+                    </button>
+                </div>
+            </div>
+            <div id="camp-multi-list" class="d-flex flex-column gap-2" style="max-height:360px;overflow-y:auto;"></div>
+        </div>
+
+        <!-- Colleague Bulk Excel / CSV Importer for Previous & Upcoming Offers -->
+        <div class="mt-3 p-3 rounded-3" style="background:#f8fafc;border:1px solid #cbd5e1;">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <div class="fw-bold text-dark" style="font-size:0.82rem;">
+                        <i class="bi bi-file-earmark-spreadsheet-fill me-1 text-primary"></i>
+                        Bulk Import Previous / Upcoming Offers (Excel <code>.xlsx</code> or <code>.csv</code>)
+                    </div>
+                    <div class="text-muted" style="font-size:0.71rem;">
+                        Upload past offers so the AI learns true ClickHouse Sale Value lifts &amp; builds your Predicted vs. Actual scorecard. Leave <code>expected_lift_pct</code> blank to auto-calculate per store.
+                    </div>
+                </div>
+                <div class="d-flex align-items-center flex-wrap gap-2">
+                    <a href="/api/v1/demand-intelligence/campaigns/template/" class="btn btn-sm btn-outline-success fw-semibold py-1 px-2" style="font-size:0.73rem;border-radius:8px;">
+                        <i class="bi bi-download me-1"></i> Download Excel Template
+                    </a>
+                    <input type="file" id="camp-sheet-file" accept=".xlsx,.xlsm,.csv" class="d-none" onchange="onCampaignSheetSelected(this.files)">
+                    <button type="button" id="camp-sheet-upload-btn" class="btn btn-sm btn-primary fw-semibold py-1 px-3" style="font-size:0.73rem;border-radius:8px;" onclick="document.getElementById('camp-sheet-file').click()">
+                        <i class="bi bi-upload me-1"></i> Upload Excel / CSV
+                    </button>
+                </div>
+            </div>
+            <div id="camp-sheet-status" class="mt-2 small"></div>
+            <div id="camp-sheet-preview-box" class="d-none mt-2 p-2 rounded-3 bg-white border">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                    <div class="fw-bold text-dark" style="font-size:0.78rem;">
+                        <i class="bi bi-table me-1 text-primary"></i>
+                        <span id="camp-sheet-preview-title">Sheet Preview</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:0.7rem;" onclick="clearCampaignSheetPreview()">Cancel</button>
+                        <button type="button" id="camp-sheet-confirm-btn" class="btn-dii-purple py-1 px-3" style="font-size:0.73rem;" onclick="confirmImportCampaignSheet()">
+                            <i class="bi bi-check2-all me-1"></i> Import &amp; Learn in ClickHouse
+                        </button>
+                    </div>
+                </div>
+                <div id="camp-sheet-warnings" class="small text-warning mb-1"></div>
+                <div class="table-responsive" style="max-height:210px;overflow-y:auto;">
+                    <table class="table table-sm table-hover mb-0" style="font-size:0.72rem;">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Campaign</th>
+                                <th>Dates</th>
+                                <th>Stores / Districts</th>
+                                <th>Products / Categories / Groups</th>
+                                <th class="text-end">Planned Lift</th>
+                            </tr>
+                        </thead>
+                        <tbody id="camp-sheet-preview-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: Structured Campaign Editor -->
+    <div class="camp-section-card">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="fw-bolder text-dark" style="font-size:0.92rem;">
+                <span class="badge me-1" style="background:#e0e7ff;color:#3730a3;">Step 2</span>
+                Review Campaign Details &amp; Apply to Demand Forecast
+            </div>
+            <span id="camp-edit-tag" class="badge d-none" style="background:#fef3c7;color:#92400e;">Editing saved campaign</span>
+        </div>
+        <input type="hidden" id="camp-id" value="">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label class="dii-filter-lbl">Campaign Name *</label>
+                <input type="text" id="camp-name" class="dii-select" placeholder="e.g. myG Power 48 Sale">
+            </div>
+            <div class="col-md-3">
+                <label class="dii-filter-lbl">Campaign Type</label>
+                <select id="camp-type" class="dii-select" onchange="onCampaignTypeOrStrengthChange()">
+                    <option value="mega_sale">Mega Sale / Anniversary / Festive</option>
+                    <option value="weekend_dhamaka" selected>Weekend / 2nd-Sat Dhamaka</option>
+                    <option value="exchange_cashback">Exchange Mela / Cashback / EMI</option>
+                    <option value="brand_festival">Brand Festival / Brand Days</option>
+                    <option value="flash_offer">Flash Offer / Price Drop</option>
+                    <option value="product_launch">Flagship / New Product Launch</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="dii-filter-lbl">Start Date *</label>
+                <input type="date" id="camp-start" class="dii-select">
+            </div>
+            <div class="col-md-2">
+                <label class="dii-filter-lbl">End Date *</label>
+                <input type="date" id="camp-end" class="dii-select">
+            </div>
+            <div class="col-md-1">
+                <label class="dii-filter-lbl" title="Post-campaign pull-forward cooldown days on durables">Cool (d)</label>
+                <input type="number" id="camp-cooldown" class="dii-select" min="0" max="14" value="3">
+            </div>
+
+            <div class="col-md-4">
+                <label class="dii-filter-lbl">Target Product Lines <span class="text-muted fw-normal" style="text-transform:none;">(comma-separated or ALL)</span></label>
+                <input type="text" id="camp-products" class="dii-select" value="ALL" placeholder="ALL or TV, REFRIGERATORS">
+                <div class="d-flex flex-wrap gap-1 mt-1" id="camp-quick-prod-chips">
+                    <button type="button" class="badge border-0" style="background:#f1f5f9;color:#334155;cursor:pointer;" onclick="toggleCampProdChip('ALL')">ALL</button>
+                    <button type="button" class="badge border-0" style="background:#eef2ff;color:#4338ca;cursor:pointer;" onclick="toggleCampProdChip('TV')">TV</button>
+                    <button type="button" class="badge border-0" style="background:#eef2ff;color:#4338ca;cursor:pointer;" onclick="toggleCampProdChip('MOBILE')">MOBILE</button>
+                    <button type="button" class="badge border-0" style="background:#eef2ff;color:#4338ca;cursor:pointer;" onclick="toggleCampProdChip('AIR CONDITIONER')">AC</button>
+                    <button type="button" class="badge border-0" style="background:#eef2ff;color:#4338ca;cursor:pointer;" onclick="toggleCampProdChip('REFRIGERATORS')">FRIDGE</button>
+                    <button type="button" class="badge border-0" style="background:#eef2ff;color:#4338ca;cursor:pointer;" onclick="toggleCampProdChip('WASHING MACHINES')">WM</button>
+                    <button type="button" class="badge border-0" style="background:#eef2ff;color:#4338ca;cursor:pointer;" onclick="toggleCampProdChip('LAPTOP')">LAPTOP</button>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="dii-filter-lbl">Target Brands <span class="text-muted fw-normal" style="text-transform:none;">(or ALL)</span></label>
+                <input type="text" id="camp-brands" class="dii-select" value="ALL" placeholder="ALL or LG, SAMSUNG">
+            </div>
+            <div class="col-md-2">
+                <label class="dii-filter-lbl">Offer Strength</label>
+                <select id="camp-strength" class="dii-select" onchange="onCampaignTypeOrStrengthChange()">
+                    <option value="low">Low</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High</option>
+                    <option value="mega">Mega</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <div class="d-flex justify-content-between align-items-center gap-1">
+                    <label class="dii-filter-lbl mb-0">Expected Daily Lift (%)</label>
+                    <button type="button" id="camp-auto-lift-btn" class="badge border-0" style="background:#e0f2fe;color:#0369a1;cursor:pointer;font-size:0.62rem;" onclick="estimateCampaignLiftFromClickHouse(false)" title="Estimate store-specific Sale Value Planned Lift % from each store's complete ClickHouse sales history">
+                        <i class="bi bi-database-fill-check me-1"></i>Auto (ClickHouse)
+                    </button>
+                </div>
+                <input type="number" id="camp-lift" class="dii-select mt-1" min="0" max="400" step="1" value="18" placeholder="e.g. 18" oninput="window._onCampLiftManualEdit()">
+                <div id="camp-lift-basis" class="text-muted mt-1" style="font-size:0.64rem;line-height:1.25;"></div>
+            </div>
+
+            <div class="col-md-6">
+                <label class="dii-filter-lbl">
+                    Target Item Categories <span class="text-muted fw-normal" style="text-transform:none;">(optional <code>item_master.item_category</code> — e.g. WASHING MACHINE-FL, MIXER GRINDER)</span>
+                </label>
+                <select id="camp-item-cats-select" multiple placeholder="Leave empty for ALL item categories, or search…"></select>
+            </div>
+            <div class="col-md-6">
+                <label class="dii-filter-lbl">
+                    Target Item Groups / Models <span class="text-muted fw-normal" style="text-transform:none;">(optional <code>item_master.item_group</code> — e.g. APPLE IPHONE 17 256GB, 1.5 TON 3 STAR, 8KG)</span>
+                </label>
+                <select id="camp-item-groups-select" multiple placeholder="Type to search models, capacities or screen sizes in ClickHouse…"></select>
+            </div>
+
+            <div class="col-md-4">
+                <label class="dii-filter-lbl">Store Format <span class="text-muted fw-normal" style="text-transform:none;">(myG / myG Future)</span></label>
+                <select id="camp-store-formats" class="dii-select" onchange="onCampScopeControlChanged()">
+                    <option value="ALL" selected>All Stores (myG + myG Future)</option>
+                    <option value="MYG,MYG_FUTURE">myG + myG Future Stores</option>
+                    <option value="MYG">myG Stores Only</option>
+                    <option value="MYG_FUTURE">myG Future Stores Only</option>
+                </select>
+            </div>
+            <div class="col-md-8">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-1">
+                    <label class="dii-filter-lbl mb-0">Target Districts <span class="text-muted fw-normal" style="text-transform:none;">(comma-separated or ALL)</span></label>
+                    <div class="d-flex flex-wrap gap-1">
+                        <button type="button" class="badge border-0" style="background:#f1f5f9;color:#334155;cursor:pointer;font-size:0.65rem;" onclick="setCampDistrictPreset('all')">ALL Kerala</button>
+                        <button type="button" class="badge border-0" style="background:#d1fae5;color:#065f46;cursor:pointer;font-size:0.65rem;" onclick="setCampDistrictPreset('malabar')">North / Malabar (6)</button>
+                        <button type="button" class="badge border-0" style="background:#e0f2fe;color:#075985;cursor:pointer;font-size:0.65rem;" onclick="setCampDistrictPreset('central')">Central (4)</button>
+                        <button type="button" class="badge border-0" style="background:#fef3c7;color:#92400e;cursor:pointer;font-size:0.65rem;" onclick="setCampDistrictPreset('south')">South (4)</button>
+                    </div>
+                </div>
+                <input type="text" id="camp-districts" class="dii-select mt-1" value="ALL" placeholder="ALL or KANNUR, KASARGOD, KOZHIKODE, WAYANADU, PALAKKAD, MALAPPURAM" oninput="syncCampDistrictChips()" onchange="onCampScopeControlChanged()">
+                <div class="d-flex flex-wrap gap-1 mt-1" id="camp-quick-dist-chips">
+                    <button type="button" class="badge border-0 camp-dist-chip" data-dist="KASARGOD" style="background:#f1f5f9;color:#475569;cursor:pointer;font-size:0.65rem;" onclick="toggleCampDistrictChip('KASARGOD')">KASARGOD</button>
+                    <button type="button" class="badge border-0 camp-dist-chip" data-dist="KANNUR" style="background:#f1f5f9;color:#475569;cursor:pointer;font-size:0.65rem;" onclick="toggleCampDistrictChip('KANNUR')">KANNUR</button>
+                    <button type="button" class="badge border-0 camp-dist-chip" data-dist="WAYANADU" style="background:#f1f5f9;color:#475569;cursor:pointer;font-size:0.65rem;" onclick="toggleCampDistrictChip('WAYANADU')">WAYANAD</button>
+                    <button type="button" class="badge border-0 camp-dist-chip" data-dist="KOZHIKODE" style="background:#f1f5f9;color:#475569;cursor:pointer;font-size:0.65rem;" onclick="toggleCampDistrictChip('KOZHIKODE')">CALICUT</button>
+                    <button type="button" class="badge border-0 camp-dist-chip" data-dist="MALAPPURAM" style="background:#f1f5f9;color:#475569;cursor:pointer;font-size:0.65rem;" onclick="toggleCampDistrictChip('MALAPPURAM')">MALAPPURAM</button>
+                    <button type="button" class="badge border-0 camp-dist-chip" data-dist="PALAKKAD" style="background:#f1f5f9;color:#475569;cursor:pointer;font-size:0.65rem;" onclick="toggleCampDistrictChip('PALAKKAD')">PALAKKAD</button>
+                    <button type="button" class="badge border-0 camp-dist-chip" data-dist="THRISSUR" style="background:#f1f5f9;color:#475569;cursor:pointer;font-size:0.65rem;" onclick="toggleCampDistrictChip('THRISSUR')">THRISSUR</button>
+                    <button type="button" class="badge border-0 camp-dist-chip" data-dist="ERNAKULAM" style="background:#f1f5f9;color:#475569;cursor:pointer;font-size:0.65rem;" onclick="toggleCampDistrictChip('ERNAKULAM')">ERNAKULAM</button>
+                    <button type="button" class="badge border-0 camp-dist-chip" data-dist="IDUKKI" style="background:#f1f5f9;color:#475569;cursor:pointer;font-size:0.65rem;" onclick="toggleCampDistrictChip('IDUKKI')">IDUKKI</button>
+                    <button type="button" class="badge border-0 camp-dist-chip" data-dist="KOTTAYAM" style="background:#f1f5f9;color:#475569;cursor:pointer;font-size:0.65rem;" onclick="toggleCampDistrictChip('KOTTAYAM')">KOTTAYAM</button>
+                    <button type="button" class="badge border-0 camp-dist-chip" data-dist="ALAPPUZHA" style="background:#f1f5f9;color:#475569;cursor:pointer;font-size:0.65rem;" onclick="toggleCampDistrictChip('ALAPPUZHA')">ALAPPUZHA</button>
+                    <button type="button" class="badge border-0 camp-dist-chip" data-dist="PATHANAMTHITTA" style="background:#f1f5f9;color:#475569;cursor:pointer;font-size:0.65rem;" onclick="toggleCampDistrictChip('PATHANAMTHITTA')">PATHANAMTHITTA</button>
+                    <button type="button" class="badge border-0 camp-dist-chip" data-dist="KOLLAM" style="background:#f1f5f9;color:#475569;cursor:pointer;font-size:0.65rem;" onclick="toggleCampDistrictChip('KOLLAM')">KOLLAM</button>
+                    <button type="button" class="badge border-0 camp-dist-chip" data-dist="THIRUVANANTHAPURAM" style="background:#f1f5f9;color:#475569;cursor:pointer;font-size:0.65rem;" onclick="toggleCampDistrictChip('THIRUVANANTHAPURAM')">TVM</button>
+                    <button type="button" class="badge border-0 camp-dist-chip" data-dist="DAKSHINA KANNADA" style="background:#f1f5f9;color:#475569;cursor:pointer;font-size:0.65rem;" onclick="toggleCampDistrictChip('DAKSHINA KANNADA')">MANGALORE</button>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-1 mb-1">
+                    <label class="dii-filter-lbl mb-0">
+                        Target Specific Stores
+                        <span class="text-muted fw-normal" style="text-transform:none;">(optional — leave empty for all matching stores above, or search &amp; pick specific branch(es))</span>
+                    </label>
+                    <div class="d-flex align-items-center gap-1">
+                        <span id="camp-stores-count" class="badge" style="background:#f1f5f9;color:#475569;font-size:0.66rem;">All matching stores</span>
+                        <button type="button" class="badge border-0" style="background:#d1fae5;color:#065f46;cursor:pointer;font-size:0.66rem;" onclick="fillCampStoresFromDistrictAndFormat()" title="Auto-fill all matching myG / myG Future stores for the chosen district(s)">Fill from Districts &amp; Format</button>
+                        <button type="button" class="badge border-0" style="background:#fee2e2;color:#b91c1c;cursor:pointer;font-size:0.66rem;" onclick="clearCampTargetStores()">Clear Stores</button>
+                    </div>
+                </div>
+                <select id="camp-stores-select" multiple placeholder="Search branch name, code, or district (e.g. Edappally Future, Balussery, Calicut)..."></select>
+            </div>
+
+            <div class="col-md-9">
+                <label class="dii-filter-lbl">Offer / Discount Highlight</label>
+                <input type="text" id="camp-discount" class="dii-select" placeholder="e.g. Up to 35% off + ₹5,000 SBI Cashback + 0% EMI">
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button type="button" id="camp-save-btn" class="btn-dii-purple w-100" onclick="saveCampaignOffer()">
+                    <i class="bi bi-check2-circle me-1"></i> Save &amp; Update Forecast
+                </button>
+            </div>
+        </div>
+        <div id="camp-save-msg" class="mt-2 small fw-semibold"></div>
+    </div>
+
+    <!-- Step 3: Saved Campaign Offers Table (with ClickHouse Realized Lift + View in Forecast link) -->
+    <div class="camp-section-card">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div class="fw-bolder text-dark" style="font-size:0.92rem;">
+                <i class="bi bi-calendar2-event-fill me-1 text-primary"></i>
+                Saved Campaign Offers (<span id="camp-list-count">0</span>)
+            </div>
+            <div class="d-flex align-items-center flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-1" id="camp-status-filters">
+                    <button type="button" class="camp-status-pill active" data-st="all" onclick="setCampStatusFilter('all')">All</button>
+                    <button type="button" class="camp-status-pill" data-st="live" onclick="setCampStatusFilter('live')">Live Now</button>
+                    <button type="button" class="camp-status-pill" data-st="upcoming" onclick="setCampStatusFilter('upcoming')">Upcoming</button>
+                    <button type="button" class="camp-status-pill" data-st="completed" onclick="setCampStatusFilter('completed')">Completed</button>
+                </div>
+                <input type="text" id="camp-table-search" class="form-control form-control-sm" style="width:210px;font-size:0.75rem;border-radius:9px;" placeholder="Search offer, product, store…" oninput="renderSavedCampaignsTable()">
+                <button type="button" id="camp-recal-btn" class="btn-dii-outline py-1 px-2" style="font-size:0.73rem;border-color:#0284c7;color:#0369a1;" onclick="recalibrateAllPlannedLifts()" title="Recompute each store's Planned Lift % from its complete ClickHouse Sale Value history">
+                    <i class="bi bi-sliders me-1"></i> Recalibrate (ClickHouse)
+                </button>
+                <button type="button" class="btn-dii-outline py-1 px-2" style="font-size:0.74rem;" onclick="loadCampaignOffers()">
+                    <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+                </button>
+            </div>
+        </div>
+        <div class="table-responsive" style="max-height:460px;overflow-y:auto;">
+            <table class="table table-hover align-middle mb-0" style="font-size:0.78rem;">
+                <thead style="background:#f8fafc;position:sticky;top:0;z-index:2;">
+                    <tr>
+                        <th>Status</th>
+                        <th>Campaign</th>
+                        <th>Dates</th>
+                        <th>Scope (Products / Categories / Stores)</th>
+                        <th class="text-end">Planned Lift</th>
+                        <th class="text-end" title="Net sale value (₹) % lift vs festival-cleansed Same-Day-of-Week ClickHouse baseline (prior 7 weeks)">Realized Lift (Sale Value)</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="camp-list-tbody">
+                    <tr><td colspan="7" class="text-center text-muted py-4">Loading saved offers…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Step 4: Leak-Free Predicted vs. Actual Backtest & Self-Learning Scorecard -->
+    <div class="camp-section-card" style="border-color:#c7d2fe;">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div>
+                <div class="fw-bolder text-dark" style="font-size:0.94rem;">
+                    <span class="badge me-1" style="background:#e0e7ff;color:#3730a3;">Step 4</span>
+                    <i class="bi bi-bullseye me-1 text-primary"></i>
+                    Predicted vs. Actual Backtest &amp; Self-Learning Scorecard (Sale Value ₹)
+                </div>
+                <div class="text-muted" style="font-size:0.72rem;">
+                    Strict time-ordered validation: each campaign is predicted using <strong>only</strong> ClickHouse sales &amp; earlier completed campaigns before its start date (zero leakage), then compared against actual ClickHouse revenue.
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <a href="/api/v1/demand-intelligence/campaigns/backtest/?export=xlsx" class="btn btn-sm btn-outline-success fw-semibold py-1 px-2" style="font-size:0.73rem;border-radius:8px;">
+                    <i class="bi bi-file-earmark-excel me-1"></i> Export Report (.xlsx)
+                </a>
+                <button type="button" id="camp-backtest-btn" class="btn btn-sm btn-primary fw-semibold py-1 px-3" style="font-size:0.74rem;border-radius:8px;" onclick="loadCampaignBacktestScorecard()">
+                    <i class="bi bi-play-circle-fill me-1"></i> Run / Refresh Backtest
+                </button>
+            </div>
+        </div>
+
+        <div class="row g-2 mb-3">
+            <div class="col-6 col-md-3">
+                <div class="p-2 px-3 rounded-3 border" style="background:#f8fafc;">
+                    <div class="text-muted fw-bold" style="font-size:0.65rem;text-transform:uppercase;">Revenue Accuracy (100−WAPE)</div>
+                    <div class="fw-bolder fs-5 text-primary" id="bt-kpi-acc">—</div>
+                    <div class="text-muted" style="font-size:0.66rem;" id="bt-kpi-wape">WAPE: —</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="p-2 px-3 rounded-3 border" style="background:#f8fafc;">
+                    <div class="text-muted fw-bold" style="font-size:0.65rem;text-transform:uppercase;">Mean Lift Bias (Pred − Act)</div>
+                    <div class="fw-bolder fs-5 text-dark" id="bt-kpi-bias">—</div>
+                    <div class="text-muted" style="font-size:0.66rem;">Closer to 0% = better calibrated</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="p-2 px-3 rounded-3 border" style="background:#f8fafc;">
+                    <div class="text-muted fw-bold" style="font-size:0.65rem;text-transform:uppercase;">±15% Revenue Hit Rate</div>
+                    <div class="fw-bolder fs-5 text-success" id="bt-kpi-hit">—</div>
+                    <div class="text-muted" style="font-size:0.66rem;" id="bt-kpi-eval">Evaluated offers: 0</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="p-2 px-3 rounded-3 border" style="background:#f8fafc;">
+                    <div class="text-muted fw-bold" style="font-size:0.65rem;text-transform:uppercase;">Learned Completed Offers</div>
+                    <div class="fw-bolder fs-5" style="color:#7c3aed;" id="bt-kpi-learned">—</div>
+                    <div class="text-muted" style="font-size:0.66rem;">Actively training future lifts</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-responsive" style="max-height:420px;overflow-y:auto;">
+            <table class="table table-hover align-middle mb-0" style="font-size:0.75rem;">
+                <thead style="background:#f8fafc;position:sticky;top:0;z-index:2;">
+                    <tr>
+                        <th>Campaign &amp; Dates</th>
+                        <th>Stores / Item Scope</th>
+                        <th class="text-end">Baseline (₹)</th>
+                        <th class="text-end">Predicted (Leak-Free)</th>
+                        <th class="text-end">Actual (ClickHouse)</th>
+                        <th class="text-end">Variance (Act − Pred)</th>
+                        <th class="text-end">Drilldown</th>
+                    </tr>
+                </thead>
+                <tbody id="camp-backtest-tbody">
+                    <tr><td colspan="7" class="text-center text-muted py-4">Click <strong>Run / Refresh Backtest</strong> to evaluate Predicted vs. Actual Sale Value across saved campaigns.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Product / Item Category / Item Group ClickHouse Breakdown Modal -->
+<div class="modal fade" id="campBreakdownModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content" style="border-radius:16px;border:none;overflow:hidden;">
+            <div class="modal-header" style="background:linear-gradient(135deg,#0f766e,#0369a1);color:#fff;">
+                <div>
+                    <h6 class="modal-title fw-bolder mb-0" id="camp-bd-title">Campaign Product / Category / Group Breakdown</h6>
+                    <div style="font-size:0.72rem;opacity:0.9;" id="camp-bd-subtitle">Loading ClickHouse Sale Value breakdown…</div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                    <div class="d-flex gap-1" id="camp-bd-tabs">
+                        <button type="button" class="camp-status-pill active" data-lvl="product" onclick="switchCampBreakdownTab('product')">By Product (<span id="bd-cnt-prod">0</span>)</button>
+                        <button type="button" class="camp-status-pill" data-lvl="category" onclick="switchCampBreakdownTab('category')">By Item Category (<span id="bd-cnt-cat">0</span>)</button>
+                        <button type="button" class="camp-status-pill" data-lvl="group" onclick="switchCampBreakdownTab('group')">By Item Group (<span id="bd-cnt-grp">0</span>)</button>
+                    </div>
+                    <input type="text" id="camp-bd-search" class="form-control form-control-sm" style="width:240px;font-size:0.75rem;border-radius:9px;" placeholder="Filter product, category or model…" oninput="renderCampBreakdownTable()">
+                </div>
+                <div class="table-responsive" style="max-height:460px;overflow-y:auto;">
+                    <table class="table table-sm table-hover align-middle mb-0" style="font-size:0.76rem;">
+                        <thead class="table-light" style="position:sticky;top:0;z-index:2;">
+                            <tr id="camp-bd-thead-row">
+                                <th>Item</th>
+                                <th class="text-end">Baseline ₹</th>
+                                <th class="text-end">Predicted ₹</th>
+                                <th class="text-end">Actual ₹</th>
+                                <th class="text-end">Actual Lift %</th>
+                                <th class="text-end">Variance ₹</th>
+                                <th class="text-end">Share %</th>
+                            </tr>
+                        </thead>
+                        <tbody id="camp-bd-tbody">
+                            <tr><td colspan="7" class="text-center text-muted py-4">Loading…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ filter_options|json_script:"camp-filter-options-data" }}
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@zip.js/zip.js@2.7/dist/zip.min.js"></script>
+<script>
+(function() {
+    const DEMAND_FORECAST_URL = "{% url 'demand_intelligence' %}";
+    let FILTER_OPTIONS = {};
+    try {
+        FILTER_OPTIONS = JSON.parse(document.getElementById('camp-filter-options-data')?.textContent || '{}') || {};
+    } catch (_e) {
+        FILTER_OPTIONS = {};
+    }
+
+    const CAMP_MAX_POSTERS = 20;
+    const CAMP_MAX_ZIPS = 10;
+    const CAMP_MAX_ZIP_BYTES = 2 * 1024 * 1024 * 1024;
+    const CAMP_MAX_ZIP_IMAGES = 500;
+    const CAMP_BATCH_SIZE = 5;
+    const CAMP_MAX_BATCH_BYTES = 4 * 1024 * 1024;
+    const CAMP_BATCH_PACE_MS = 450;
+
+    let campPosterItems = [];
+    let campZipItems = [];
+    let campExtractedQueue = [];
+    let campCollectedRaw = [];
+    let campFailedBatches = [];
+    let campLastZipAudit = null;
+    let campExtractAborted = false;
+    let cachedCampaignRows = [];
+    let activeStatusFilter = 'all';
+
+    let campStoresTS = null;
+    let campItemCatsTS = null;
+    let campItemGroupsTS = null;
+    let campStoresAutoFilled = false;
+    let campStoresSettingSilent = false;
+    let campLiftUserEdited = false;
+    let _campLiftAutoTimer = null;
+    let campBranchCatalog = Array.isArray(FILTER_OPTIONS.branches) ? FILTER_OPTIONS.branches.slice() : [];
+    let campItemCatCatalog = [];
+    let campPendingSheetFile = null;
+    let campBreakdownCache = null;
+    let campBreakdownLevel = 'product';
+
+    const campTypeDefaults = {
+        mega_sale:         { lifts: { low: 20, medium: 40, high: 70, mega: 115 }, default_cooldown: 5 },
+        weekend_dhamaka:   { lifts: { low: 10, medium: 18, high: 28, mega: 40  }, default_cooldown: 3 },
+        exchange_cashback: { lifts: { low: 8,  medium: 15, high: 24, mega: 35  }, default_cooldown: 3 },
+        brand_festival:    { lifts: { low: 10, medium: 20, high: 32, mega: 45  }, default_cooldown: 3 },
+        flash_offer:       { lifts: { low: 10, medium: 18, high: 28, mega: 40  }, default_cooldown: 2 },
+        product_launch:    { lifts: { low: 12, medium: 22, high: 35, mega: 50  }, default_cooldown: 2 },
+    };
+
+    const CAMP_DISTRICT_PRESETS = {
+        all: 'ALL',
+        malabar: 'KANNUR, KASARGOD, KOZHIKODE, WAYANADU, PALAKKAD, MALAPPURAM',
+        central: 'THRISSUR, ERNAKULAM, IDUKKI, KOTTAYAM',
+        south: 'ALAPPUZHA, PATHANAMTHITTA, KOLLAM, THIRUVANANTHAPURAM',
+    };
+    const CAMP_STORE_FMT_LABELS = {
+        ALL: 'All Stores',
+        'MYG,MYG_FUTURE': 'myG + myG Future',
+        MYG: 'myG Only',
+        MYG_FUTURE: 'myG Future Only',
+    };
+
+    function escHtml(str) {
+        return String(str == null ? '' : str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function fmtNum(n, dec = 0) {
+        return Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+    }
+
+    function fmtInrSigned(n) {
+        const val = Number(n || 0);
+        const sign = val >= 0 ? '+' : '-';
+        const a = Math.abs(val);
+        if (a >= 1e7) return `${sign}₹${(a / 1e7).toFixed(2)} Cr`;
+        if (a >= 1e5) return `${sign}₹${(a / 1e5).toFixed(2)} L`;
+        if (a >= 1e3) return `${sign}₹${(a / 1e3).toFixed(1)}k`;
+        return `${sign}₹${fmtNum(a, 0)}`;
+    }
+
+    function fmtInrPlain(n) {
+        const a = Math.abs(Number(n || 0));
+        if (a >= 1e7) return `₹${(a / 1e7).toFixed(2)} Cr`;
+        if (a >= 1e5) return `₹${(a / 1e5).toFixed(2)} L`;
+        return `₹${fmtNum(a, 0)}`;
+    }
+
+    function _getCsrfToken() {
+        return (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
+    }
+
+    function _fmtFileSize(bytes) {
+        const b = Number(bytes || 0);
+        if (b >= 1024 * 1024 * 1024) return (b / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+        if (b >= 1024 * 1024) return (b / (1024 * 1024)).toFixed(1) + ' MB';
+        if (b >= 1024) return Math.round(b / 1024) + ' KB';
+        return b + ' B';
+    }
+
+    function _isZipFileObj(f) {
+        if (!f) return false;
+        const n = String(f.name || '').toLowerCase();
+        const t = String(f.type || '').toLowerCase();
+        return n.endsWith('.zip') || t.includes('zip');
+    }
+
+    function _mimeFromImgName(name) {
+        const low = String(name || '').toLowerCase();
+        if (low.endsWith('.png')) return 'image/png';
+        if (low.endsWith('.webp')) return 'image/webp';
+        if (low.endsWith('.gif')) return 'image/gif';
+        if (low.endsWith('.bmp')) return 'image/bmp';
+        return 'image/jpeg';
+    }
+
+    // Match ZIP folder/file path (e.g. "48 Hours Store wise/Alappuzha Future/slide1.jpg") -> exact branch_master name
+    function _detectStoreFromZipPath(rawPath) {
+        if (!rawPath || !campBranchCatalog.length) return '';
+        const cleaned = String(rawPath).toUpperCase()
+            .replace(/\.(JPE?G|PNG|WEBP|GIF|BMP)$/i, '')
+            .replace(/[^A-Z0-9]+/g, ' ')
+            .replace(/\b(48|HOURS|HRS|STORE|STORES|WISE|OFFER|OFFERS|POWER|SALE|PAGE|SLIDE|POSTER|FINAL|COPY|NEW)\b/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        if (!cleaned) return '';
+        const hasFuture = /\bFUTURE\b/.test(cleaned);
+        const ordered = _campBranchOptionsList().sort((a, b) => b.value.length - a.value.length);
+        for (const br of ordered) {
+            if (br.value.length < 3) continue;
+            const re = new RegExp(`(^|\\s)${br.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`);
+            if (re.test(cleaned)) return br.value;
+        }
+        if (hasFuture) {
+            for (const br of ordered) {
+                if (!br.value.includes('FUTURE')) continue;
+                const core = br.value.replace(/\s+FUTURE$/, '').trim();
+                if (core.length < 4) continue;
+                const re = new RegExp(`(^|\\s)${core.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`);
+                if (re.test(cleaned)) return br.value;
+            }
+        }
+        return '';
+    }
+
+    function _preparePosterItem(file) {
+        return new Promise((resolve, reject) => {
+            if (!file) return resolve(null);
+            if (file.size > 15 * 1024 * 1024) return reject(new Error(`"${file.name}" is over 15 MB.`));
+            const reader = new FileReader();
+            reader.onerror = () => reject(new Error(`Could not read "${file.name}".`));
+            reader.onload = function(ev) {
+                const rawUrl = String(ev.target.result || '');
+                const img = new Image();
+                img.onload = function() {
+                    const maxDim = 1280;
+                    const needsResize = img.width > maxDim || img.height > maxDim || file.size > 800 * 1024;
+                    if (!needsResize) {
+                        return resolve({ id: 'p_' + Math.random().toString(36).slice(2, 9), name: file.name || 'poster.jpg', blob: file, previewUrl: rawUrl, mime: file.type || 'image/jpeg' });
+                    }
+                    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+                    const w = Math.max(1, Math.round(img.width * scale));
+                    const h = Math.max(1, Math.round(img.height * scale));
+                    const cvs = document.createElement('canvas');
+                    cvs.width = w; cvs.height = h;
+                    const ctx = cvs.getContext('2d');
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.drawImage(img, 0, 0, w, h);
+                    cvs.toBlob(blob => {
+                        resolve({
+                            id: 'p_' + Math.random().toString(36).slice(2, 9),
+                            name: (file.name || 'poster').replace(/\.[^.]+$/, '') + '.jpg',
+                            blob: blob || file,
+                            previewUrl: cvs.toDataURL('image/jpeg', 0.8),
+                            mime: 'image/jpeg',
+                        });
+                    }, 'image/jpeg', 0.82);
+                };
+                img.onerror = () => resolve({ id: 'p_' + Math.random().toString(36).slice(2, 9), name: file.name || 'poster.jpg', blob: file, previewUrl: rawUrl, mime: file.type || 'image/jpeg' });
+                img.src = rawUrl;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function _renderPosterGrid() {
+        const emptyEl = document.getElementById('camp-poster-empty');
+        const wrapEl = document.getElementById('camp-poster-preview-wrap');
+        const gridEl = document.getElementById('camp-poster-grid');
+        const lblEl = document.getElementById('camp-poster-count-lbl');
+        if (!gridEl) return;
+        const totalCount = campPosterItems.length + campZipItems.length;
+        if (!totalCount) {
+            emptyEl?.classList.remove('d-none');
+            wrapEl?.classList.add('d-none');
+            gridEl.innerHTML = '';
+            return;
+        }
+        emptyEl?.classList.add('d-none');
+        wrapEl?.classList.remove('d-none');
+        if (lblEl) {
+            const parts = [];
+            if (campZipItems.length) parts.push(`${campZipItems.length} ZIP`);
+            if (campPosterItems.length) parts.push(`${campPosterItems.length} poster${campPosterItems.length > 1 ? 's' : ''}`);
+            lblEl.textContent = parts.join(' · ');
+        }
+        const zipHtml = campZipItems.map(z => `
+            <div class="d-flex align-items-center gap-2 rounded-2 px-2 py-1 bg-white position-relative"
+                 style="border:1px solid #34d399;max-width:100%;height:42px;flex-shrink:0;" title="${escHtml(z.name)}">
+                <i class="bi bi-file-earmark-zip-fill fs-5" style="color:#059669;"></i>
+                <div class="text-truncate" style="max-width:180px;line-height:1.15;">
+                    <div class="fw-bold text-dark text-truncate" style="font-size:0.72rem;">${escHtml(z.name)}</div>
+                    <div class="text-muted" style="font-size:0.62rem;">${_fmtFileSize(z.size)} · ZIP</div>
+                </div>
+                <button type="button" class="btn btn-danger p-0 d-flex align-items-center justify-content-center ms-1"
+                        style="width:18px;height:18px;font-size:0.65rem;line-height:1;border-radius:50%;"
+                        onclick="event.stopPropagation(); removeCampaignZip('${escHtml(z.id)}');" title="Remove ZIP">&times;</button>
+            </div>
+        `).join('');
+        const imgHtml = campPosterItems.map((it, idx) => `
+            <div class="position-relative rounded-2 overflow-hidden bg-white" style="width:64px;height:64px;border:1px solid #a7f3d0;flex-shrink:0;" title="${escHtml(it.name)}">
+                <img src="${it.previewUrl}" alt="Poster ${idx + 1}" style="width:100%;height:100%;object-fit:cover;">
+                <button type="button" class="btn btn-danger p-0 position-absolute top-0 end-0 d-flex align-items-center justify-content-center"
+                        style="width:18px;height:18px;font-size:0.65rem;line-height:1;border-radius:0 0 0 6px;"
+                        onclick="event.stopPropagation(); removeCampaignPoster('${escHtml(it.id)}');" title="Remove image">&times;</button>
+                <span class="position-absolute bottom-0 start-0 px-1" style="background:rgba(15,23,42,0.72);color:#fff;font-size:0.56rem;border-radius:0 4px 0 0;">#${idx + 1}</span>
+            </div>
+        `).join('');
+        gridEl.innerHTML = zipHtml + imgHtml;
+    }
+
+    window.onCampaignPosterFiles = async function(fileList) {
+        if (!fileList || !fileList.length) return;
+        const statusEl = document.getElementById('camp-parse-status');
+        const allFiles = Array.from(fileList).filter(Boolean);
+        const zipFiles = allFiles.filter(_isZipFileObj);
+        const imgFiles = allFiles.filter(f => !_isZipFileObj(f) && f.type && f.type.startsWith('image/'));
+        if (!zipFiles.length && !imgFiles.length) {
+            if (statusEl) statusEl.innerHTML = '<span class="text-warning">Drop or pick poster images (PNG/JPG/WEBP) or a .ZIP archive.</span>';
+            return;
+        }
+        for (const zf of zipFiles) {
+            if (campZipItems.length >= CAMP_MAX_ZIPS) {
+                if (statusEl) statusEl.innerHTML = `<span class="text-warning">Maximum ${CAMP_MAX_ZIPS} ZIP archives per batch.</span>`;
+                break;
+            }
+            if (zf.size > CAMP_MAX_ZIP_BYTES) {
+                if (statusEl) statusEl.innerHTML = `<span class="text-danger">"${escHtml(zf.name)}" exceeds the 2 GB ZIP limit.</span>`;
+                continue;
+            }
+            campZipItems.push({ id: 'z_' + Math.random().toString(36).slice(2, 9), name: zf.name || 'offers.zip', size: zf.size || 0, file: zf });
+        }
+        if (imgFiles.length) {
+            const room = CAMP_MAX_POSTERS - campPosterItems.length;
+            if (room <= 0) {
+                if (statusEl) statusEl.innerHTML = `<span class="text-warning">Maximum ${CAMP_MAX_POSTERS} direct posters queued (pack up to 500 in a .ZIP file).</span>`;
+            } else {
+                for (const f of imgFiles.slice(0, room)) {
+                    try {
+                        const item = await _preparePosterItem(f);
+                        if (item) campPosterItems.push(item);
+                    } catch (err) {
+                        if (statusEl) statusEl.innerHTML = `<span class="text-danger">${escHtml(err.message)}</span>`;
+                    }
+                }
+            }
+        }
+        const fi = document.getElementById('camp-poster-file'); if (fi) fi.value = '';
+        const zi = document.getElementById('camp-zip-file'); if (zi) zi.value = '';
+        _renderPosterGrid();
+    };
+
+    window.removeCampaignPoster = function(id) { campPosterItems = campPosterItems.filter(it => it.id !== id); _renderPosterGrid(); };
+    window.removeCampaignZip = function(id) { campZipItems = campZipItems.filter(it => it.id !== id); _renderPosterGrid(); };
+    window.clearCampaignPoster = function() {
+        campPosterItems = [];
+        campZipItems = [];
+        campFailedBatches = [];
+        campLastZipAudit = null;
+        document.getElementById('camp-zip-audit')?.classList.add('d-none');
+        const fi = document.getElementById('camp-poster-file'); if (fi) fi.value = '';
+        const zi = document.getElementById('camp-zip-file'); if (zi) zi.value = '';
+        _renderPosterGrid();
+    };
+
+    // ── Store / District / Format UI Helpers ──
+    function _campBranchOptionsList() {
+        return (campBranchCatalog || []).map(b => {
+            const name = String(b.name || b.code || '').trim().toUpperCase();
+            const code = String(b.code || '').trim().toUpperCase();
+            const district = String(b.district || '').trim().toUpperCase();
+            const format = name.includes('FUTURE') ? 'myG Future' : 'myG';
+            return { value: name, text: name, code, district, format };
+        }).filter(o => o.value);
+    }
+
+    function _updateCampStoresCountBadge() {
+        const bdg = document.getElementById('camp-stores-count');
+        if (!bdg) return;
+        const vals = getCampTargetStoresList();
+        if (!vals.length) {
+            bdg.textContent = 'All matching stores';
+            bdg.style.background = '#f1f5f9'; bdg.style.color = '#475569';
+        } else if (campStoresAutoFilled) {
+            const sf = document.getElementById('camp-store-formats')?.value || 'ALL';
+            bdg.textContent = `${vals.length} Store${vals.length > 1 ? 's' : ''} (auto-filled · ${CAMP_STORE_FMT_LABELS[sf] || 'All Stores'})`;
+            bdg.style.background = '#d1fae5'; bdg.style.color = '#065f46';
+        } else {
+            bdg.textContent = `${vals.length} Specific Store${vals.length > 1 ? 's' : ''} Selected`;
+            bdg.style.background = '#ede9fe'; bdg.style.color = '#5b21b6';
+        }
+    }
+
+    function initCampStoresTomSelect(forceRefreshOptions) {
+        const el = document.getElementById('camp-stores-select');
+        if (!el) return null;
+        const opts = _campBranchOptionsList();
+        if (campStoresTS) {
+            if (forceRefreshOptions && opts.length) {
+                const curVals = campStoresTS.getValue();
+                opts.forEach(o => { if (!campStoresTS.options[o.value]) campStoresTS.addOption(o); });
+                campStoresTS.setValue(curVals, true);
+            }
+            return campStoresTS;
+        }
+        if (typeof window.TomSelect !== 'function') return null;
+        campStoresTS = new window.TomSelect(el, {
+            plugins: ['remove_button'],
+            options: opts,
+            valueField: 'value',
+            labelField: 'text',
+            searchField: ['text', 'district', 'code', 'format'],
+            maxItems: null,
+            maxOptions: 250,
+            create: false,
+            dropdownParent: 'body',
+            dropdownClass: 'ts-dropdown camp-stores-dd',
+            placeholder: 'Search branch name, code, or district (e.g. Edappally Future, Balussery)...',
+            render: {
+                option: function(data, escape) {
+                    const isFut = String(data.format || '').includes('Future');
+                    return `<div class="d-flex justify-content-between align-items-center gap-2">
+                        <div>
+                            <span class="fw-bold text-dark">${escape(data.text || '')}</span>
+                            ${data.code ? `<span class="text-muted ms-1" style="font-size:0.68rem;">[${escape(data.code)}]</span>` : ''}
+                        </div>
+                        <div class="d-flex align-items-center gap-1" style="white-space:nowrap;">
+                            ${data.district ? `<span class="badge" style="background:#f1f5f9;color:#475569;font-size:0.62rem;">${escape(data.district)}</span>` : ''}
+                            <span class="badge" style="background:${isFut ? '#ffedd5' : '#fee2e2'};color:${isFut ? '#c2410c' : '#b91c1c'};font-size:0.62rem;">${escape(data.format || 'myG')}</span>
+                        </div>
+                    </div>`;
+                },
+                item: function(data, escape) { return `<div>${escape(data.text || data.value || '')}</div>`; },
+            },
+            onChange: function() {
+                if (!campStoresSettingSilent) {
+                    campStoresAutoFilled = false;
+                    _scheduleAutoEstimateLift();
+                }
+                _updateCampStoresCountBadge();
+            },
+        });
+        _updateCampStoresCountBadge();
+        return campStoresTS;
+    }
+
+    function getCampTargetStoresList() {
+        if (campStoresTS) {
+            const v = campStoresTS.getValue();
+            return (Array.isArray(v) ? v : (v ? [v] : [])).map(s => String(s || '').trim().toUpperCase()).filter(s => s && s !== 'ALL');
+        }
+        return [];
+    }
+
+    function getCampTargetStoresCsv() {
+        const list = getCampTargetStoresList();
+        return list.length ? list.join(', ') : 'ALL';
+    }
+
+    function setCampTargetStores(raw, isAutoFilled) {
+        initCampStoresTomSelect(false);
+        const tokens = (Array.isArray(raw) ? raw : String(raw || 'ALL').split(/[,;|/]+/))
+            .map(s => String(s || '').trim().toUpperCase())
+            .filter(s => s && s !== 'ALL' && s !== 'ALL STORES');
+        campStoresSettingSilent = true;
+        try {
+            if (campStoresTS) {
+                campStoresTS.clear(true);
+                tokens.forEach(t => {
+                    if (!campStoresTS.options[t]) {
+                        campStoresTS.addOption({ value: t, text: t, code: '', district: '', format: t.includes('FUTURE') ? 'myG Future' : 'myG' });
+                    }
+                });
+                if (tokens.length) campStoresTS.setValue(tokens, true);
+            }
+            campStoresAutoFilled = Boolean(isAutoFilled && tokens.length);
+        } finally {
+            campStoresSettingSilent = false;
+        }
+        _updateCampStoresCountBadge();
+    }
+
+    function initCampItemHierarchySelectors(forceReloadCats) {
+        const catEl = document.getElementById('camp-item-cats-select');
+        if (catEl && typeof TomSelect !== 'undefined') {
+            if (campItemCatsTS && forceReloadCats) {
+                const prev = campItemCatsTS.getValue();
+                campItemCatsTS.clearOptions();
+                campItemCatCatalog.forEach(c => {
+                    campItemCatsTS.addOption({ value: c.item_category, text: c.item_category, product: c.product || '' });
+                });
+                if (prev && prev.length) campItemCatsTS.setValue(prev, true);
+            } else if (!campItemCatsTS) {
+                campItemCatsTS = new TomSelect(catEl, {
+                    options: campItemCatCatalog.map(c => ({ value: c.item_category, text: c.item_category, product: c.product || '' })),
+                    valueField: 'value',
+                    labelField: 'text',
+                    searchField: ['text', 'product'],
+                    maxOptions: 200,
+                    create: true,
+                    plugins: ['remove_button'],
+                    dropdownClass: 'ts-dropdown camp-stores-dd',
+                    render: {
+                        option: (d, esc) => `<div class="d-flex justify-content-between align-items-center gap-2"><span class="fw-semibold">${esc(d.text)}</span><span class="badge" style="background:#f1f5f9;color:#475569;font-size:0.62rem;">${esc(d.product || '')}</span></div>`,
+                    },
+                    onChange: () => { _scheduleAutoEstimateLift(); },
+                });
+            }
+        }
+        const grpEl = document.getElementById('camp-item-groups-select');
+        if (grpEl && typeof TomSelect !== 'undefined' && !campItemGroupsTS) {
+            campItemGroupsTS = new TomSelect(grpEl, {
+                valueField: 'value',
+                labelField: 'text',
+                searchField: ['text', 'product', 'item_category'],
+                maxOptions: 80,
+                create: true,
+                plugins: ['remove_button'],
+                dropdownClass: 'ts-dropdown camp-stores-dd',
+                shouldLoad: q => String(q || '').trim().length >= 2,
+                load: async (query, callback) => {
+                    try {
+                        const prods = document.getElementById('camp-products')?.value || 'ALL';
+                        const cats = getCampItemCategoriesCsv();
+                        const qs = new URLSearchParams({ level: 'group', q: query, products: prods, categories: cats, limit: '60' });
+                        const res = await fetch(`/api/v1/demand-intelligence/campaigns/item-lookup/?${qs}`);
+                        const parsed = await _safeParseJsonResponse(res);
+                        const items = (parsed.ok && Array.isArray(parsed.data?.items)) ? parsed.data.items : [];
+                        callback(items.map(it => ({
+                            value: it.item_group,
+                            text: it.item_group,
+                            product: it.product || '',
+                            item_category: it.item_category || '',
+                        })));
+                    } catch (_e) {
+                        callback([]);
+                    }
+                },
+                render: {
+                    option: (d, esc) => `<div><div class="fw-semibold">${esc(d.text)}</div><div class="text-muted" style="font-size:0.64rem;">${esc(d.product || '')}${d.item_category ? ' · ' + esc(d.item_category) : ''}</div></div>`,
+                },
+                onChange: () => { _scheduleAutoEstimateLift(); },
+            });
+        }
+    }
+
+    function _getMultiSelectCsv(ts) {
+        if (!ts) return 'ALL';
+        const v = ts.getValue();
+        const arr = (Array.isArray(v) ? v : (v ? [v] : [])).map(s => String(s || '').trim().toUpperCase()).filter(s => s && s !== 'ALL');
+        return arr.length ? arr.join(', ') : 'ALL';
+    }
+    function getCampItemCategoriesCsv() { return _getMultiSelectCsv(campItemCatsTS); }
+    function getCampItemGroupsCsv() { return _getMultiSelectCsv(campItemGroupsTS); }
+
+    function _setMultiSelectValues(ts, raw) {
+        if (!ts) return;
+        const toks = (Array.isArray(raw) ? raw : String(raw || 'ALL').split(/[,;|]+/))
+            .map(s => String(s || '').trim().toUpperCase())
+            .filter(s => s && s !== 'ALL' && s !== 'ALL CATEGORIES' && s !== 'ALL GROUPS');
+        ts.clear(true);
+        toks.forEach(t => { if (!ts.options[t]) ts.addOption({ value: t, text: t, product: '', item_category: '' }); });
+        if (toks.length) ts.setValue(toks, true);
+    }
+    function setCampItemCategories(raw) { initCampItemHierarchySelectors(false); _setMultiSelectValues(campItemCatsTS, raw); }
+    function setCampItemGroups(raw) { initCampItemHierarchySelectors(false); _setMultiSelectValues(campItemGroupsTS, raw); }
+
+    window.fillCampStoresFromDistrictAndFormat = function() {
+        const distVal = (document.getElementById('camp-districts')?.value || 'ALL').trim().toUpperCase();
+        const sfmt = (document.getElementById('camp-store-formats')?.value || 'ALL').trim().toUpperCase();
+        const distList = distVal.split(/[,;|/]+/).map(s => s.trim()).filter(s => s && s !== 'ALL');
+        if (!distList.length) { setCampTargetStores('ALL', false); return; }
+        const distSet = new Set(distList);
+        const matched = _campBranchOptionsList().filter(o => {
+            if (!distSet.has(o.district)) return false;
+            const isFut = o.value.includes('FUTURE');
+            if (sfmt === 'MYG_FUTURE' && !isFut) return false;
+            if (sfmt === 'MYG' && isFut) return false;
+            return true;
+        }).map(o => o.value);
+        setCampTargetStores(matched.length ? matched : 'ALL', matched.length > 0);
+    };
+
+    window.onCampScopeControlChanged = function() {
+        if (campStoresAutoFilled || getCampTargetStoresList().length === 0) fillCampStoresFromDistrictAndFormat();
+    };
+    window.clearCampTargetStores = function() { setCampTargetStores('ALL', false); };
+
+    window.syncCampDistrictChips = function() {
+        const inp = document.getElementById('camp-districts');
+        if (!inp) return;
+        const activeSet = new Set(inp.value.split(/[,;|/]+/).map(s => s.trim().toUpperCase()).filter(s => s && s !== 'ALL'));
+        document.querySelectorAll('#camp-quick-dist-chips .camp-dist-chip').forEach(btn => {
+            const isOn = activeSet.has((btn.dataset.dist || '').toUpperCase());
+            btn.style.background = isOn ? '#059669' : '#f1f5f9';
+            btn.style.color = isOn ? '#ffffff' : '#475569';
+        });
+    };
+
+    window.toggleCampDistrictChip = function(dist) {
+        const inp = document.getElementById('camp-districts');
+        if (!inp) return;
+        const cur = inp.value.split(/[,;|/]+/).map(s => s.trim().toUpperCase()).filter(s => s && s !== 'ALL');
+        const idx = cur.indexOf(dist);
+        if (idx >= 0) cur.splice(idx, 1); else cur.push(dist);
+        inp.value = cur.length ? cur.join(', ') : 'ALL';
+        syncCampDistrictChips();
+        onCampScopeControlChanged();
+    };
+
+    window.setCampDistrictPreset = function(key) {
+        const inp = document.getElementById('camp-districts');
+        if (!inp) return;
+        inp.value = CAMP_DISTRICT_PRESETS[key] || 'ALL';
+        syncCampDistrictChips();
+        fillCampStoresFromDistrictAndFormat();
+    };
+
+    window.toggleCampProdChip = function(prod) {
+        const inp = document.getElementById('camp-products');
+        if (!inp) return;
+        if (prod === 'ALL') { inp.value = 'ALL'; return; }
+        const cur = inp.value.split(',').map(s => s.trim().toUpperCase()).filter(s => s && s !== 'ALL');
+        const idx = cur.indexOf(prod);
+        if (idx >= 0) cur.splice(idx, 1); else cur.push(prod);
+        inp.value = cur.length ? cur.join(', ') : 'ALL';
+    };
+
+    window._onCampLiftManualEdit = function() {
+        campLiftUserEdited = true;
+        const b = document.getElementById('camp-lift-basis');
+        if (b) b.textContent = 'Manual planner override';
+    };
+
+    function _scheduleAutoEstimateLift() {
+        if (campLiftUserEdited) return;
+        if ((document.getElementById('camp-id')?.value || '').trim()) return;
+        clearTimeout(_campLiftAutoTimer);
+        _campLiftAutoTimer = setTimeout(() => {
+            estimateCampaignLiftFromClickHouse(true);
+        }, 450);
+    }
+
+    window.estimateCampaignLiftFromClickHouse = async function(silent) {
+        const btn = document.getElementById('camp-auto-lift-btn');
+        const basisEl = document.getElementById('camp-lift-basis');
+        if (!silent) {
+            campLiftUserEdited = false;
+            if (btn) btn.disabled = true;
+            if (basisEl) basisEl.innerHTML = '<span class="text-primary">Calculating store sale-value lift from ClickHouse…</span>';
+        }
+        try {
+            const payload = {
+                action: 'estimate_lift',
+                campaign_name: (document.getElementById('camp-name')?.value || '').trim(),
+                campaign_type: document.getElementById('camp-type')?.value || 'weekend_dhamaka',
+                offer_strength: document.getElementById('camp-strength')?.value || 'medium',
+                start_date: document.getElementById('camp-start')?.value || '',
+                end_date: document.getElementById('camp-end')?.value || '',
+                product_lines: document.getElementById('camp-products')?.value || 'ALL',
+                item_categories: getCampItemCategoriesCsv(),
+                item_groups: getCampItemGroupsCsv(),
+                brands: document.getElementById('camp-brands')?.value || 'ALL',
+                district: document.getElementById('camp-districts')?.value || 'ALL',
+                store_formats: document.getElementById('camp-store-formats')?.value || 'ALL',
+                branches: getCampTargetStoresCsv(),
+            };
+            const res = await fetch('/api/v1/demand-intelligence/campaigns/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _getCsrfToken() },
+                body: JSON.stringify(payload),
+            });
+            const parsed = await _safeParseJsonResponse(res);
+            if (!parsed.ok || !parsed.data?.estimate) throw new Error(parsed.error || 'Could not estimate lift');
+            const est = parsed.data.estimate;
+            if (silent && campLiftUserEdited) return;
+            const liftEl = document.getElementById('camp-lift');
+            if (liftEl && est.expected_lift_pct != null) {
+                liftEl.value = String(Math.round(Number(est.expected_lift_pct)));
+            }
+            if (basisEl) {
+                basisEl.innerHTML = `<span style="color:#0369a1;">${escHtml(est.basis_label || 'ClickHouse Sale Value estimate')}</span>`;
+            }
+        } catch (err) {
+            if (!silent && basisEl) {
+                basisEl.innerHTML = `<span class="text-danger">${escHtml(err.message || String(err))}</span>`;
+            }
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    };
+
+    window.recalibrateAllPlannedLifts = async function() {
+        const btn = document.getElementById('camp-recal-btn');
+        const msgEl = document.getElementById('camp-save-msg');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Recalibrating…';
+        }
+        try {
+            const res = await fetch('/api/v1/demand-intelligence/campaigns/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _getCsrfToken() },
+                body: JSON.stringify({ action: 'recalibrate_all' }),
+            });
+            const parsed = await _safeParseJsonResponse(res);
+            if (!parsed.ok || !parsed.data) throw new Error(parsed.error || 'Recalibration failed');
+            if (msgEl) {
+                msgEl.innerHTML = `<span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>Recalibrated ${parsed.data.count || 0} saved offer(s) using each store's complete ClickHouse Sale Value history!</span>`;
+            }
+            await loadCampaignOffers();
+        } catch (err) {
+            if (msgEl) msgEl.innerHTML = `<span class="text-danger">${escHtml(err.message || String(err))}</span>`;
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-sliders me-1"></i> Recalibrate (ClickHouse)';
+            }
+        }
+    };
+
+    window.onCampaignTypeOrStrengthChange = function() {
+        const ct = document.getElementById('camp-type')?.value || 'weekend_dhamaka';
+        const st = document.getElementById('camp-strength')?.value || 'medium';
+        const meta = campTypeDefaults[ct] || campTypeDefaults.weekend_dhamaka;
+        document.getElementById('camp-lift').value = String((meta.lifts && meta.lifts[st]) || 18);
+        document.getElementById('camp-cooldown').value = String(meta.default_cooldown != null ? meta.default_cooldown : 3);
+        const b = document.getElementById('camp-lift-basis');
+        if (b) b.textContent = '';
+        _scheduleAutoEstimateLift();
+    };
+
+    function _campFmtBadgeHtml(sfmt) {
+        const key = String(sfmt || 'ALL').trim().toUpperCase();
+        const lbl = CAMP_STORE_FMT_LABELS[key] || key;
+        if (key === 'MYG_FUTURE') return `<span class="badge" style="background:#ffedd5;color:#c2410c;font-size:0.63rem;">${escHtml(lbl)}</span>`;
+        if (key === 'MYG') return `<span class="badge" style="background:#fee2e2;color:#b91c1c;font-size:0.63rem;">${escHtml(lbl)}</span>`;
+        if (key === 'MYG,MYG_FUTURE') return `<span class="badge" style="background:#dcfce7;color:#166534;font-size:0.63rem;">${escHtml(lbl)}</span>`;
+        return `<span class="badge" style="background:#f1f5f9;color:#475569;font-size:0.63rem;">${escHtml(lbl)}</span>`;
+    }
+
+    function _campDistrictBadgeHtml(distRaw, targetBranches) {
+        const raw = Array.isArray(distRaw) ? distRaw.join(', ') : String(distRaw || 'ALL');
+        const list = raw.split(',').map(s => s.trim().toUpperCase()).filter(s => s && s !== 'ALL');
+        const brTag = (targetBranches != null && targetBranches > 0) ? ` <span class="text-muted" style="font-size:0.63rem;">(${targetBranches} branches)</span>` : '';
+        if (!list.length) return `<span class="badge" style="background:#f1f5f9;color:#475569;font-size:0.63rem;">All Kerala</span>${brTag}`;
+        const shortList = list.length <= 3 ? list.join(', ') : `${list.length} Districts: ${list.slice(0, 3).join(', ')} +${list.length - 3}`;
+        return `<span class="badge" style="background:#e0f2fe;color:#075985;font-size:0.63rem;" title="${escHtml(list.join(', '))}">${escHtml(shortList)}</span>${brTag}`;
+    }
+
+    function _campStoresBadgeHtml(branchesRaw, compactCountOnly) {
+        const raw = Array.isArray(branchesRaw) ? branchesRaw.join(', ') : String(branchesRaw || 'ALL');
+        const list = raw.split(',').map(s => s.trim().toUpperCase()).filter(s => s && s !== 'ALL');
+        if (!list.length) return '';
+        const label = compactCountOnly
+            ? `${list.length} Store${list.length > 1 ? 's' : ''}`
+            : (list.length <= 2 ? list.join(', ') : `${list.length} Stores: ${list.slice(0, 2).join(', ')} +${list.length - 2}`);
+        return `<span class="badge" style="background:#ede9fe;color:#5b21b6;font-size:0.63rem;" title="${escHtml(list.join(', '))}"><i class="bi bi-shop me-1"></i>${escHtml(label)}</span>`;
+    }
+
+    function _campScopeBadgesHtml(c) {
+        const rawBr = Array.isArray(c.branches) ? c.branches.join(', ') : String(c.branches || c.branches_csv || 'ALL');
+        const brList = rawBr.split(',').map(s => s.trim().toUpperCase()).filter(s => s && s !== 'ALL');
+        const rawDist = Array.isArray(c.districts) ? c.districts.join(', ') : String(c.district || 'ALL');
+        const hasDist = rawDist.split(',').map(s => s.trim().toUpperCase()).some(s => s && s !== 'ALL');
+        if (brList.length && brList.length <= 4) {
+            return `${_campFmtBadgeHtml(c.store_formats)}${_campStoresBadgeHtml(brList, false)}`;
+        }
+        if (brList.length && hasDist) {
+            return `${_campFmtBadgeHtml(c.store_formats)}${_campDistrictBadgeHtml(rawDist, null)}${_campStoresBadgeHtml(brList, true)}`;
+        }
+        if (brList.length) return `${_campStoresBadgeHtml(brList, false)}`;
+        return `${_campFmtBadgeHtml(c.store_formats)}${_campDistrictBadgeHtml(rawDist, c.target_branches || c.matched_branches)}`;
+    }
+
+    function _populateCampaignFormFields(p) {
+        if (!p) return;
+        document.getElementById('camp-name').value = p.campaign_name || '';
+        if (p.campaign_type) document.getElementById('camp-type').value = p.campaign_type;
+        if (p.offer_strength) document.getElementById('camp-strength').value = p.offer_strength;
+        if (p.start_date) document.getElementById('camp-start').value = p.start_date;
+        if (p.end_date) document.getElementById('camp-end').value = p.end_date;
+        if (p.product_lines) document.getElementById('camp-products').value = Array.isArray(p.product_lines) ? p.product_lines.join(', ') : String(p.product_lines);
+        setCampItemCategories(p.item_categories || 'ALL');
+        setCampItemGroups(p.item_groups || 'ALL');
+        if (p.brands) document.getElementById('camp-brands').value = Array.isArray(p.brands) ? p.brands.join(', ') : String(p.brands);
+        const distEl = document.getElementById('camp-districts');
+        if (distEl) {
+            distEl.value = (p.districts && Array.isArray(p.districts) ? p.districts.join(', ') : (p.district || 'ALL')) || 'ALL';
+            syncCampDistrictChips();
+        }
+        const sfmtEl = document.getElementById('camp-store-formats');
+        if (sfmtEl) {
+            const sf = String(p.store_formats || 'ALL').trim().toUpperCase();
+            sfmtEl.value = ['ALL', 'MYG,MYG_FUTURE', 'MYG', 'MYG_FUTURE'].includes(sf) ? sf : 'ALL';
+        }
+        setCampTargetStores(p.branches || p.branches_csv || 'ALL', p.store_selection_mode === 'district_expanded');
+        if (p.expected_lift_pct != null) document.getElementById('camp-lift').value = String(Math.round(Number(p.expected_lift_pct)));
+        campLiftUserEdited = false;
+        const basisEl = document.getElementById('camp-lift-basis');
+        if (basisEl) basisEl.innerHTML = p.planned_lift_basis ? `<span style="color:#0369a1;">${escHtml(p.planned_lift_basis)}</span>` : '';
+        if (p.post_cooldown_days != null) document.getElementById('camp-cooldown').value = String(p.post_cooldown_days);
+        document.getElementById('camp-discount').value = p.discount_summary || '';
+    }
+
+    window.toggleAllExtractedOffers = function(checked) {
+        document.querySelectorAll('.camp-multi-chk').forEach(chk => {
+            if (!chk.closest('.camp-multi-row')?.classList.contains('d-none')) chk.checked = Boolean(checked);
+        });
+    };
+
+    window.filterMultiExtractedTray = function() {
+        const q = (document.getElementById('camp-multi-search')?.value || '').trim().toLowerCase();
+        document.querySelectorAll('#camp-multi-list .camp-multi-row').forEach(row => {
+            const hay = (row.dataset.hay || '').toLowerCase();
+            row.classList.toggle('d-none', Boolean(q && !hay.includes(q)));
+        });
+    };
+
+    function _renderMultiExtractedTray() {
+        const tray = document.getElementById('camp-multi-tray');
+        const listEl = document.getElementById('camp-multi-list');
+        const cntEl = document.getElementById('camp-multi-count');
+        if (!tray || !listEl) return;
+        if (campExtractedQueue.length <= 1) {
+            tray.classList.add('d-none');
+            listEl.innerHTML = '';
+            return;
+        }
+        tray.classList.remove('d-none');
+        if (cntEl) cntEl.textContent = String(campExtractedQueue.length);
+        listEl.innerHTML = campExtractedQueue.map((c, i) => {
+            const prods = Array.isArray(c.product_lines) ? c.product_lines.join(', ') : (c.product_lines || 'ALL');
+            const brs = Array.isArray(c.brands) ? c.brands.join(', ') : (c.brands || 'ALL');
+            const storesTxt = Array.isArray(c.branches) ? c.branches.join(' ') : String(c.branches || '');
+            const hay = `${c.campaign_name || ''} ${prods} ${brs} ${storesTxt} ${c.district || ''} ${c.discount_summary || ''}`;
+            return `<div class="d-flex align-items-center justify-content-between gap-2 p-2 rounded-3 camp-multi-row" data-hay="${escHtml(hay)}" style="background:#f8fafc;border:1px solid #cbd5e1;font-size:0.76rem;">
+                <label class="d-flex align-items-start gap-2 mb-0 flex-grow-1" style="cursor:pointer;">
+                    <input type="checkbox" class="form-check-input mt-1 camp-multi-chk" data-idx="${i}" checked>
+                    <div>
+                        <div class="fw-bold text-dark d-flex flex-wrap align-items-center gap-1">
+                            <span>${escHtml(c.campaign_name || 'Campaign Offer')}</span>
+                            <span class="badge" style="background:#eef2ff;color:#4338ca;" title="${escHtml(c.planned_lift_basis || 'Calibrated Sale Value Planned Lift')}">+${Math.round(Number(c.expected_lift_pct || 18))}%</span>
+                            ${_campScopeBadgesHtml(c)}
+                        </div>
+                        <div class="text-muted" style="font-size:0.69rem;">${escHtml(c.start_date)} → ${escHtml(c.end_date)} · Products: <strong>${escHtml(prods)}</strong> · Brands: ${escHtml(brs)}${c.discount_summary ? ' · ' + escHtml(c.discount_summary) : ''}</div>
+                    </div>
+                </label>
+                <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size:0.69rem;white-space:nowrap;" onclick="loadExtractedOfferIntoForm(${i})">Edit in Form</button>
+            </div>`;
+        }).join('');
+        filterMultiExtractedTray();
+    }
+
+    window.loadExtractedOfferIntoForm = function(idx) {
+        const item = campExtractedQueue[idx];
+        if (!item) return;
+        document.getElementById('camp-id').value = '';
+        _populateCampaignFormFields(item);
+        document.getElementById('camp-save-msg').innerHTML = `<span class="text-primary">Loaded offer #${idx + 1} into Step 2 editor — tweak anything &amp; click Save.</span>`;
+        document.getElementById('camp-name')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+
+    // ── Safe JSON & Retry Helpers ──
+    window.abortCampaignExtraction = function() { campExtractAborted = true; };
+
+    function _setCampProgress(visible, pct, label) {
+        const wrap = document.getElementById('camp-progress-wrap');
+        const bar = document.getElementById('camp-progress-bar');
+        const txtEl = document.getElementById('camp-progress-text');
+        if (!wrap) return;
+        if (!visible) { wrap.classList.add('d-none'); return; }
+        wrap.classList.remove('d-none');
+        if (bar) bar.style.width = `${Math.max(0, Math.min(100, Math.round(pct)))}%`;
+        if (txtEl && label != null) txtEl.textContent = label;
+    }
+
+    function _resizeBlobToJpeg(blob, maxDim) {
+        return new Promise(resolve => {
+            const url = URL.createObjectURL(blob);
+            const img = new Image();
+            img.onload = function() {
+                try {
+                    const needsResize = img.width > maxDim || img.height > maxDim || blob.size > 400 * 1024;
+                    if (!needsResize && (blob.type === 'image/jpeg' || blob.type === 'image/png' || blob.type === 'image/webp')) {
+                        URL.revokeObjectURL(url);
+                        return resolve(blob);
+                    }
+                    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+                    const w = Math.max(1, Math.round(img.width * scale));
+                    const h = Math.max(1, Math.round(img.height * scale));
+                    const cvs = document.createElement('canvas');
+                    cvs.width = w; cvs.height = h;
+                    const ctx = cvs.getContext('2d');
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.drawImage(img, 0, 0, w, h);
+                    cvs.toBlob(out => { URL.revokeObjectURL(url); resolve(out || blob); }, 'image/jpeg', 0.80);
+                } catch (_e) {
+                    URL.revokeObjectURL(url); resolve(blob);
+                }
+            };
+            img.onerror = function() { URL.revokeObjectURL(url); resolve(blob); };
+            img.src = url;
+        });
+    }
+
+    function _mergeExtractedCampaignsClient(campaigns) {
+        const cleanKey = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '').replace(/^myg(?=[a-z0-9]{4,})/, '');
+        const normList = v => (Array.isArray(v) ? v : String(v || 'ALL').split(',')).map(x => String(x || '').trim().toUpperCase()).filter(Boolean);
+        const unionScope = (a, b) => {
+            const sa = normList(a).filter(x => x !== 'ALL');
+            const sb = normList(b).filter(x => x !== 'ALL');
+            if (sa.length && sb.length) return Array.from(new Set([...sa, ...sb]));
+            return sa.length ? sa : (sb.length ? sb : ['ALL']);
+        };
+        const mergeFmt = (f1, f2) => {
+            const a = String(f1 || 'ALL').toUpperCase();
+            const b = String(f2 || 'ALL').toUpperCase();
+            if (a === b) return a;
+            if (a === 'ALL' || b === 'ALL') return 'ALL';
+            return 'MYG,MYG_FUTURE';
+        };
+        const syncDerived = c => {
+            const brs = normList(c.branches).filter(x => x !== 'ALL');
+            c.branches = brs.length ? brs : ['ALL'];
+            c.branches_csv = brs.length ? brs.join(',') : 'ALL';
+            c.matched_store_count = brs.length;
+            const dsts = normList(c.districts || c.district).filter(x => x !== 'ALL');
+            c.districts = dsts.length ? dsts : ['ALL'];
+            c.district = dsts.length ? dsts.join(',') : 'ALL';
+        };
+
+        // Pass 1: same event + dates + location/stores -> union products & brands across slides
+        const p1 = new Map();
+        for (const raw of campaigns) {
+            const c = { ...raw };
+            const brSig = normList(c.branches).sort().join(',');
+            const k1 = [cleanKey(c.campaign_name), c.start_date || '', c.end_date || '', c.district || 'ALL', c.store_formats || 'ALL', brSig].join('|');
+            if (!p1.has(k1)) { p1.set(k1, c); continue; }
+            const cur = p1.get(k1);
+            cur.product_lines = unionScope(cur.product_lines, c.product_lines);
+            cur.brands = unionScope(cur.brands, c.brands);
+            cur.expected_lift_pct = Math.round((Number(cur.expected_lift_pct || 0) + Number(c.expected_lift_pct || 0)) / 2);
+            if (String(c.discount_summary || '').length > String(cur.discount_summary || '').length) cur.discount_summary = c.discount_summary;
+            syncDerived(cur);
+        }
+
+        // Pass 2: same event + dates + products + brands -> union store-wise branches, districts & formats
+        const p2 = new Map();
+        for (const c of p1.values()) {
+            const pSig = normList(c.product_lines).sort().join(',');
+            const bSig = normList(c.brands).sort().join(',');
+            const k2 = [cleanKey(c.campaign_name), c.start_date || '', c.end_date || '', pSig, bSig].join('|');
+            if (!p2.has(k2)) { p2.set(k2, { ...c }); continue; }
+            const cur = p2.get(k2);
+            cur.branches = unionScope(cur.branches, c.branches);
+            cur.districts = unionScope(cur.districts || cur.district, c.districts || c.district);
+            cur.store_formats = mergeFmt(cur.store_formats, c.store_formats);
+            if (cur.branches[0] !== 'ALL') cur.store_selection_mode = 'explicit_stores';
+            cur.expected_lift_pct = Math.round((Number(cur.expected_lift_pct || 0) + Number(c.expected_lift_pct || 0)) / 2);
+            if (String(c.discount_summary || '').length > String(cur.discount_summary || '').length) cur.discount_summary = c.discount_summary;
+            syncDerived(cur);
+        }
+        return Array.from(p2.values());
+    }
+
+    async function _safeParseJsonResponse(res) {
+        const rawTxt = await res.text();
+        let data = null;
+        try { data = rawTxt ? JSON.parse(rawTxt) : null; } catch (_je) { data = null; }
+        if (data && typeof data === 'object') {
+            return { ok: Boolean(res.ok && data.ok !== false), status: res.status, retryable: Boolean(data.retryable || res.status === 503 || res.status === 429), data, error: data.error || '' };
+        }
+        const looksLogin = res.redirected || /<form[^>]*login|sign\s*in/i.test(rawTxt);
+        if (res.status === 401 || looksLogin) return { ok: false, status: 401, isAuth: true, data: null, error: 'Session expired — please refresh and sign in again.' };
+        if (res.status === 403) return { ok: false, status: 403, isAuth: true, data: null, error: 'CSRF token expired — please refresh the page and retry.' };
+        if (res.status === 413) return { ok: false, status: 413, data: null, error: 'Batch upload exceeded proxy size limit (HTTP 413).' };
+        if (res.status === 429 || res.status === 502 || res.status === 503 || res.status === 504) {
+            return { ok: false, status: res.status, retryable: true, data: null, error: `AI / Server temporarily busy (HTTP ${res.status}).` };
+        }
+        return { ok: false, status: res.status, retryable: res.status >= 500, data: null, error: `Server returned non-JSON response (HTTP ${res.status}).` };
+    }
+
+    async function _postParseBatchWithRetry(fd, maxAttempts) {
+        let lastRes = { ok: false, status: 0, error: 'Request failed' };
+        const tries = maxAttempts || 3;
+        for (let attempt = 1; attempt <= tries; attempt++) {
+            try {
+                const res = await fetch('/api/v1/demand-intelligence/campaigns/parse/', {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': _getCsrfToken() },
+                    body: fd,
+                });
+                lastRes = await _safeParseJsonResponse(res);
+                if (lastRes.ok || lastRes.isAuth || lastRes.status === 400) return lastRes;
+            } catch (netErr) {
+                lastRes = { ok: false, status: 0, retryable: true, error: netErr?.message || 'Network error' };
+            }
+            if (attempt < tries) {
+                await new Promise(r => setTimeout(r, 2200 * attempt));
+            }
+        }
+        return lastRes;
+    }
+
+    // Group ZIP images BY DETECTED STORE so all slides of one store stay together in the same batch!
+    async function _collectAndGroupZipBatches(zipItems, maxTotal, zipMode) {
+        if (typeof window.zip?.configure === 'function') {
+            window.zip.configure({ useWebWorkers: false });
+        }
+        const readers = [];
+        const imgRe = /\.(jpe?g|png|webp|gif|bmp)$/i;
+        const storeGroups = new Map(); // storeKey -> [{ zipIdx, filename, entry, name, mime, storeHint }]
+        let totalFound = 0;
+        let truncated = 0;
+
+        for (let zIdx = 0; zIdx < zipItems.length; zIdx++) {
+            const z = zipItems[zIdx];
+            const reader = new window.zip.ZipReader(new window.zip.BlobReader(z.file));
+            readers.push(reader);
+            const rawEntries = await reader.getEntries();
+            rawEntries.sort((a, b) => String(a.filename || '').localeCompare(String(b.filename || ''), undefined, { numeric: true, sensitivity: 'base' }));
+
+            for (const entry of rawEntries) {
+                if (!entry || entry.directory) continue;
+                const cleanPath = String(entry.filename || '').replace(/\\/g, '/');
+                const segs = cleanPath.split('/').filter(Boolean);
+                if (!segs.length || segs.some(s => s === '__MACOSX' || s.startsWith('.'))) continue;
+                const leaf = segs[segs.length - 1];
+                if (!imgRe.test(leaf)) continue;
+
+                const detStore = _detectStoreFromZipPath(cleanPath);
+                const folderGroup = detStore || (segs.length >= 2 ? segs[segs.length - 2].toUpperCase() : '__UNGROUPED__');
+                if (!storeGroups.has(folderGroup)) storeGroups.set(folderGroup, []);
+                const arr = storeGroups.get(folderGroup);
+                if (zipMode === 'fast' && detStore && arr.length >= 2) {
+                    continue;
+                }
+                if (totalFound >= maxTotal) {
+                    truncated++;
+                    continue;
+                }
+                totalFound++;
+                const shortName = segs.length >= 2 ? `${segs[segs.length - 2]}__${leaf}` : leaf;
+                arr.push({ kind: 'zip', zipIdx: zIdx, zipPath: cleanPath, entry, name: shortName.slice(0, 120), mime: _mimeFromImgName(leaf), storeHint: detStore });
+            }
+        }
+
+        // Build batches keeping each store's slides together cleanly
+        const batches = [];
+        const detectedStores = new Set();
+        let curBatch = [];
+        const flush = () => { if (curBatch.length) { batches.push(curBatch); curBatch = []; } };
+
+        for (const [grpKey, items] of storeGroups.entries()) {
+            if (items[0]?.storeHint) detectedStores.add(items[0].storeHint);
+            if (items.length >= CAMP_BATCH_SIZE) {
+                flush();
+                for (let i = 0; i < items.length; i += CAMP_BATCH_SIZE) {
+                    batches.push(items.slice(i, i + CAMP_BATCH_SIZE));
+                }
+            } else {
+                if (curBatch.length && (curBatch.length + items.length > CAMP_BATCH_SIZE)) {
+                    flush();
+                }
+                curBatch.push(...items);
+            }
+        }
+        flush();
+
+        return { batches, readers, totalPosters: totalFound, truncated, detectedStores: Array.from(detectedStores).sort() };
+    }
+
+    function _renderZipAuditPanel() {
+        const box = document.getElementById('camp-zip-audit');
+        const sumEl = document.getElementById('camp-zip-audit-summary');
+        const missEl = document.getElementById('camp-zip-audit-missing');
+        const retryBtn = document.getElementById('camp-retry-failed-btn');
+        if (!box || !campLastZipAudit) return;
+        box.classList.remove('d-none');
+
+        const a = campLastZipAudit;
+        const extractedStores = new Set();
+        for (const c of campExtractedQueue) {
+            const brs = Array.isArray(c.branches) ? c.branches : String(c.branches || '').split(',');
+            brs.forEach(b => { const s = String(b || '').trim().toUpperCase(); if (s && s !== 'ALL') extractedStores.add(s); });
+        }
+        const missingStores = (a.detectedStores || []).filter(st => !extractedStores.has(st));
+        const hasFailures = campFailedBatches.length > 0;
+        box.style.background = hasFailures ? '#fffbeb' : '#f0fdf4';
+        box.style.borderColor = hasFailures ? '#fde68a' : '#a7f3d0';
+
+        sumEl.innerHTML = `
+            <i class="bi ${hasFailures ? 'bi-exclamation-triangle-fill text-warning' : 'bi-check-circle-fill text-success'} me-1"></i>
+            ZIP Audit: <strong>${a.processedPosters}/${a.totalPosters}</strong> posters analyzed ·
+            <strong>${a.succeededBatches}/${a.totalBatches}</strong> batches OK ·
+            <strong>${extractedStores.size}</strong> store(s) captured${a.detectedStores.length ? ` (of ${a.detectedStores.length} detected in ZIP)` : ''}
+        `;
+        if (hasFailures) {
+            retryBtn.classList.remove('d-none');
+            retryBtn.innerHTML = `<i class="bi bi-arrow-repeat me-1"></i> Retry ${campFailedBatches.length} Failed Batch${campFailedBatches.length > 1 ? 'es' : ''}`;
+        } else {
+            retryBtn.classList.add('d-none');
+        }
+        if (missingStores.length) {
+            const preview = missingStores.slice(0, 12).join(', ') + (missingStores.length > 12 ? ` +${missingStores.length - 12} more` : '');
+            missEl.innerHTML = `<strong>Stores not yet matched (${missingStores.length}):</strong> ${escHtml(preview)}`;
+        } else if (a.detectedStores.length) {
+            missEl.innerHTML = `<span class="text-success fw-semibold">All ${a.detectedStores.length} detected ZIP stores captured cleanly!</span>`;
+        } else {
+            missEl.textContent = '';
+        }
+    }
+
+    async function _runBatchSequence(batchList, txt, statusEl, isRetry) {
+        let openReaders = [];
+        try {
+            // Re-open ZipReaders cleanly if retrying failed batches after initial run closed them
+            let entryLookup = null;
+            if (isRetry && campZipItems.length && typeof window.zip?.ZipReader === 'function') {
+                if (typeof window.zip?.configure === 'function') window.zip.configure({ useWebWorkers: false });
+                entryLookup = new Map();
+                for (let zIdx = 0; zIdx < campZipItems.length; zIdx++) {
+                    const reader = new window.zip.ZipReader(new window.zip.BlobReader(campZipItems[zIdx].file));
+                    openReaders.push(reader);
+                    const ents = await reader.getEntries();
+                    for (const e of ents) {
+                        if (e && !e.directory) entryLookup.set(`${zIdx}::${String(e.filename || '').replace(/\\/g, '/')}`, e);
+                    }
+                }
+            }
+
+            const stillFailed = [];
+            let lastMode = 'gemini';
+            const totalB = batchList.length;
+
+            for (let bIdx = 0; bIdx < totalB; bIdx++) {
+                if (campExtractAborted) break;
+                const batchItems = batchList[bIdx];
+                const storesInBatch = Array.from(new Set(batchItems.map(x => x.storeHint).filter(Boolean)));
+                const storeLbl = storesInBatch.length ? ` [${storesInBatch.slice(0, 2).join(', ')}${storesInBatch.length > 2 ? '…' : ''}]` : '';
+                const pct = 8 + (bIdx / Math.max(1, totalB)) * 88;
+                _setCampProgress(true, pct, `${isRetry ? 'Retrying' : 'Batch'} ${bIdx + 1} / ${totalB}${storeLbl} · Reading ${batchItems.length} poster(s)…`);
+                statusEl.innerHTML = `<span class="text-primary"><i class="bi bi-hourglass-split me-1"></i>${isRetry ? 'Retrying' : 'Analyzing'} batch ${bIdx + 1}/${totalB}${escHtml(storeLbl)} (${campExtractedQueue.length} offer(s) ready)…</span>`;
+
+                // Compress posters & split sub-batches if > 4 MB
+                const prepared = [];
+                for (const item of batchItems) {
+                    let blob = item.blob;
+                    if (item.kind === 'zip') {
+                        const zEntry = isRetry ? entryLookup?.get(`${item.zipIdx}::${item.zipPath}`) : item.entry;
+                        if (!zEntry) continue;
+                        try {
+                            const rawBlob = await zEntry.getData(new window.zip.BlobWriter(item.mime || 'image/jpeg'));
+                            blob = await _resizeBlobToJpeg(rawBlob, 1024);
+                        } catch (_zErr) {
+                            continue;
+                        }
+                    }
+                    if (!blob || blob.size > 18 * 1024 * 1024) continue;
+                    prepared.push({ blob, name: item.name.replace(/\.[^.]+$/, '') + '.jpg', storeHint: item.storeHint || '' });
+                }
+                if (!prepared.length) continue;
+
+                // Split into sub-posts <= 4 MB each
+                const subPosts = [];
+                let curSub = [], curBytes = 0;
+                for (const p of prepared) {
+                    if (curSub.length && (curBytes + p.blob.size) > CAMP_MAX_BATCH_BYTES) {
+                        subPosts.push(curSub); curSub = []; curBytes = 0;
+                    }
+                    curSub.push(p); curBytes += p.blob.size;
+                }
+                if (curSub.length) subPosts.push(curSub);
+
+                let batchOk = true;
+                for (const sub of subPosts) {
+                    const fd = new FormData();
+                    fd.append('text', txt);
+                    fd.append('store_hints', JSON.stringify(sub.map(p => p.storeHint || '')));
+                    sub.forEach(p => fd.append('images', p.blob, p.name));
+
+                    const parsedRes = await _postParseBatchWithRetry(fd, 3);
+                    if (parsedRes.isAuth) {
+                        stillFailed.push(batchItems);
+                        throw new Error(parsedRes.error);
+                    }
+                    if (!parsedRes.ok || !parsedRes.data) {
+                        batchOk = false;
+                        continue;
+                    }
+                    const data = parsedRes.data;
+                    if (data.parser_mode) lastMode = data.parser_mode;
+                    const batchCamps = (Array.isArray(data.campaigns) && data.campaigns.length)
+                        ? data.campaigns
+                        : (data.parsed ? [data.parsed] : []);
+                    campCollectedRaw.push(...batchCamps);
+                    if (campLastZipAudit) campLastZipAudit.processedPosters += sub.length;
+                }
+
+                if (batchOk) {
+                    if (campLastZipAudit) campLastZipAudit.succeededBatches += 1;
+                } else {
+                    stillFailed.push(batchItems);
+                }
+
+                campExtractedQueue = _mergeExtractedCampaignsClient(campCollectedRaw);
+                if (campExtractedQueue.length) _populateCampaignFormFields(campExtractedQueue[0]);
+                _renderMultiExtractedTray();
+                _renderZipAuditPanel();
+
+                if (bIdx < totalB - 1 && !campExtractAborted) {
+                    await new Promise(r => setTimeout(r, CAMP_BATCH_PACE_MS));
+                }
+            }
+            return { stillFailed, lastMode };
+        } finally {
+            for (const rd of openReaders) { try { await rd.close(); } catch (_e) {} }
+        }
+    }
+
+    window.retryFailedZipBatches = async function() {
+        if (!campFailedBatches.length) return;
+        const txt = (document.getElementById('camp-wa-text')?.value || '').trim();
+        const statusEl = document.getElementById('camp-parse-status');
+        const btn = document.getElementById('camp-extract-btn');
+        const retryBtn = document.getElementById('camp-retry-failed-btn');
+        campExtractAborted = false;
+        if (btn) btn.disabled = true;
+        if (retryBtn) retryBtn.disabled = true;
+        try {
+            const toRetry = campFailedBatches.slice();
+            const { stillFailed, lastMode } = await _runBatchSequence(toRetry, txt, statusEl, true);
+            campFailedBatches = stillFailed;
+            _renderZipAuditPanel();
+            _setCampProgress(true, 100, stillFailed.length ? `Retry done — ${stillFailed.length} batch(es) still busy.` : 'All failed batches recovered!');
+            setTimeout(() => _setCampProgress(false, 0, ''), 2000);
+            statusEl.innerHTML = stillFailed.length
+                ? `<span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i>${campExtractedQueue.length} offer(s) extracted (${escHtml(lastMode)}) — ${stillFailed.length} batch(es) still rate-limited; click Retry again in a moment.</span>`
+                : `<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i>All batches succeeded! ${campExtractedQueue.length} offer(s) ready (${escHtml(lastMode)}).</span>`;
+        } catch (err) {
+            statusEl.innerHTML = `<span class="text-danger">${escHtml(err.message || String(err))}</span>`;
+        } finally {
+            if (btn) btn.disabled = false;
+            if (retryBtn) retryBtn.disabled = false;
+        }
+    };
+
+    window.extractWhatsappOfferWithAI = async function() {
+        const txt = (document.getElementById('camp-wa-text')?.value || '').trim();
+        const statusEl = document.getElementById('camp-parse-status');
+        const btn = document.getElementById('camp-extract-btn');
+        const nImg = campPosterItems.length;
+        const nZip = campZipItems.length;
+        if (!txt && !nImg && !nZip) {
+            statusEl.innerHTML = '<span class="text-danger">Paste a WhatsApp message, drop poster image(s), or upload a .ZIP file first.</span>';
+            return;
+        }
+        campExtractAborted = false;
+        campCollectedRaw = [];
+        campFailedBatches = [];
+        if (btn) btn.disabled = true;
+
+        let openZipReaders = [];
+        try {
+            if (nZip > 0 && typeof window.zip?.ZipReader === 'function') {
+                const zipMode = document.getElementById('camp-zip-mode')?.value || 'full';
+                _setCampProgress(true, 4, `Scanning ${nZip} ZIP archive${nZip > 1 ? 's' : ''} & grouping posters by store…`);
+                statusEl.innerHTML = '<span class="text-primary"><i class="bi bi-hourglass-split me-1"></i>Scanning ZIP index &amp; grouping stores…</span>';
+
+                const roomForZip = Math.max(1, CAMP_MAX_ZIP_IMAGES - nImg);
+                const { batches: zipBatches, readers, totalPosters: zipPosters, truncated, detectedStores } = await _collectAndGroupZipBatches(campZipItems, roomForZip, zipMode);
+                openZipReaders = readers || [];
+
+                const directBatches = [];
+                if (campPosterItems.length) {
+                    const dItems = campPosterItems.map(it => ({ kind: 'direct', blob: it.blob, name: it.name || 'poster.jpg', storeHint: _detectStoreFromZipPath(it.name) }));
+                    for (let i = 0; i < dItems.length; i += CAMP_BATCH_SIZE) directBatches.push(dItems.slice(i, i + CAMP_BATCH_SIZE));
+                }
+                const allBatches = [...directBatches, ...zipBatches];
+                const totalPosters = campPosterItems.length + zipPosters;
+                if (!allBatches.length && !txt) {
+                    throw new Error('No supported poster images (JPG, PNG, WEBP) were found inside the ZIP archive.');
+                }
+
+                campLastZipAudit = {
+                    totalPosters,
+                    processedPosters: 0,
+                    totalBatches: allBatches.length,
+                    succeededBatches: 0,
+                    detectedStores,
+                    truncated,
+                };
+                _renderZipAuditPanel();
+
+                const { stillFailed, lastMode } = await _runBatchSequence(allBatches, txt, statusEl, false);
+                campFailedBatches = stillFailed;
+                _renderZipAuditPanel();
+                _setCampProgress(true, 100, `Done! Analyzed ${campLastZipAudit.processedPosters} of ${totalPosters} posters.`);
+                setTimeout(() => _setCampProgress(false, 0, ''), 2200);
+
+                if (!campExtractedQueue.length) {
+                    throw new Error(stillFailed.length ? 'Gemini Vision is temporarily rate-limited across all batches. Click "Retry Failed Batches" in a few seconds.' : 'Could not extract offers from the ZIP archive.');
+                }
+                if (stillFailed.length) {
+                    statusEl.innerHTML = `<span class="text-warning fw-semibold"><i class="bi bi-exclamation-triangle me-1"></i>Extracted ${campExtractedQueue.length} offer(s) (${escHtml(lastMode)}) — ${stillFailed.length} batch(es) hit AI rate limit. Click "Retry Failed Batches" above to recover them!</span>`;
+                } else {
+                    statusEl.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i>Extracted ${campExtractedQueue.length} offer(s) from ${campLastZipAudit.processedPosters} posters across ${nZip} ZIP (${escHtml(lastMode)}) — click "Save Selected Offers" below!</span>`;
+                }
+                return;
+            }
+
+            // Direct text / direct images / server-streamed ZIP fallback
+            statusEl.innerHTML = `<span class="text-primary"><i class="bi bi-hourglass-split me-1"></i>Reading ${nImg ? nImg + ' poster(s)' : (nZip ? nZip + ' ZIP' : 'message')} with Gemini AI…</span>`;
+            const fd = new FormData();
+            fd.append('text', txt);
+            const hints = campPosterItems.map(it => _detectStoreFromZipPath(it.name));
+            fd.append('store_hints', JSON.stringify(hints));
+            campPosterItems.forEach((it, idx) => fd.append('images', it.blob, it.name || `poster_${idx + 1}.jpg`));
+            campZipItems.forEach((z, idx) => fd.append('zip_files', z.file, z.name || `offers_${idx + 1}.zip`));
+
+            const parsedRes = await _postParseBatchWithRetry(fd, 3);
+            if (!parsedRes.ok || !parsedRes.data) throw new Error(parsedRes.error || 'Could not parse offer(s)');
+            const data = parsedRes.data;
+            const camps = (Array.isArray(data.campaigns) && data.campaigns.length) ? data.campaigns : (data.parsed ? [data.parsed] : []);
+            campExtractedQueue = camps;
+            if (camps.length) _populateCampaignFormFields(camps[0]);
+            _renderMultiExtractedTray();
+            const modeTag = data.parser_mode || (camps[0] && camps[0].parser_mode) || 'ai';
+            statusEl.innerHTML = data.warning
+                ? `<span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i>${escHtml(data.warning)}</span>`
+                : `<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i>Extracted ${camps.length} offer(s) (${escHtml(modeTag)}) — review below &amp; save to forecast.</span>`;
+        } catch (err) {
+            _setCampProgress(false, 0, '');
+            statusEl.innerHTML = `<span class="text-danger">${escHtml(err.message || String(err))}</span>`;
+        } finally {
+            for (const rd of openZipReaders) { try { await rd.close(); } catch (_e) {} }
+            if (btn) btn.disabled = false;
+        }
+    };
+
+    // ── CRUD: Save Single, Bulk Save, Edit, Delete, Load Table ──
+    window.resetCampaignForm = function() {
+        document.getElementById('camp-id').value = '';
+        document.getElementById('camp-wa-text').value = '';
+        document.getElementById('camp-name').value = '';
+        document.getElementById('camp-type').value = 'weekend_dhamaka';
+        document.getElementById('camp-strength').value = 'medium';
+        document.getElementById('camp-products').value = 'ALL';
+        setCampItemCategories('ALL');
+        setCampItemGroups('ALL');
+        document.getElementById('camp-brands').value = 'ALL';
+        const dEl = document.getElementById('camp-districts'); if (dEl) { dEl.value = 'ALL'; syncCampDistrictChips(); }
+        const sfEl = document.getElementById('camp-store-formats'); if (sfEl) sfEl.value = 'ALL';
+        setCampTargetStores('ALL', false);
+        document.getElementById('camp-discount').value = '';
+        const todayIso = new Date().toISOString().slice(0, 10);
+        document.getElementById('camp-start').value = todayIso;
+        document.getElementById('camp-end').value = todayIso;
+        campLiftUserEdited = false;
+        const basisEl = document.getElementById('camp-lift-basis'); if (basisEl) basisEl.textContent = '';
+        onCampaignTypeOrStrengthChange();
+        clearCampaignPoster();
+        campExtractedQueue = [];
+        campCollectedRaw = [];
+        _renderMultiExtractedTray();
+        document.getElementById('camp-edit-tag')?.classList.add('d-none');
+        document.getElementById('camp-parse-status').textContent = '';
+        document.getElementById('camp-save-msg').textContent = '';
+    };
+
+    window.saveCampaignOffer = async function() {
+        const msgEl = document.getElementById('camp-save-msg');
+        const btn = document.getElementById('camp-save-btn');
+        const payload = {
+            campaign_id: (document.getElementById('camp-id')?.value || '').trim(),
+            campaign_name: (document.getElementById('camp-name')?.value || '').trim(),
+            campaign_type: document.getElementById('camp-type')?.value || 'weekend_dhamaka',
+            start_date: document.getElementById('camp-start')?.value || '',
+            end_date: document.getElementById('camp-end')?.value || '',
+            product_lines: document.getElementById('camp-products')?.value || 'ALL',
+            item_categories: getCampItemCategoriesCsv(),
+            item_groups: getCampItemGroupsCsv(),
+            brands: document.getElementById('camp-brands')?.value || 'ALL',
+            district: document.getElementById('camp-districts')?.value || 'ALL',
+            store_formats: document.getElementById('camp-store-formats')?.value || 'ALL',
+            branches: getCampTargetStoresCsv(),
+            offer_strength: document.getElementById('camp-strength')?.value || 'medium',
+            expected_lift_pct: Number(document.getElementById('camp-lift')?.value || 0),
+            post_cooldown_days: Number(document.getElementById('camp-cooldown')?.value || 3),
+            discount_summary: (document.getElementById('camp-discount')?.value || '').trim(),
+            source_channel: (campPosterItems.length || campZipItems.length) ? 'whatsapp_poster' : 'whatsapp',
+            source_text: (document.getElementById('camp-wa-text')?.value || '').trim(),
+        };
+        if (!payload.campaign_name || !payload.start_date || !payload.end_date) {
+            msgEl.innerHTML = '<span class="text-danger">Please enter a Campaign Name, Start Date, and End Date.</span>';
+            return;
+        }
+        if (btn) btn.disabled = true;
+        msgEl.innerHTML = '<span class="text-primary">Saving to ClickHouse &amp; updating Demand Intelligence forecast cache…</span>';
+        try {
+            const res = await fetch('/api/v1/demand-intelligence/campaigns/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _getCsrfToken() },
+                body: JSON.stringify(payload),
+            });
+            const parsed = await _safeParseJsonResponse(res);
+            if (!parsed.ok || !parsed.data) throw new Error(parsed.error || 'Failed to save campaign');
+            resetCampaignForm();
+            msgEl.innerHTML = `<span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>Saved to ClickHouse! Demand Intelligence forecasts &amp; chart pins are now updated. <a href="${DEMAND_FORECAST_URL}" class="fw-bold ms-1">Open Forecast →</a></span>`;
+            await loadCampaignOffers();
+        } catch (err) {
+            msgEl.innerHTML = `<span class="text-danger">${escHtml(err.message || String(err))}</span>`;
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    };
+
+    window.saveAllExtractedCampaigns = async function() {
+        const msgEl = document.getElementById('camp-save-msg');
+        const btn = document.getElementById('camp-bulk-save-btn');
+        const chks = Array.from(document.querySelectorAll('.camp-multi-chk:checked'));
+        const selected = chks.map(ch => campExtractedQueue[Number(ch.dataset.idx)]).filter(Boolean);
+        if (!selected.length) {
+            msgEl.innerHTML = '<span class="text-danger">Select at least one offer to save.</span>';
+            return;
+        }
+        const srcTxt = (document.getElementById('camp-wa-text')?.value || '').trim();
+        const batch = selected.map(c => ({
+            ...c,
+            source_channel: (campPosterItems.length || campZipItems.length) ? 'whatsapp_poster' : 'whatsapp',
+            source_text: srcTxt,
+        }));
+        if (btn) btn.disabled = true;
+        msgEl.innerHTML = `<span class="text-primary">Saving ${batch.length} campaign offer(s) to ClickHouse &amp; refreshing forecast cache…</span>`;
+        try {
+            const res = await fetch('/api/v1/demand-intelligence/campaigns/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _getCsrfToken() },
+                body: JSON.stringify({ campaigns: batch }),
+            });
+            const parsed = await _safeParseJsonResponse(res);
+            if (!parsed.ok || !parsed.data) throw new Error(parsed.error || 'Bulk save failed');
+            resetCampaignForm();
+            msgEl.innerHTML = `<span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>Saved ${parsed.data.count || batch.length} campaign offers to ClickHouse! <a href="${DEMAND_FORECAST_URL}" class="fw-bold ms-1">Open Demand Forecast →</a></span>`;
+            await loadCampaignOffers();
+        } catch (err) {
+            msgEl.innerHTML = `<span class="text-danger">${escHtml(err.message || String(err))}</span>`;
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    };
+
+    window.editCampaignOffer = function(cid) {
+        const row = cachedCampaignRows.find(r => r.campaign_id === cid);
+        if (!row) return;
+        document.getElementById('camp-id').value = row.campaign_id;
+        document.getElementById('camp-name').value = row.campaign_name || '';
+        document.getElementById('camp-type').value = row.campaign_type || 'weekend_dhamaka';
+        document.getElementById('camp-strength').value = row.offer_strength || 'medium';
+        document.getElementById('camp-start').value = row.start_date || '';
+        document.getElementById('camp-end').value = row.end_date || '';
+        document.getElementById('camp-products').value = row.product_lines || 'ALL';
+        setCampItemCategories(row.item_categories || 'ALL');
+        setCampItemGroups(row.item_groups || 'ALL');
+        document.getElementById('camp-brands').value = row.brands || 'ALL';
+        const dEl = document.getElementById('camp-districts'); if (dEl) { dEl.value = row.district || 'ALL'; syncCampDistrictChips(); }
+        const sfEl = document.getElementById('camp-store-formats');
+        if (sfEl) {
+            const sf = String(row.store_formats || 'ALL').trim().toUpperCase();
+            sfEl.value = ['ALL', 'MYG,MYG_FUTURE', 'MYG', 'MYG_FUTURE'].includes(sf) ? sf : 'ALL';
+        }
+        setCampTargetStores(row.branches || 'ALL', false);
+        document.getElementById('camp-lift').value = String(Math.round(Number(row.effective_lift_pct || row.expected_lift_pct || 18)));
+        campLiftUserEdited = false;
+        const basisEl = document.getElementById('camp-lift-basis');
+        if (basisEl) basisEl.textContent = 'Saved value — click Auto (ClickHouse) to re-estimate for this store';
+        document.getElementById('camp-cooldown').value = String(row.post_cooldown_days != null ? row.post_cooldown_days : 3);
+        document.getElementById('camp-discount').value = row.discount_summary || '';
+        document.getElementById('camp-wa-text').value = row.source_text || '';
+        document.getElementById('camp-edit-tag')?.classList.remove('d-none');
+        document.getElementById('camp-save-msg').textContent = '';
+        document.getElementById('camp-name')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+
+    window.deleteCampaignOffer = async function(cid) {
+        if (!cid || !confirm('Remove this campaign offer from the forecast calendar?')) return;
+        try {
+            const res = await fetch('/api/v1/demand-intelligence/campaigns/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _getCsrfToken() },
+                body: JSON.stringify({ action: 'delete', campaign_id: cid }),
+            });
+            const parsed = await _safeParseJsonResponse(res);
+            if (!parsed.ok) throw new Error(parsed.error || 'Delete failed');
+            await loadCampaignOffers();
+        } catch (err) {
+            alert(err.message || String(err));
+        }
+    };
+
+    function _buildForecastLinkForRow(r) {
+        const qp = new URLSearchParams();
+        const prods = Array.isArray(r.product_lines_list) ? r.product_lines_list : [];
+        if (prods.length === 1) qp.set('product', prods[0]);
+        const dists = Array.isArray(r.districts_list) ? r.districts_list : [];
+        if (dists.length === 1) qp.set('district', dists[0]);
+        const brs = Array.isArray(r.branches_list) ? r.branches_list : [];
+        if (brs.length === 1) qp.set('branch', brs[0]);
+        const qs = qp.toString();
+        return qs ? `${DEMAND_FORECAST_URL}?${qs}` : DEMAND_FORECAST_URL;
+    }
+
+    window.setCampStatusFilter = function(st) {
+        activeStatusFilter = st;
+        document.querySelectorAll('#camp-status-filters .camp-status-pill').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.st === st);
+        });
+        renderSavedCampaignsTable();
+    };
+
+    window.renderSavedCampaignsTable = function() {
+        const tbody = document.getElementById('camp-list-tbody');
+        const cntEl = document.getElementById('camp-list-count');
+        if (!tbody) return;
+        const q = (document.getElementById('camp-table-search')?.value || '').trim().toLowerCase();
+        const rows = cachedCampaignRows.filter(r => {
+            if (activeStatusFilter !== 'all' && r.status !== activeStatusFilter) return false;
+            if (q) {
+                const hay = `${r.campaign_name} ${r.product_lines} ${r.brands} ${r.district} ${r.branches} ${r.discount_summary}`.toLowerCase();
+                if (!hay.includes(q)) return false;
+            }
+            return true;
+        });
+        if (cntEl) cntEl.textContent = String(rows.length);
+        if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No matching campaign offers found. Paste a WhatsApp offer or upload posters / a .ZIP file above!</td></tr>';
+            return;
+        }
+        tbody.innerHTML = rows.map(r => {
+            const stBadge = r.status === 'live'
+                ? '<span class="badge" style="background:#dcfce7;color:#15803d;">LIVE NOW</span>'
+                : (r.status === 'upcoming'
+                    ? '<span class="badge" style="background:#e0e7ff;color:#4338ca;">UPCOMING</span>'
+                    : '<span class="badge" style="background:#f1f5f9;color:#475569;">COMPLETED</span>');
+            const realTip = r.realized_lift_pct != null
+                ? `${r.baseline_label || 'Clean prior baseline'}: ${fmtInrPlain(r.realized_avg_sales)}/day vs ${fmtInrPlain(r.baseline_avg_sales)} baseline (${r.realized_days || 1}d measured)`
+                : '';
+            const realCell = r.realized_lift_pct != null
+                ? `<div title="${escHtml(realTip)}"><span class="fw-bold ${r.realized_lift_pct >= 0 ? 'text-success' : 'text-danger'}">${r.realized_lift_pct >= 0 ? '+' : ''}${fmtNum(r.realized_lift_pct, 1)}%</span>` +
+                  (r.incremental_sales != null ? `<div class="text-muted" style="font-size:0.66rem;">${fmtInrSigned(r.incremental_sales)}</div>` : '') +
+                  (r.baseline_label ? `<div class="text-muted" style="font-size:0.61rem;opacity:0.85;">${escHtml(r.baseline_label)}</div>` : '') +
+                  `</div>`
+                : '<span class="text-muted">—</span>';
+            const plannedInrDay = (r.baseline_avg_sales != null && Number(r.baseline_avg_sales) > 0)
+                ? Number(r.baseline_avg_sales) * (Number(r.effective_lift_pct || 0) / 100.0)
+                : null;
+            const plannedTip = plannedInrDay != null
+                ? `Planned +${fmtNum(r.effective_lift_pct, 0)}% ≈ ${fmtInrSigned(plannedInrDay)}/day target on ${fmtInrPlain(r.baseline_avg_sales)} baseline`
+                : 'Store-specific Sale Value Planned Lift %';
+            const fcUrl = _buildForecastLinkForRow(r);
+            return `<tr>
+                <td>${stBadge}</td>
+                <td>
+                    <div class="fw-bold text-dark">${escHtml(r.campaign_name)}</div>
+                    <div class="text-muted" style="font-size:0.69rem;">${escHtml(r.campaign_type_label || r.campaign_type)}${r.discount_summary ? ' · ' + escHtml(r.discount_summary) : ''}</div>
+                </td>
+                <td style="white-space:nowrap;">${escHtml(r.date_range_display)}</td>
+                <td>
+                    <div class="fw-semibold" style="font-size:0.74rem;">${escHtml(r.product_lines)}</div>
+                    ${(r.item_categories && r.item_categories !== 'ALL') ? `<div style="font-size:0.66rem;color:#0369a1;"><strong>Categories:</strong> ${escHtml(r.item_categories)}</div>` : ''}
+                    ${(r.item_groups && r.item_groups !== 'ALL') ? `<div style="font-size:0.66rem;color:#7c3aed;"><strong>Groups:</strong> ${escHtml(r.item_groups)}</div>` : ''}
+                    <div class="text-muted" style="font-size:0.68rem;">Brands: ${escHtml(r.brands)}</div>
+                    <div class="d-flex flex-wrap align-items-center gap-1 mt-1">${_campScopeBadgesHtml(r)}</div>
+                </td>
+                <td class="text-end" title="${escHtml(plannedTip)}">
+                    <span class="fw-bold" style="color:${escHtml(r.color || '#6366f1')};">+${fmtNum(r.effective_lift_pct, 0)}%</span>
+                    ${plannedInrDay != null ? `<div class="text-muted" style="font-size:0.64rem;">≈ ${fmtInrSigned(plannedInrDay)}/d</div>` : ''}
+                </td>
+                <td class="text-end">${realCell}</td>
+                <td class="text-end" style="white-space:nowrap;">
+                    ${r.status !== 'upcoming' ? `<button type="button" class="btn btn-sm btn-outline-info py-0 px-2 me-1" style="font-size:0.69rem;" onclick="openCampaignBreakdownModal('${escHtml(r.campaign_id)}')" title="Product / Item Category / Item Group ClickHouse Sale Value breakdown"><i class="bi bi-diagram-3"></i></button>` : ''}
+                    <a href="${escHtml(fcUrl)}" class="btn btn-sm btn-outline-success py-0 px-2 me-1" style="font-size:0.69rem;" title="Open Demand Intelligence filtered to this campaign's scope">Forecast <i class="bi bi-box-arrow-up-right"></i></a>
+                    <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 me-1" style="font-size:0.69rem;" onclick="editCampaignOffer('${escHtml(r.campaign_id)}')">Edit</button>
+                    <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" style="font-size:0.69rem;" onclick="deleteCampaignOffer('${escHtml(r.campaign_id)}')">Del</button>
+                </td>
+            </tr>`;
+        }).join('');
+    };
+
+    function _updateKpiCards(rows) {
+        const live = rows.filter(r => r.status === 'live').length;
+        const up = rows.filter(r => r.status === 'upcoming').length;
+        const lifts = rows.map(r => r.realized_lift_pct).filter(v => v != null && isFinite(Number(v))).map(Number);
+        const avgLift = lifts.length ? (lifts.reduce((a, b) => a + b, 0) / lifts.length) : null;
+        document.getElementById('kpi-camp-live').textContent = String(live);
+        document.getElementById('kpi-camp-upcoming').textContent = String(up);
+        document.getElementById('kpi-camp-total').textContent = String(rows.length);
+        const rEl = document.getElementById('kpi-camp-realized');
+        if (rEl) {
+            if (avgLift == null) { rEl.textContent = '—'; rEl.className = 'camp-kpi-val text-muted'; }
+            else {
+                rEl.textContent = `${avgLift >= 0 ? '+' : ''}${fmtNum(avgLift, 1)}%`;
+                rEl.className = `camp-kpi-val ${avgLift >= 0 ? 'text-success' : 'text-danger'}`;
+            }
+        }
+    }
+
+    window.loadCampaignOffers = async function() {
+        const tbody = document.getElementById('camp-list-tbody');
+        if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">Loading saved offers from ClickHouse…</td></tr>';
+        try {
+            const res = await fetch('/api/v1/demand-intelligence/campaigns/');
+            const parsed = await _safeParseJsonResponse(res);
+            if (!parsed.ok || !parsed.data) throw new Error(parsed.error || 'Failed to load campaigns');
+            const data = parsed.data;
+            if (Array.isArray(data.branches) && data.branches.length && !campBranchCatalog.length) {
+                campBranchCatalog = data.branches;
+                initCampStoresTomSelect(true);
+            }
+            if (Array.isArray(data.item_categories) && data.item_categories.length) {
+                campItemCatCatalog = data.item_categories;
+                initCampItemHierarchySelectors(true);
+            }
+            cachedCampaignRows = data.campaigns || [];
+            _updateKpiCards(cachedCampaignRows);
+            renderSavedCampaignsTable();
+        } catch (err) {
+            if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">${escHtml(err.message || String(err))}</td></tr>`;
+        }
+    };
+
+    // ── Colleague Excel / CSV Bulk Importer ──
+    window.clearCampaignSheetPreview = function() {
+        campPendingSheetFile = null;
+        const fEl = document.getElementById('camp-sheet-file'); if (fEl) fEl.value = '';
+        document.getElementById('camp-sheet-preview-box')?.classList.add('d-none');
+        const stEl = document.getElementById('camp-sheet-status'); if (stEl) stEl.textContent = '';
+    };
+
+    window.onCampaignSheetSelected = async function(fileList) {
+        const f = fileList && fileList[0];
+        if (!f) return;
+        campPendingSheetFile = f;
+        const stEl = document.getElementById('camp-sheet-status');
+        const box = document.getElementById('camp-sheet-preview-box');
+        const tb = document.getElementById('camp-sheet-preview-tbody');
+        const warnEl = document.getElementById('camp-sheet-warnings');
+        const titleEl = document.getElementById('camp-sheet-preview-title');
+        if (stEl) stEl.innerHTML = `<span class="text-primary"><i class="bi bi-hourglass-split me-1"></i>Reading "${escHtml(f.name)}" &amp; estimating store-specific Sale Value lifts from ClickHouse…</span>`;
+        try {
+            const fd = new FormData();
+            fd.append('file', f, f.name);
+            fd.append('mode', 'preview');
+            fd.append('auto_estimate', '1');
+            const res = await fetch('/api/v1/demand-intelligence/campaigns/import-sheet/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': _getCsrfToken() },
+                body: fd,
+            });
+            const parsed = await _safeParseJsonResponse(res);
+            if (!parsed.ok || !parsed.data) throw new Error(parsed.error || 'Could not parse spreadsheet');
+            const d = parsed.data;
+            const list = d.campaigns || [];
+            if (titleEl) titleEl.textContent = `Preview: ${list.length} offer(s) ready (${d.historical_count || 0} historical for learning)`;
+            if (warnEl) warnEl.innerHTML = (d.warnings && d.warnings.length) ? d.warnings.map(w => `<div><i class="bi bi-exclamation-triangle me-1"></i>${escHtml(w)}</div>`).join('') : '';
+            if (tb) {
+                tb.innerHTML = list.slice(0, 60).map(c => {
+                    const prods = Array.isArray(c.product_lines) ? c.product_lines.join(', ') : c.product_lines;
+                    const cats = Array.isArray(c.item_categories) ? c.item_categories.join(', ') : (c.item_categories || 'ALL');
+                    const grps = Array.isArray(c.item_groups) ? c.item_groups.join(', ') : (c.item_groups || 'ALL');
+                    return `<tr>
+                        <td><strong>${escHtml(c.campaign_name)}</strong>${c.is_historical ? ' <span class="badge bg-secondary" style="font-size:0.6rem;">PAST</span>' : ''}</td>
+                        <td style="white-space:nowrap;">${escHtml(c.start_date)} → ${escHtml(c.end_date)}</td>
+                        <td>${_campScopeBadgesHtml(c)}</td>
+                        <td>
+                            <div>${escHtml(prods)}</div>
+                            ${cats !== 'ALL' ? `<div style="color:#0369a1;font-size:0.64rem;">Cat: ${escHtml(cats)}</div>` : ''}
+                            ${grps !== 'ALL' ? `<div style="color:#7c3aed;font-size:0.64rem;">Grp: ${escHtml(grps)}</div>` : ''}
+                        </td>
+                        <td class="text-end fw-bold text-primary" title="${escHtml(c.planned_lift_basis || '')}">+${Math.round(Number(c.expected_lift_pct || 0))}%</td>
+                    </tr>`;
+                }).join('');
+            }
+            box?.classList.remove('d-none');
+            if (stEl) stEl.innerHTML = `<span class="text-success"><i class="bi bi-check-circle me-1"></i>Validated ${list.length} row(s) — review below and click <strong>Import &amp; Learn in ClickHouse</strong>.</span>`;
+        } catch (err) {
+            box?.classList.add('d-none');
+            if (stEl) stEl.innerHTML = `<span class="text-danger">${escHtml(err.message || String(err))}</span>`;
+        }
+    };
+
+    window.confirmImportCampaignSheet = async function() {
+        if (!campPendingSheetFile) return;
+        const btn = document.getElementById('camp-sheet-confirm-btn');
+        const stEl = document.getElementById('camp-sheet-status');
+        if (btn) btn.disabled = true;
+        if (stEl) stEl.innerHTML = '<span class="text-primary"><i class="bi bi-hourglass-split me-1"></i>Saving imported offers to ClickHouse &amp; updating self-learning model…</span>';
+        try {
+            const fd = new FormData();
+            fd.append('file', campPendingSheetFile, campPendingSheetFile.name);
+            fd.append('mode', 'save');
+            fd.append('auto_estimate', '1');
+            const res = await fetch('/api/v1/demand-intelligence/campaigns/import-sheet/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': _getCsrfToken() },
+                body: fd,
+            });
+            const parsed = await _safeParseJsonResponse(res);
+            if (!parsed.ok || !parsed.data) throw new Error(parsed.error || 'Import failed');
+            clearCampaignSheetPreview();
+            if (stEl) stEl.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i>Imported ${parsed.data.saved_count || 0} campaign(s) (${parsed.data.historical_count || 0} past offers now training predictions)!</span>`;
+            await loadCampaignOffers();
+            loadCampaignBacktestScorecard();
+        } catch (err) {
+            if (stEl) stEl.innerHTML = `<span class="text-danger">${escHtml(err.message || String(err))}</span>`;
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    };
+
+    // ── Leak-Free Predicted vs. Actual Backtest Scorecard ──
+    window.loadCampaignBacktestScorecard = async function() {
+        const tbody = document.getElementById('camp-backtest-tbody');
+        const btn = document.getElementById('camp-backtest-btn');
+        if (btn) btn.disabled = true;
+        if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4"><i class="bi bi-hourglass-split me-1"></i>Running leak-free ClickHouse Predicted vs. Actual backtest…</td></tr>';
+        try {
+            const res = await fetch('/api/v1/demand-intelligence/campaigns/backtest/');
+            const parsed = await _safeParseJsonResponse(res);
+            if (!parsed.ok || !parsed.data) throw new Error(parsed.error || 'Backtest failed');
+            const d = parsed.data;
+            const sm = d.summary || {};
+            document.getElementById('bt-kpi-acc').textContent = sm.revenue_accuracy_pct != null ? `${fmtNum(sm.revenue_accuracy_pct, 1)}%` : '—';
+            document.getElementById('bt-kpi-wape').textContent = sm.revenue_wape_pct != null ? `Revenue WAPE: ${fmtNum(sm.revenue_wape_pct, 1)}%` : 'WAPE: —';
+            const biasEl = document.getElementById('bt-kpi-bias');
+            if (biasEl) {
+                biasEl.textContent = sm.mean_lift_bias_pct != null ? `${sm.mean_lift_bias_pct >= 0 ? '+' : ''}${fmtNum(sm.mean_lift_bias_pct, 1)} pts` : '—';
+                biasEl.className = `fw-bolder fs-5 ${sm.mean_lift_bias_pct == null ? 'text-muted' : (Math.abs(sm.mean_lift_bias_pct) <= 10 ? 'text-success' : 'text-warning')}`;
+            }
+            document.getElementById('bt-kpi-hit').textContent = sm.within_15pct_hit_rate != null ? `${fmtNum(sm.within_15pct_hit_rate, 0)}%` : '—';
+            document.getElementById('bt-kpi-eval').textContent = `Evaluated offers: ${sm.evaluated_campaigns || 0}`;
+            document.getElementById('bt-kpi-learned').textContent = String(sm.learned_completed_campaigns || 0);
+
+            const rows = d.rows || [];
+            if (!rows.length) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No started or completed campaigns with ClickHouse actuals yet. Upload previous offers above to evaluate Predicted vs. Actual!</td></tr>';
+                return;
+            }
+            tbody.innerHTML = rows.map(r => {
+                const vSign = r.variance_sales >= 0 ? 'text-success' : 'text-danger';
+                const coolTag = r.actual_cooldown_dip_pct != null
+                    ? `<div class="text-muted" style="font-size:0.62rem;">Post-promo: ${r.actual_cooldown_dip_pct >= 0 ? '+' : ''}${fmtNum(r.actual_cooldown_dip_pct, 1)}%</div>`
+                    : '';
+                const learnTag = r.learned_from_count > 0
+                    ? `<span class="badge" style="background:#f3e8ff;color:#6b21a8;font-size:0.6rem;" title="${escHtml(r.prediction_basis)}">Learned (${r.learned_from_count})</span>`
+                    : `<span class="badge" style="background:#f1f5f9;color:#475569;font-size:0.6rem;" title="${escHtml(r.prediction_basis)}">Full History</span>`;
+                return `<tr>
+                    <td>
+                        <div class="fw-bold text-dark">${escHtml(r.campaign_name)}</div>
+                        <div class="text-muted" style="font-size:0.66rem;">${escHtml(r.date_range_display)} · ${r.realized_days}d · ${learnTag}</div>
+                    </td>
+                    <td>
+                        <div class="d-flex flex-wrap gap-1 mb-1">${_campScopeBadgesHtml(r)}</div>
+                        <div class="text-muted" style="font-size:0.65rem;">${escHtml(r.product_lines)}${r.item_categories && r.item_categories !== 'ALL' ? ' · Cat: ' + escHtml(r.item_categories) : ''}${r.item_groups && r.item_groups !== 'ALL' ? ' · Grp: ' + escHtml(r.item_groups) : ''}</div>
+                    </td>
+                    <td class="text-end">
+                        <div class="fw-semibold">${fmtInrPlain(r.baseline_total_sales)}</div>
+                        <div class="text-muted" style="font-size:0.62rem;">${escHtml(r.baseline_label)}</div>
+                    </td>
+                    <td class="text-end" title="${escHtml(r.prediction_basis)}">
+                        <div class="fw-bold text-primary">${fmtInrPlain(r.predicted_total_sales)}</div>
+                        <div class="text-muted" style="font-size:0.65rem;">+${fmtNum(r.predicted_lift_pct, 1)}% lift</div>
+                    </td>
+                    <td class="text-end">
+                        <div class="fw-bold ${r.actual_lift_pct >= 0 ? 'text-success' : 'text-danger'}">${fmtInrPlain(r.actual_total_sales)}</div>
+                        <div class="${r.actual_lift_pct >= 0 ? 'text-success' : 'text-danger'}" style="font-size:0.65rem;">${r.actual_lift_pct >= 0 ? '+' : ''}${fmtNum(r.actual_lift_pct, 1)}% (${fmtInrSigned(r.incremental_sales)})</div>
+                        ${coolTag}
+                    </td>
+                    <td class="text-end">
+                        <div class="fw-bold ${vSign}">${fmtInrSigned(r.variance_sales)}</div>
+                        <div class="text-muted" style="font-size:0.64rem;">${r.variance_lift_pct >= 0 ? '+' : ''}${fmtNum(r.variance_lift_pct, 1)} pts</div>
+                    </td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size:0.68rem;" onclick="openCampaignBreakdownModal('${escHtml(r.campaign_id)}')">
+                            <i class="bi bi-diagram-3 me-1"></i>Items
+                        </button>
+                    </td>
+                </tr>`;
+            }).join('');
+        } catch (err) {
+            if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">${escHtml(err.message || String(err))}</td></tr>`;
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    };
+
+    // ── Product / Item Category / Item Group Breakdown Modal ──
+    window.switchCampBreakdownTab = function(lvl) {
+        campBreakdownLevel = lvl;
+        document.querySelectorAll('#camp-bd-tabs .camp-status-pill').forEach(b => b.classList.toggle('active', b.dataset.lvl === lvl));
+        renderCampBreakdownTable();
+    };
+
+    window.renderCampBreakdownTable = function() {
+        const tbody = document.getElementById('camp-bd-tbody');
+        const theadRow = document.getElementById('camp-bd-thead-row');
+        if (!tbody || !campBreakdownCache) return;
+        const d = campBreakdownCache;
+        if (!d.has_actuals) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">${escHtml(d.message || 'No ClickHouse actuals yet.')}</td></tr>`;
+            return;
+        }
+        const q = (document.getElementById('camp-bd-search')?.value || '').trim().toLowerCase();
+        const keyMap = { product: 'by_product', category: 'by_item_category', group: 'by_item_group' };
+        const hdrLabel = { product: 'Product Line', category: 'Item Category (Product)', group: 'Item Group / Model (Category)' }[campBreakdownLevel] || 'Item';
+        if (theadRow && theadRow.firstElementChild) theadRow.firstElementChild.textContent = hdrLabel;
+
+        const list = (d[keyMap[campBreakdownLevel]] || []).filter(r => {
+            if (!q) return true;
+            return `${r.product || ''} ${r.item_category || ''} ${r.item_group || ''}`.toLowerCase().includes(q);
+        });
+        if (!list.length) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No matching items found for this filter.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = list.map(r => {
+            const labelHtml = campBreakdownLevel === 'product'
+                ? `<div class="fw-bold text-dark">${escHtml(r.product)}</div>`
+                : (campBreakdownLevel === 'category'
+                    ? `<div class="fw-bold text-dark">${escHtml(r.item_category)}</div><div class="text-muted" style="font-size:0.65rem;">${escHtml(r.product)}</div>`
+                    : `<div class="fw-bold text-dark">${escHtml(r.item_group)}</div><div class="text-muted" style="font-size:0.65rem;">${escHtml(r.product)} · ${escHtml(r.item_category)}</div>`);
+            const liftHtml = r.actual_lift_pct != null
+                ? `<span class="fw-bold ${r.actual_lift_pct >= 0 ? 'text-success' : 'text-danger'}">${r.actual_lift_pct >= 0 ? '+' : ''}${fmtNum(r.actual_lift_pct, 1)}%</span>`
+                : '<span class="text-muted">New</span>';
+            const varCls = r.variance_sales >= 0 ? 'text-success' : 'text-danger';
+            return `<tr>
+                <td>${labelHtml}</td>
+                <td class="text-end">${fmtInrPlain(r.baseline_sales)}</td>
+                <td class="text-end text-primary fw-semibold">${fmtInrPlain(r.predicted_sales)}</td>
+                <td class="text-end fw-bold">${fmtInrPlain(r.actual_sales)}<div class="text-muted" style="font-size:0.63rem;">${fmtNum(r.actual_qty)} units</div></td>
+                <td class="text-end">${liftHtml}</td>
+                <td class="text-end fw-semibold ${varCls}">${fmtInrSigned(r.variance_sales)}</td>
+                <td class="text-end text-muted">${fmtNum(r.share_pct, 1)}%</td>
+            </tr>`;
+        }).join('');
+    };
+
+    window.openCampaignBreakdownModal = async function(cid) {
+        const modalEl = document.getElementById('campBreakdownModal');
+        const titleEl = document.getElementById('camp-bd-title');
+        const subEl = document.getElementById('camp-bd-subtitle');
+        const tbody = document.getElementById('camp-bd-tbody');
+        const sInp = document.getElementById('camp-bd-search'); if (sInp) sInp.value = '';
+        if (titleEl) titleEl.textContent = 'Campaign Product / Item Category / Item Group Breakdown';
+        if (subEl) subEl.textContent = 'Querying live ClickHouse sales by product, item_category & item_group…';
+        if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4"><i class="bi bi-hourglass-split me-1"></i>Loading ClickHouse breakdown…</td></tr>';
+        if (modalEl && typeof bootstrap !== 'undefined') {
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        }
+        try {
+            const res = await fetch(`/api/v1/demand-intelligence/campaigns/breakdown/?campaign_id=${encodeURIComponent(cid)}`);
+            const parsed = await _safeParseJsonResponse(res);
+            if (!parsed.ok || !parsed.data) throw new Error(parsed.error || 'Could not load breakdown');
+            campBreakdownCache = parsed.data;
+            const c = parsed.data.campaign || {};
+            if (titleEl) titleEl.textContent = `${c.campaign_name || 'Campaign'} — Hierarchy Breakdown`;
+            if (subEl) subEl.textContent = `${c.date_range_display || ''} · Stores: ${c.branches || c.district || 'ALL'} · ${parsed.data.baseline_label || ''} · Actual Total: ${fmtInrPlain(parsed.data.total_actual_sales)}`;
+            document.getElementById('bd-cnt-prod').textContent = String((parsed.data.by_product || []).length);
+            document.getElementById('bd-cnt-cat').textContent = String((parsed.data.by_item_category || []).length);
+            document.getElementById('bd-cnt-grp').textContent = String((parsed.data.by_item_group || []).length);
+            switchCampBreakdownTab('product');
+        } catch (err) {
+            if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">${escHtml(err.message || String(err))}</td></tr>`;
+        }
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const todayIso = new Date().toISOString().slice(0, 10);
+        const sd = document.getElementById('camp-start'); if (sd && !sd.value) sd.value = todayIso;
+        const ed = document.getElementById('camp-end'); if (ed && !ed.value) ed.value = todayIso;
+        initCampStoresTomSelect(false);
+        initCampItemHierarchySelectors(false);
+        loadCampaignOffers();
+        loadCampaignBacktestScorecard();
+
+        const dz = document.getElementById('camp-drop-zone');
+        if (dz) {
+            dz.addEventListener('dragover', e => { e.preventDefault(); dz.style.background = '#dcfce7'; });
+            dz.addEventListener('dragleave', () => { dz.style.background = '#f0fdf4'; });
+            dz.addEventListener('drop', e => {
+                e.preventDefault();
+                dz.style.background = '#f0fdf4';
+                if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+                    onCampaignPosterFiles(e.dataTransfer.files);
+                }
+            });
+        }
+        document.addEventListener('paste', e => {
+            const items = (e.clipboardData && e.clipboardData.items) || [];
+            const pastedImgs = [];
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type && items[i].type.startsWith('image/')) {
+                    const f = items[i].getAsFile();
+                    if (f) pastedImgs.push(f);
+                }
+            }
+            if (pastedImgs.length) {
+                onCampaignPosterFiles(pastedImgs);
+                e.preventDefault();
+            }
+        });
+    });
+})();
+</script>
+{% endblock %}

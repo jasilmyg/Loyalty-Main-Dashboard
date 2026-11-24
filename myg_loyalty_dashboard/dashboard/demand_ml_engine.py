@@ -81,13 +81,16 @@ FEATURE_COLS: List[str] = [f[0] for f in FEATURE_METADATA]
 CAT_COLS: List[str] = ["cat_product_line", "cat_brand"]
 
 
-def moderate_bucket_mults(bucket_mult_sums: List[float], n: int = 9) -> List[float]:
-    """Moderate extreme historical festival surges (>15x neutral) so catalog-wide spikes do not deflate steady SKUs."""
+def moderate_bucket_mults(bucket_mult_sums: List[float], n: int = 9, gran: str = "sku") -> List[float]:
+    """Moderate extreme historical festival surges (>15x neutral) so catalog-wide spikes do not deflate steady SKUs.
+    Aggregate granularities (`product_line` / `brand_product`) keep stronger festival de-seasonalization (60%)
+    so mega events like Onam or myG Anniversary do not inflate the post-event category baseline."""
+    keep_excess = 0.60 if gran in ("product_line", "brand_product") else 0.40
     out: List[float] = []
     for k in range(n):
         if k < len(bucket_mult_sums):
             v = float(bucket_mult_sums[k])
-            out.append(15.0 + 0.40 * (v - 15.0) if v > 15.0 else v)
+            out.append(15.0 + keep_excess * (v - 15.0) if v > 15.0 else v)
         else:
             out.append(15.0)
     return out
@@ -813,7 +816,7 @@ def run_hybrid_ml_forecasting(
     r_b = [df[f"r_b{k}"].values.astype(float) for k in range(9)]
     a_b = [df[f"a_b{k}"].values.astype(float) for k in range(9)]
     # Moderate extreme historical festival surges (>15x neutral) so catalog-wide spikes do not deflate steady SKUs
-    c_b = moderate_bucket_mults(bucket_mult_sums, 9)
+    c_b = moderate_bucket_mults(bucket_mult_sums, 9, gran=gran)
 
     unit_mop = df["unit_mop"].values.astype(float)
     unit_mrp = df["unit_mrp"].values.astype(float)
@@ -937,19 +940,23 @@ def run_hybrid_ml_forecasting(
     # ── Spike-robust level correction (hybrid engine) ──
     # Backtest (62 spike SKU-origins, 4 origins): blending 50/50 with the latest-7-day rate excluding the peak day
     # cut 7-day WAPE 56% -> 46% and 15-day 61% -> 50%, improving at every origin.
+    # For product_line / brand_product aggregates, a single mega-promo day >= 20% of 14d (e.g. myG Anniversary Nov 2
+    # = 922 TVs on a ~300/d base) is also dampened cleanly using the peak-excluded rate.
     spike_mask = np.zeros(len(df), dtype=bool)
     if eng == "hybrid" and all(c in df.columns for c in ("dl_sum14", "dl_max14", "dl_maxsh14")):
         sum14 = df["dl_sum14"].values.astype(float)
         max14 = df["dl_max14"].values.astype(float)
         share = df["dl_maxsh14"].values.astype(float)
-        spike_mask = (share >= SPIKE_MIN_SHARE) & (max14 >= SPIKE_MIN_PEAK)
+        min_sh = SPIKE_MIN_SHARE if gran == "sku" else 0.25
+        min_pk = SPIKE_MIN_PEAK if gran == "sku" else 60.0
+        spike_mask = (share >= min_sh) & (max14 >= min_pk)
         if np.any(spike_mask):
             if "dl_r7ex" in df.columns:
                 robust_rate = df["dl_r7ex"].values.astype(float)
             else:
                 robust_rate = np.where(sum14 > 0, (sum14 - max14) / 13.0, 0.0)      # mean daily units without the peak day
             s15s = max(float(S15), 1e-6)
-            b = SPIKE_BLEND
+            b = SPIKE_BLEND if gran == "sku" else 0.30
             act_7d = np.where(spike_mask, (1 - b) * act_7d + b * robust_rate * 15.0 * float(S7) / s15s, act_7d)
             act_15d = np.where(spike_mask, (1 - b) * act_15d + b * robust_rate * 15.0, act_15d)
             act_30d = np.where(spike_mask, (1 - b) * act_30d + b * robust_rate * 15.0 * float(S30) / s15s, act_30d)

@@ -161,12 +161,20 @@ urlpatterns = [
 
     # 📦 Demand & Inventory Intelligence (ClickHouse Live AI Forecasting & Velocity)
     path('demand-intelligence/', dii_views.DemandIntelligencePageView.as_view(), name='demand_intelligence'),
+    path('campaign-offers/', dii_views.CampaignOffersPageView.as_view(), name='campaign_offers'),
     path('api/v1/demand-intelligence/', dii_views.DemandIntelligenceAPIView.as_view(), name='demand_intelligence_api'),
     path('api/v1/demand-intelligence/deep-dive/', dii_views.DemandProductDeepDiveAPIView.as_view(), name='demand_intelligence_deep_dive_api'),
     path('api/v1/demand-intelligence/sku-options/', dii_views.DemandSkuOptionsAPIView.as_view(), name='demand_intelligence_sku_options_api'),
     path('api/v1/demand-intelligence/export/', dii_views.DemandIntelligenceExportAPIView.as_view(), name='demand_intelligence_export_api'),
     path('api/v1/demand-intelligence/dead-stock-excel/', dii_views.DemandDeadStockBranchExportAPIView.as_view(), name='demand_dead_stock_branch_export_api'),
     path('api/v1/demand-intelligence/stock-risk-export/', dii_views.DemandStockRiskExportAPIView.as_view(), name='demand_stock_risk_export_api'),
+    path('api/v1/demand-intelligence/campaigns/', dii_views.DemandCampaignsAPIView.as_view(), name='demand_campaigns_api'),
+    path('api/v1/demand-intelligence/campaigns/parse/', dii_views.DemandCampaignParseAPIView.as_view(), name='demand_campaign_parse_api'),
+    path('api/v1/demand-intelligence/campaigns/item-lookup/', dii_views.DemandCampaignItemLookupAPIView.as_view(), name='demand_campaign_item_lookup_api'),
+    path('api/v1/demand-intelligence/campaigns/template/', dii_views.DemandCampaignTemplateAPIView.as_view(), name='demand_campaign_template_api'),
+    path('api/v1/demand-intelligence/campaigns/import-sheet/', dii_views.DemandCampaignSpreadsheetImportAPIView.as_view(), name='demand_campaign_import_sheet_api'),
+    path('api/v1/demand-intelligence/campaigns/backtest/', dii_views.DemandCampaignBacktestAPIView.as_view(), name='demand_campaign_backtest_api'),
+    path('api/v1/demand-intelligence/campaigns/breakdown/', dii_views.DemandCampaignBreakdownAPIView.as_view(), name='demand_campaign_breakdown_api'),
 
     # 🔗 UTM Link Builder & First-Party Click Tracker (myG Future Mangaluru & Campaigns)
     path('utm-tracker/', utm_tracker_views.UtmTrackerPageView.as_view(), name='utm_tracker'),

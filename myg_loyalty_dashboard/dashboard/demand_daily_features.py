@@ -19,23 +19,29 @@ import pandas as pd
 WINDOW = 29            # days fetched (ages 0..28)
 
 
-def daily_sql(ref_dt: date, where_sql: str) -> str:
+def daily_sql(ref_dt: date, where_sql: str, gran: str = "sku") -> str:
     d_ref = ref_dt.strftime("%Y-%m-%d")
     start = (ref_dt - timedelta(days=WINDOW - 1)).strftime("%Y-%m-%d 00:00:00")
     end = (ref_dt + timedelta(days=1)).strftime("%Y-%m-%d 00:00:00")
+    if gran == "product_line":
+        id_expr = "upper(m.product)"
+    elif gran == "brand_product":
+        id_expr = "concat(upper(m.product), '||', upper(if(m.brand != '', m.brand, 'GENERAL')))"
+    else:
+        id_expr = "s.item_code"
     return f"""
-        SELECT s.item_code AS id,
+        SELECT {id_expr} AS id,
                dateDiff('day', toDate(s.date), toDate('{d_ref}')) AS age,
                greatest(0.0, sum(if(s.sold_price < 0, -abs(toFloat64(s.qty)), abs(toFloat64(s.qty))))) AS u
         FROM azure_sales_report s
         LEFT JOIN item_master m ON s.item_code = m.item_code
         WHERE s.date >= toDateTime('{start}') AND s.date < toDateTime('{end}') AND {where_sql}
-        GROUP BY s.item_code, age
+        GROUP BY id, age
     """
 
 
-def fetch_daily_rows(ch, ref_dt: date, sales_where: List[str]) -> pd.DataFrame:
-    rows = ch.query(daily_sql(ref_dt, " AND ".join(sales_where))).result_rows
+def fetch_daily_rows(ch, ref_dt: date, sales_where: List[str], gran: str = "sku") -> pd.DataFrame:
+    rows = ch.query(daily_sql(ref_dt, " AND ".join(sales_where), gran=gran)).result_rows
     df = pd.DataFrame(rows, columns=["id", "age", "u"])
     if not df.empty:
         df["age"] = pd.to_numeric(df["age"], errors="coerce").fillna(-1).astype(int)
