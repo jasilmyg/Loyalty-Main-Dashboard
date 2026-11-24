@@ -171,8 +171,6 @@ urlpatterns = [
     path('api/v1/demand-intelligence/campaigns/', dii_views.DemandCampaignsAPIView.as_view(), name='demand_campaigns_api'),
     path('api/v1/demand-intelligence/campaigns/parse/', dii_views.DemandCampaignParseAPIView.as_view(), name='demand_campaign_parse_api'),
     path('api/v1/demand-intelligence/campaigns/item-lookup/', dii_views.DemandCampaignItemLookupAPIView.as_view(), name='demand_campaign_item_lookup_api'),
-    path('api/v1/demand-intelligence/campaigns/template/', dii_views.DemandCampaignTemplateAPIView.as_view(), name='demand_campaign_template_api'),
-    path('api/v1/demand-intelligence/campaigns/import-sheet/', dii_views.DemandCampaignSpreadsheetImportAPIView.as_view(), name='demand_campaign_import_sheet_api'),
     path('api/v1/demand-intelligence/campaigns/backtest/', dii_views.DemandCampaignBacktestAPIView.as_view(), name='demand_campaign_backtest_api'),
     path('api/v1/demand-intelligence/campaigns/breakdown/', dii_views.DemandCampaignBreakdownAPIView.as_view(), name='demand_campaign_breakdown_api'),
 

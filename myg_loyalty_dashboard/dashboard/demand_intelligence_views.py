@@ -45,9 +45,7 @@ from .demand_promo_calendar import (
 )
 from .demand_promo_learning import (
     build_backtest_report_xlsx,
-    build_campaign_import_template_xlsx,
     get_campaign_hierarchy_breakdown,
-    parse_campaigns_from_spreadsheet,
     run_campaign_backtest_scorecard,
 )
 
@@ -890,70 +888,6 @@ class DemandCampaignItemLookupAPIView(LoginRequiredMixin, View):
                 return JsonResponse({'ok': True, 'items': filtered[:limit]})
             items = search_item_groups_catalog(query=q, product_lines=products, item_categories=categories, limit=limit)
             return JsonResponse({'ok': True, 'items': items})
-        except Exception as e:
-            traceback.print_exc()
-            return JsonResponse({'ok': False, 'error': str(e)}, status=500)
-
-
-class DemandCampaignTemplateAPIView(LoginRequiredMixin, View):
-    """Download the 4-sheet colleague Excel template (Fill Sheet + SOP + Live Branches + Live Products/Categories)."""
-
-    def get(self, request):
-        try:
-            data = build_campaign_import_template_xlsx()
-            resp = HttpResponse(
-                data,
-                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            )
-            resp['Content-Disposition'] = 'attachment; filename="myG_Campaign_Offers_Import_Template.xlsx"'
-            return resp
-        except Exception as e:
-            traceback.print_exc()
-            return JsonResponse({'ok': False, 'error': str(e)}, status=500)
-
-
-class DemandCampaignSpreadsheetImportAPIView(LoginRequiredMixin, View):
-    """Bulk import previous or upcoming campaigns from colleague-uploaded `.xlsx` or `.csv` files."""
-
-    MAX_SHEET_BYTES = 20 * 1024 * 1024
-
-    def handle_no_permission(self):
-        return JsonResponse({'ok': False, 'error': 'Session expired — please sign in again.'}, status=401)
-
-    def post(self, request):
-        try:
-            up = request.FILES.get('file') or request.FILES.get('sheet')
-            if not up:
-                return JsonResponse({'ok': False, 'error': 'Please choose an Excel (.xlsx) or CSV (.csv) file.'}, status=400)
-            if up.size > self.MAX_SHEET_BYTES:
-                return JsonResponse({'ok': False, 'error': 'Spreadsheet exceeds 20 MB limit.'}, status=400)
-            mode = (request.POST.get('mode') or 'preview').strip().lower()
-            auto_est = (request.POST.get('auto_estimate') or '1').strip() != '0'
-            parsed = parse_campaigns_from_spreadsheet(
-                file_bytes=up.read(),
-                filename=getattr(up, 'name', 'offers.xlsx') or 'offers.xlsx',
-                auto_estimate=auto_est,
-            )
-            if mode == 'save':
-                user_lbl = getattr(request.user, 'username', '') or 'excel_import'
-                saved = save_campaigns_bulk(parsed['campaigns'], user_label=user_lbl)
-                return JsonResponse({
-                    'ok': True,
-                    'mode': 'save',
-                    'saved_count': len(saved),
-                    'historical_count': parsed.get('historical_count', 0),
-                    'warnings': parsed.get('warnings', []),
-                })
-            return JsonResponse({
-                'ok': True,
-                'mode': 'preview',
-                'campaigns': parsed['campaigns'],
-                'count': parsed['count'],
-                'historical_count': parsed.get('historical_count', 0),
-                'warnings': parsed.get('warnings', []),
-            })
-        except ValueError as ve:
-            return JsonResponse({'ok': False, 'error': str(ve)}, status=400)
         except Exception as e:
             traceback.print_exc()
             return JsonResponse({'ok': False, 'error': str(e)}, status=500)
