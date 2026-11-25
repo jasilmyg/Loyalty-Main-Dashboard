@@ -171,7 +171,6 @@ def get_starrocks_stock_ageing_data(force_refresh=False, rbm=None, bdm=None, bra
 
     cache_key = (
         _cache_epoch(),
-        force_refresh,
         str(rbm or '').strip(),
         str(bdm or '').strip(),
         str(branch or '').strip(),

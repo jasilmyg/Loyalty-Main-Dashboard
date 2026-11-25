@@ -9,9 +9,18 @@ name: Daily data auto-load
 # Runs in the cloud, so no laptop is needed.
 on:
   schedule:
-    - cron: '30 20 * * *'   # 02:00 IST - picks up last night's stock email
-    - cron: '30 2 * * *'    # 08:00 IST - picks up the 03:00 IST sales blobs (and any late stock email)
-  workflow_dispatch:         # lets you run it by hand from the Actions tab
+    # Off-peak minutes (:13/:17/:41/:47 instead of :00/:30) and early staggered windows
+    # so even multi-hour GitHub Actions cron delays finish before 08:00 AM IST.
+    - cron: '17 18 * * *'   # 23:47 IST - picks up the 23:36 IST stock email right away
+    - cron: '47 21 * * *'   # 03:17 IST - picks up the 03:00 IST Azure sales blobs (+ any late stock email)
+    - cron: '13 0 * * *'    # 05:43 IST - early-morning catch-up for stock & sales
+    - cron: '41 1 * * *'    # 07:11 IST - final safety net before 08:00 AM IST
+  workflow_dispatch:         # instant trigger (manual button or external cloud cron)
+
+# Queue overlapping runs instead of running in parallel (prevents duplicate inserts)
+concurrency:
+  group: daily-data-auto-load
+  cancel-in-progress: false
 
 jobs:
   stock-ageing:
@@ -79,9 +88,9 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: pip install Django djangorestframework pandas numpy scikit-learn lightgbm clickhouse-connect requests python-dotenv pymysql psycopg2-binary
+        run: pip install Django djangorestframework whitenoise openpyxl pandas numpy scipy scikit-learn lightgbm clickhouse-connect requests python-dotenv pymysql psycopg2-binary
 
-      - name: Update Demand Forecast snapshots in ClickHouse
+      - name: Update Demand Forecast snapshots in ClickHouse (all product lines + top 1000 SKUs)
         continue-on-error: true
         working-directory: myg_loyalty_dashboard
         env:
