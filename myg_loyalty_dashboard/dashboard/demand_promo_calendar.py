@@ -2002,10 +2002,25 @@ def save_campaign(payload: Dict[str, Any], user_label: str = "") -> Dict[str, An
 
 
 def save_campaigns_bulk(payloads: Sequence[Dict[str, Any]], user_label: str = "") -> List[Dict[str, Any]]:
-    """Create or update multiple campaigns in one ClickHouse batch insert + single cache invalidation."""
+    """Create or update multiple campaigns in one ClickHouse batch insert + single cache invalidation.
+    Automatically deduplicates explicit-store offers matching an existing active `(start_date, end_date, branches)`
+    when no explicit `campaign_id` is supplied, so re-uploading a store ZIP never creates duplicate store rows."""
     rows_to_insert = []
     saved_list: List[Dict[str, Any]] = []
     now_dt = datetime.utcnow()
+
+    existing_by_store_dates: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
+    has_new_without_id = any(not str((p or {}).get("campaign_id") or "").strip() for p in (payloads or ()))
+    if has_new_without_id:
+        try:
+            for ex in list_campaigns(include_realized_lift=False):
+                ex_brs = ex.get("branches") or "ALL"
+                if ex_brs != "ALL":
+                    br_key = ",".join(sorted(x.strip().upper() for x in ex_brs.split(",") if x.strip()))
+                    existing_by_store_dates[(ex["start_date"], ex["end_date"], br_key)] = ex
+        except Exception:
+            existing_by_store_dates = {}
+
     for payload in payloads or ():
         name = str(payload.get("campaign_name") or "").strip()
         if not name:
@@ -2041,7 +2056,7 @@ def save_campaigns_bulk(payloads: Sequence[Dict[str, Any]], user_label: str = ""
             except Exception:
                 cooldown = default_cooldown_for(ctype)
 
-        cid = str(payload.get("campaign_id") or "").strip() or f"camp_{uuid.uuid4().hex[:12]}"
+        cid_raw = str(payload.get("campaign_id") or "").strip()
         prods = _normalize_csv_tokens(payload.get("product_lines"), "ALL")
         item_cats = _normalize_csv_tokens(payload.get("item_categories"), "ALL")
         item_grps = _normalize_csv_tokens(payload.get("item_groups"), "ALL")
@@ -2053,6 +2068,16 @@ def save_campaigns_bulk(payloads: Sequence[Dict[str, Any]], user_label: str = ""
             store_formats=sfmt,
             districts_norm=dist,
         )
+        if not cid_raw and brs != "ALL":
+            br_key = ",".join(sorted(x.strip().upper() for x in brs.split(",") if x.strip()))
+            dup_ex = existing_by_store_dates.get((sd.strftime("%Y-%m-%d"), ed.strftime("%Y-%m-%d"), br_key))
+            if dup_ex:
+                cid_raw = dup_ex["campaign_id"]
+                prods = ",".join(_union_scope_tokens(dup_ex.get("product_lines_list") or ["ALL"], prods.split(",")))
+                item_cats = ",".join(_union_scope_tokens(dup_ex.get("item_categories_list") or ["ALL"], item_cats.split(",")))
+                item_grps = ",".join(_union_scope_tokens(dup_ex.get("item_groups_list") or ["ALL"], item_grps.split(",")))
+                brands = ",".join(_union_scope_tokens(dup_ex.get("brands_list") or ["ALL"], brands.split(",")))
+        cid = cid_raw or f"camp_{uuid.uuid4().hex[:12]}"
         disc_summary = str(payload.get("discount_summary") or "").strip()[:300]
         src_chan = str(payload.get("source_channel") or "whatsapp_poster").strip().lower()[:30]
         src_text = str(payload.get("source_text") or "").strip()[:3000]
@@ -2851,15 +2876,34 @@ def _merge_store_formats(f1: str, f2: str) -> str:
 
 def _merge_dedup_campaigns(campaigns: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    Merge duplicate campaign entries across multi-poster / ZIP batches:
-      Pass 1 (Same event + dates + location/stores): merges `product_lines` & `brands` across slides.
-      Pass 2 (Same event + dates + products + brands across store-wise posters): merges `branches`,
-      `districts`, and `store_formats` so e.g. 80 store-wise posters of the same 48-Hour Sale combine
-      into 1 clean multi-store campaign instead of 80 duplicate rows.
+    Deduplicate & unify multi-poster / ZIP batches WITHOUT gluing different stores together:
+      - Explicit-store offers (`branches != ['ALL']`): ALWAYS unify all slides/batches for the EXACT same
+        `(start_date, end_date, branches)` into ONE clean row per store (even if AI slightly varied the title,
+        e.g. 'myG Power 48 Hours Sale' vs 'myG Power 48 Sale' vs 'myG Power 48 Sale Kannur'), unioning
+        `product_lines`, `item_categories`, `item_groups`, and `brands`.
+      - Broad offers (`branches == ['ALL']`): merge by canonical event stem + dates + district + store format.
+      - Never glues two distinct stores (e.g. EDAPPALLY FUTURE + KANNUR FUTURE) into one combined row.
     """
-    def _clean_name_key(name: Any) -> str:
-        k = re.sub(r"[^a-z0-9]+", "", str(name or "").lower())
-        return re.sub(r"^myg(?=[a-z0-9]{4,})", "", k)
+    def _clean_event_key(name: Any) -> str:
+        s = re.sub(r"[^a-z0-9]+", " ", str(name or "").lower()).strip()
+        s = re.sub(r"\b(myg|hours?|hrs?|store|stores|unlimited|special|offer|offers|sale|mega)\b", " ", s)
+        return re.sub(r"\s+", "", s) or re.sub(r"[^a-z0-9]+", "", str(name or "").lower())
+
+    def _pick_cleaner_title(t1: str, t2: str, branches: Sequence[str]) -> str:
+        a = str(t1 or "").strip()
+        b = str(t2 or "").strip()
+        if not a:
+            return b
+        if not b:
+            return a
+        br_tokens = {tok for br in branches for tok in str(br or "").upper().split() if len(tok) >= 4 and tok != "FUTURE"}
+        a_has_br = any(tok in a.upper() for tok in br_tokens)
+        b_has_br = any(tok in b.upper() for tok in br_tokens)
+        if a_has_br and not b_has_br:
+            return b
+        if b_has_br and not a_has_br:
+            return a
+        return a if len(a) <= len(b) else b
 
     def _sync_derived_fields(cur: Dict[str, Any]) -> None:
         if cur.get("branches") == ["ALL"] or not cur.get("branches"):
@@ -2876,63 +2920,43 @@ def _merge_dedup_campaigns(campaigns: List[Dict[str, Any]]) -> List[Dict[str, An
             cur["district"] = ",".join(cur["districts"])
         cur["store_formats_label"] = store_format_label(cur.get("store_formats") or "ALL")
 
-    # Pass 1: same location/stores, different product/brand slides
-    p1_map: Dict[Tuple[str, str, str, str, str, str], Dict[str, Any]] = {}
-    p1_order: List[Tuple[str, str, str, str, str, str]] = []
+    merged_map: Dict[Tuple[str, ...], Dict[str, Any]] = {}
+    merged_order: List[Tuple[str, ...]] = []
     for c in campaigns:
-        br_sig = ",".join(sorted(x for x in (c.get("branches") or ["ALL"]) if x))
-        key1 = (
-            _clean_name_key(c.get("campaign_name")),
-            str(c.get("start_date") or ""),
-            str(c.get("end_date") or ""),
-            str(c.get("district") or "ALL"),
-            str(c.get("store_formats") or "ALL"),
-            br_sig,
-        )
-        if key1 not in p1_map:
-            p1_map[key1] = dict(c)
-            p1_order.append(key1)
+        br_list = sorted({str(x).strip().upper() for x in (c.get("branches") or ["ALL"]) if str(x).strip()})
+        br_sig = ",".join(br_list) if br_list else "ALL"
+        sd_s = str(c.get("start_date") or "")
+        ed_s = str(c.get("end_date") or "")
+        if br_sig != "ALL":
+            # Same exact store(s) + same dates => 1 single unified row per store
+            key: Tuple[str, ...] = ("store", sd_s, ed_s, br_sig)
+        else:
+            key = (
+                "broad",
+                _clean_event_key(c.get("campaign_name")),
+                sd_s,
+                ed_s,
+                str(c.get("district") or "ALL"),
+                str(c.get("store_formats") or "ALL"),
+            )
+        if key not in merged_map:
+            merged_map[key] = dict(c)
+            merged_order.append(key)
             continue
-        cur = p1_map[key1]
+        cur = merged_map[key]
+        cur["campaign_name"] = _pick_cleaner_title(cur.get("campaign_name", ""), c.get("campaign_name", ""), br_list)
         cur["product_lines"] = _union_scope_tokens(cur.get("product_lines") or [], c.get("product_lines") or [])
         cur["item_categories"] = _union_scope_tokens(cur.get("item_categories") or [], c.get("item_categories") or [])
         cur["item_groups"] = _union_scope_tokens(cur.get("item_groups") or [], c.get("item_groups") or [])
         cur["brands"] = _union_scope_tokens(cur.get("brands") or [], c.get("brands") or [])
-        cur["expected_lift_pct"] = float(int(round((float(cur.get("expected_lift_pct") or 0) + float(c.get("expected_lift_pct") or 0)) / 2.0)))
-        if len(str(c.get("discount_summary") or "")) > len(str(cur.get("discount_summary") or "")):
-            cur["discount_summary"] = c.get("discount_summary") or ""
-        _sync_derived_fields(cur)
-
-    # Pass 2: same event + dates + products + brands across different store-wise posters
-    p2_map: Dict[Tuple[str, str, str, str, str], Dict[str, Any]] = {}
-    p2_order: List[Tuple[str, str, str, str, str]] = []
-    for k1 in p1_order:
-        c = p1_map[k1]
-        prods_sig = ",".join(sorted(x for x in (c.get("product_lines") or ["ALL"]) if x))
-        brands_sig = ",".join(sorted(x for x in (c.get("brands") or ["ALL"]) if x))
-        key2 = (
-            _clean_name_key(c.get("campaign_name")),
-            str(c.get("start_date") or ""),
-            str(c.get("end_date") or ""),
-            prods_sig,
-            brands_sig,
-        )
-        if key2 not in p2_map:
-            p2_map[key2] = dict(c)
-            p2_order.append(key2)
-            continue
-        cur = p2_map[key2]
-        cur["branches"] = _union_scope_tokens(cur.get("branches") or [], c.get("branches") or [])
         cur["districts"] = _union_scope_tokens(cur.get("districts") or [], c.get("districts") or [])
         cur["store_formats"] = _merge_store_formats(cur.get("store_formats") or "ALL", c.get("store_formats") or "ALL")
-        if cur.get("branches") != ["ALL"]:
-            cur["store_selection_mode"] = "explicit_stores"
         cur["expected_lift_pct"] = float(int(round((float(cur.get("expected_lift_pct") or 0) + float(c.get("expected_lift_pct") or 0)) / 2.0)))
         if len(str(c.get("discount_summary") or "")) > len(str(cur.get("discount_summary") or "")):
             cur["discount_summary"] = c.get("discount_summary") or ""
         _sync_derived_fields(cur)
 
-    return [p2_map[k] for k in p2_order]
+    return [merged_map[k] for k in merged_order]
 
 
 class VisionUnavailableError(RuntimeError):
@@ -2971,6 +2995,20 @@ def _detect_branch_from_filename(filename: str, catalog: Sequence[Tuple[str, str
             core = bname.replace(" FUTURE", "").strip()
             if len(core) >= 4 and re.search(rf"\b{re.escape(core)}\b", norm):
                 return bname
+    # Fuzzy folder/file spelling match (e.g. folder 'Pottamal' -> 'POTTAMMAL FUTURE')
+    toks = [t for t in norm.split(" ") if len(t) >= 4 and t != "FUTURE"]
+    if toks:
+        core_map = {}
+        for _code, bname, _dist in sorted_cat:
+            core = bname.replace(" FUTURE", "").strip()
+            if len(core) >= 4:
+                # Prefer FUTURE match if both exist only when has_fut, else keep first longest
+                if core not in core_map or (has_fut and "FUTURE" in bname):
+                    core_map[core] = bname
+        for tok in toks:
+            close = difflib.get_close_matches(tok, list(core_map.keys()), n=1, cutoff=0.84)
+            if close:
+                return core_map[close[0]]
     return ""
 
 
@@ -3221,7 +3259,7 @@ def parse_whatsapp_offers(
         "- Store Format (`store_formats`): Read the bottom bar / fine print! If it says 'Visit nearest myG, myG Future Store' or mentions both myG & myG Future -> \"MYG,MYG_FUTURE\". If it explicitly restricts to 'myG Future' stores only -> \"MYG_FUTURE\". If it restricts to 'myG' stores only (excluding myG Future) -> \"MYG\". If no store format restriction is mentioned -> \"ALL\".\n"
         "- Target Districts (`districts`): ALWAYS check the bottom footer strip of posters (e.g., '@ KANNUR | KASARGOD | CALICUT | WAYANAD | PALAKKAD | MALAPPURAM'). Extract EVERY district listed there and map poster spellings to exact canonical names: CALICUT -> KOZHIKODE, WAYANAD -> WAYANADU, KASARAGOD -> KASARGOD, TRICHUR -> THRISSUR, COCHIN/KOCHI -> ERNAKULAM, ALLEPPEY -> ALAPPUZHA, TRIVANDRUM -> THIRUVANANTHAPURAM, MANGALORE -> DAKSHINA KANNADA. Use [\"ALL\"] only if no specific districts are listed.\n"
         "- Specific Target Stores (`branches`): ONLY list specific named branch(es)/showroom(s)/town(s)/mall(s) when the poster (or its filename) explicitly restricts the offer to those individual stores (e.g., 'Grand Anniversary at myG Future Edappally', 'Only at Kottakkal Future & Perinthalmanna', 'Balussery Future Exclusive', or store-wise file 'Edappally Future.jpg') -> e.g. [\"EDAPPALLY FUTURE\"]. Do NOT copy a district footer strip (e.g., 'Visit nearest myG, myG Future Store @ KANNUR | KASARGOD | CALICUT | WAYANAD | PALAKKAD | MALAPPURAM') into `branches` — put those in `districts` and set `branches` to [\"ALL\"] (our system will automatically expand all matching myG / myG Future stores in those districts).\n"
-        "- Store-wise pack rule: When multiple posters are store-wise variants of the SAME sale event (e.g. '48 Hours Sale' with different store names on each poster), keep `campaign_name` as the clean common event title (e.g. '48 Hours Sale', WITHOUT appending the store name to `campaign_name`) and list all participating store names in `branches` so they combine cleanly!\n"
+        "- Store-wise pack rule: Keep each distinct store as its OWN separate campaign entry (1 store per entry when posters are store-specific — NEVER merge two different stores together), and keep `campaign_name` as the clean common event title (e.g. 'myG Power 48 Sale', WITHOUT appending the store/city name to `campaign_name`).\n"
         "- Multi-image rules: If multiple posters are slides of the SAME sale event with the same dates and overall store/district scope, merge them into 1 combined campaign entry. If posters represent DISTINCT offers (different dates, districts, or unrelated promos), return ONE entry per distinct offer in `campaigns`.\n"
         "- If only a day/month is mentioned without year, infer the nearest upcoming/current year relative to today.\n"
         "- If 'valid till X' is mentioned without a start date, set start_date to today.\n"

@@ -807,7 +807,7 @@
         return 'image/jpeg';
     }
 
-    // Match ZIP folder/file path (e.g. "48 Hours Store wise/Alappuzha Future/slide1.jpg") -> exact branch_master name
+    // Match ZIP folder/file path (e.g. "48 Hours Store wise/Edappally/slide1.jpg" or "Pottamal/1.jpg") -> exact branch_master name
     function _detectStoreFromZipPath(rawPath) {
         if (!rawPath || !campBranchCatalog.length) return '';
         const cleaned = String(rawPath).toUpperCase()
@@ -832,6 +832,16 @@
                 const re = new RegExp(`(^|\\s)${core.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`);
                 if (re.test(cleaned)) return br.value;
             }
+        }
+        // Handle minor folder typos (e.g. 'POTTAMAL' -> 'POTTAMMAL FUTURE') by collapsing repeated letters
+        const squeeze = s => s.replace(/(.)\1+/g, '$1');
+        const sqCleaned = squeeze(cleaned);
+        for (const br of ordered) {
+            const core = br.value.replace(/\s+FUTURE$/, '').trim();
+            if (core.length < 5) continue;
+            const sqCore = squeeze(core);
+            const re = new RegExp(`(^|\\s)${sqCore.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`);
+            if (re.test(sqCleaned)) return br.value;
         }
         return '';
     }
@@ -1520,7 +1530,10 @@
     }
 
     function _mergeExtractedCampaignsClient(campaigns) {
-        const cleanKey = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '').replace(/^myg(?=[a-z0-9]{4,})/, '');
+        const cleanEventKey = s => String(s || '').toLowerCase()
+            .replace(/[^a-z0-9]+/g, ' ')
+            .replace(/\b(myg|hours?|hrs?|store|stores|unlimited|special|offer|offers|sale|mega)\b/g, ' ')
+            .replace(/\s+/g, '') || String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
         const normList = v => (Array.isArray(v) ? v : String(v || 'ALL').split(',')).map(x => String(x || '').trim().toUpperCase()).filter(Boolean);
         const unionScope = (a, b) => {
             const sa = normList(a).filter(x => x !== 'ALL');
@@ -1535,6 +1548,18 @@
             if (a === 'ALL' || b === 'ALL') return 'ALL';
             return 'MYG,MYG_FUTURE';
         };
+        const pickCleanerTitle = (t1, t2, brs) => {
+            const a = String(t1 || '').trim();
+            const b = String(t2 || '').trim();
+            if (!a) return b;
+            if (!b) return a;
+            const brToks = brs.flatMap(x => x.split(/\s+/)).filter(t => t.length >= 4 && t !== 'FUTURE');
+            const aHas = brToks.some(t => a.toUpperCase().includes(t));
+            const bHas = brToks.some(t => b.toUpperCase().includes(t));
+            if (aHas && !bHas) return b;
+            if (bHas && !aHas) return a;
+            return a.length <= b.length ? a : b;
+        };
         const syncDerived = c => {
             const brs = normList(c.branches).filter(x => x !== 'ALL');
             c.branches = brs.length ? brs : ['ALL'];
@@ -1545,38 +1570,29 @@
             c.district = dsts.length ? dsts.join(',') : 'ALL';
         };
 
-        // Pass 1: same event + dates + location/stores -> union products & brands across slides
-        const p1 = new Map();
+        // Unify all slides/batches of the SAME store + SAME dates into 1 row per store (never glue distinct stores together!)
+        const merged = new Map();
         for (const raw of campaigns) {
             const c = { ...raw };
-            const brSig = normList(c.branches).sort().join(',');
-            const k1 = [cleanKey(c.campaign_name), c.start_date || '', c.end_date || '', c.district || 'ALL', c.store_formats || 'ALL', brSig].join('|');
-            if (!p1.has(k1)) { p1.set(k1, c); continue; }
-            const cur = p1.get(k1);
+            const brs = normList(c.branches).filter(x => x !== 'ALL').sort();
+            const brSig = brs.length ? brs.join(',') : 'ALL';
+            const key = brSig !== 'ALL'
+                ? ['store', c.start_date || '', c.end_date || '', brSig].join('|')
+                : ['broad', cleanEventKey(c.campaign_name), c.start_date || '', c.end_date || '', c.district || 'ALL', c.store_formats || 'ALL'].join('|');
+            if (!merged.has(key)) { merged.set(key, c); continue; }
+            const cur = merged.get(key);
+            cur.campaign_name = pickCleanerTitle(cur.campaign_name, c.campaign_name, brs);
             cur.product_lines = unionScope(cur.product_lines, c.product_lines);
+            cur.item_categories = unionScope(cur.item_categories, c.item_categories);
+            cur.item_groups = unionScope(cur.item_groups, c.item_groups);
             cur.brands = unionScope(cur.brands, c.brands);
-            cur.expected_lift_pct = Math.round((Number(cur.expected_lift_pct || 0) + Number(c.expected_lift_pct || 0)) / 2);
-            if (String(c.discount_summary || '').length > String(cur.discount_summary || '').length) cur.discount_summary = c.discount_summary;
-            syncDerived(cur);
-        }
-
-        // Pass 2: same event + dates + products + brands -> union store-wise branches, districts & formats
-        const p2 = new Map();
-        for (const c of p1.values()) {
-            const pSig = normList(c.product_lines).sort().join(',');
-            const bSig = normList(c.brands).sort().join(',');
-            const k2 = [cleanKey(c.campaign_name), c.start_date || '', c.end_date || '', pSig, bSig].join('|');
-            if (!p2.has(k2)) { p2.set(k2, { ...c }); continue; }
-            const cur = p2.get(k2);
-            cur.branches = unionScope(cur.branches, c.branches);
             cur.districts = unionScope(cur.districts || cur.district, c.districts || c.district);
             cur.store_formats = mergeFmt(cur.store_formats, c.store_formats);
-            if (cur.branches[0] !== 'ALL') cur.store_selection_mode = 'explicit_stores';
             cur.expected_lift_pct = Math.round((Number(cur.expected_lift_pct || 0) + Number(c.expected_lift_pct || 0)) / 2);
             if (String(c.discount_summary || '').length > String(cur.discount_summary || '').length) cur.discount_summary = c.discount_summary;
             syncDerived(cur);
         }
-        return Array.from(p2.values());
+        return Array.from(merged.values());
     }
 
     async function _safeParseJsonResponse(res) {
@@ -1645,10 +1661,11 @@
                 if (!imgRe.test(leaf)) continue;
 
                 const detStore = _detectStoreFromZipPath(cleanPath);
-                const folderGroup = detStore || (segs.length >= 2 ? segs[segs.length - 2].toUpperCase() : '__UNGROUPED__');
+                // Strictly isolate by immediate subfolder first (e.g. 'Edappally/', 'Kannur/', 'Pottamal/') so two stores NEVER mix in one batch!
+                const folderGroup = (segs.length >= 2 ? segs[segs.length - 2].trim().toUpperCase() : '') || detStore || '__UNGROUPED__';
                 if (!storeGroups.has(folderGroup)) storeGroups.set(folderGroup, []);
                 const arr = storeGroups.get(folderGroup);
-                if (zipMode === 'fast' && detStore && arr.length >= 2) {
+                if (zipMode === 'fast' && folderGroup !== '__UNGROUPED__' && arr.length >= 2) {
                     continue;
                 }
                 if (totalFound >= maxTotal) {
@@ -1661,27 +1678,16 @@
             }
         }
 
-        // Build batches keeping each store's slides together cleanly
+        // Build strictly isolated batches per store folder (NEVER mix posters from two different store folders into the same AI call!)
         const batches = [];
         const detectedStores = new Set();
-        let curBatch = [];
-        const flush = () => { if (curBatch.length) { batches.push(curBatch); curBatch = []; } };
-
         for (const [grpKey, items] of storeGroups.entries()) {
-            if (items[0]?.storeHint) detectedStores.add(items[0].storeHint);
-            if (items.length >= CAMP_BATCH_SIZE) {
-                flush();
-                for (let i = 0; i < items.length; i += CAMP_BATCH_SIZE) {
-                    batches.push(items.slice(i, i + CAMP_BATCH_SIZE));
-                }
-            } else {
-                if (curBatch.length && (curBatch.length + items.length > CAMP_BATCH_SIZE)) {
-                    flush();
-                }
-                curBatch.push(...items);
+            const firstHint = items.find(it => it.storeHint)?.storeHint || '';
+            if (firstHint) detectedStores.add(firstHint);
+            for (let i = 0; i < items.length; i += CAMP_BATCH_SIZE) {
+                batches.push(items.slice(i, i + CAMP_BATCH_SIZE));
             }
         }
-        flush();
 
         return { batches, readers, totalPosters: totalFound, truncated, detectedStores: Array.from(detectedStores).sort() };
     }
